@@ -156,6 +156,10 @@ export class WorkspaceExplorerProvider
   public getSelectedWorkspace(): RapidKitWorkspace | null {
     return this.selectedWorkspace;
   }
+
+  public getWorkspaceByPath(path: string): RapidKitWorkspace | undefined {
+    return this.workspaces.find(ws => ws.path === path);
+  }
 }
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
@@ -180,7 +184,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
       this.command = {
         command: 'rapidkit.selectWorkspace',
         title: 'Select Workspace',
-        arguments: [workspace],
+        arguments: [workspace.path], // Pass only the path, not the entire object
       };
     }
 

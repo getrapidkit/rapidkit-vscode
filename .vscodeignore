@@ -1,16 +1,24 @@
 .vscode/**
 .vscode-test/**
-src/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/.eslintrc.json
 **/*.map
+src/**
 **/*.ts
+# Exclude all node_modules first
 node_modules/**
+# Then whitelist only production dependencies
 !node_modules/chalk/**
 !node_modules/execa/**
 !node_modules/fs-extra/**
 !node_modules/nunjucks/**
 !node_modules/yaml/**
+# Include their subdirectories
+!node_modules/chalk/
+!node_modules/execa/
+!node_modules/fs-extra/
+!node_modules/nunjucks/
+!node_modules/yaml/

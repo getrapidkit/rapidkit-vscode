@@ -60,7 +60,15 @@ export class ProjectExplorerProvider
   }
 
   getTreeItem(element: ProjectTreeItem): vscode.TreeItem {
-    return element;
+    const item = element;
+    
+    // Set command arguments for context menu actions
+    if (element.contextValue === 'project' && element.project) {
+      // Add path to item so context menu commands can use it
+      (item as any).projectPath = element.project.path;
+    }
+    
+    return item;
   }
 
   async getChildren(element?: ProjectTreeItem): Promise<ProjectTreeItem[]> {

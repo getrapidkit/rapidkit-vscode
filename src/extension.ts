@@ -104,13 +104,33 @@ export async function activate(context: vscode.ExtensionContext) {
           templateExplorer.refresh();
         }
       }),
-      vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspace) => {
+      vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
+        logger.info('selectWorkspace command with path:', workspacePath);
+        
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('Invalid workspace path');
+          return;
+        }
+        
         if (workspaceExplorer) {
-          await workspaceExplorer.selectWorkspace(workspace);
+          // Find workspace object by path and select it
+          const selectedWorkspace = workspaceExplorer.getWorkspaceByPath(workspacePath);
+          if (selectedWorkspace) {
+            await workspaceExplorer.selectWorkspace(selectedWorkspace);
+          } else {
+            logger.warn('Workspace not found for path:', workspacePath);
+            vscode.window.showWarningMessage('Workspace not found');
+          }
         }
+        
         if (projectExplorer) {
-          projectExplorer.setWorkspace(workspace);
+          // Get workspace to pass to project explorer
+          const selectedWorkspace = workspaceExplorer ? workspaceExplorer.getWorkspaceByPath(workspacePath) : null;
+          if (selectedWorkspace) {
+            projectExplorer.setWorkspace(selectedWorkspace);
+          }
         }
+        
         // Set context key to enable project buttons
         await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
         await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
@@ -120,9 +140,15 @@ export async function activate(context: vscode.ExtensionContext) {
           await workspaceExplorer.addWorkspace();
         }
       }),
-      vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item) => {
-        if (workspaceExplorer) {
-          await workspaceExplorer.removeWorkspace(item.workspace);
+      vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item: any) => {
+        const workspacePath = item?.workspace?.path || item;
+        if (workspacePath && typeof workspacePath === 'string') {
+          if (workspaceExplorer) {
+            const workspace = workspaceExplorer.getWorkspaceByPath(workspacePath);
+            if (workspace) {
+              await workspaceExplorer.removeWorkspace(workspace);
+            }
+          }
         }
       }),
       vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
@@ -130,20 +156,35 @@ export async function activate(context: vscode.ExtensionContext) {
           await workspaceExplorer.autoDiscover();
         }
       }),
-      vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item) => {
-        await openWorkspaceFolder(item.workspace);
+      vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item: any) => {
+        const workspacePath = item?.workspace?.path || item;
+        if (workspacePath && typeof workspacePath === 'string') {
+          await openWorkspaceFolder(workspacePath);
+        }
       }),
-      vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item) => {
-        await copyWorkspacePath(item.workspace);
+      vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item: any) => {
+        const workspacePath = item?.workspace?.path || item;
+        if (workspacePath && typeof workspacePath === 'string') {
+          await copyWorkspacePath(workspacePath);
+        }
       }),
-      vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item) => {
-        await openProjectFolder(item.project);
+      vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        if (projectPath) {
+          await openProjectFolder(projectPath);
+        }
       }),
-      vscode.commands.registerCommand('rapidkit.copyProjectPath', async (item) => {
-        await copyProjectPath(item.project);
+      vscode.commands.registerCommand('rapidkit.copyProjectPath', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        if (projectPath) {
+          await copyProjectPath(projectPath);
+        }
       }),
-      vscode.commands.registerCommand('rapidkit.deleteProject', async (item) => {
-        await deleteProject(item.project);
+      vscode.commands.registerCommand('rapidkit.deleteProject', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        if (projectPath) {
+          await deleteProject(projectPath);
+        }
       }),
       vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
         // Dashboard implementation
