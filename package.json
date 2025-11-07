@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "engines": {

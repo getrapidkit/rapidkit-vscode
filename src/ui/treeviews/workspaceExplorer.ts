@@ -142,15 +142,15 @@ export class WorkspaceExplorerProvider
     }
   }
 
-  public selectWorkspace(workspace: RapidKitWorkspace): void {
+  public async selectWorkspace(workspace: RapidKitWorkspace): Promise<void> {
     this.selectedWorkspace = workspace;
     this._onDidChangeTreeData.fire();
     
     // Set context for toolbar buttons
-    vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+    await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
     
     // Fire event for other views to update
-    vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
+    await vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
   }
 
   public getSelectedWorkspace(): RapidKitWorkspace | null {

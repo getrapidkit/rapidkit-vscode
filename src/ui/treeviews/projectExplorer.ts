@@ -36,7 +36,9 @@ export class ProjectExplorerProvider
   }
 
   refresh(): void {
-    this.loadProjectsAndUpdateContext();
+    this.loadProjectsAndUpdateContext().catch(err => {
+      console.error('Error refreshing projects:', err);
+    });
     this._onDidChangeTreeData.fire();
   }
 
@@ -50,11 +52,11 @@ export class ProjectExplorerProvider
     this.refresh();
   }
   
-  private updateProjectsContext(): void {
+  private async updateProjectsContext(): Promise<void> {
     // Set context based on whether we have projects
     const hasProjects = this.projects.length > 0;
-    vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', !hasProjects && this.selectedWorkspace !== null);
-    vscode.commands.executeCommand('setContext', 'rapidkit:hasProjects', hasProjects);
+    await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', !hasProjects && this.selectedWorkspace !== null);
+    await vscode.commands.executeCommand('setContext', 'rapidkit:hasProjects', hasProjects);
   }
 
   getTreeItem(element: ProjectTreeItem): vscode.TreeItem {
@@ -76,7 +78,7 @@ export class ProjectExplorerProvider
       await this.loadProjects();
       
       // Update context after loading
-      this.updateProjectsContext();
+      await this.updateProjectsContext();
       
       // Add projects (if any)
       this.projects.forEach((project) => {

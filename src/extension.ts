@@ -104,15 +104,16 @@ export async function activate(context: vscode.ExtensionContext) {
           templateExplorer.refresh();
         }
       }),
-      vscode.commands.registerCommand('rapidkit.selectWorkspace', (workspace) => {
+      vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspace) => {
         if (workspaceExplorer) {
-          workspaceExplorer.selectWorkspace(workspace);
+          await workspaceExplorer.selectWorkspace(workspace);
         }
         if (projectExplorer) {
           projectExplorer.setWorkspace(workspace);
         }
         // Set context key to enable project buttons
-        vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+        await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+        await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
       }),
       vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
         if (workspaceExplorer) {

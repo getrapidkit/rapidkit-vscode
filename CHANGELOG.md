@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-11-07
+
+### Fixed
+- 🔧 Fixed workspace and project selection context keys not being set properly
+- Fixed buttons in workspace explorer not becoming enabled after selecting workspace
+- Fixed project creation button not working in Projects view
+- Fixed context menu items not appearing due to context key timing issues
+- Improved async handling of context key updates to ensure proper UI state
+
 ## [0.1.0] - 2025-11-07
 
 ### Added
