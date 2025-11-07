@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-11-07
+
+### Fixed
+- 🔥 **CRITICAL FIX**: Fixed commands not being registered when installed from VSIX package
+- Fixed missing runtime dependencies in packaged extension causing activation failures
+- Fixed "command 'rapidkit.createWorkspace' not found" errors
+- Fixed "command 'rapidkit.addWorkspace' not found" errors  
+- Fixed "command 'rapidkit.refreshWorkspaces' not found" errors
+- Updated `.vscodeignore` to include all necessary `node_modules` dependencies
+- All buttons and commands now work correctly in installed VSIX
+
+### Changed
+- Improved dependency packaging to ensure runtime libraries are available
+- Updated build configuration to prevent pruning of required dependencies
+- Updated Vitest to v4.0.7 to align with @vitest/coverage-v8 peer requirements
+
 ## [0.1.1] - 2025-11-07
 
 ### Fixed

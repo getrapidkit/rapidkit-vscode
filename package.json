@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "engines": {
@@ -35,14 +35,7 @@
   "homepage": "https://getrapidkit.com",
   "license": "MIT",
   "activationEvents": [
-    "onStartupFinished",
     "onView:rapidkitWorkspaces",
-    "onView:rapidkitProjects",
-    "onView:rapidkitModules",
-    "onView:rapidkitTemplates",
-    "workspaceContains:**/pyproject.toml",
-    "workspaceContains:**/.rapidkit",
-    "workspaceContains:**/package.json",
     "onCommand:rapidkit.createWorkspace",
     "onCommand:rapidkit.createProject",
     "onCommand:rapidkit.addModule",
@@ -294,7 +287,7 @@
         },
         {
           "command": "rapidkit.createProject",
-          "when": "view == rapidkitProjects",
+          "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
           "group": "navigation@1"
         },
         {
@@ -402,7 +395,11 @@
         "rapidkit.notifications": {
           "type": "string",
           "default": "all",
-          "enum": ["all", "errors", "none"],
+          "enum": [
+            "all",
+            "errors",
+            "none"
+          ],
           "description": "Control notification verbosity"
         },
         "rapidkit.terminal.autoActivate": {
@@ -417,7 +414,6 @@
         }
       }
     },
-
     "keybindings": [
       {
         "command": "rapidkit.createWorkspace",
@@ -500,13 +496,13 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^4.0.7",
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.9",
-    "@vscode/vsce": "^2.24.0",
-    "@vitest/coverage-v8": "^2.0.0",
+    "@vscode/vsce": "^3.6.2",
     "eslint": "^8.57.0",
     "prettier": "^3.2.5",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.0.7"
   }
 }

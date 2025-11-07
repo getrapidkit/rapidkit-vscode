@@ -43,12 +43,22 @@ export async function activate(context: vscode.ExtensionContext) {
   logger.info('🚀 RapidKit extension is activating...');
 
   try {
-    // Register commands FIRST before anything else that might fail
+    // Register commands FIRST - these MUST succeed
     logger.info('Step 1: Registering commands...');
+    
+    // Simple test command
+    context.subscriptions.push(
+      vscode.commands.registerCommand('rapidkit.test', () => {
+        vscode.window.showInformationMessage('✅ RapidKit commands are working!');
+      })
+    );
+
     context.subscriptions.push(
       vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
         try {
           logger.info('Executing createWorkspace command');
+          // Show that command was triggered
+          vscode.window.showInformationMessage('Creating RapidKit Workspace...');
           await createWorkspaceCommand();
           if (workspaceExplorer) {
             workspaceExplorer.refresh();
@@ -267,47 +277,56 @@ export async function activate(context: vscode.ExtensionContext) {
 
     logger.info('Step 8: IntelliSense providers registered');
 
-    // Initialize workspace selection after commands are registered
-    logger.info('Step 9: Initializing workspace selection...');
-    await workspaceExplorer.refresh();
-
-    // Show welcome page on first activation
-    logger.info('Step 10: Checking welcome page settings...');
-    const config = vscode.workspace.getConfiguration('rapidkit');
-    if (config.get('showWelcomeOnStartup', true)) {
-      await showWelcomeCommand(context);
-    }
-
-    logger.info('✅ RapidKit extension activated successfully!');
+    logger.info('✅ RapidKit commands registered successfully!');
     statusBar.updateStatus('ready');
+    
+    // Initialize workspace selection ASYNCHRONOUSLY (non-blocking)
+    // This allows commands to be available immediately even if initialization fails
+    (async () => {
+      try {
+        logger.info('Step 9: Initializing workspace selection...');
+        await workspaceExplorer.refresh();
 
-    // Watch for workspace changes
-    const fileWatcher = vscode.workspace.createFileSystemWatcher(
-      '**/pyproject.toml',
-      false,
-      false,
-      false
-    );
+        // Show welcome page on first activation
+        logger.info('Step 10: Checking welcome page settings...');
+        const config = vscode.workspace.getConfiguration('rapidkit');
+        if (config.get('showWelcomeOnStartup', true)) {
+          await showWelcomeCommand(context);
+        }
 
-    fileWatcher.onDidCreate(() => {
-      if (config.get('autoRefresh', true)) {
-        projectExplorer.refresh();
+        logger.info('✅ RapidKit extension initialized successfully!');
+        
+        // Watch for workspace changes
+        const fileWatcher = vscode.workspace.createFileSystemWatcher(
+          '**/pyproject.toml',
+          false,
+          false,
+          false
+        );
+
+        fileWatcher.onDidCreate(() => {
+          if (config.get('autoRefresh', true)) {
+            projectExplorer.refresh();
+          }
+        });
+
+        fileWatcher.onDidChange(() => {
+          if (config.get('autoRefresh', true)) {
+            projectExplorer.refresh();
+          }
+        });
+
+        fileWatcher.onDidDelete(() => {
+          if (config.get('autoRefresh', true)) {
+            projectExplorer.refresh();
+          }
+        });
+
+        context.subscriptions.push(fileWatcher);
+      } catch (error) {
+        logger.error('Error during async initialization:', error);
       }
-    });
-
-    fileWatcher.onDidChange(() => {
-      if (config.get('autoRefresh', true)) {
-        projectExplorer.refresh();
-      }
-    });
-
-    fileWatcher.onDidDelete(() => {
-      if (config.get('autoRefresh', true)) {
-        projectExplorer.refresh();
-      }
-    });
-
-    context.subscriptions.push(fileWatcher);
+    })();
   } catch (error) {
     logger.error('Failed to activate RapidKit extension', error);
     vscode.window.showErrorMessage(

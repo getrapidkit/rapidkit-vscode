@@ -8,17 +8,4 @@ vsc-extension-quickstart.md
 **/*.map
 src/**
 **/*.ts
-# Exclude all node_modules first
-node_modules/**
-# Then whitelist only production dependencies
-!node_modules/chalk/**
-!node_modules/execa/**
-!node_modules/fs-extra/**
-!node_modules/nunjucks/**
-!node_modules/yaml/**
-# Include their subdirectories
-!node_modules/chalk/
-!node_modules/execa/
-!node_modules/fs-extra/
-!node_modules/nunjucks/
-!node_modules/yaml/
+# Keep node_modules so runtime dependencies are available until bundling is in place
