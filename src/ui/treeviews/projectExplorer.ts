@@ -120,29 +120,42 @@ export class ProjectExplorerProvider
         if (entry.isDirectory() && !entry.name.startsWith('.')) {
           const projectPath = path.join(wsPath, entry.name);
           const pyprojectPath = path.join(projectPath, 'pyproject.toml');
+          const packageJsonPath = path.join(projectPath, 'package.json');
           
+          // Check for FastAPI project (pyproject.toml)
           if (await fs.pathExists(pyprojectPath)) {
-            // Detect project type and kit
             const project: RapidKitProject = {
               name: entry.name,
               path: projectPath,
-              type: 'fastapi', // Default, should detect from config
-              kit: 'standard', // Default, should detect from config
+              type: 'fastapi',
+              kit: 'standard',
               modules: [],
               isValid: true,
               workspacePath: wsPath,
             };
 
-            // Try to detect actual type
-            const srcPath = path.join(projectPath, 'src');
-            if (await fs.pathExists(srcPath)) {
-              const srcEntries = await fs.readdir(srcPath);
-              if (srcEntries.some(e => e.endsWith('.ts'))) {
-                project.type = 'nestjs';
-              }
-            }
-
             this.projects.push(project);
+          }
+          // Check for NestJS project (package.json with @nestjs/core)
+          else if (await fs.pathExists(packageJsonPath)) {
+            try {
+              const packageJson = await fs.readJSON(packageJsonPath);
+              if (packageJson.dependencies?.['@nestjs/core']) {
+                const project: RapidKitProject = {
+                  name: entry.name,
+                  path: projectPath,
+                  type: 'nestjs',
+                  kit: 'standard',
+                  modules: [],
+                  isValid: true,
+                  workspacePath: wsPath,
+                };
+
+                this.projects.push(project);
+              }
+            } catch (error) {
+              // Invalid package.json, skip
+            }
           }
         }
       }

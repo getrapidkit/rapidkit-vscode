@@ -33,7 +33,7 @@ export class WorkspaceWizard {
     const proceed = await vscode.window.showInformationMessage(
       '📦 Demo Mode\n\n' +
       'Create a RapidKit workspace with bundled templates.\n' +
-      'Generate multiple FastAPI projects instantly without Python RapidKit installation.\n\n' +
+      'Generate multiple FastAPI/NestJs projects instantly without Python RapidKit installation.\n\n' +
       '💡 Full mode will be available in the stable release.',
       { modal: true },
       'Continue'

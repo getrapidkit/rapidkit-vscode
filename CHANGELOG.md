@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-11-07
+
+### Fixed
+- Fixed NestJS projects not appearing in Projects view
+- Projects view now correctly detects both FastAPI (pyproject.toml) and NestJS (package.json with @nestjs/core) projects
+
+### Changed
+- Simplified kit selection to show only `standard` kit for both FastAPI and NestJS frameworks
+- Removed unavailable kit options (advanced, ddd) until they are fully implemented
+
 ## [0.1.2] - 2025-11-07
 
 ### Fixed

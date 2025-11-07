@@ -57,7 +57,7 @@ export class ProjectWizard {
 
     const framework = selectedFramework.framework;
 
-    // Step 3: Choose kit
+    // Step 3: Choose kit (only standard kit available for now)
     const kitItems = [
       {
         label: `$(file-code) ${framework}.standard`,
@@ -65,13 +65,6 @@ export class ProjectWizard {
         detail: 'Essential features and best practices',
         kit: `${framework}.standard`,
         picked: true,
-      },
-      {
-        label: `$(rocket) ${framework}.advanced`,
-        description: 'For complex applications',
-        detail: 'All features including advanced patterns',
-        kit: `${framework}.advanced`,
-        picked: false,
       },
     ];
 
