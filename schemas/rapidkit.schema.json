@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RapidKit Project Configuration",
+  "description": "Configuration file for RapidKit project",
+  "type": "object",
+  "required": ["name", "framework", "version"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project name",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Project version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "framework": {
+      "type": "string",
+      "description": "Backend framework",
+      "enum": ["fastapi", "nestjs"]
+    },
+    "mode": {
+      "type": "string",
+      "description": "Project mode",
+      "enum": ["demo", "full"],
+      "default": "full"
+    },
+    "profile": {
+      "type": "string",
+      "description": "Project profile",
+      "enum": ["minimal", "standard", "enterprise"],
+      "default": "standard"
+    },
+    "modules": {
+      "type": "array",
+      "description": "Installed modules",
+      "items": {
+        "type": "object",
+        "required": ["name", "version"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Module name"
+          },
+          "version": {
+            "type": "string",
+            "description": "Module version"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether module is enabled",
+            "default": true
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Project-specific settings",
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RapidKit Module Definition",
+  "description": "Module metadata file (module.yaml)",
+  "type": "object",
+  "required": ["name", "version", "description", "category"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Module unique identifier",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Module version (semantic)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief module description"
+    },
+    "category": {
+      "type": "string",
+      "description": "Module category",
+      "enum": [
+        "auth",
+        "cache",
+        "communication",
+        "core",
+        "database",
+        "security",
+        "users",
+        "monitoring",
+        "testing",
+        "deployment"
+      ]
+    },
+    "tier": {
+      "type": "string",
+      "description": "Module tier/license",
+      "enum": ["free", "pro", "enterprise"],
+      "default": "free"
+    },
+    "frameworks": {
+      "type": "array",
+      "description": "Supported frameworks",
+      "items": {
+        "type": "string",
+        "enum": ["fastapi", "nestjs", "all"]
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Module dependencies",
+      "properties": {
+        "python": {
+          "type": "array",
+          "description": "Python package dependencies",
+          "items": {
+            "type": "string"
+          }
+        },
+        "node": {
+          "type": "array",
+          "description": "Node package dependencies",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modules": {
+          "type": "array",
+          "description": "Required RapidKit modules",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata",
+      "properties": {
+        "author": {
+          "type": "string",
+          "description": "Module author"
+        },
+        "license": {
+          "type": "string",
+          "description": "Module license"
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "description": "Module homepage URL"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "description": "Source repository URL"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Module tags",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

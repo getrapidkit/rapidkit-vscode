@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RapidKit Workspace Configuration",
+  "description": "Configuration file for RapidKit workspace",
+  "type": "object",
+  "required": ["name", "framework"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Workspace name",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "framework": {
+      "type": "string",
+      "description": "Backend framework",
+      "enum": ["fastapi", "nestjs"]
+    },
+    "pythonVersion": {
+      "type": "string",
+      "description": "Minimum Python version (for FastAPI)",
+      "pattern": "^3\\.(9|10|11|12)$"
+    },
+    "nodeVersion": {
+      "type": "string",
+      "description": "Minimum Node.js version (for NestJS)",
+      "pattern": "^(18|20|21)\\."
+    },
+    "projects": {
+      "type": "array",
+      "description": "List of projects in workspace",
+      "items": {
+        "$ref": "#/definitions/project"
+      }
+    },
+    "modules": {
+      "type": "array",
+      "description": "Installed modules",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project name",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Project mode",
+          "enum": ["demo", "full"],
+          "default": "full"
+        },
+        "profile": {
+          "type": "string",
+          "description": "Project profile",
+          "enum": ["minimal", "standard", "enterprise"],
+          "default": "standard"
+        },
+        "modules": {
+          "type": "array",
+          "description": "Installed modules for this project",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

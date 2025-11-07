@@ -1,0 +1,227 @@
+/**
+ * RapidKit VS Code Extension
+ * Main extension entry point
+ */
+
+import * as vscode from 'vscode';
+import { WorkspaceExplorerProvider } from './ui/treeviews/workspaceExplorer';
+import { ProjectExplorerProvider } from './ui/treeviews/projectExplorer';
+import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
+import { TemplateExplorerProvider } from './ui/treeviews/templateExplorer';
+import { createWorkspaceCommand } from './commands/createWorkspace';
+import { createProjectCommand } from './commands/createProject';
+import { addModuleCommand } from './commands/addModule';
+import { generateDemoCommand } from './commands/generateDemo';
+import { previewTemplateCommand } from './commands/previewTemplate';
+import { doctorCommand } from './commands/doctor';
+import { showWelcomeCommand } from './commands/showWelcome';
+import { RapidKitStatusBar } from './ui/statusBar';
+import { ConfigurationManager } from './core/configurationManager';
+import { WorkspaceDetector } from './core/workspaceDetector';
+import { Logger } from './utils/logger';
+import { RapidKitCodeActionsProvider } from './providers/codeActionsProvider';
+import { RapidKitCompletionProvider } from './providers/completionProvider';
+import { RapidKitHoverProvider } from './providers/hoverProvider';
+import {
+  openWorkspaceFolder,
+  copyWorkspacePath,
+} from './commands/workspaceContextMenu';
+import {
+  openProjectFolder,
+  copyProjectPath,
+  deleteProject,
+} from './commands/projectContextMenu';
+
+let statusBar: RapidKitStatusBar;
+let workspaceExplorer: WorkspaceExplorerProvider;
+let projectExplorer: ProjectExplorerProvider;
+let moduleExplorer: ModuleExplorerProvider;
+let templateExplorer: TemplateExplorerProvider;
+
+export async function activate(context: vscode.ExtensionContext) {
+  const logger = Logger.getInstance();
+  logger.info('🚀 RapidKit extension is activating...');
+
+  try {
+    // Initialize configuration manager
+    const configManager = ConfigurationManager.getInstance();
+    await configManager.initialize(context);
+
+    // Initialize workspace detector
+    const workspaceDetector = WorkspaceDetector.getInstance();
+    await workspaceDetector.detectRapidKitProjects();
+
+    // Initialize status bar
+    statusBar = new RapidKitStatusBar();
+    context.subscriptions.push(statusBar);
+
+    // Initialize tree view providers
+    workspaceExplorer = new WorkspaceExplorerProvider();
+    projectExplorer = new ProjectExplorerProvider();
+    moduleExplorer = new ModuleExplorerProvider();
+    templateExplorer = new TemplateExplorerProvider();
+
+    // Register tree views
+    context.subscriptions.push(
+      vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer),
+      vscode.window.registerTreeDataProvider('rapidkitProjects', projectExplorer),
+      vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer),
+      vscode.window.registerTreeDataProvider('rapidkitTemplates', templateExplorer)
+    );
+
+    // Register IntelliSense providers
+    context.subscriptions.push(
+      // Code actions for configuration files
+      vscode.languages.registerCodeActionsProvider(
+        [
+          { pattern: '**/.rapidkitrc.json' },
+          { pattern: '**/rapidkit.json' },
+          { pattern: '**/module.yaml' },
+        ],
+        new RapidKitCodeActionsProvider(),
+        {
+          providedCodeActionKinds: RapidKitCodeActionsProvider.providedCodeActionKinds,
+        }
+      ),
+
+      // Completion provider
+      vscode.languages.registerCompletionItemProvider(
+        [
+          { pattern: '**/.rapidkitrc.json' },
+          { pattern: '**/rapidkit.json' },
+          { pattern: '**/module.yaml' },
+        ],
+        new RapidKitCompletionProvider(),
+        '"', ':', ' '
+      ),
+
+      // Hover provider
+      vscode.languages.registerHoverProvider(
+        [
+          { pattern: '**/.rapidkitrc.json' },
+          { pattern: '**/rapidkit.json' },
+          { pattern: '**/module.yaml' },
+        ],
+        new RapidKitHoverProvider()
+      )
+    );
+
+    // Register commands
+    context.subscriptions.push(
+      vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
+        await createWorkspaceCommand();
+        workspaceExplorer.refresh();
+      }),
+      vscode.commands.registerCommand('rapidkit.createProject', async (workspacePath?: string) => {
+        // If workspace path not provided, get from selected workspace
+        if (!workspacePath) {
+          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+          workspacePath = selectedWorkspace?.path;
+        }
+        await createProjectCommand(workspacePath);
+        projectExplorer.refresh();
+      }),
+      vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
+      vscode.commands.registerCommand('rapidkit.generateDemo', generateDemoCommand),
+      vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
+      vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
+      vscode.commands.registerCommand('rapidkit.showWelcome', showWelcomeCommand),
+      vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
+        workspaceExplorer.refresh();
+      }),
+      vscode.commands.registerCommand('rapidkit.refreshProjects', () => {
+        projectExplorer.refresh();
+        moduleExplorer.refresh();
+        templateExplorer.refresh();
+      }),
+      vscode.commands.registerCommand('rapidkit.selectWorkspace', (workspace) => {
+        workspaceExplorer.selectWorkspace(workspace);
+        projectExplorer.setWorkspace(workspace);
+        // Set context key to enable project buttons
+        vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+      }),
+      vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
+        await workspaceExplorer.addWorkspace();
+      }),
+      vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item) => {
+        await workspaceExplorer.removeWorkspace(item.workspace);
+      }),
+      vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
+        await workspaceExplorer.autoDiscover();
+      }),
+      vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item) => {
+        await openWorkspaceFolder(item.workspace);
+      }),
+      vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item) => {
+        await copyWorkspacePath(item.workspace);
+      }),
+      vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item) => {
+        await openProjectFolder(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.copyProjectPath', async (item) => {
+        await copyProjectPath(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.deleteProject', async (item) => {
+        await deleteProject(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
+        // Dashboard implementation
+        vscode.window.showInformationMessage(
+          `Dashboard for ${projectItem.label} - Coming soon!`
+        );
+      })
+    );
+
+    // Show welcome page on first activation
+    const config = vscode.workspace.getConfiguration('rapidkit');
+    if (config.get('showWelcomeOnStartup', true)) {
+      await showWelcomeCommand(context);
+    }
+
+    logger.info('✅ RapidKit extension activated successfully!');
+    statusBar.updateStatus('ready');
+
+    // Watch for workspace changes
+    const fileWatcher = vscode.workspace.createFileSystemWatcher(
+      '**/pyproject.toml',
+      false,
+      false,
+      false
+    );
+
+    fileWatcher.onDidCreate(() => {
+      if (config.get('autoRefresh', true)) {
+        projectExplorer.refresh();
+      }
+    });
+
+    fileWatcher.onDidChange(() => {
+      if (config.get('autoRefresh', true)) {
+        projectExplorer.refresh();
+      }
+    });
+
+    fileWatcher.onDidDelete(() => {
+      if (config.get('autoRefresh', true)) {
+        projectExplorer.refresh();
+      }
+    });
+
+    context.subscriptions.push(fileWatcher);
+  } catch (error) {
+    logger.error('Failed to activate RapidKit extension', error);
+    vscode.window.showErrorMessage(
+      `Failed to activate RapidKit extension: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+export function deactivate() {
+  Logger.getInstance().info('👋 RapidKit extension is deactivating...');
+  if (statusBar) {
+    statusBar.dispose();
+  }
+  if (workspaceExplorer) {
+    workspaceExplorer.dispose();
+  }
+}

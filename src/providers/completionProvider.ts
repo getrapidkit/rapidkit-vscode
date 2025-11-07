@@ -1,0 +1,75 @@
+/**
+ * Completion Provider
+ * Provides IntelliSense for RapidKit configuration files
+ */
+
+import * as vscode from 'vscode';
+
+export class RapidKitCompletionProvider implements vscode.CompletionItemProvider {
+  provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    _token: vscode.CancellationToken,
+    _context: vscode.CompletionContext
+  ): vscode.CompletionItem[] | undefined {
+    const linePrefix = document.lineAt(position).text.substr(0, position.character);
+
+    // Configuration file completions
+    if (document.fileName.endsWith('.rapidkitrc.json')) {
+      return this.getConfigurationCompletions(linePrefix);
+    }
+
+    // Module.yaml completions
+    if (document.fileName.endsWith('module.yaml')) {
+      return this.getModuleCompletions(linePrefix);
+    }
+
+    return undefined;
+  }
+
+  private getConfigurationCompletions(_linePrefix: string): vscode.CompletionItem[] {
+    const items: vscode.CompletionItem[] = [];
+
+    // Framework completions
+    const frameworkItem = new vscode.CompletionItem('framework', vscode.CompletionItemKind.Property);
+    frameworkItem.detail = 'Framework type';
+    frameworkItem.documentation = new vscode.MarkdownString('Specify the framework: `fastapi` or `nestjs`');
+    frameworkItem.insertText = new vscode.SnippetString('"framework": "${1|fastapi,nestjs|}"');
+    items.push(frameworkItem);
+
+    // Mode completions
+    const modeItem = new vscode.CompletionItem('mode', vscode.CompletionItemKind.Property);
+    modeItem.detail = 'Project mode';
+    modeItem.documentation = new vscode.MarkdownString('Specify the mode: `demo` or `full`');
+    modeItem.insertText = new vscode.SnippetString('"mode": "${1|demo,full|}"');
+    items.push(modeItem);
+
+    // Profile completions
+    const profileItem = new vscode.CompletionItem('profile', vscode.CompletionItemKind.Property);
+    profileItem.detail = 'Project profile';
+    profileItem.documentation = new vscode.MarkdownString('Specify the profile: `minimal`, `standard`, or `enterprise`');
+    profileItem.insertText = new vscode.SnippetString('"profile": "${1|minimal,standard,enterprise|}"');
+    items.push(profileItem);
+
+    return items;
+  }
+
+  private getModuleCompletions(_linePrefix: string): vscode.CompletionItem[] {
+    const items: vscode.CompletionItem[] = [];
+
+    // Module metadata
+    const nameItem = new vscode.CompletionItem('name', vscode.CompletionItemKind.Property);
+    nameItem.insertText = new vscode.SnippetString('name: ${1:module-name}');
+    items.push(nameItem);
+
+    const versionItem = new vscode.CompletionItem('version', vscode.CompletionItemKind.Property);
+    versionItem.insertText = new vscode.SnippetString('version: "${1:1.0.0}"');
+    items.push(versionItem);
+
+    const descriptionItem = new vscode.CompletionItem('description', vscode.CompletionItemKind.Property);
+    descriptionItem.insertText = new vscode.SnippetString('description: ${1:Module description}');
+    items.push(descriptionItem);
+
+    return items;
+  }
+}

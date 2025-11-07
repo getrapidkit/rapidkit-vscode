@@ -1,0 +1,482 @@
+{
+  "name": "rapidkit-vscode",
+  "displayName": "RapidKit",
+  "description": "🚀 Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
+  "version": "1.0.0",
+  "publisher": "rapidkit",
+  "icon": "media/icons/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other",
+    "Formatters"
+  ],
+  "keywords": [
+    "rapidkit",
+    "fastapi",
+    "nestjs",
+    "python",
+    "typescript",
+    "backend",
+    "scaffold",
+    "generator",
+    "framework"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getrapidkit/rapidkit-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/getrapidkit/rapidkit-vscode/issues"
+  },
+  "homepage": "https://rapidkit.dev",
+  "license": "MIT",
+  "activationEvents": [
+    "workspaceContains:**/pyproject.toml",
+    "workspaceContains:**/.rapidkit",
+    "workspaceContains:**/package.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "rapidkit.createWorkspace",
+        "title": "Create Workspace",
+        "category": "RapidKit",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "rapidkit.createProject",
+        "title": "Create Project",
+        "category": "RapidKit",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "rapidkit.addModule",
+        "title": "Add Module",
+        "category": "RapidKit",
+        "icon": "$(extensions)"
+      },
+      {
+        "command": "rapidkit.generateDemo",
+        "title": "Generate Demo Project",
+        "category": "RapidKit",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "rapidkit.refreshProjects",
+        "title": "Refresh Projects",
+        "category": "RapidKit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "rapidkit.refreshWorkspaces",
+        "title": "Refresh Workspaces",
+        "category": "RapidKit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "rapidkit.selectWorkspace",
+        "title": "Select Workspace",
+        "category": "RapidKit",
+        "icon": "$(check)"
+      },
+      {
+        "command": "rapidkit.addWorkspace",
+        "title": "Add Workspace",
+        "category": "RapidKit",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "rapidkit.removeWorkspace",
+        "title": "Remove Workspace",
+        "category": "RapidKit",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "rapidkit.openWorkspaceFolder",
+        "title": "Open in File Explorer",
+        "category": "RapidKit",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "rapidkit.copyWorkspacePath",
+        "title": "Copy Path",
+        "category": "RapidKit",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "rapidkit.deleteProject",
+        "title": "Delete Project",
+        "category": "RapidKit",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "rapidkit.openProjectFolder",
+        "title": "Open in File Explorer",
+        "category": "RapidKit",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "rapidkit.copyProjectPath",
+        "title": "Copy Path",
+        "category": "RapidKit",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "rapidkit.discoverWorkspaces",
+        "title": "Discover Workspaces",
+        "category": "RapidKit",
+        "icon": "$(search)"
+      },
+      {
+        "command": "rapidkit.openProjectDashboard",
+        "title": "Open Project Dashboard",
+        "category": "RapidKit",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "rapidkit.previewTemplate",
+        "title": "Preview Template",
+        "category": "RapidKit",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "rapidkit.doctor",
+        "title": "Run System Check",
+        "category": "RapidKit",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "rapidkit.showWelcome",
+        "title": "Show Welcome",
+        "category": "RapidKit",
+        "icon": "$(home)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rapidkit-explorer",
+          "title": "RapidKit",
+          "icon": "media/icons/icon-128.png"
+        }
+      ]
+    },
+    "views": {
+      "rapidkit-explorer": [
+        {
+          "id": "rapidkitWorkspaces",
+          "name": "Workspaces",
+          "icon": "media/icons/icon-128.png",
+          "contextualTitle": "RapidKit Workspaces"
+        },
+        {
+          "id": "rapidkitProjects",
+          "name": "Projects",
+          "icon": "media/icons/icon-128.png",
+          "contextualTitle": "Projects in Workspace"
+        },
+        {
+          "id": "rapidkitModules",
+          "name": "Available Modules",
+          "icon": "media/icons/icon-128.png",
+          "contextualTitle": "RapidKit Modules"
+        },
+        {
+          "id": "rapidkitTemplates",
+          "name": "Templates",
+          "icon": "media/icons/icon-128.png"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "rapidkitWorkspaces",
+        "contents": "No RapidKit workspaces found.\n\nGet started by creating a new workspace or adding an existing one.\n\n[$(new-folder) Create New Workspace](command:rapidkit.createWorkspace)\n\n[$(folder-opened) Add Existing Workspace](command:rapidkit.addWorkspace)\n\n[$(search) Discover Workspaces](command:rapidkit.discoverWorkspaces)\n\n[Learn More](https://rapidkit.dev/docs)"
+      },
+      {
+        "view": "rapidkitProjects",
+        "contents": "No workspace selected.\n\nSelect a workspace from the Workspaces view above to see its projects.",
+        "when": "!rapidkit:workspaceSelected"
+      },
+      {
+        "view": "rapidkitProjects",
+        "contents": "No projects found in this workspace.\n\nGet started by creating your first RapidKit project.\n\n[$(new-folder) Create New Project](command:rapidkit.createProject)\n\n[$(rocket) Generate Demo Project](command:rapidkit.generateDemo)\n\n[Learn More](https://rapidkit.dev/docs)",
+        "when": "rapidkit:workspaceSelected && rapidkit:noProjects"
+      },
+      {
+        "view": "rapidkitModules",
+        "contents": "Available modules will appear here once you select a project."
+      },
+      {
+        "view": "rapidkitTemplates",
+        "contents": "Template library coming soon.\n\n[Browse Online](https://rapidkit.dev/templates)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "rapidkit.createWorkspace"
+        },
+        {
+          "command": "rapidkit.createProject"
+        },
+        {
+          "command": "rapidkit.addModule"
+        },
+        {
+          "command": "rapidkit.generateDemo"
+        },
+        {
+          "command": "rapidkit.refreshProjects",
+          "when": "rapidkit:hasProjects"
+        },
+        {
+          "command": "rapidkit.openProjectDashboard",
+          "when": "rapidkit:hasProjects"
+        },
+        {
+          "command": "rapidkit.previewTemplate"
+        },
+        {
+          "command": "rapidkit.doctor"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "rapidkit.createWorkspace",
+          "when": "view == rapidkitWorkspaces",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rapidkit.addWorkspace",
+          "when": "view == rapidkitWorkspaces",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rapidkit.refreshWorkspaces",
+          "when": "view == rapidkitWorkspaces",
+          "group": "navigation@3"
+        },
+        {
+          "command": "rapidkit.createProject",
+          "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rapidkit.refreshProjects",
+          "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "rapidkit.selectWorkspace",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@1"
+        },
+        {
+          "command": "rapidkit.openWorkspaceFolder",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rapidkit.copyWorkspacePath",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rapidkit.removeWorkspace",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "danger@1"
+        },
+        {
+          "command": "rapidkit.addModule",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "project@1"
+        },
+        {
+          "command": "rapidkit.openProjectDashboard",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "project@2"
+        },
+        {
+          "command": "rapidkit.openProjectFolder",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rapidkit.copyProjectPath",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rapidkit.deleteProject",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "danger@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "rapidkit.createProject",
+          "when": "explorerResourceIsFolder",
+          "group": "rapidkit@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RapidKit",
+      "properties": {
+        "rapidkit.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Path to Python executable",
+          "scope": "window"
+        },
+        "rapidkit.defaultKit": {
+          "type": "string",
+          "default": "fastapi.standard",
+          "enum": [
+            "fastapi.standard",
+            "fastapi.advanced",
+            "nestjs.standard",
+            "nestjs.advanced"
+          ],
+          "enumDescriptions": [
+            "FastAPI with standard features",
+            "FastAPI with advanced features",
+            "NestJS with standard features",
+            "NestJS with advanced features"
+          ],
+          "description": "Default kit for new projects"
+        },
+        "rapidkit.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh project tree when files change"
+        },
+        "rapidkit.showWelcomeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show welcome page when extension activates"
+        },
+        "rapidkit.templatePreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show template preview before generation"
+        },
+        "rapidkit.notifications": {
+          "type": "string",
+          "default": "all",
+          "enum": ["all", "errors", "none"],
+          "description": "Control notification verbosity"
+        },
+        "rapidkit.terminal.autoActivate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically activate Python environment in integrated terminal"
+        },
+        "rapidkit.git.autoInit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Initialize git repository for new projects"
+        }
+      }
+    },
+
+    "keybindings": [
+      {
+        "command": "rapidkit.createWorkspace",
+        "key": "ctrl+shift+r ctrl+shift+w",
+        "mac": "cmd+shift+r cmd+shift+w"
+      },
+      {
+        "command": "rapidkit.createProject",
+        "key": "ctrl+shift+r ctrl+shift+p",
+        "mac": "cmd+shift+r cmd+shift+p"
+      },
+      {
+        "command": "rapidkit.addModule",
+        "key": "ctrl+shift+r ctrl+shift+m",
+        "mac": "cmd+shift+r cmd+shift+m"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/python.json"
+      },
+      {
+        "language": "typescript",
+        "path": "./snippets/typescript.json"
+      },
+      {
+        "language": "yaml",
+        "path": "./snippets/yaml.json"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": ".rapidkitrc.json",
+        "url": "./schemas/rapidkitrc.schema.json"
+      },
+      {
+        "fileMatch": "rapidkit.json",
+        "url": "./schemas/rapidkit.schema.json"
+      },
+      {
+        "fileMatch": "**/module.yaml",
+        "url": "./schemas/module.schema.json"
+      }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": "**/module.yaml",
+        "url": "./schemas/module.schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:vscode": "vscode-test",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "execa": "^9.3.1",
+    "fs-extra": "^11.2.0",
+    "nunjucks": "^3.2.4",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.0",
+    "@types/nunjucks": "^3.2.6",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.24.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

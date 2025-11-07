@@ -1,0 +1,138 @@
+{
+  "RapidKit NestJS Module": {
+    "prefix": "rk-nest-module",
+    "body": [
+      "import { Module } from '@nestjs/common';",
+      "import { ${1:ServiceName}Service } from './${2:service-name}.service';",
+      "import { ${3:ControllerName}Controller } from './${4:controller-name}.controller';",
+      "",
+      "@Module({",
+      "  imports: [${5}],",
+      "  controllers: [${3:ControllerName}Controller],",
+      "  providers: [${1:ServiceName}Service],",
+      "  exports: [${1:ServiceName}Service],",
+      "})",
+      "export class ${6:ModuleName}Module {}",
+      "$0"
+    ],
+    "description": "RapidKit NestJS module"
+  },
+  "RapidKit NestJS Controller": {
+    "prefix": "rk-nest-controller",
+    "body": [
+      "import { Controller, Get, Post, Body, Param } from '@nestjs/common';",
+      "import { ${1:ServiceName}Service } from './${2:service-name}.service';",
+      "import { Create${3:Entity}Dto } from './dto/create-${4:entity}.dto';",
+      "",
+      "@Controller('${5:route}')",
+      "export class ${6:ControllerName}Controller {",
+      "  constructor(private readonly ${7:serviceName}Service: ${1:ServiceName}Service) {}",
+      "",
+      "  @Get()",
+      "  findAll() {",
+      "    return this.${7:serviceName}Service.findAll();",
+      "  }",
+      "",
+      "  @Get(':id')",
+      "  findOne(@Param('id') id: string) {",
+      "    return this.${7:serviceName}Service.findOne(+id);",
+      "  }",
+      "",
+      "  @Post()",
+      "  create(@Body() createDto: Create${3:Entity}Dto) {",
+      "    return this.${7:serviceName}Service.create(createDto);",
+      "  }",
+      "}",
+      "$0"
+    ],
+    "description": "RapidKit NestJS controller"
+  },
+  "RapidKit NestJS Service": {
+    "prefix": "rk-nest-service",
+    "body": [
+      "import { Injectable } from '@nestjs/common';",
+      "import { Create${1:Entity}Dto } from './dto/create-${2:entity}.dto';",
+      "",
+      "@Injectable()",
+      "export class ${3:ServiceName}Service {",
+      "  async findAll() {",
+      "    ${4:// TODO: Implement findAll}",
+      "    return [];",
+      "  }",
+      "",
+      "  async findOne(id: number) {",
+      "    ${5:// TODO: Implement findOne}",
+      "    return null;",
+      "  }",
+      "",
+      "  async create(createDto: Create${1:Entity}Dto) {",
+      "    ${6:// TODO: Implement create}",
+      "    return createDto;",
+      "  }",
+      "}",
+      "$0"
+    ],
+    "description": "RapidKit NestJS service"
+  },
+  "RapidKit DTO": {
+    "prefix": "rk-dto",
+    "body": [
+      "import { IsString, IsNotEmpty, IsOptional } from 'class-validator';",
+      "",
+      "export class ${1:Create}${2:Entity}Dto {",
+      "  @IsString()",
+      "  @IsNotEmpty()",
+      "  ${3:name}: string;",
+      "",
+      "  @IsString()",
+      "  @IsOptional()",
+      "  ${4:description}?: string;",
+      "}",
+      "$0"
+    ],
+    "description": "RapidKit DTO with validation"
+  },
+  "RapidKit Entity": {
+    "prefix": "rk-entity",
+    "body": [
+      "import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';",
+      "",
+      "@Entity('${1:table_name}')",
+      "export class ${2:EntityName} {",
+      "  @PrimaryGeneratedColumn()",
+      "  id: number;",
+      "",
+      "  @Column()",
+      "  ${3:name}: string;",
+      "",
+      "  @CreateDateColumn()",
+      "  createdAt: Date;",
+      "",
+      "  @UpdateDateColumn()",
+      "  updatedAt: Date;",
+      "}",
+      "$0"
+    ],
+    "description": "RapidKit TypeORM entity"
+  },
+  "RapidKit Guard": {
+    "prefix": "rk-guard",
+    "body": [
+      "import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';",
+      "import { Observable } from 'rxjs';",
+      "",
+      "@Injectable()",
+      "export class ${1:GuardName}Guard implements CanActivate {",
+      "  canActivate(",
+      "    context: ExecutionContext,",
+      "  ): boolean | Promise<boolean> | Observable<boolean> {",
+      "    const request = context.switchToHttp().getRequest();",
+      "    ${2:// TODO: Implement guard logic}",
+      "    return true;",
+      "  }",
+      "}",
+      "$0"
+    ],
+    "description": "RapidKit NestJS guard"
+  }
+}
