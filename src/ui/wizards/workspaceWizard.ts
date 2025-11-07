@@ -29,70 +29,23 @@ export class WorkspaceWizard {
       return undefined;
     }
 
-    // Step 2: Choose mode
-    const modeItems = [
-      {
-        label: '$(rocket) Demo Mode',
-        description: 'Quick start with bundled templates',
-        detail: 'No Python RapidKit required - Generate multiple FastAPI projects instantly',
-        mode: 'demo' as const,
-      },
-      {
-        label: '$(package) Full Mode',
-        description: 'Complete RapidKit with all features',
-        detail: 'Requires RapidKit Python package - Access all kits and modules',
-        mode: 'full' as const,
-      },
-    ];
+    // Step 2: Demo mode notice (full mode disabled until stable release)
+    const proceed = await vscode.window.showInformationMessage(
+      '📦 Demo Mode\n\n' +
+      'Create a RapidKit workspace with bundled templates.\n' +
+      'Generate multiple FastAPI projects instantly without Python RapidKit installation.\n\n' +
+      '💡 Full mode will be available in the stable release.',
+      { modal: true },
+      'Continue'
+    );
 
-    const selectedMode = await vscode.window.showQuickPick(modeItems, {
-      placeHolder: 'Select workspace mode',
-      ignoreFocusOut: true,
-    });
-
-    if (!selectedMode) {
+    if (proceed !== 'Continue') {
       return undefined;
     }
 
-    const mode = selectedMode.mode;
+    const mode = 'demo' as const;
 
-    // Step 3: Install method (only for full mode)
-    let installMethod: 'poetry' | 'venv' | 'pipx' | undefined;
-    if (mode === 'full') {
-      const methodItems = [
-        {
-          label: '$(book) Poetry',
-          description: 'Recommended',
-          detail: 'Modern Python dependency management',
-          method: 'poetry' as const,
-        },
-        {
-          label: '$(file-directory) venv + pip',
-          description: 'Standard',
-          detail: 'Built-in Python virtual environment',
-          method: 'venv' as const,
-        },
-        {
-          label: '$(globe) pipx',
-          description: 'Global',
-          detail: 'Install globally with pipx',
-          method: 'pipx' as const,
-        },
-      ];
-
-      const selectedMethod = await vscode.window.showQuickPick(methodItems, {
-        placeHolder: 'Select installation method',
-        ignoreFocusOut: true,
-      });
-
-      if (!selectedMethod) {
-        return undefined;
-      }
-
-      installMethod = selectedMethod.method;
-    }
-
-    // Step 4: Git initialization
+    // Step 3: Git initialization
     const initGitItems = [
       {
         label: '$(git-commit) Yes',
@@ -117,7 +70,7 @@ export class WorkspaceWizard {
       return undefined;
     }
 
-    // Step 5: Destination folder
+    // Step 4: Destination folder
     const defaultPath = path.join(os.homedir(), 'Projects');
     const folderUri = await vscode.window.showOpenDialog({
       canSelectFiles: false,
@@ -138,8 +91,7 @@ export class WorkspaceWizard {
     return {
       name,
       path: workspacePath,
-      mode,
-      installMethod,
+      mode, // Always 'demo' for now
       initGit: initGit.value,
     };
   }

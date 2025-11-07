@@ -109,6 +109,11 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
             config.name,    // e.g., 'my-project'
             '--skip-essentials', // Skip additional prompts
           ];
+
+          // Add package manager for NestJS projects
+          if (config.packageManager) {
+            args.push('--package-manager', config.packageManager);
+          }
           
           logger.info('Running command:', rapidkitCmd, args.join(' '));
           
@@ -119,7 +124,7 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
               cwd: workspaceRoot,
               timeout: 120000,
               stdio: ['pipe', 'pipe', 'pipe'], // Allow stdin
-              input: '\n\n\n', // Send newlines for any remaining prompts
+              input: config.packageManager ? `${config.packageManager}\n\n\n` : '\n\n\n', // Send package manager + newlines
               reject: false,
               env: {
                 ...process.env,

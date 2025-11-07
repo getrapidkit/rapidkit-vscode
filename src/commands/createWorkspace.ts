@@ -52,11 +52,11 @@ export async function createWorkspaceCommand() {
 
           progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
 
-          // Create workspace using CLI wrapper
+          // Create workspace using CLI wrapper (always use demo mode)
           const result = await cli.createWorkspace({
             name: config.name,
             path: config.path,
-            demoMode: config.mode === 'demo',
+            demoMode: true, // Always use demo mode until RapidKit is on PyPI
             skipGit: !config.initGit,
           });
 

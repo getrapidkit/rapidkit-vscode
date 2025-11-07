@@ -86,7 +86,44 @@ export class ProjectWizard {
 
     const kit = selectedKit.kit;
 
-    // Step 4: Select modules (optional)
+    // Step 4: If NestJS, ask for package manager
+    let packageManager: string | undefined;
+    if (framework === 'nestjs') {
+      const pmItems = [
+        {
+          label: '$(package) npm',
+          description: 'Node Package Manager (default)',
+          detail: 'Widely used, comes with Node.js',
+          value: 'npm',
+          picked: true,
+        },
+        {
+          label: '$(package) yarn',
+          description: 'Fast, reliable package manager',
+          detail: 'Popular alternative to npm',
+          value: 'yarn',
+        },
+        {
+          label: '$(package) pnpm',
+          description: 'Fast, disk space efficient',
+          detail: 'Modern package manager',
+          value: 'pnpm',
+        },
+      ];
+
+      const selectedPM = await vscode.window.showQuickPick(pmItems, {
+        placeHolder: 'Select package manager for NestJS',
+        ignoreFocusOut: true,
+      });
+
+      if (!selectedPM) {
+        return undefined;
+      }
+
+      packageManager = selectedPM.value;
+    }
+
+    // Step 5: Select modules (optional)
     const moduleItems = [
       {
         label: '$(shield) Authentication',
@@ -132,6 +169,7 @@ export class ProjectWizard {
       name,
       kit,
       framework,
+      packageManager, // For NestJS projects
       modules,
       author: author || undefined,
       license: 'MIT',
