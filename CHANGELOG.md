@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-11-07
+
+### Fixed
+- NestJS project creation now properly handles package manager selection
+- Disabled full mode until stable release (demo mode only)
+- Fixed duplicate variable compilation error in project wizard
+
+### Changed
+- Workspace creation now shows informative modal about demo mode
+- Simplified workspace wizard by removing full mode options
+- Always use demo mode for workspace creation
+
 ## [1.0.0] - 2025-11-07
 
 ### Added
