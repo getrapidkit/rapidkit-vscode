@@ -7,39 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.1] - 2025-11-07
-
-### Fixed
-- NestJS project creation now properly handles package manager selection
-- Disabled full mode until stable release (demo mode only)
-- Fixed duplicate variable compilation error in project wizard
-
-### Changed
-- Workspace creation now shows informative modal about demo mode
-- Simplified workspace wizard by removing full mode options
-- Always use demo mode for workspace creation
-
-## [1.0.0] - 2025-11-07
+## [0.1.0] - 2025-11-07
 
 ### Added
-- 🎉 First stable pre-release version
-- Enhanced workspace and project management
-- Improved module browser with better categorization
-- Better error handling and user feedback
-- Performance optimizations
-
-### Changed
-- Updated to production-ready status
-- Improved UI/UX across all features
-- Better integration with RapidKit CLI
-
-### Fixed
-- Various bug fixes and stability improvements
-
-## [0.1.0] - 2024-01-15
-
-### Added
-- Initial release of RapidKit VS Code extension
+- 🎉 Initial pre-release version
 - Workspace creation wizard with interactive prompts
 - Project generation for FastAPI and NestJS frameworks
 - Module browser with 100+ modules organized by category
@@ -47,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project explorer tree view
 - Module explorer tree view
 - Template explorer tree view
+- Workspace explorer tree view
 - Status bar integration with real-time updates
 - System doctor for checking requirements (Python, Node.js, Poetry, Git)
 - IntelliSense providers:
@@ -70,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `rapidkit.doctor` - Check system requirements
   - `rapidkit.showWelcome` - Show welcome panel
   - `rapidkit.refreshProjects` - Refresh project list
+  - `rapidkit.refreshWorkspaces` - Refresh workspace list
 - Keyboard shortcuts:
   - `Ctrl+Shift+R Ctrl+Shift+W` - Create workspace
   - `Ctrl+Shift+R Ctrl+Shift+P` - Create project
@@ -85,30 +58,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `rapidkit.autoRefresh` - Auto-refresh on file changes
   - `rapidkit.debug` - Enable debug logging
 - Context menu integration
-- Activity bar integration
-- Output channel for logging
-
-### Changed
-- None
-
-### Deprecated
-- None
-
-### Removed
-- None
+- Activity bar integration with RapidKit icon
+- Output channel for detailed logging
+- Demo mode for quick workspace creation
+- Package manager selection for NestJS projects (npm, yarn, pnpm)
 
 ### Fixed
-- None
-
-### Security
-- None
-
-## [0.0.1] - 2024-01-01
-
-### Added
-- Project scaffolding
-- Basic extension structure
-- Initial configuration
+- NestJS project creation package manager parameter handling
+- Extension activation on startup
+- Command registration order for reliable button functionality
 
 ---
 
@@ -116,9 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 0.1.0
 
-🎉 **Initial Release**
+🎉 **First Pre-Release**
 
-Welcome to RapidKit for Visual Studio Code! This is the first public release of the official VS Code extension for RapidKit.
+Welcome to RapidKit for Visual Studio Code! This is the first pre-release of the official VS Code extension for RapidKit.
 
 **Key Features:**
 - 🚀 Create workspaces and projects with interactive wizards
@@ -129,10 +87,16 @@ Welcome to RapidKit for Visual Studio Code! This is the first public release of 
 - 🔧 System doctor for troubleshooting
 
 **Getting Started:**
-1. Press `Ctrl+Shift+P` and type "RapidKit: Create Workspace"
-2. Follow the wizard to create your first project
-3. Add modules from the Module Explorer
-4. Start coding!
+1. Click the RapidKit icon in the Activity Bar
+2. Click "Create New Workspace" to get started
+3. Follow the wizard to create your first project
+4. Add modules from the Module Explorer
+5. Start coding!
+
+**Important Notes:**
+- This is a pre-release version - please report any issues
+- Demo mode is enabled by default for easy testing
+- Full mode will be available in future stable releases
 
 **Feedback:**
 We'd love to hear your feedback! Please report issues or suggestions on our [GitHub repository](https://github.com/getrapidkit/rapidkit-vscode/issues).
@@ -143,4 +107,3 @@ Thank you for using RapidKit! 🚀
 
 [Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.0
-[0.0.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.0.1

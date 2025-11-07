@@ -134,7 +134,7 @@ Open a Python file and type:
 
 ### 1. View Logs
 ```
-View → Output → RapidKit (از dropdown)
+View → Output → RapidKit (from dropdown)
 ```
 
 ### 2. Debug Console

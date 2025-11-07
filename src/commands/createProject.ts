@@ -110,9 +110,9 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
             '--skip-essentials', // Skip additional prompts
           ];
 
-          // Add package manager for NestJS projects
+          // Add package manager for NestJS projects as a variable
           if (config.packageManager) {
-            args.push('--package-manager', config.packageManager);
+            args.push('--variable', `package_manager=${config.packageManager}`);
           }
           
           logger.info('Running command:', rapidkitCmd, args.join(' '));

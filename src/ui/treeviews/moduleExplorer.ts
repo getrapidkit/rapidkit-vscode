@@ -59,7 +59,7 @@ export class ModuleExplorerProvider
   }
 
   private getModulesInCategory(category: string): ModuleTreeItem[] {
-    // Mock modules - в واقعیت از API یا core engine می‌خوانیم
+    // Mock modules - In production, this will be fetched from API or core engine
     const mockModules: Record<string, RapidKitModule[]> = {
       Authentication: [
         {

@@ -74,7 +74,7 @@ export async function addModuleCommand(module?: RapidKitModule) {
 }
 
 async function showModulePicker(): Promise<RapidKitModule | undefined> {
-  // Mock module list - در واقعیت از API می‌خوانیم
+  // Mock module list - In production, this will be fetched from API
   const modules: RapidKitModule[] = [
     {
       id: 'auth_core',

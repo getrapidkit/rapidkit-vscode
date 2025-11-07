@@ -43,25 +43,141 @@ export async function activate(context: vscode.ExtensionContext) {
   logger.info('🚀 RapidKit extension is activating...');
 
   try {
+    // Register commands FIRST before anything else that might fail
+    logger.info('Step 1: Registering commands...');
+    context.subscriptions.push(
+      vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
+        try {
+          logger.info('Executing createWorkspace command');
+          await createWorkspaceCommand();
+          if (workspaceExplorer) {
+            workspaceExplorer.refresh();
+          }
+        } catch (error) {
+          logger.error('Failed to create workspace', error);
+          vscode.window.showErrorMessage(
+            `Failed to create workspace: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.createProject', async (workspacePath?: string) => {
+        try {
+          logger.info('Executing createProject command');
+          if (!workspaceExplorer) {
+            vscode.window.showErrorMessage('Extension not fully initialized');
+            return;
+          }
+          // If workspace path not provided, get from selected workspace
+          if (!workspacePath) {
+            const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+            workspacePath = selectedWorkspace?.path;
+          }
+          await createProjectCommand(workspacePath);
+          if (projectExplorer) {
+            projectExplorer.refresh();
+          }
+        } catch (error) {
+          logger.error('Failed to create project', error);
+          vscode.window.showErrorMessage(
+            `Failed to create project: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
+      vscode.commands.registerCommand('rapidkit.generateDemo', generateDemoCommand),
+      vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
+      vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
+      vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
+      vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
+        if (workspaceExplorer) {
+          workspaceExplorer.refresh();
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.refreshProjects', () => {
+        if (projectExplorer) {
+          projectExplorer.refresh();
+        }
+        if (moduleExplorer) {
+          moduleExplorer.refresh();
+        }
+        if (templateExplorer) {
+          templateExplorer.refresh();
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.selectWorkspace', (workspace) => {
+        if (workspaceExplorer) {
+          workspaceExplorer.selectWorkspace(workspace);
+        }
+        if (projectExplorer) {
+          projectExplorer.setWorkspace(workspace);
+        }
+        // Set context key to enable project buttons
+        vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+      }),
+      vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
+        if (workspaceExplorer) {
+          await workspaceExplorer.addWorkspace();
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item) => {
+        if (workspaceExplorer) {
+          await workspaceExplorer.removeWorkspace(item.workspace);
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
+        if (workspaceExplorer) {
+          await workspaceExplorer.autoDiscover();
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item) => {
+        await openWorkspaceFolder(item.workspace);
+      }),
+      vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item) => {
+        await copyWorkspacePath(item.workspace);
+      }),
+      vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item) => {
+        await openProjectFolder(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.copyProjectPath', async (item) => {
+        await copyProjectPath(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.deleteProject', async (item) => {
+        await deleteProject(item.project);
+      }),
+      vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
+        // Dashboard implementation
+        vscode.window.showInformationMessage(
+          `Dashboard for ${projectItem.label} - Coming soon!`
+        );
+      })
+    );
+
+    logger.info('✅ Commands registered successfully');
+
     // Initialize configuration manager
+    logger.info('Step 2: Initializing configuration manager...');
     const configManager = ConfigurationManager.getInstance();
     await configManager.initialize(context);
 
     // Initialize workspace detector
+    logger.info('Step 3: Initializing workspace detector...');
     const workspaceDetector = WorkspaceDetector.getInstance();
     await workspaceDetector.detectRapidKitProjects();
 
     // Initialize status bar
+    logger.info('Step 4: Initializing status bar...');
     statusBar = new RapidKitStatusBar();
     context.subscriptions.push(statusBar);
 
     // Initialize tree view providers
+    logger.info('Step 5: Initializing tree view providers...');
     workspaceExplorer = new WorkspaceExplorerProvider();
     projectExplorer = new ProjectExplorerProvider();
     moduleExplorer = new ModuleExplorerProvider();
     templateExplorer = new TemplateExplorerProvider();
 
     // Register tree views
+    logger.info('Step 6: Registering tree views...');
     context.subscriptions.push(
       vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer),
       vscode.window.registerTreeDataProvider('rapidkitProjects', projectExplorer),
@@ -70,6 +186,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     // Register IntelliSense providers
+    logger.info('Step 7: Registering IntelliSense providers...');
     context.subscriptions.push(
       // Code actions for configuration files
       vscode.languages.registerCodeActionsProvider(
@@ -106,73 +223,14 @@ export async function activate(context: vscode.ExtensionContext) {
       )
     );
 
-    // Register commands
-    context.subscriptions.push(
-      vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
-        await createWorkspaceCommand();
-        workspaceExplorer.refresh();
-      }),
-      vscode.commands.registerCommand('rapidkit.createProject', async (workspacePath?: string) => {
-        // If workspace path not provided, get from selected workspace
-        if (!workspacePath) {
-          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
-          workspacePath = selectedWorkspace?.path;
-        }
-        await createProjectCommand(workspacePath);
-        projectExplorer.refresh();
-      }),
-      vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
-      vscode.commands.registerCommand('rapidkit.generateDemo', generateDemoCommand),
-      vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
-      vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
-      vscode.commands.registerCommand('rapidkit.showWelcome', showWelcomeCommand),
-      vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
-        workspaceExplorer.refresh();
-      }),
-      vscode.commands.registerCommand('rapidkit.refreshProjects', () => {
-        projectExplorer.refresh();
-        moduleExplorer.refresh();
-        templateExplorer.refresh();
-      }),
-      vscode.commands.registerCommand('rapidkit.selectWorkspace', (workspace) => {
-        workspaceExplorer.selectWorkspace(workspace);
-        projectExplorer.setWorkspace(workspace);
-        // Set context key to enable project buttons
-        vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
-      }),
-      vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
-        await workspaceExplorer.addWorkspace();
-      }),
-      vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item) => {
-        await workspaceExplorer.removeWorkspace(item.workspace);
-      }),
-      vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
-        await workspaceExplorer.autoDiscover();
-      }),
-      vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item) => {
-        await openWorkspaceFolder(item.workspace);
-      }),
-      vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item) => {
-        await copyWorkspacePath(item.workspace);
-      }),
-      vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item) => {
-        await openProjectFolder(item.project);
-      }),
-      vscode.commands.registerCommand('rapidkit.copyProjectPath', async (item) => {
-        await copyProjectPath(item.project);
-      }),
-      vscode.commands.registerCommand('rapidkit.deleteProject', async (item) => {
-        await deleteProject(item.project);
-      }),
-      vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
-        // Dashboard implementation
-        vscode.window.showInformationMessage(
-          `Dashboard for ${projectItem.label} - Coming soon!`
-        );
-      })
-    );
+    logger.info('Step 8: IntelliSense providers registered');
+
+    // Initialize workspace selection after commands are registered
+    logger.info('Step 9: Initializing workspace selection...');
+    await workspaceExplorer.refresh();
 
     // Show welcome page on first activation
+    logger.info('Step 10: Checking welcome page settings...');
     const config = vscode.workspace.getConfiguration('rapidkit');
     if (config.get('showWelcomeOnStartup', true)) {
       await showWelcomeCommand(context);

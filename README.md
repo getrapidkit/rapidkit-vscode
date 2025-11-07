@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![RapidKit Logo](./media/logo.png)
-
 **🚀 The Official VS Code Extension for RapidKit**
 
 Create production-ready FastAPI and NestJS projects with ease!

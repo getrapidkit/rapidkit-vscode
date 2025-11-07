@@ -146,6 +146,9 @@ export class WorkspaceExplorerProvider
     this.selectedWorkspace = workspace;
     this._onDidChangeTreeData.fire();
     
+    // Set context for toolbar buttons
+    vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+    
     // Fire event for other views to update
     vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
   }

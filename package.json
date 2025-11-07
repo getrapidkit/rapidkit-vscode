@@ -1,8 +1,8 @@
 {
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
-  "description": "🚀 Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
-  "version": "1.0.1",
+  "description": "Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
+  "version": "0.1.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "engines": {
@@ -32,9 +32,10 @@
   "bugs": {
     "url": "https://github.com/getrapidkit/rapidkit-vscode/issues"
   },
-  "homepage": "https://rapidkit.dev",
+  "homepage": "https://getrapidkit.com",
   "license": "MIT",
   "activationEvents": [
+    "onStartupFinished",
     "workspaceContains:**/pyproject.toml",
     "workspaceContains:**/.rapidkit",
     "workspaceContains:**/package.json"
@@ -263,13 +264,18 @@
           "group": "navigation@3"
         },
         {
+          "command": "rapidkit.discoverWorkspaces",
+          "when": "view == rapidkitWorkspaces",
+          "group": "navigation@4"
+        },
+        {
           "command": "rapidkit.createProject",
-          "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
+          "when": "view == rapidkitProjects",
           "group": "navigation@1"
         },
         {
           "command": "rapidkit.refreshProjects",
-          "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
+          "when": "view == rapidkitProjects",
           "group": "navigation@2"
         }
       ],
