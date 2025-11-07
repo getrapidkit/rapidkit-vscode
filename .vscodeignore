@@ -8,4 +8,32 @@ vsc-extension-quickstart.md
 **/*.map
 src/**
 **/*.ts
-# Keep node_modules so runtime dependencies are available until bundling is in place
+# Bundling with esbuild - exclude node_modules except runtime assets
+node_modules/**
+!node_modules/*/package.json
+!node_modules/*/README.md
+
+# Exclude build/test documentation (not needed in VSIX)
+BUILD_SUMMARY.md
+READY_TO_TEST.md
+RELEASE_NOTES_v*.md
+
+# Exclude test files
+**/*.test.js
+**/*.spec.js
+**/test/**
+**/tests/**
+
+# Exclude dev files
+.eslintrc.js
+.prettierrc
+pyrightconfig.json
+pytest.ini
+jest.config.*
+vitest.config.*
+esbuild.js
+
+# Exclude git files
+.git/**
+.github/**
+.gitattributes
