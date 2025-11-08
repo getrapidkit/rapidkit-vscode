@@ -6,7 +6,7 @@
 const esbuild = require('esbuild');
 const path = require('path');
 
-const production = process.argv.includes('--production');
+const production = process.argv.includes('--production') || process.env.NODE_ENV === 'production';
 const watch = process.argv.includes('--watch');
 
 /**
@@ -41,6 +41,16 @@ async function main() {
     external: ['vscode'],
     logLevel: 'silent',
     plugins: [esbuildProblemMatcherPlugin],
+    
+    // Optimization settings
+    treeShaking: true,
+    
+    // Production optimizations
+    ...(production && {
+      drop: ['console', 'debugger'], // Remove console.log and debugger in production
+      legalComments: 'none', // Remove comments
+    }),
+    
     // Mark dependencies that should be external (not bundled)
     // Keep these as external since they have native bindings or are large
     // Everything else will be bundled into the output

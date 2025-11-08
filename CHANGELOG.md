@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-08
+
+### Changed
+- ⚡ **Bundle Optimization**: Reduced extension bundle size by 55% (464KB → 209KB)
+- Enabled aggressive tree-shaking to remove unused code
+- Removed console.log statements and debugger calls in production builds
+- Removed legal comments from bundled output
+- Improved extension load time and performance
+
+### Fixed
+- Fixed production mode detection in esbuild configuration (now supports both `--production` flag and `NODE_ENV=production`)
+
 ## [0.1.3] - 2025-11-07
 
 ### Fixed

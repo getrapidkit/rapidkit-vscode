@@ -9,6 +9,8 @@ Create production-ready FastAPI and NestJS projects with ease!
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/rapidkit.rapidkit-vscode)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
+[![npm version](https://img.shields.io/npm/v/rapidkit)](https://www.npmjs.com/package/rapidkit)
+[![npm downloads](https://img.shields.io/npm/dm/rapidkit)](https://www.npmjs.com/package/rapidkit)
 
 </div>
 
