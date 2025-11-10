@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-11-10
+
+### Fixed
+- 🐛 **Fixed Generate Demo Project button**: The "Generate Demo Project" button in PROJECTS view now works correctly with demo workspaces
+- Fixed command to automatically detect and use `generate-demo.js` script in demo workspaces
+- Added automatic workspace context retrieval when Generate Demo button is clicked
+- Demo workspaces now properly generate projects without requiring folder selection
+
+### Changed
+- Improved `generateDemoCommand` to accept workspace parameter and retrieve selected workspace from context
+- Added `rapidkit.getSelectedWorkspace` command to ProjectExplorer for getting current workspace
+- Enhanced demo workspace detection logic to check for `generate-demo.js` file
+
 ## [0.2.0] - 2025-11-08
 
 ### Changed
@@ -152,5 +165,10 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.3.0
+[0.2.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.2.0
+[0.1.3]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.3
+[0.1.2]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.2
+[0.1.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.1
 [0.1.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.0
