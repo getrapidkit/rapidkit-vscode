@@ -30,6 +30,14 @@ export class ProjectExplorerProvider
       }
     );
     
+    // Register command to get selected workspace
+    vscode.commands.registerCommand(
+      'rapidkit.getSelectedWorkspace',
+      () => {
+        return this.selectedWorkspace;
+      }
+    );
+    
     // Initialize context
     vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
     vscode.commands.executeCommand('setContext', 'rapidkit:hasProjects', false);
