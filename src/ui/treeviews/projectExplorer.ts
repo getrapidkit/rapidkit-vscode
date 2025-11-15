@@ -161,14 +161,14 @@ export class ProjectExplorerProvider
 
                 this.projects.push(project);
               }
-            } catch (error) {
+            } catch (_error) {
               // Invalid package.json, skip
             }
           }
         }
       }
-    } catch (error) {
-      console.error('Error loading projects:', error);
+    } catch (_error) {
+      console.error('Error loading projects:', _error);
     }
   }
 

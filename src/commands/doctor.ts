@@ -35,7 +35,7 @@ export async function doctorCommand() {
             status: 'pass',
             message: pythonResult.stdout,
           });
-        } catch (error) {
+        } catch (_error) {
           result.passed = false;
           result.checks.push({
             name: 'Python',
@@ -55,7 +55,7 @@ export async function doctorCommand() {
             status: 'pass',
             message: nodeResult.stdout,
           });
-        } catch (error) {
+        } catch (_error) {
           result.checks.push({
             name: 'Node.js',
             status: 'warning',
@@ -74,7 +74,7 @@ export async function doctorCommand() {
             status: 'pass',
             message: poetryResult.stdout,
           });
-        } catch (error) {
+        } catch (_error) {
           result.checks.push({
             name: 'Poetry',
             status: 'warning',
@@ -93,7 +93,7 @@ export async function doctorCommand() {
             status: 'pass',
             message: gitResult.stdout,
           });
-        } catch (error) {
+        } catch (_error) {
           result.checks.push({
             name: 'Git',
             status: 'warning',

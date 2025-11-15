@@ -50,8 +50,8 @@ export class WorkspaceManager {
       } else {
         this.workspaces = [];
       }
-    } catch (error) {
-      console.error('Error loading workspaces:', error);
+    } catch (_error) {
+      console.error('Error loading workspaces:', _error);
       this.workspaces = [];
     }
 
@@ -64,8 +64,8 @@ export class WorkspaceManager {
   private async saveWorkspaces(): Promise<void> {
     try {
       await fs.writeJSON(this.storageFile, { workspaces: this.workspaces }, { spaces: 2 });
-    } catch (error) {
-      console.error('Error saving workspaces:', error);
+    } catch (_error) {
+      console.error('Error saving workspaces:', _error);
     }
   }
 
@@ -171,7 +171,7 @@ export class WorkspaceManager {
               }
             }
           }
-        } catch (error) {
+        } catch (_error) {
           // Ignore permission errors
         }
       }
@@ -196,7 +196,7 @@ export class WorkspaceManager {
     try {
       const marker = await fs.readJSON(markerPath);
       return marker.signature === 'RAPIDKIT_VSCODE_WORKSPACE' && marker.createdBy === 'rapidkit-vscode-extension';
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }
@@ -225,13 +225,13 @@ export class WorkspaceManager {
               if (pkg.dependencies?.['@nestjs/core']) {
                 projects.push(entry.name);
               }
-            } catch (error) {
+            } catch (_error) {
               // Ignore
             }
           }
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Ignore errors
     }
 

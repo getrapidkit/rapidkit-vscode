@@ -95,19 +95,35 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
             logger.info('Using demo workspace generate-demo.js script');
             const { execa } = await import('execa');
             
-            await execa('node', ['generate-demo.js', projectName], {
+            // Track progress while running
+            const proc = execa('node', ['generate-demo.js', projectName], {
               cwd: destinationPath,
-              stdio: 'pipe',
+              stdio: 'inherit',
             });
+            
+            // Update progress at intervals while running
+            const progressInterval = setInterval(() => {
+              progress.report({ increment: 10 });
+            }, 500);
+            
+            await proc;
+            clearInterval(progressInterval);
           } else {
             // Use rapidkit CLI with --demo-only flag
             logger.info('Using rapidkit CLI with --demo-only');
             const cli = new RapidKitCLI();
 
+            // Track progress while running
+            const progressInterval = setInterval(() => {
+              progress.report({ increment: 10 });
+            }, 500);
+            
             await cli.generateDemo({
               name: projectName,
               destinationPath: destinationPath,
             });
+            
+            clearInterval(progressInterval);
           }
 
           progress.report({ increment: 100, message: 'Done!' });

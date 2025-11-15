@@ -61,7 +61,7 @@ export class RapidKitCLI {
     const { execa } = await import('execa');
     return await execa('npx', args, {
       cwd: path.dirname(options.path),
-      stdio: 'pipe',
+      stdio: 'inherit',
     });
   }
 
@@ -72,11 +72,11 @@ export class RapidKitCLI {
     const args = ['rapidkit', options.name, '--demo-only'];
     this.logger.debug('Generating demo with args:', args);
 
-    // Use execa with stdio: 'pipe' to capture output
+    // Use execa with stdio: 'inherit' to show output to user
     const { execa } = await import('execa');
     const result = await execa('npx', args, {
       cwd: options.destinationPath,
-      stdio: 'pipe',
+      stdio: 'inherit',
     });
 
     return result;
