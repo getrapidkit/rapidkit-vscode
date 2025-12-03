@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { ActionsProvider } from './ui/actionsProvider';
 import { WorkspaceExplorerProvider } from './ui/treeviews/workspaceExplorer';
 import { ProjectExplorerProvider } from './ui/treeviews/projectExplorer';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
@@ -11,13 +12,13 @@ import { TemplateExplorerProvider } from './ui/treeviews/templateExplorer';
 import { createWorkspaceCommand } from './commands/createWorkspace';
 import { createProjectCommand } from './commands/createProject';
 import { addModuleCommand } from './commands/addModule';
-import { generateDemoCommand } from './commands/generateDemo';
 import { previewTemplateCommand } from './commands/previewTemplate';
 import { doctorCommand } from './commands/doctor';
 import { showWelcomeCommand } from './commands/showWelcome';
 import { RapidKitStatusBar } from './ui/statusBar';
 import { ConfigurationManager } from './core/configurationManager';
 import { WorkspaceDetector } from './core/workspaceDetector';
+import { WorkspaceManager } from './core/workspaceManager';
 import { Logger } from './utils/logger';
 import { RapidKitCodeActionsProvider } from './providers/codeActionsProvider';
 import { RapidKitCompletionProvider } from './providers/completionProvider';
@@ -26,10 +27,40 @@ import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceCont
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 
 let statusBar: RapidKitStatusBar;
+let actionsProvider: ActionsProvider;
 let workspaceExplorer: WorkspaceExplorerProvider;
 let projectExplorer: ProjectExplorerProvider;
 let moduleExplorer: ModuleExplorerProvider;
 let templateExplorer: TemplateExplorerProvider;
+
+/**
+ * Ensure default workspace exists and is registered in WorkspaceManager
+ */
+async function ensureDefaultWorkspace(): Promise<void> {
+  const logger = Logger.getInstance();
+  const path = require('path');
+  const os = require('os');
+  const fs = require('fs-extra');
+
+  const defaultWorkspacePath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+
+  // Check if default workspace exists
+  if (await fs.pathExists(defaultWorkspacePath)) {
+    // Add to WorkspaceManager if not already there
+    const manager = WorkspaceManager.getInstance();
+    const workspaces = manager.getWorkspaces();
+    const isInManager = workspaces.some((ws: any) => ws.path === defaultWorkspacePath);
+
+    if (!isInManager) {
+      await manager.addWorkspace(defaultWorkspacePath);
+      logger.info('✅ Default workspace registered:', defaultWorkspacePath);
+    } else {
+      logger.info('Default workspace already registered');
+    }
+  } else {
+    logger.info('Default workspace does not exist yet, will be created on first project creation');
+  }
+}
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
@@ -86,37 +117,48 @@ export async function activate(context: vscode.ExtensionContext) {
           );
         }
       }),
-      vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
-      vscode.commands.registerCommand('rapidkit.generateDemo', async () => {
+      vscode.commands.registerCommand('rapidkit.createFastAPIProject', async () => {
         try {
-          logger.info('Executing generateDemo command');
-          // Get selected workspace from projectExplorer
-          let selectedWorkspace = null;
-          if (projectExplorer) {
-            selectedWorkspace = (await vscode.commands.executeCommand(
-              'rapidkit.getSelectedWorkspace'
-            )) as any;
-            logger.info('Selected workspace for generateDemo:', selectedWorkspace);
-          }
-
-          // If no workspace selected, show warning
-          if (!selectedWorkspace) {
-            vscode.window.showWarningMessage('⚠️ Please select a workspace first');
-            logger.warn('No workspace selected for generateDemo');
+          logger.info('Executing createFastAPIProject command');
+          if (!workspaceExplorer) {
+            vscode.window.showErrorMessage('Extension not fully initialized');
             return;
           }
-
-          await generateDemoCommand(selectedWorkspace);
+          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+          await createProjectCommand(selectedWorkspace?.path, 'fastapi');
           if (projectExplorer) {
             projectExplorer.refresh();
           }
         } catch (error) {
-          logger.error('Failed to generate demo', error);
+          logger.error('Failed to create FastAPI project', error);
           vscode.window.showErrorMessage(
-            `Failed to generate demo project: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to create FastAPI project: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }),
+      vscode.commands.registerCommand('rapidkit.createNestJSProject', async () => {
+        try {
+          logger.info('Executing createNestJSProject command');
+          if (!workspaceExplorer) {
+            vscode.window.showErrorMessage('Extension not fully initialized');
+            return;
+          }
+          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+          await createProjectCommand(selectedWorkspace?.path, 'nestjs');
+          if (projectExplorer) {
+            projectExplorer.refresh();
+          }
+        } catch (error) {
+          logger.error('Failed to create NestJS project', error);
+          vscode.window.showErrorMessage(
+            `Failed to create NestJS project: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.openDocs', async () => {
+        await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
+      }),
+      vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
       vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
       vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
@@ -238,6 +280,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const workspaceDetector = WorkspaceDetector.getInstance();
     await workspaceDetector.detectRapidKitProjects();
 
+    // Ensure default workspace is registered
+    logger.info('Step 3.5: Checking default workspace...');
+    await ensureDefaultWorkspace();
+
     // Initialize status bar
     logger.info('Step 4: Initializing status bar...');
     statusBar = new RapidKitStatusBar();
@@ -245,6 +291,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize tree view providers
     logger.info('Step 5: Initializing tree view providers...');
+    actionsProvider = new ActionsProvider();
     workspaceExplorer = new WorkspaceExplorerProvider();
     projectExplorer = new ProjectExplorerProvider();
     moduleExplorer = new ModuleExplorerProvider();
@@ -253,6 +300,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register tree views
     logger.info('Step 6: Registering tree views...');
     context.subscriptions.push(
+      vscode.window.registerTreeDataProvider('rapidkitActions', actionsProvider),
       vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer),
       vscode.window.registerTreeDataProvider('rapidkitProjects', projectExplorer),
       vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer),

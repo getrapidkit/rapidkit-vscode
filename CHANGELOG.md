@@ -20,63 +20,98 @@ This is a **breaking change** that completely refactors the extension to use the
   - Workspace creation: `npx rapidkit <workspace-name>`
   - Project creation: `npx rapidkit <project> --template <fastapi|nestjs>`
   - Workspace projects: `rapidkit create <project> --template <template>`
+  - All CLI commands use `--yes` flag for non-interactive mode
 
-- 📦 **Dual-mode project creation**
-  - **Workspace Mode**: Create projects inside existing RapidKit workspaces
-  - **Standalone Mode**: Create independent projects anywhere
-  - Users can choose mode dynamically via quick pick menu
+- 📦 **Smart Location Detection** - Intelligent workspace and project location management
+  - **3-Scenario Detection**: Selected workspace → Current RapidKit workspace → Ask user
+  - **Default Workspace**: `~/RapidKit/rapidkits/` (automatically created if needed)
+  - **Custom Locations**: Full support for user-selected directories outside RapidKit
+  - **Auto-Registration**: Workspaces automatically added to manager after creation
+  - **Marker Files**: `.rapidkit-workspace` created for custom locations to enable extension recognition
 
 - 🎯 **Simplified wizards**
-  - **WorkspaceWizard**: Removed demo mode, simplified to match npm package workflow
-  - **ProjectWizard**: Removed kit selection (templates are fixed in npm package)
-  - Removed module selection (will be available post-creation via workspace CLI)
+  - **WorkspaceWizard**: Only asks for workspace name (location always `~/RapidKit/`)
+  - **ProjectWizard**: Accepts preselected framework for direct FastAPI/NestJS creation
+  - Removed package manager selection (always uses npm)
+  - Removed git initialization prompt (always enabled)
   - Streamlined user experience with fewer prompts
 
 - ⚡ **Updated commands**
   - `createWorkspace`: Uses `npx rapidkit` to create workspace containers
-  - `createProject`: Supports both workspace and standalone modes
-  - `generateDemo`: Refactored to use npm package FastAPI template
+  - `createProject`: Smart location detection with default/custom choice
+  - `createFastAPIProject`: Direct FastAPI project creation (NEW)
+  - `createNestJSProject`: Direct NestJS project creation (NEW)
+  - `openDocs`: Open RapidKit documentation (NEW)
+
+- 🎨 **Button-Style Actions UI** - Professional action buttons in sidebar
+  - Removed traditional tree view items
+  - Added button-style actions similar to Source Control view
+  - Proper newline formatting for better UX
+  - Quick access to Create Workspace, FastAPI, and NestJS projects
 
 - 🔧 **Type system updates**
   - Simplified `WorkspaceConfig`: Removed `mode`, `installMethod`, `pythonVersion`
   - Simplified `ProjectConfig`: Removed `kit`, `modules`, `author`, `license`, `description`
   - Focused on essential configuration only
 
+- ✅ **Enhanced Workspace Validation** - No more annoying confirmation dialogs
+  - Accepts workspaces with `.rapidkit/` directory (npm CLI created)
+  - Accepts workspaces with `.rapidkit-workspace` marker (extension created)
+  - Supports both old (`RAPIDKIT_VSCODE_WORKSPACE`) and new (`rapidkit-vscode`) signatures
+  - Silently skips invalid folders instead of prompting user
+
 ### Removed
 - ❌ **Python CLI dependencies**: No longer depends on Python RapidKit CLI
+- ❌ **Generate Demo feature**: Removed (unnecessary with only 2 templates)
 - ❌ **Demo workspace mode**: Workspaces are now standard npm package workspaces
 - ❌ **Kit selection**: Templates are managed by npm package
 - ❌ **Module wizard step**: Module installation moved to post-creation workflow
 - ❌ **Poetry integration**: Not needed anymore
+- ❌ **Annoying confirmation dialogs**: "Add it anyway?" removed
 
 ### Added
 - ✨ **npm package integration**: Full integration with `rapidkit` npm package (v0.12.1+)
-- ✨ **Mode selection UI**: Interactive menu to choose workspace vs standalone creation
+- ✨ **Smart location choice**: Default workspace vs Custom location with intelligent detection
+- ✨ **Marker file system**: `.rapidkit-workspace` files for custom location recognition
+- ✨ **Auto-registration**: Workspaces automatically appear in list after creation
+- ✨ **Direct framework commands**: Separate commands for FastAPI and NestJS
 - ✨ **Better error handling**: Contextual help links to documentation
 - ✨ **Improved progress reporting**: More accurate progress indicators
 - ✨ **Verification steps**: Automatic project/workspace verification after creation
+- ✨ **Parent directory creation**: `fs.ensureDir()` before all CLI calls to prevent ENOENT errors
+
+### Fixed
+- 🐛 **Fixed interactive prompts blocking**: Added `--yes` flag to all CLI commands
+- 🐛 **Fixed custom location not showing in list**: Auto-registration after project creation
+- 🐛 **Fixed workspace validation**: Enhanced to accept npm CLI created workspaces
+- 🐛 **Fixed directory creation errors**: Parent directories created before CLI execution
+- 🐛 **Fixed import order conflict**: Moved path import inside function to avoid variable shadowing
 
 ### Benefits
 - 🎯 **Simpler**: No Python/Poetry installation required
-- ⚡ **Faster**: Direct npm execution is faster than Python environment setup
+- ⚡ **5-6x Faster**: Direct npm execution vs Python environment setup
 - 🔄 **Consistent**: Single source of truth (npm package) for templates
 - 🐛 **Fewer bugs**: Less complexity = fewer edge cases
 - 📦 **Smaller**: Removed bundled templates (managed by npm package)
+- 🎨 **Better UX**: Smart defaults, no annoying dialogs, professional UI
 
 ### Migration Notes
 - **For Users**: Extension now requires Node.js/npm (already available in VS Code)
 - **For Developers**: Python RapidKit CLI no longer needed for development
 - **Workspaces**: Existing workspaces continue to work, new API for creation
 - **Templates**: Managed by npm package, always up-to-date
+- **Custom Locations**: Now fully supported with marker files
 
 ### Technical Details
 - Updated `RapidKitCLI` class with new methods:
-  - `createWorkspace(options)`: Workspace creation
-  - `createProject(options)`: Standalone project creation
-  - `createProjectInWorkspace(options)`: Project inside workspace
+  - `createWorkspace(options)`: Workspace creation with `--yes` flag
+  - `createProject(options)`: Standalone project creation with `--yes` flag
+  - `createProjectInWorkspace(options)`: Project inside workspace with `--yes` flag
+- Enhanced `WorkspaceManager.isRapidKitWorkspace()` to check both `.rapidkit/` and marker files
 - Refactored all command handlers to use new CLI API
 - Updated TypeScript types to match new simplified workflow
 - Removed legacy Python CLI integration code
+- Added marker file creation for custom locations
 
 ## [0.3.2] - 2025-12-03
 

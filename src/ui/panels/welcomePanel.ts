@@ -23,17 +23,17 @@ export class WelcomePanel {
           case 'createWorkspace':
             vscode.commands.executeCommand('rapidkit.createWorkspace');
             break;
-          case 'createProject':
-            vscode.commands.executeCommand('rapidkit.createProject');
+          case 'createFastAPIProject':
+            vscode.commands.executeCommand('rapidkit.createFastAPIProject');
             break;
-          case 'generateDemo':
-            vscode.commands.executeCommand('rapidkit.generateDemo');
+          case 'createNestJSProject':
+            vscode.commands.executeCommand('rapidkit.createNestJSProject');
             break;
           case 'doctor':
             vscode.commands.executeCommand('rapidkit.doctor');
             break;
           case 'openDocs':
-            vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com'));
+            vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
             break;
         }
       },
@@ -164,7 +164,8 @@ export class WelcomePanel {
         <div class="logo">🚀</div>
         <h1>Welcome to RapidKit</h1>
         <p class="subtitle">
-            Create production-ready FastAPI & NestJS projects with ease
+            Create production-ready FastAPI & NestJS projects instantly<br/>
+            <small style="opacity: 0.7;">Powered by rapidkit npm package</small>
         </p>
     </div>
 
@@ -173,23 +174,23 @@ export class WelcomePanel {
             <div class="action-icon">📂</div>
             <div class="action-title">Create Workspace</div>
             <div class="action-description">
-                Set up a new RapidKit workspace with demo or full mode
+                Set up a new RapidKit workspace to organize multiple projects
             </div>
         </div>
 
-        <div class="action-card" onclick="createProject()">
-            <div class="action-icon">🎯</div>
-            <div class="action-title">Create Project</div>
+        <div class="action-card" onclick="createFastAPIProject()">
+            <div class="action-icon">🐍</div>
+            <div class="action-title">FastAPI Project</div>
             <div class="action-description">
-                Generate a new FastAPI or NestJS project in your workspace
+                Create a new FastAPI project with modern Python architecture
             </div>
         </div>
 
-        <div class="action-card" onclick="generateDemo()">
+        <div class="action-card" onclick="createNestJSProject()">
             <div class="action-icon">⚡</div>
-            <div class="action-title">Generate Demo</div>
+            <div class="action-title">NestJS Project</div>
             <div class="action-description">
-                Quickly create a demo project with bundled templates
+                Create a new NestJS project with TypeScript best practices
             </div>
         </div>
 
@@ -197,45 +198,45 @@ export class WelcomePanel {
             <div class="action-icon">🩺</div>
             <div class="action-title">System Check</div>
             <div class="action-description">
-                Verify system requirements and dependencies
+                Verify Node.js and system requirements
             </div>
         </div>
     </div>
 
     <div class="features">
-        <h2>✨ Features</h2>
+        <h2>✨ What's New in v0.4.0</h2>
         <div class="feature-list">
             <div class="feature-item">
+                <span class="feature-icon">📦</span>
+                <span>npm package integration (no Python required)</span>
+            </div>
+            <div class="feature-item">
                 <span class="feature-icon">⚡</span>
-                <span>Fast project scaffolding</span>
+                <span>5-6x faster project creation</span>
             </div>
             <div class="feature-item">
-                <span class="feature-icon">🧩</span>
-                <span>Modular architecture</span>
-            </div>
-            <div class="feature-item">
-                <span class="feature-icon">🎨</span>
-                <span>Beautiful templates</span>
+                <span class="feature-icon">🎯</span>
+                <span>Simplified workflow - just enter name</span>
             </div>
             <div class="feature-item">
                 <span class="feature-icon">🔧</span>
-                <span>Easy configuration</span>
+                <span>Auto-configured workspaces</span>
             </div>
             <div class="feature-item">
                 <span class="feature-icon">📚</span>
-                <span>Comprehensive docs</span>
+                <span>FastAPI & NestJS templates</span>
             </div>
             <div class="feature-item">
                 <span class="feature-icon">🚀</span>
-                <span>Production ready</span>
+                <span>Production-ready from day one</span>
             </div>
         </div>
     </div>
 
     <div class="links">
         <a href="#" class="link" onclick="openDocs()">📖 Documentation</a>
-        <a href="#" class="link" onclick="openDocs()">💡 Examples</a>
-        <a href="#" class="link" onclick="openDocs()">💬 Community</a>
+        <a href="#" class="link" onclick="openDocs()">💡 Get Started</a>
+        <a href="#" class="link" onclick="openDocs()">💬 GitHub</a>
     </div>
 
     <script>
@@ -245,12 +246,12 @@ export class WelcomePanel {
             vscode.postMessage({ command: 'createWorkspace' });
         }
 
-        function createProject() {
-            vscode.postMessage({ command: 'createProject' });
+        function createFastAPIProject() {
+            vscode.postMessage({ command: 'createFastAPIProject' });
         }
 
-        function generateDemo() {
-            vscode.postMessage({ command: 'generateDemo' });
+        function createNestJSProject() {
+            vscode.postMessage({ command: 'createNestJSProject' });
         }
 
         function runDoctor() {

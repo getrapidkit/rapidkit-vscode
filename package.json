@@ -38,8 +38,10 @@
     "onView:rapidkitWorkspaces",
     "onCommand:rapidkit.createWorkspace",
     "onCommand:rapidkit.createProject",
+    "onCommand:rapidkit.createFastAPIProject",
+    "onCommand:rapidkit.createNestJSProject",
+    "onCommand:rapidkit.openDocs",
     "onCommand:rapidkit.addModule",
-    "onCommand:rapidkit.generateDemo",
     "onCommand:rapidkit.refreshProjects",
     "onCommand:rapidkit.refreshWorkspaces",
     "onCommand:rapidkit.selectWorkspace",
@@ -73,16 +75,28 @@
         "icon": "$(new-folder)"
       },
       {
+        "command": "rapidkit.createFastAPIProject",
+        "title": "Create FastAPI Project",
+        "category": "RapidKit",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "rapidkit.createNestJSProject",
+        "title": "Create NestJS Project",
+        "category": "RapidKit",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "rapidkit.openDocs",
+        "title": "Open Documentation",
+        "category": "RapidKit",
+        "icon": "$(book)"
+      },
+      {
         "command": "rapidkit.addModule",
         "title": "Add Module",
         "category": "RapidKit",
         "icon": "$(extensions)"
-      },
-      {
-        "command": "rapidkit.generateDemo",
-        "title": "Generate Demo Project",
-        "category": "RapidKit",
-        "icon": "$(rocket)"
       },
       {
         "command": "rapidkit.refreshProjects",
@@ -187,6 +201,12 @@
     "views": {
       "rapidkit-explorer": [
         {
+          "id": "rapidkitActions",
+          "name": "Actions",
+          "icon": "media/icons/icon-128.png",
+          "contextualTitle": "Quick Actions"
+        },
+        {
           "id": "rapidkitWorkspaces",
           "name": "Workspaces",
           "icon": "media/icons/icon-128.png",
@@ -213,17 +233,21 @@
     },
     "viewsWelcome": [
       {
+        "view": "rapidkitActions",
+        "contents": "Get started with RapidKit by creating workspaces and projects.\n\n[$(add) Create Workspace](command:rapidkit.createWorkspace)\n\n[$(file-code) Create FastAPI Project](command:rapidkit.createFastAPIProject)\n\n[$(bracket) Create NestJS Project](command:rapidkit.createNestJSProject)\n\n[$(book) Documentation](command:rapidkit.openDocs)"
+      },
+      {
         "view": "rapidkitWorkspaces",
-        "contents": "No RapidKit workspaces found.\n\nGet started by creating a new workspace or adding an existing one.\n\n[$(new-folder) Create New Workspace](command:rapidkit.createWorkspace)\n\n[$(folder-opened) Add Existing Workspace](command:rapidkit.addWorkspace)\n\n[$(search) Discover Workspaces](command:rapidkit.discoverWorkspaces)\n\n[Learn More](https://getrapidkit.com/docs)"
+        "contents": "No RapidKit workspaces found.\n\nUse the Actions panel above to create your first workspace."
       },
       {
         "view": "rapidkitProjects",
-        "contents": "No workspace selected.\n\nSelect a workspace from the Workspaces view above to see its projects.",
+        "contents": "No workspace selected.\n\nSelect a workspace from the Workspaces panel or use Actions to create projects.",
         "when": "!rapidkit:workspaceSelected"
       },
       {
         "view": "rapidkitProjects",
-        "contents": "No projects found in this workspace.\n\nGet started by creating your first RapidKit project.\n\n[$(new-folder) Create New Project](command:rapidkit.createProject)\n\n[$(rocket) Generate Demo Project](command:rapidkit.generateDemo)\n\n[Learn More](https://getrapidkit.com/docs)",
+        "contents": "No projects found in this workspace.\n\nUse the Actions panel to create your first project.",
         "when": "rapidkit:workspaceSelected && rapidkit:noProjects"
       },
       {
@@ -232,7 +256,7 @@
       },
       {
         "view": "rapidkitTemplates",
-        "contents": "Template library coming soon.\n\n[Browse Online](https://getrapidkit.com/templates)"
+        "contents": "Available templates:\n• FastAPI - Python web framework\n• NestJS - TypeScript framework"
       }
     ],
     "menus": {
@@ -245,9 +269,6 @@
         },
         {
           "command": "rapidkit.addModule"
-        },
-        {
-          "command": "rapidkit.generateDemo"
         },
         {
           "command": "rapidkit.refreshProjects",

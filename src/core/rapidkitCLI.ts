@@ -7,7 +7,6 @@
  * 2. Workspace Mode: npx rapidkit <workspace> (then use `rapidkit create` inside)
  */
 
-import * as path from 'path';
 import { Logger } from '../utils/logger';
 
 type ExecaReturnValue = any;
@@ -47,7 +46,7 @@ export class RapidKitCLI {
    * Uses: npx rapidkit <workspace-name>
    */
   async createWorkspace(options: CreateWorkspaceOptions): Promise<ExecaReturnValue> {
-    const args = ['rapidkit', options.name];
+    const args = ['rapidkit', options.name, '--yes'];
 
     if (options.skipGit) {
       args.push('--skip-git');
@@ -60,18 +59,13 @@ export class RapidKitCLI {
     this.logger.info('Creating workspace with npx:', args.join(' '));
 
     const { execa } = await import('execa');
-    // Provide default inputs for non-interactive mode
-    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
-    const input = `${authorName}\n`;
 
     return await execa('npx', args, {
       cwd: options.parentPath,
       stdio: ['pipe', 'pipe', 'pipe'],
-      input: input,
       env: {
         ...process.env,
         FORCE_COLOR: '1',
-        CI: 'true', // Tell CLI we're in non-interactive mode
       },
     });
   }
@@ -81,7 +75,7 @@ export class RapidKitCLI {
    * Uses: npx rapidkit <project-name> --template <fastapi|nestjs>
    */
   async createProject(options: CreateProjectOptions): Promise<ExecaReturnValue> {
-    const args = ['rapidkit', options.name, '--template', options.template];
+    const args = ['rapidkit', options.name, '--template', options.template, '--yes'];
 
     if (options.skipGit) {
       args.push('--skip-git');
@@ -98,19 +92,13 @@ export class RapidKitCLI {
     this.logger.info('Creating project with npx:', args.join(' '));
 
     const { execa } = await import('execa');
-    // Provide default inputs for non-interactive mode
-    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
-    const projectDesc = `${options.name} - Created with RapidKit`;
-    const input = `${authorName}\n${projectDesc}\n`;
 
     return await execa('npx', args, {
       cwd: options.parentPath,
       stdio: ['pipe', 'pipe', 'pipe'],
-      input: input,
       env: {
         ...process.env,
         FORCE_COLOR: '1',
-        CI: 'true',
       },
     });
   }
@@ -123,7 +111,7 @@ export class RapidKitCLI {
   async createProjectInWorkspace(
     options: CreateProjectInWorkspaceOptions
   ): Promise<ExecaReturnValue> {
-    const args = ['create', options.name, '--template', options.template];
+    const args = ['create', options.name, '--template', options.template, '--yes'];
 
     if (options.skipInstall) {
       args.push('--skip-install');
@@ -132,41 +120,41 @@ export class RapidKitCLI {
     this.logger.info('Creating project in workspace:', args.join(' '));
 
     // Check if workspace has .rapidkit/bin/rapidkit
-    const rapidkitBin = path.join(options.workspacePath, '.rapidkit', 'bin', 'rapidkit');
-
     const { execa } = await import('execa');
     const fs = await import('fs-extra');
+    const path = await import('path');
 
-    let command: string;
-    let execArgs: string[];
+    const rapidkitBin = path.join(options.workspacePath, '.rapidkit', 'bin', 'rapidkit');
 
     if (await fs.pathExists(rapidkitBin)) {
       // Use workspace's rapidkit CLI
-      command = rapidkitBin;
-      execArgs = args;
       this.logger.debug('Using workspace rapidkit CLI:', rapidkitBin);
+
+      return await execa(rapidkitBin, args, {
+        cwd: options.workspacePath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          FORCE_COLOR: '1',
+        },
+      });
     } else {
-      // Fallback to npx (workspace might not have been activated)
-      command = 'npx';
-      execArgs = ['rapidkit', ...args];
-      this.logger.debug('Using npx as fallback');
+      // Workspace CLI not found, use createProject instead (standalone in workspace dir)
+      this.logger.warn('Workspace CLI not found, creating as standalone project in workspace');
+
+      return await execa(
+        'npx',
+        ['rapidkit', options.name, '--template', options.template, '--yes'],
+        {
+          cwd: options.workspacePath,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            FORCE_COLOR: '1',
+          },
+        }
+      );
     }
-
-    // Provide default inputs for non-interactive mode
-    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
-    const projectDesc = `${options.name} - Created with RapidKit`;
-    const input = `${authorName}\n${projectDesc}\n`;
-
-    return await execa(command, execArgs, {
-      cwd: options.workspacePath,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      input: input,
-      env: {
-        ...process.env,
-        FORCE_COLOR: '1',
-        CI: 'true',
-      },
-    });
   }
 
   /**

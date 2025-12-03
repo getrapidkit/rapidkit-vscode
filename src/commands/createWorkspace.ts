@@ -40,11 +40,16 @@ export async function createWorkspaceCommand() {
 
           progress.report({ increment: 10, message: 'Running npx rapidkit...' });
 
+          // Ensure parent directory exists
+          const parentPath = path.dirname(config.path);
+          await fs.ensureDir(parentPath);
+          logger.info('Parent directory ensured:', parentPath);
+
           // Create workspace using npm package
           // Command: npx rapidkit <workspace-name>
           await cli.createWorkspace({
             name: config.name,
-            parentPath: path.dirname(config.path),
+            parentPath: parentPath,
             skipGit: !config.initGit,
           });
 
@@ -65,6 +70,22 @@ export async function createWorkspaceCommand() {
           if (!rapidkitDirExists) {
             logger.warn('Workspace created but .rapidkit directory not found');
           }
+
+          // Create VS Code extension marker file for workspace detection
+          const markerPath = path.join(config.path, '.rapidkit-workspace');
+          await fs.writeJSON(
+            markerPath,
+            {
+              signature: 'RAPIDKIT_VSCODE_WORKSPACE',
+              createdBy: 'rapidkit-vscode-extension',
+              version: '0.4.0',
+              createdAt: new Date().toISOString(),
+              name: config.name,
+            },
+            { spaces: 2 }
+          );
+
+          logger.info('Workspace marker file created');
 
           progress.report({ increment: 80, message: 'Registering workspace...' });
 

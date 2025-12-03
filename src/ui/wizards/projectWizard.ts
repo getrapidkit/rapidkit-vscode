@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ProjectConfig } from '../../types';
 
 export class ProjectWizard {
-  async show(): Promise<ProjectConfig | undefined> {
+  async show(preselectedFramework?: 'fastapi' | 'nestjs'): Promise<ProjectConfig | undefined> {
     // Step 1: Project name
     const name = await vscode.window.showInputBox({
       prompt: 'Enter project name',
@@ -27,80 +27,46 @@ export class ProjectWizard {
       return undefined;
     }
 
-    // Step 2: Choose framework
-    const frameworkItems = [
-      {
-        label: '$(symbol-property) FastAPI',
-        description: 'Modern Python web framework',
-        detail: 'High performance, easy to learn, fast to code',
-        framework: 'fastapi' as const,
-      },
-      {
-        label: '$(symbol-class) NestJS',
-        description: 'Progressive Node.js framework',
-        detail: 'TypeScript-first, modular architecture',
-        framework: 'nestjs' as const,
-      },
-    ];
+    // Step 2: Choose framework (skip if preselected)
+    let framework: 'fastapi' | 'nestjs';
 
-    const selectedFramework = await vscode.window.showQuickPick(frameworkItems, {
-      placeHolder: 'Select framework',
-      ignoreFocusOut: true,
-    });
-
-    if (!selectedFramework) {
-      return undefined;
-    }
-
-    const framework = selectedFramework.framework;
-
-    // Note: npm package uses --template flag (fastapi or nestjs)
-    // No kit selection needed, templates are fixed
-
-    // Step 4: If NestJS, ask for package manager
-    let packageManager: string | undefined;
-    if (framework === 'nestjs') {
-      const pmItems = [
+    if (preselectedFramework) {
+      framework = preselectedFramework;
+    } else {
+      const frameworkItems = [
         {
-          label: '$(package) npm',
-          description: 'Node Package Manager (default)',
-          detail: 'Widely used, comes with Node.js',
-          value: 'npm',
-          picked: true,
+          label: '$(symbol-property) FastAPI',
+          description: 'Modern Python web framework',
+          detail: 'High performance, easy to learn, fast to code',
+          framework: 'fastapi' as const,
         },
         {
-          label: '$(package) yarn',
-          description: 'Fast, reliable package manager',
-          detail: 'Popular alternative to npm',
-          value: 'yarn',
-        },
-        {
-          label: '$(package) pnpm',
-          description: 'Fast, disk space efficient',
-          detail: 'Modern package manager',
-          value: 'pnpm',
+          label: '$(symbol-class) NestJS',
+          description: 'Progressive Node.js framework',
+          detail: 'TypeScript-first, modular architecture',
+          framework: 'nestjs' as const,
         },
       ];
 
-      const selectedPM = await vscode.window.showQuickPick(pmItems, {
-        placeHolder: 'Select package manager for NestJS',
+      const selectedFramework = await vscode.window.showQuickPick(frameworkItems, {
+        placeHolder: 'Select framework',
         ignoreFocusOut: true,
       });
 
-      if (!selectedPM) {
+      if (!selectedFramework) {
         return undefined;
       }
 
-      packageManager = selectedPM.value;
+      framework = selectedFramework.framework;
     }
 
-    // Note: Module installation will be available after project creation
-    // using the workspace CLI
+    // Note: npm package uses --template flag (fastapi or nestjs)
+    // Always use npm as default package manager
 
     return {
       name,
       framework,
-      packageManager, // For NestJS projects
+      packageManager: 'npm', // Always use npm (default)
     };
   }
 }

@@ -41,10 +41,10 @@ export class WorkspaceManager {
       if (await fs.pathExists(this.storageFile)) {
         const data = await fs.readJSON(this.storageFile);
         this.workspaces = data.workspaces || [];
-        
+
         // Validate that paths still exist
-        this.workspaces = this.workspaces.filter(ws => fs.pathExistsSync(ws.path));
-        
+        this.workspaces = this.workspaces.filter((ws) => fs.pathExistsSync(ws.path));
+
         // Save cleaned list
         await this.saveWorkspaces();
       } else {
@@ -80,7 +80,7 @@ export class WorkspaceManager {
     }
 
     // Check if already added
-    if (this.workspaces.some(ws => ws.path === workspacePath)) {
+    if (this.workspaces.some((ws) => ws.path === workspacePath)) {
       vscode.window.showWarningMessage('Workspace already exists in the list');
       return null;
     }
@@ -88,14 +88,9 @@ export class WorkspaceManager {
     // Detect if it's a RapidKit workspace
     const isRapidKit = await this.isRapidKitWorkspace(workspacePath);
     if (!isRapidKit) {
-      const answer = await vscode.window.showWarningMessage(
-        'This folder does not appear to be a RapidKit workspace. Add it anyway?',
-        'Yes',
-        'No'
-      );
-      if (answer !== 'Yes') {
-        return null;
-      }
+      // Silently skip non-RapidKit workspaces
+      console.log('Skipping non-RapidKit workspace:', workspacePath);
+      return null;
     }
 
     // Create workspace object
@@ -116,7 +111,7 @@ export class WorkspaceManager {
    * Remove a workspace from the list
    */
   public async removeWorkspace(workspacePath: string): Promise<void> {
-    this.workspaces = this.workspaces.filter(ws => ws.path !== workspacePath);
+    this.workspaces = this.workspaces.filter((ws) => ws.path !== workspacePath);
     await this.saveWorkspaces();
   }
 
@@ -132,7 +127,7 @@ export class WorkspaceManager {
    */
   public async autoDiscover(): Promise<RapidKitWorkspace[]> {
     const discovered: RapidKitWorkspace[] = [];
-    
+
     // Check current workspace folders
     if (vscode.workspace.workspaceFolders) {
       for (const folder of vscode.workspace.workspaceFolders) {
@@ -182,23 +177,31 @@ export class WorkspaceManager {
 
   /**
    * Check if a path is a RapidKit workspace
-   * ONLY workspaces created by this extension (with .rapidkit-workspace marker)
+   * Validates by checking for .rapidkit directory or marker file
    */
   private async isRapidKitWorkspace(wsPath: string): Promise<boolean> {
-    // STRICT: Only accept workspaces with .rapidkit-workspace marker file
+    // Check for .rapidkit directory (created by npm CLI)
+    const rapidkitDir = path.join(wsPath, '.rapidkit');
+    if (await fs.pathExists(rapidkitDir)) {
+      return true;
+    }
+
+    // Check for marker file (created by extension)
     const markerPath = path.join(wsPath, '.rapidkit-workspace');
-    
-    if (!await fs.pathExists(markerPath)) {
-      return false;
+    if (await fs.pathExists(markerPath)) {
+      // Verify marker file content has valid signature
+      try {
+        const marker = await fs.readJSON(markerPath);
+        // Accept both old and new signatures
+        return (
+          marker.signature === 'RAPIDKIT_VSCODE_WORKSPACE' || marker.signature === 'rapidkit-vscode'
+        );
+      } catch (_error) {
+        return false;
+      }
     }
-    
-    // Verify marker file content has our signature
-    try {
-      const marker = await fs.readJSON(markerPath);
-      return marker.signature === 'RAPIDKIT_VSCODE_WORKSPACE' && marker.createdBy === 'rapidkit-vscode-extension';
-    } catch (_error) {
-      return false;
-    }
+
+    return false;
   }
 
   private async isDemoWorkspace(wsPath: string): Promise<boolean> {
@@ -213,7 +216,7 @@ export class WorkspaceManager {
       for (const entry of entries) {
         if (entry.isDirectory() && !entry.name.startsWith('.')) {
           const projectPath = path.join(wsPath, entry.name);
-          
+
           // Check for FastAPI project
           if (await fs.pathExists(path.join(projectPath, 'pyproject.toml'))) {
             projects.push(entry.name);
@@ -242,7 +245,7 @@ export class WorkspaceManager {
    * Update workspace information (re-scan projects)
    */
   public async updateWorkspace(workspacePath: string): Promise<void> {
-    const workspace = this.workspaces.find(ws => ws.path === workspacePath);
+    const workspace = this.workspaces.find((ws) => ws.path === workspacePath);
     if (workspace) {
       workspace.projects = await this.getWorkspaceProjects(workspacePath);
       workspace.mode = (await this.isDemoWorkspace(workspacePath)) ? 'demo' : 'full';

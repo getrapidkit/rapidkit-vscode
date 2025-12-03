@@ -17,8 +17,44 @@ This is a **major version** with **breaking architectural changes**. The extensi
 - **Single Source of Truth** - All templates managed by npm package
 - **Smaller Extension** - No bundled templates (reduced complexity)
 - **Better Reliability** - Simplified codebase with fewer dependencies
+- **Non-Interactive Mode** - All CLI commands use `--yes` flag for seamless execution
 
 ### ✨ New Features
+
+#### Smart Location Detection
+
+**3-Scenario Detection System:**
+1. **Workspace Already Selected** → Uses it directly
+2. **In RapidKit Workspace** → Detects and uses current workspace
+3. **No Workspace** → Asks user: Default vs Custom location
+
+**Default Workspace:**
+- Location: `~/RapidKit/rapidkits/`
+- Auto-created if doesn't exist
+- Automatically registered in workspace manager
+
+**Custom Locations:**
+- Full support for user-selected directories
+- Works outside RapidKit folder structure
+- Marker files created for extension recognition
+- Auto-registration after project creation
+
+#### Button-Style Actions UI
+
+Professional action buttons in sidebar:
+- ✨ Create New Workspace
+- ✨ Create FastAPI Project
+- ✨ Create NestJS Project
+- ✨ Open Documentation
+
+Similar to Source Control view for better UX!
+
+#### Direct Framework Commands
+
+New commands for faster workflow:
+- `rapidkit.createFastAPIProject` - Skip framework selection
+- `rapidkit.createNestJSProject` - Skip framework selection
+- `rapidkit.openDocs` - Quick access to documentation
 
 #### Dual-Mode Project Creation
 
@@ -27,32 +63,37 @@ Choose how you want to create projects:
 **🏢 Workspace Mode**
 ```bash
 # Create workspace container
-npx rapidkit my-workspace
+npx rapidkit my-workspace --yes
 
 # Create projects inside
 cd my-workspace
-rapidkit create my-api --template fastapi
-rapidkit create admin-api --template nestjs
+rapidkit create my-api --template fastapi --yes
+rapidkit create admin-api --template nestjs --yes
 ```
 
 **📦 Standalone Mode**
 ```bash
 # Create independent project
-npx rapidkit my-api --template fastapi
+npx rapidkit my-api --template fastapi --yes
 ```
 
-#### Interactive Mode Selection
+#### Enhanced Workspace Validation
 
-- Smart menu to choose between workspace and standalone modes
-- Automatic workspace detection
-- Context-aware project creation
+**No More Annoying Dialogs!**
+- Accepts `.rapidkit/` directory (npm CLI created workspaces)
+- Accepts `.rapidkit-workspace` marker (extension created workspaces)
+- Supports both old and new marker signatures
+- Silently skips invalid folders instead of prompting
 
 #### Enhanced User Experience
 
+- ✅ Smart location defaults
+- ✅ No confirmation dialogs
 - ✅ Better progress indicators
 - ✅ Automatic project verification
 - ✅ Contextual error messages with help links
 - ✅ Cleaner, more intuitive wizards
+- ✅ Parent directory auto-creation
 
 ---
 
@@ -242,6 +283,12 @@ npx rapidkit my-api --template fastapi
 
 ## 🐛 Bug Fixes
 
+- 🐛 **Fixed interactive prompts blocking** - Added `--yes` flag to prevent CLI from waiting for user input
+- 🐛 **Fixed custom location not showing in list** - Auto-registration ensures all workspaces appear
+- 🐛 **Fixed workspace validation** - Enhanced to accept both npm CLI and extension created workspaces
+- 🐛 **Fixed "Add it anyway?" dialog** - Removed annoying confirmation, now validates silently
+- 🐛 **Fixed directory creation errors** - Parent directories automatically created before CLI execution
+- 🐛 **Fixed import order conflict** - Resolved path variable shadowing in createProject.ts
 - Fixed empty catch blocks causing ESLint errors
 - Improved error handling with contextual help
 - Better project verification after creation
