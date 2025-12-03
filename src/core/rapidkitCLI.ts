@@ -60,12 +60,18 @@ export class RapidKitCLI {
     this.logger.info('Creating workspace with npx:', args.join(' '));
 
     const { execa } = await import('execa');
+    // Provide default inputs for non-interactive mode
+    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
+    const input = `${authorName}\n`;
+
     return await execa('npx', args, {
       cwd: options.parentPath,
-      stdio: 'inherit',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: input,
       env: {
         ...process.env,
         FORCE_COLOR: '1',
+        CI: 'true', // Tell CLI we're in non-interactive mode
       },
     });
   }
@@ -92,12 +98,19 @@ export class RapidKitCLI {
     this.logger.info('Creating project with npx:', args.join(' '));
 
     const { execa } = await import('execa');
+    // Provide default inputs for non-interactive mode
+    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
+    const projectDesc = `${options.name} - Created with RapidKit`;
+    const input = `${authorName}\n${projectDesc}\n`;
+
     return await execa('npx', args, {
       cwd: options.parentPath,
-      stdio: 'inherit',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: input,
       env: {
         ...process.env,
         FORCE_COLOR: '1',
+        CI: 'true',
       },
     });
   }
@@ -139,12 +152,19 @@ export class RapidKitCLI {
       this.logger.debug('Using npx as fallback');
     }
 
+    // Provide default inputs for non-interactive mode
+    const authorName = process.env.USER || process.env.USERNAME || 'RapidKit User';
+    const projectDesc = `${options.name} - Created with RapidKit`;
+    const input = `${authorName}\n${projectDesc}\n`;
+
     return await execa(command, execArgs, {
       cwd: options.workspacePath,
-      stdio: 'inherit',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: input,
       env: {
         ...process.env,
         FORCE_COLOR: '1',
+        CI: 'true',
       },
     });
   }
