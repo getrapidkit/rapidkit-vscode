@@ -45,21 +45,13 @@ export interface RapidKitTemplate {
 export interface WorkspaceConfig {
   name: string;
   path: string;
-  mode: 'demo' | 'full';
-  installMethod?: 'poetry' | 'venv' | 'pipx';
   initGit: boolean;
-  pythonVersion?: string;
 }
 
 export interface ProjectConfig {
   name: string;
-  kit: string;
   framework: 'fastapi' | 'nestjs';
   packageManager?: string; // For NestJS: npm, yarn, pnpm
-  modules: string[];
-  author?: string;
-  license?: string;
-  description?: string;
 }
 
 export interface RapidKitConfig {

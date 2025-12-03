@@ -5,12 +5,9 @@
 
 import * as vscode from 'vscode';
 import { ProjectConfig } from '../../types';
-import { ConfigurationManager } from '../../core/configurationManager';
 
 export class ProjectWizard {
   async show(): Promise<ProjectConfig | undefined> {
-    const config = ConfigurationManager.getInstance();
-
     // Step 1: Project name
     const name = await vscode.window.showInputBox({
       prompt: 'Enter project name',
@@ -57,27 +54,8 @@ export class ProjectWizard {
 
     const framework = selectedFramework.framework;
 
-    // Step 3: Choose kit (only standard kit available for now)
-    const kitItems = [
-      {
-        label: `$(file-code) ${framework}.standard`,
-        description: 'Recommended for most projects',
-        detail: 'Essential features and best practices',
-        kit: `${framework}.standard`,
-        picked: true,
-      },
-    ];
-
-    const selectedKit = await vscode.window.showQuickPick(kitItems, {
-      placeHolder: 'Select project kit',
-      ignoreFocusOut: true,
-    });
-
-    if (!selectedKit) {
-      return undefined;
-    }
-
-    const kit = selectedKit.kit;
+    // Note: npm package uses --template flag (fastapi or nestjs)
+    // No kit selection needed, templates are fixed
 
     // Step 4: If NestJS, ask for package manager
     let packageManager: string | undefined;
@@ -116,57 +94,13 @@ export class ProjectWizard {
       packageManager = selectedPM.value;
     }
 
-    // Step 5: Select modules (optional)
-    const moduleItems = [
-      {
-        label: '$(shield) Authentication',
-        description: 'auth_core',
-        picked: false,
-        module: 'auth_core',
-      },
-      {
-        label: '$(database) PostgreSQL',
-        description: 'db_postgres',
-        picked: false,
-        module: 'db_postgres',
-      },
-      {
-        label: '$(zap) Redis Cache',
-        description: 'redis',
-        picked: false,
-        module: 'redis',
-      },
-      {
-        label: '$(mail) Notifications',
-        description: 'notifications',
-        picked: false,
-        module: 'notifications',
-      },
-    ];
-
-    const selectedModules = await vscode.window.showQuickPick(moduleItems, {
-      placeHolder: 'Select modules to include (optional)',
-      canPickMany: true,
-      ignoreFocusOut: true,
-    });
-
-    const modules = selectedModules ? selectedModules.map((m) => m.module) : [];
-
-    // Step 5: Author (optional)
-    const author = await vscode.window.showInputBox({
-      prompt: 'Author name (optional)',
-      placeHolder: config.get('author', 'Your Name'),
-    });
+    // Note: Module installation will be available after project creation
+    // using the workspace CLI
 
     return {
       name,
-      kit,
       framework,
       packageManager, // For NestJS projects
-      modules,
-      author: author || undefined,
-      license: 'MIT',
-      description: `A ${framework} project built with RapidKit`,
     };
   }
 }

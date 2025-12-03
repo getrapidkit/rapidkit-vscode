@@ -30,76 +30,67 @@ export async function createWorkspaceCommand() {
       {
         location: vscode.ProgressLocation.Notification,
         title: 'Creating RapidKit workspace',
-        cancellable: true,
+        cancellable: false,
       },
-      async (progress, token) => {
-        progress.report({ increment: 0, message: 'Setting up workspace...' });
-
-        if (token.isCancellationRequested) {
-          return;
-        }
+      async (progress) => {
+        progress.report({ increment: 0, message: 'Initializing...' });
 
         try {
           const cli = new RapidKitCLI();
 
-          // Check if CLI is available
-          const isAvailable = await cli.isAvailable();
-          if (!isAvailable) {
-            vscode.window.showWarningMessage('⚠️ RapidKit CLI not found. Installing via npx...');
-          }
+          progress.report({ increment: 10, message: 'Running npx rapidkit...' });
 
-          progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
-
-          // Create workspace using CLI wrapper (always use demo mode)
-          const result = await cli.createWorkspace({
+          // Create workspace using npm package
+          // Command: npx rapidkit <workspace-name>
+          await cli.createWorkspace({
             name: config.name,
-            path: config.path,
-            demoMode: true, // Always use demo mode until RapidKit is on PyPI
+            parentPath: path.dirname(config.path),
             skipGit: !config.initGit,
           });
 
-          logger.info('Workspace created successfully', result.stdout);
+          logger.info('Workspace created successfully via npm package');
 
-          progress.report({ increment: 60, message: 'Adding RapidKit marker...' });
+          progress.report({ increment: 70, message: 'Verifying workspace...' });
 
-          // Create .rapidkit-workspace marker file with specific signature
-          const markerPath = path.join(config.path, '.rapidkit-workspace');
-          await fs.ensureDir(config.path);
-          await fs.writeJSON(
-            markerPath,
-            {
-              $schema: 'https://getrapidkit.com/schemas/workspace.json',
-              signature: 'RAPIDKIT_VSCODE_WORKSPACE',
-              version: '1.0.0',
-              mode: config.mode,
-              createdAt: new Date().toISOString(),
-              createdBy: 'rapidkit-vscode-extension',
-              extensionVersion: '0.1.0',
-            },
-            { spaces: 2 }
-          );
+          // Verify workspace was created
+          const workspaceExists = await fs.pathExists(config.path);
+          if (!workspaceExists) {
+            throw new Error(`Workspace directory not created at ${config.path}`);
+          }
 
-          progress.report({ increment: 70, message: 'Registering workspace...' });
+          // Check for workspace marker (.rapidkit directory)
+          const rapidkitDir = path.join(config.path, '.rapidkit');
+          const rapidkitDirExists = await fs.pathExists(rapidkitDir);
+
+          if (!rapidkitDirExists) {
+            logger.warn('Workspace created but .rapidkit directory not found');
+          }
+
+          progress.report({ increment: 80, message: 'Registering workspace...' });
 
           // Add workspace to manager
           const workspaceManager = WorkspaceManager.getInstance();
           await workspaceManager.addWorkspace(config.path);
 
-          progress.report({ increment: 80, message: 'Refreshing views...' });
+          progress.report({ increment: 90, message: 'Refreshing views...' });
 
-          // Wait a bit for file system to sync
+          // Wait for file system sync
           await new Promise((resolve) => setTimeout(resolve, 500));
 
           // Refresh workspace explorer
           await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
 
-          progress.report({ increment: 90, message: 'Done!' });
+          progress.report({ increment: 100, message: 'Complete!' });
 
-          // Show success message
+          // Show success message with actions
           const openAction = 'Open Workspace';
+          const docsAction = 'View Docs';
           const selected = await vscode.window.showInformationMessage(
-            `✅ Workspace "${config.name}" created successfully!`,
+            `✅ Workspace "${config.name}" created successfully!\n\n` +
+              `📁 Location: ${config.path}\n` +
+              `💡 Tip: Activate workspace with 'source .rapidkit/activate' in terminal`,
             openAction,
+            docsAction,
             'Close'
           );
 
@@ -108,14 +99,25 @@ export async function createWorkspaceCommand() {
             await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, {
               forceNewWindow: false,
             });
+          } else if (selected === docsAction) {
+            await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
           }
-
-          progress.report({ increment: 100, message: 'Complete!' });
         } catch (error) {
           logger.error('Failed to create workspace', error);
-          vscode.window.showErrorMessage(
-            `Failed to create workspace: ${error instanceof Error ? error.message : String(error)}`
+
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const helpAction = 'Get Help';
+          const selected = await vscode.window.showErrorMessage(
+            `Failed to create workspace: ${errorMessage}`,
+            helpAction,
+            'Close'
           );
+
+          if (selected === helpAction) {
+            await vscode.env.openExternal(
+              vscode.Uri.parse('https://getrapidkit.com/docs/troubleshooting')
+            );
+          }
         }
       }
     );

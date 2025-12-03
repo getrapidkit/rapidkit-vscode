@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-12-03
+
+### 🚀 **MAJOR REFACTORING: Complete Migration to npm Package**
+
+This is a **breaking change** that completely refactors the extension to use the RapidKit npm package instead of Python CLI.
+
+### Changed
+- 🔄 **Complete architecture overhaul** - Migrated from Python-based CLI to npm package
+  - **RapidKitCLI Class**: Completely rewritten to use `npx rapidkit` commands
+  - Removed Python/Poetry dependencies - no longer required
+  - Workspace creation: `npx rapidkit <workspace-name>`
+  - Project creation: `npx rapidkit <project> --template <fastapi|nestjs>`
+  - Workspace projects: `rapidkit create <project> --template <template>`
+
+- 📦 **Dual-mode project creation**
+  - **Workspace Mode**: Create projects inside existing RapidKit workspaces
+  - **Standalone Mode**: Create independent projects anywhere
+  - Users can choose mode dynamically via quick pick menu
+
+- 🎯 **Simplified wizards**
+  - **WorkspaceWizard**: Removed demo mode, simplified to match npm package workflow
+  - **ProjectWizard**: Removed kit selection (templates are fixed in npm package)
+  - Removed module selection (will be available post-creation via workspace CLI)
+  - Streamlined user experience with fewer prompts
+
+- ⚡ **Updated commands**
+  - `createWorkspace`: Uses `npx rapidkit` to create workspace containers
+  - `createProject`: Supports both workspace and standalone modes
+  - `generateDemo`: Refactored to use npm package FastAPI template
+
+- 🔧 **Type system updates**
+  - Simplified `WorkspaceConfig`: Removed `mode`, `installMethod`, `pythonVersion`
+  - Simplified `ProjectConfig`: Removed `kit`, `modules`, `author`, `license`, `description`
+  - Focused on essential configuration only
+
+### Removed
+- ❌ **Python CLI dependencies**: No longer depends on Python RapidKit CLI
+- ❌ **Demo workspace mode**: Workspaces are now standard npm package workspaces
+- ❌ **Kit selection**: Templates are managed by npm package
+- ❌ **Module wizard step**: Module installation moved to post-creation workflow
+- ❌ **Poetry integration**: Not needed anymore
+
+### Added
+- ✨ **npm package integration**: Full integration with `rapidkit` npm package (v0.12.1+)
+- ✨ **Mode selection UI**: Interactive menu to choose workspace vs standalone creation
+- ✨ **Better error handling**: Contextual help links to documentation
+- ✨ **Improved progress reporting**: More accurate progress indicators
+- ✨ **Verification steps**: Automatic project/workspace verification after creation
+
+### Benefits
+- 🎯 **Simpler**: No Python/Poetry installation required
+- ⚡ **Faster**: Direct npm execution is faster than Python environment setup
+- 🔄 **Consistent**: Single source of truth (npm package) for templates
+- 🐛 **Fewer bugs**: Less complexity = fewer edge cases
+- 📦 **Smaller**: Removed bundled templates (managed by npm package)
+
+### Migration Notes
+- **For Users**: Extension now requires Node.js/npm (already available in VS Code)
+- **For Developers**: Python RapidKit CLI no longer needed for development
+- **Workspaces**: Existing workspaces continue to work, new API for creation
+- **Templates**: Managed by npm package, always up-to-date
+
+### Technical Details
+- Updated `RapidKitCLI` class with new methods:
+  - `createWorkspace(options)`: Workspace creation
+  - `createProject(options)`: Standalone project creation
+  - `createProjectInWorkspace(options)`: Project inside workspace
+- Refactored all command handlers to use new CLI API
+- Updated TypeScript types to match new simplified workflow
+- Removed legacy Python CLI integration code
+
 ## [0.3.2] - 2025-12-03
 
 ### Changed

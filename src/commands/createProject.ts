@@ -13,49 +13,72 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
   logger.info('Create Project command initiated');
 
   try {
-    // Get the selected workspace path
+    // Determine creation mode: workspace or standalone
     let workspaceRoot: string | undefined;
-    
+    let creationMode: 'workspace' | 'standalone' = 'standalone';
+
     if (selectedWorkspacePath) {
       // Use the provided workspace path (from UI)
       workspaceRoot = selectedWorkspacePath;
+      creationMode = 'workspace';
     } else {
       // Try to get from WorkspaceManager
       const workspaceManager = WorkspaceManager.getInstance();
       const workspaces = workspaceManager.getWorkspaces();
-      
-      if (workspaces.length === 0) {
-        vscode.window.showErrorMessage('No RapidKit workspace found. Please create a workspace first.');
-        return;
-      }
-      
-      // If only one workspace, use it
-      if (workspaces.length === 1) {
-        workspaceRoot = workspaces[0].path;
-      } else {
-        // Let user select workspace
-        const selected = await vscode.window.showQuickPick(
-          workspaces.map(ws => ({
-            label: ws.name,
-            description: ws.path,
-            workspace: ws,
-          })),
+
+      if (workspaces.length > 0) {
+        // Ask user: create in workspace or standalone?
+        const modeChoice = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(folder) Create in Workspace',
+              description: 'Create project inside an existing RapidKit workspace',
+              detail: 'Use workspace CLI: rapidkit create <project> --template <template>',
+              mode: 'workspace' as const,
+            },
+            {
+              label: '$(file-directory) Create Standalone Project',
+              description: 'Create an independent project',
+              detail: 'Use: npx rapidkit <project> --template <template>',
+              mode: 'standalone' as const,
+            },
+          ],
           {
-            placeHolder: 'Select workspace for the new project',
+            placeHolder: 'Choose project creation mode',
+            ignoreFocusOut: true,
           }
         );
-        
-        if (!selected) {
+
+        if (!modeChoice) {
           return;
         }
-        
-        workspaceRoot = selected.workspace.path;
-      }
-    }
 
-    if (!workspaceRoot) {
-      vscode.window.showErrorMessage('No workspace selected');
-      return;
+        creationMode = modeChoice.mode;
+
+        // If workspace mode, select which workspace
+        if (creationMode === 'workspace') {
+          if (workspaces.length === 1) {
+            workspaceRoot = workspaces[0].path;
+          } else {
+            const selected = await vscode.window.showQuickPick(
+              workspaces.map((ws) => ({
+                label: ws.name,
+                description: ws.path,
+                workspace: ws,
+              })),
+              {
+                placeHolder: 'Select workspace for the new project',
+              }
+            );
+
+            if (!selected) {
+              return;
+            }
+
+            workspaceRoot = selected.workspace.path;
+          }
+        }
+      }
     }
 
     // Show wizard
@@ -67,7 +90,10 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
       return;
     }
 
-    // Execute with progress (like workspace creation)
+    // Map framework to template
+    const template = config.framework === 'fastapi' ? 'fastapi' : 'nestjs';
+
+    // Execute with progress
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -75,116 +101,132 @@ export async function createProjectCommand(selectedWorkspacePath?: string) {
         cancellable: false,
       },
       async (progress) => {
-        progress.report({ increment: 0, message: 'Generating project...' });
+        progress.report({ increment: 0, message: 'Initializing...' });
 
         try {
-          const { execa } = await import('execa');
           const path = require('path');
           const fs = require('fs-extra');
-          
-          progress.report({ increment: 30, message: 'Running RapidKit CLI...' });
-          
-          // Find Python RapidKit CLI installed in workspace
-          const poetryRapidkit = path.join(workspaceRoot, '.venv', 'bin', 'rapidkit');
-          const globalRapidkit = 'rapidkit';
-          
-          // Check which rapidkit command is available
-          let rapidkitCmd = globalRapidkit;
-          try {
-            if (await fs.pathExists(poetryRapidkit)) {
-              rapidkitCmd = poetryRapidkit;
-              logger.info('Using Poetry-installed RapidKit:', poetryRapidkit);
-            } else {
-              logger.info('Using global RapidKit');
-            }
-          } catch (error) {
-            logger.warn('Error checking RapidKit path, using global:', error);
-          }
-          
-          // Build command args for Python RapidKit CLI
-          const args = [
-            'create',
-            'project',
-            config.kit,     // e.g., 'fastapi.minimal'
-            config.name,    // e.g., 'my-project'
-            '--skip-essentials', // Skip additional prompts
-          ];
+          const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
+          const cli = new RapidKitCLI();
 
-          // Add package manager for NestJS projects as a variable
-          if (config.packageManager) {
-            args.push('--variable', `package_manager=${config.packageManager}`);
-          }
-          
-          logger.info('Running command:', rapidkitCmd, args.join(' '));
-          
-          const result = await execa(
-            rapidkitCmd,
-            args,
-            {
-              cwd: workspaceRoot,
-              timeout: 120000,
-              stdio: ['pipe', 'pipe', 'pipe'], // Allow stdin
-              input: config.packageManager ? `${config.packageManager}\n\n\n` : '\n\n\n', // Send package manager + newlines
-              reject: false,
-              env: {
-                ...process.env,
-                PYTHONUNBUFFERED: '1', // Force immediate output
-              },
+          progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
+
+          let projectPath: string;
+
+          if (creationMode === 'workspace' && workspaceRoot) {
+            // Workspace mode: use `rapidkit create`
+            logger.info('Creating project in workspace:', workspaceRoot);
+
+            await cli.createProjectInWorkspace({
+              name: config.name,
+              template: template as 'fastapi' | 'nestjs',
+              workspacePath: workspaceRoot,
+              skipInstall: false,
+            });
+
+            projectPath = path.join(workspaceRoot, config.name);
+          } else {
+            // Standalone mode: use `npx rapidkit --template`
+            logger.info('Creating standalone project');
+
+            // Ask for destination folder
+            const defaultPath = path.join(require('os').homedir(), 'Projects');
+            const folderUri = await vscode.window.showOpenDialog({
+              canSelectFiles: false,
+              canSelectFolders: true,
+              canSelectMany: false,
+              openLabel: 'Select Destination',
+              title: 'Select destination folder for project',
+              defaultUri: vscode.Uri.file(defaultPath),
+            });
+
+            if (!folderUri || folderUri.length === 0) {
+              logger.info('Project creation cancelled - no destination selected');
+              return;
             }
-          );
-          
-          logger.info('RapidKit CLI stdout:', result.stdout);
-          logger.info('RapidKit CLI stderr:', result.stderr);
-          logger.info('RapidKit CLI exitCode:', result.exitCode);
-          
+
+            const parentPath = folderUri[0].fsPath;
+
+            await cli.createProject({
+              name: config.name,
+              template: template as 'fastapi' | 'nestjs',
+              parentPath: parentPath,
+              skipGit: false,
+              skipInstall: false,
+            });
+
+            projectPath = path.join(parentPath, config.name);
+          }
+
           progress.report({ increment: 70, message: 'Verifying project...' });
-          
-          if (result.exitCode !== 0) {
-            logger.error('RapidKit CLI failed:', result.stderr || result.stdout);
-            throw new Error(`RapidKit CLI failed: ${result.stderr || result.stdout}`);
-          }
-          
-          // Wait a moment for file system
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Check if project was created (use actual project name)
-          const projectPath = path.join(workspaceRoot, config.name);
-          
+
+          // Wait for file system
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // Verify project was created
           if (!(await fs.pathExists(projectPath))) {
-            logger.error('Project not created. Output:', result.all || result.stdout);
-            throw new Error(`Project was not created. The CLI might not support non-interactive mode properly.`);
+            throw new Error(`Project was not created at ${projectPath}`);
           }
-          
+
+          logger.info('Project created successfully at:', projectPath);
+
           progress.report({ increment: 90, message: 'Refreshing workspace...' });
-          
-          // Refresh project explorer
+
+          // Refresh views
           await vscode.commands.executeCommand('rapidkit.refreshProjects');
 
-          // Update workspace in manager
-          const manager = WorkspaceManager.getInstance();
-          await manager.updateWorkspace(workspaceRoot);
-          await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
+          if (creationMode === 'workspace' && workspaceRoot) {
+            // Update workspace in manager
+            const manager = WorkspaceManager.getInstance();
+            await manager.updateWorkspace(workspaceRoot);
+            await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
+          }
 
           progress.report({ increment: 100, message: 'Done!' });
-          
-          // Show success
-          vscode.window.showInformationMessage(
-            `✅ Project "${config.name}" created successfully!`
+
+          // Show success with actions
+          const openAction = 'Open Project';
+          const docsAction = 'View Docs';
+          const selected = await vscode.window.showInformationMessage(
+            `✅ Project "${config.name}" created successfully!\n\n` +
+              `📁 Location: ${projectPath}\n` +
+              `🚀 Framework: ${config.framework}\n` +
+              `💡 Next: Run 'rapidkit dev' to start development server`,
+            openAction,
+            docsAction,
+            'Close'
           );
+
+          if (selected === openAction) {
+            const projectUri = vscode.Uri.file(projectPath);
+            await vscode.commands.executeCommand('vscode.openFolder', projectUri, {
+              forceNewWindow: false,
+            });
+          } else if (selected === docsAction) {
+            await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
+          }
         } catch (error: any) {
           logger.error('Failed to create project:', {
             message: error.message,
-            stdout: error.stdout,
-            stderr: error.stderr,
+            stack: error.stack,
           });
-          
-          vscode.window.showErrorMessage(
-            `Failed to create project: ${error.message}`
+
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const helpAction = 'Get Help';
+          const selected = await vscode.window.showErrorMessage(
+            `Failed to create project: ${errorMessage}`,
+            helpAction,
+            'Close'
           );
+
+          if (selected === helpAction) {
+            await vscode.env.openExternal(
+              vscode.Uri.parse('https://getrapidkit.com/docs/troubleshooting')
+            );
+          }
         }
       }
     );
-
   } catch (error) {
     logger.error('Error in createProjectCommand', error);
     vscode.window.showErrorMessage(

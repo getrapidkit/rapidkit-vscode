@@ -29,12 +29,12 @@ export class WorkspaceWizard {
       return undefined;
     }
 
-    // Step 2: Demo mode notice (full mode disabled until stable release)
+    // Step 2: Show workspace info
     const proceed = await vscode.window.showInformationMessage(
-      '📦 Demo Mode\n\n' +
-      'Create a RapidKit workspace with bundled templates.\n' +
-      'Generate multiple FastAPI/NestJs projects instantly without Python RapidKit installation.\n\n' +
-      '💡 Full mode will be available in the stable release.',
+      '📦 RapidKit Workspace\n\n' +
+        'Create a workspace to organize multiple FastAPI and NestJS projects.\n' +
+        'Use the local CLI to quickly scaffold projects and manage modules.\n\n' +
+        '💡 Powered by: npx rapidkit (npm package)',
       { modal: true },
       'Continue'
     );
@@ -42,8 +42,6 @@ export class WorkspaceWizard {
     if (proceed !== 'Continue') {
       return undefined;
     }
-
-    const mode = 'demo' as const;
 
     // Step 3: Git initialization
     const initGitItems = [
@@ -91,7 +89,6 @@ export class WorkspaceWizard {
     return {
       name,
       path: workspacePath,
-      mode, // Always 'demo' for now
       initGit: initGit.value,
     };
   }

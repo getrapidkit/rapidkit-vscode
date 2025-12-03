@@ -1,10 +1,13 @@
 /**
  * Generate Demo Command
- * Generate a demo FastAPI project
+ * Simplified wrapper to create a FastAPI demo project using npm package
+ * Uses: npx rapidkit <project> --template fastapi
  */
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
+import { RapidKitCLI } from '../core/rapidkitCLI';
+import { WorkspaceManager } from '../core/workspaceManager';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
@@ -13,22 +16,10 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
   logger.info('Generate Demo command initiated');
 
   try {
-    // If no workspace provided, try to get the selected workspace from context
-    let targetWorkspace = workspace;
-
-    if (!targetWorkspace) {
-      // Try to get from rapidkit.selectedWorkspace context
-      const workspaceData = await vscode.commands.executeCommand('rapidkit.getSelectedWorkspace');
-      if (workspaceData && typeof workspaceData === 'object') {
-        targetWorkspace = workspaceData as { path: string; mode: string };
-        logger.info('Retrieved workspace from context', targetWorkspace);
-      }
-    }
-
     // Get project name
     const projectName = await vscode.window.showInputBox({
-      prompt: 'Enter project name',
-      placeHolder: 'my-demo-project',
+      prompt: 'Enter demo project name',
+      placeHolder: 'my-demo-api',
       validateInput: (value) => {
         if (!value) {
           return 'Project name is required';
@@ -44,42 +35,102 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
       return;
     }
 
-    // Determine destination path
+    // Determine destination: workspace or custom folder
     let destinationPath: string;
-    let isDemoWorkspace = false;
+    let isWorkspaceMode = false;
 
-    // If workspace is provided/retrieved and is demo mode, use it directly
-    if (targetWorkspace && targetWorkspace.mode === 'demo') {
-      destinationPath = targetWorkspace.path;
-      isDemoWorkspace = true;
-      logger.info(`Using demo workspace: ${destinationPath}`);
-    } else if (targetWorkspace) {
-      // Use regular workspace path
-      destinationPath = targetWorkspace.path;
-      isDemoWorkspace = await fs.pathExists(path.join(destinationPath, 'generate-demo.js'));
-      logger.info(`Using workspace: ${destinationPath}, isDemoWorkspace: ${isDemoWorkspace}`);
+    if (workspace) {
+      // Use provided workspace
+      destinationPath = workspace.path;
+      isWorkspaceMode = true;
+      logger.info('Using workspace mode:', destinationPath);
     } else {
-      // Get destination folder from user
-      logger.warn('No workspace selected - asking user to select destination');
-      const folderUri = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: false,
-        openLabel: 'Select Destination',
-        title: 'Select destination folder for demo project',
-      });
+      // Check if user has workspaces
+      const workspaceManager = WorkspaceManager.getInstance();
+      const workspaces = workspaceManager.getWorkspaces();
 
-      if (!folderUri || folderUri.length === 0) {
-        logger.info('User cancelled folder selection');
-        return;
+      if (workspaces.length > 0) {
+        // Ask: workspace or standalone?
+        const modeChoice = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(folder) Create in Workspace',
+              description: 'Create demo inside an existing workspace',
+              mode: 'workspace' as const,
+            },
+            {
+              label: '$(file-directory) Create Standalone',
+              description: 'Create demo in a custom folder',
+              mode: 'standalone' as const,
+            },
+          ],
+          {
+            placeHolder: 'Where to create the demo project?',
+            ignoreFocusOut: true,
+          }
+        );
+
+        if (!modeChoice) {
+          return;
+        }
+
+        if (modeChoice.mode === 'workspace') {
+          // Select workspace
+          if (workspaces.length === 1) {
+            destinationPath = workspaces[0].path;
+          } else {
+            const selected = await vscode.window.showQuickPick(
+              workspaces.map((ws) => ({
+                label: ws.name,
+                description: ws.path,
+                workspace: ws,
+              })),
+              {
+                placeHolder: 'Select workspace',
+              }
+            );
+
+            if (!selected) {
+              return;
+            }
+
+            destinationPath = selected.workspace.path;
+          }
+          isWorkspaceMode = true;
+        } else {
+          // Custom folder
+          const folderUri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select Destination',
+            title: 'Select destination folder',
+          });
+
+          if (!folderUri || folderUri.length === 0) {
+            return;
+          }
+
+          destinationPath = folderUri[0].fsPath;
+          isWorkspaceMode = false;
+        }
+      } else {
+        // No workspaces - ask for folder
+        const folderUri = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: 'Select Destination',
+          title: 'Select destination folder for demo project',
+        });
+
+        if (!folderUri || folderUri.length === 0) {
+          return;
+        }
+
+        destinationPath = folderUri[0].fsPath;
+        isWorkspaceMode = false;
       }
-
-      destinationPath = folderUri[0].fsPath;
-      logger.info(`User selected destination: ${destinationPath}`);
-
-      // Check if selected folder is a demo workspace
-      isDemoWorkspace = await fs.pathExists(path.join(destinationPath, 'generate-demo.js'));
-      logger.info(`Is demo workspace: ${isDemoWorkspace}`);
     }
 
     // Generate with progress
@@ -90,142 +141,102 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
         cancellable: false,
       },
       async (progress) => {
-        progress.report({ increment: 0, message: 'Creating project structure...' });
+        progress.report({ increment: 0, message: 'Initializing...' });
 
         try {
-          if (isDemoWorkspace) {
-            // Use generate-demo.js script from demo workspace
-            logger.info('Using demo workspace generate-demo.js script');
+          const cli = new RapidKitCLI();
+          let projectPath: string;
 
-            try {
-              // Update progress
-              progress.report({ increment: 50, message: 'Running generator...' });
+          progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
 
-              logger.info(`Executing: node generate-demo.js ${projectName} in ${destinationPath}`);
+          if (isWorkspaceMode) {
+            // Workspace mode: use rapidkit create
+            logger.info('Creating demo in workspace:', destinationPath);
 
-              // Execute synchronously to ensure it completes and capture output for debugging
-              // Provide non-interactive stdin answers so the RapidKit CLI doesn't block on prompts
-              const execOptions = { cwd: destinationPath, encoding: 'utf-8' } as const;
-              const snakeName = projectName.replace(/-/g, '_');
-              const authorName = process.env.USER || '';
-              const description = 'FastAPI service generated with RapidKit';
-              const inputPayload = `${snakeName}\n${authorName}\n${description}\n`;
-              try {
-                const stdout = require('child_process').execSync(
-                  `node generate-demo.js ${projectName}`,
-                  { ...execOptions, stdio: 'pipe', input: inputPayload }
-                );
-                logger.info('Generator stdout (demo workspace):', { output: String(stdout) });
-              } catch (childErr: any) {
-                // capture stderr if present
-                try {
-                  const out = childErr.stdout ? String(childErr.stdout) : undefined;
-                  const err = childErr.stderr ? String(childErr.stderr) : undefined;
-                  logger.error('Generator failed (demo workspace) - stdout:', out);
-                  logger.error('Generator failed (demo workspace) - stderr:', err);
-                } catch {
-                  // Ignore errors when accessing stdout/stderr
-                }
-                throw childErr;
-              }
+            await cli.createProjectInWorkspace({
+              name: projectName,
+              template: 'fastapi',
+              workspacePath: destinationPath,
+              skipInstall: false,
+            });
 
-              // Verify project was created
-              const projectDir = path.join(destinationPath, projectName);
-              const projectExists = await fs.pathExists(projectDir);
-              logger.info(`Project directory exists after generation: ${projectExists}`, {
-                path: projectDir,
-              });
-              if (!projectExists) {
-                throw new Error(`Project directory was not created at ${projectDir}`);
-              }
-
-              logger.info('Demo project generated successfully');
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              logger.error('Failed to generate demo project with generate-demo.js', error);
-              throw new Error(`Generator failed: ${errorMsg}`);
-            }
+            projectPath = path.join(destinationPath, projectName);
           } else {
-            // Use rapidkit CLI with --demo-only flag
-            logger.info('Using rapidkit CLI with --demo-only');
+            // Standalone mode: use npx rapidkit --template fastapi
+            logger.info('Creating standalone demo project');
 
-            try {
-              // Update progress
-              progress.report({ increment: 50, message: 'Running RapidKit CLI...' });
+            await cli.createProject({
+              name: projectName,
+              template: 'fastapi',
+              parentPath: destinationPath,
+              skipGit: false,
+              skipInstall: false,
+            });
 
-              logger.info(
-                `Executing: npx rapidkit "${projectName}" --demo-only in ${destinationPath}`
-              );
+            projectPath = path.join(destinationPath, projectName);
+          }
 
-              // Execute synchronously and capture output for debugging
-              const execOptions = { cwd: destinationPath, encoding: 'utf-8' } as const;
-              try {
-                // Provide the same non-interactive answers to the CLI in case it prompts
-                const snakeName = projectName.replace(/-/g, '_');
-                const authorName = process.env.USER || '';
-                const description = 'FastAPI service generated with RapidKit';
-                const inputPayload = `${snakeName}\n${authorName}\n${description}\n`;
-                const stdout = require('child_process').execSync(
-                  `npx rapidkit "${projectName}" --demo-only`,
-                  { ...execOptions, stdio: 'pipe', input: inputPayload }
-                );
-                logger.info('RapidKit CLI stdout:', { output: String(stdout) });
-              } catch (childErr: any) {
-                try {
-                  const out = childErr.stdout ? String(childErr.stdout) : undefined;
-                  const err = childErr.stderr ? String(childErr.stderr) : undefined;
-                  logger.error('RapidKit CLI failed - stdout:', out);
-                  logger.error('RapidKit CLI failed - stderr:', err);
-                } catch {
-                  // Ignore errors when accessing stdout/stderr
-                }
-                throw childErr;
-              }
+          progress.report({ increment: 70, message: 'Verifying project...' });
 
-              // Verify project was created
-              const projectDir = path.join(destinationPath, projectName);
-              const projectExists = await fs.pathExists(projectDir);
-              logger.info(`Project directory exists after generation: ${projectExists}`, {
-                path: projectDir,
-              });
-              if (!projectExists) {
-                throw new Error(`Project directory was not created at ${projectDir}`);
-              }
+          // Wait for file system
+          await new Promise((resolve) => setTimeout(resolve, 1000));
 
-              logger.info('Demo project generated successfully via CLI');
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              logger.error('Failed to generate demo project via CLI', error);
-              throw new Error(`RapidKit CLI failed: ${errorMsg}`);
-            }
+          // Verify project was created
+          const projectExists = await fs.pathExists(projectPath);
+          if (!projectExists) {
+            throw new Error(`Project was not created at ${projectPath}`);
+          }
+
+          logger.info('Demo project created successfully:', projectPath);
+
+          progress.report({ increment: 90, message: 'Refreshing views...' });
+
+          // Refresh views
+          await vscode.commands.executeCommand('rapidkit.refreshProjects');
+
+          if (isWorkspaceMode) {
+            const manager = WorkspaceManager.getInstance();
+            await manager.updateWorkspace(destinationPath);
+            await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
           }
 
           progress.report({ increment: 100, message: 'Done!' });
 
-          const projectPath = path.join(destinationPath, projectName);
-
           // Show success with actions
           const openAction = 'Open Project';
-          const openFolderAction = 'Open in New Window';
+          const docsAction = 'View Docs';
           const selected = await vscode.window.showInformationMessage(
-            `✅ Demo project "${projectName}" created successfully!`,
+            `✅ Demo project "${projectName}" created successfully!\n\n` +
+              `📁 Location: ${projectPath}\n` +
+              `🚀 Framework: FastAPI\n` +
+              `💡 Next: Run 'rapidkit dev' to start development server`,
             openAction,
-            openFolderAction,
+            docsAction,
             'Close'
           );
 
           if (selected === openAction) {
             const uri = vscode.Uri.file(projectPath);
             await vscode.commands.executeCommand('vscode.openFolder', uri, false);
-          } else if (selected === openFolderAction) {
-            const uri = vscode.Uri.file(projectPath);
-            await vscode.commands.executeCommand('vscode.openFolder', uri, true);
+          } else if (selected === docsAction) {
+            await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
           }
         } catch (error) {
           logger.error('Failed to generate demo project', error);
-          vscode.window.showErrorMessage(
-            `Failed to generate demo project: ${error instanceof Error ? error.message : String(error)}`
+
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const helpAction = 'Get Help';
+          const result = await vscode.window.showErrorMessage(
+            `Failed to generate demo project: ${errorMessage}`,
+            helpAction,
+            'Close'
           );
+
+          if (result === helpAction) {
+            await vscode.env.openExternal(
+              vscode.Uri.parse('https://getrapidkit.com/docs/troubleshooting')
+            );
+          }
         }
       }
     );
