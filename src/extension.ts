@@ -22,15 +22,8 @@ import { Logger } from './utils/logger';
 import { RapidKitCodeActionsProvider } from './providers/codeActionsProvider';
 import { RapidKitCompletionProvider } from './providers/completionProvider';
 import { RapidKitHoverProvider } from './providers/hoverProvider';
-import {
-  openWorkspaceFolder,
-  copyWorkspacePath,
-} from './commands/workspaceContextMenu';
-import {
-  openProjectFolder,
-  copyProjectPath,
-  deleteProject,
-} from './commands/projectContextMenu';
+import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceContextMenu';
+import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 
 let statusBar: RapidKitStatusBar;
 let workspaceExplorer: WorkspaceExplorerProvider;
@@ -45,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext) {
   try {
     // Register commands FIRST - these MUST succeed
     logger.info('Step 1: Registering commands...');
-    
+
     // Simple test command
     context.subscriptions.push(
       vscode.commands.registerCommand('rapidkit.test', () => {
@@ -94,7 +87,36 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }),
       vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
-      vscode.commands.registerCommand('rapidkit.generateDemo', generateDemoCommand),
+      vscode.commands.registerCommand('rapidkit.generateDemo', async () => {
+        try {
+          logger.info('Executing generateDemo command');
+          // Get selected workspace from projectExplorer
+          let selectedWorkspace = null;
+          if (projectExplorer) {
+            selectedWorkspace = (await vscode.commands.executeCommand(
+              'rapidkit.getSelectedWorkspace'
+            )) as any;
+            logger.info('Selected workspace for generateDemo:', selectedWorkspace);
+          }
+
+          // If no workspace selected, show warning
+          if (!selectedWorkspace) {
+            vscode.window.showWarningMessage('⚠️ Please select a workspace first');
+            logger.warn('No workspace selected for generateDemo');
+            return;
+          }
+
+          await generateDemoCommand(selectedWorkspace);
+          if (projectExplorer) {
+            projectExplorer.refresh();
+          }
+        } catch (error) {
+          logger.error('Failed to generate demo', error);
+          vscode.window.showErrorMessage(
+            `Failed to generate demo project: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }),
       vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
       vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
@@ -116,12 +138,12 @@ export async function activate(context: vscode.ExtensionContext) {
       }),
       vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
         logger.info('selectWorkspace command with path:', workspacePath);
-        
+
         if (!workspacePath) {
           vscode.window.showErrorMessage('Invalid workspace path');
           return;
         }
-        
+
         if (workspaceExplorer) {
           // Find workspace object by path and select it
           const selectedWorkspace = workspaceExplorer.getWorkspaceByPath(workspacePath);
@@ -132,15 +154,17 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showWarningMessage('Workspace not found');
           }
         }
-        
+
         if (projectExplorer) {
           // Get workspace to pass to project explorer
-          const selectedWorkspace = workspaceExplorer ? workspaceExplorer.getWorkspaceByPath(workspacePath) : null;
+          const selectedWorkspace = workspaceExplorer
+            ? workspaceExplorer.getWorkspaceByPath(workspacePath)
+            : null;
           if (selectedWorkspace) {
             projectExplorer.setWorkspace(selectedWorkspace);
           }
         }
-        
+
         // Set context key to enable project buttons
         await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
         await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
@@ -198,9 +222,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }),
       vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
         // Dashboard implementation
-        vscode.window.showInformationMessage(
-          `Dashboard for ${projectItem.label} - Coming soon!`
-        );
+        vscode.window.showInformationMessage(`Dashboard for ${projectItem.label} - Coming soon!`);
       })
     );
 
@@ -261,7 +283,9 @@ export async function activate(context: vscode.ExtensionContext) {
           { pattern: '**/module.yaml' },
         ],
         new RapidKitCompletionProvider(),
-        '"', ':', ' '
+        '"',
+        ':',
+        ' '
       ),
 
       // Hover provider
@@ -279,7 +303,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     logger.info('✅ RapidKit commands registered successfully!');
     statusBar.updateStatus('ready');
-    
+
     // Initialize workspace selection ASYNCHRONOUSLY (non-blocking)
     // This allows commands to be available immediately even if initialization fails
     (async () => {
@@ -295,7 +319,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         logger.info('✅ RapidKit extension initialized successfully!');
-        
+
         // Watch for workspace changes
         const fileWatcher = vscode.workspace.createFileSystemWatcher(
           '**/pyproject.toml',

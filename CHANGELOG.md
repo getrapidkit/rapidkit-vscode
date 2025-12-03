@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-12-03
+
+### Changed
+- 🌐 **Updated domain references** - Migrated all URLs from `rapidkit.top` to `getrapidkit.com`
+  - Updated package.json viewsWelcome contents
+  - Updated README.md documentation links and support email
+  - Updated source files (createWorkspace.ts, welcomePanel.ts)
+  - Updated CONTRIBUTING.md contact information
+  - Updated schema URLs to use new domain
+- ⚡ **Enhanced development workflow** - Added comprehensive developer tools
+  - Added `husky` for Git hooks management
+  - Added `lint-staged` for pre-commit code quality checks
+  - Added `typecheck` script for TypeScript validation
+  - Added `validate` script combining typecheck, lint, format check, and tests
+  - Configured pre-commit hook to run lint-staged automatically
+- 📦 **Updated dependencies** - Upgraded to latest stable versions
+  - Updated `@types/vscode` to 1.106.1
+  - Updated `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser` to 8.48.1
+  - Updated `@vitest/coverage-v8` and `vitest` to 4.0.15
+  - Updated `@vscode/vsce` to 3.7.1
+  - Updated `execa` to 9.6.1
+  - Updated `prettier` to 3.7.4
+  - Updated `yaml` to 2.8.2
+  - Updated `lint-staged` to 16.2.7
+
+### Fixed
+- 🔒 **Security improvements** - Fixed npm audit vulnerabilities
+  - Fixed glob vulnerability (GHSA-5j98-mcp5-4vw2)
+  - Fixed js-yaml prototype pollution (GHSA-mh29-5h37-fv8m)
+  - Resolved all moderate and high severity vulnerabilities
+- 🐛 **Code quality fixes** - Cleaned up ESLint warnings
+  - Fixed empty catch blocks in generateDemo.ts
+  - Added meaningful comments to intentionally empty catch blocks
+  - Reduced ESLint warnings from 13 to 9 (errors eliminated)
+
+### Documentation
+- 📚 Updated all documentation links to point to getrapidkit.com
+- 📧 Updated support email to support@getrapidkit.com
+- 🔗 Updated schema references to use new domain
+
 ## [0.3.1] - 2025-11-15
 
 ### Fixed

@@ -285,7 +285,7 @@ PRs will be reviewed for:
 
 - **Discord**: [Join our server](https://discord.gg/rapidkit)
 - **GitHub Discussions**: [Ask questions](https://github.com/getrapidkit/rapidkit-vscode/discussions)
-- **Email**: dev@rapidkit.dev
+- **Email**: dev@getrapidkit.com
 
 ## 🙏 Thank You
 

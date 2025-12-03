@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { RapidKitCLI } from '../core/rapidkitCLI';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
@@ -16,7 +15,7 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
   try {
     // If no workspace provided, try to get the selected workspace from context
     let targetWorkspace = workspace;
-    
+
     if (!targetWorkspace) {
       // Try to get from rapidkit.selectedWorkspace context
       const workspaceData = await vscode.commands.executeCommand('rapidkit.getSelectedWorkspace');
@@ -61,6 +60,7 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
       logger.info(`Using workspace: ${destinationPath}, isDemoWorkspace: ${isDemoWorkspace}`);
     } else {
       // Get destination folder from user
+      logger.warn('No workspace selected - asking user to select destination');
       const folderUri = await vscode.window.showOpenDialog({
         canSelectFiles: false,
         canSelectFolders: true,
@@ -70,13 +70,16 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
       });
 
       if (!folderUri || folderUri.length === 0) {
+        logger.info('User cancelled folder selection');
         return;
       }
 
       destinationPath = folderUri[0].fsPath;
-      
+      logger.info(`User selected destination: ${destinationPath}`);
+
       // Check if selected folder is a demo workspace
       isDemoWorkspace = await fs.pathExists(path.join(destinationPath, 'generate-demo.js'));
+      logger.info(`Is demo workspace: ${isDemoWorkspace}`);
     }
 
     // Generate with progress
@@ -93,37 +96,108 @@ export async function generateDemoCommand(workspace?: { path: string; mode: stri
           if (isDemoWorkspace) {
             // Use generate-demo.js script from demo workspace
             logger.info('Using demo workspace generate-demo.js script');
-            const { execa } = await import('execa');
-            
-            // Track progress while running
-            const proc = execa('node', ['generate-demo.js', projectName], {
-              cwd: destinationPath,
-              stdio: 'inherit',
-            });
-            
-            // Update progress at intervals while running
-            const progressInterval = setInterval(() => {
-              progress.report({ increment: 10 });
-            }, 500);
-            
-            await proc;
-            clearInterval(progressInterval);
+
+            try {
+              // Update progress
+              progress.report({ increment: 50, message: 'Running generator...' });
+
+              logger.info(`Executing: node generate-demo.js ${projectName} in ${destinationPath}`);
+
+              // Execute synchronously to ensure it completes and capture output for debugging
+              // Provide non-interactive stdin answers so the RapidKit CLI doesn't block on prompts
+              const execOptions = { cwd: destinationPath, encoding: 'utf-8' } as const;
+              const snakeName = projectName.replace(/-/g, '_');
+              const authorName = process.env.USER || '';
+              const description = 'FastAPI service generated with RapidKit';
+              const inputPayload = `${snakeName}\n${authorName}\n${description}\n`;
+              try {
+                const stdout = require('child_process').execSync(
+                  `node generate-demo.js ${projectName}`,
+                  { ...execOptions, stdio: 'pipe', input: inputPayload }
+                );
+                logger.info('Generator stdout (demo workspace):', { output: String(stdout) });
+              } catch (childErr: any) {
+                // capture stderr if present
+                try {
+                  const out = childErr.stdout ? String(childErr.stdout) : undefined;
+                  const err = childErr.stderr ? String(childErr.stderr) : undefined;
+                  logger.error('Generator failed (demo workspace) - stdout:', out);
+                  logger.error('Generator failed (demo workspace) - stderr:', err);
+                } catch {
+                  // Ignore errors when accessing stdout/stderr
+                }
+                throw childErr;
+              }
+
+              // Verify project was created
+              const projectDir = path.join(destinationPath, projectName);
+              const projectExists = await fs.pathExists(projectDir);
+              logger.info(`Project directory exists after generation: ${projectExists}`, {
+                path: projectDir,
+              });
+              if (!projectExists) {
+                throw new Error(`Project directory was not created at ${projectDir}`);
+              }
+
+              logger.info('Demo project generated successfully');
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              logger.error('Failed to generate demo project with generate-demo.js', error);
+              throw new Error(`Generator failed: ${errorMsg}`);
+            }
           } else {
             // Use rapidkit CLI with --demo-only flag
             logger.info('Using rapidkit CLI with --demo-only');
-            const cli = new RapidKitCLI();
 
-            // Track progress while running
-            const progressInterval = setInterval(() => {
-              progress.report({ increment: 10 });
-            }, 500);
-            
-            await cli.generateDemo({
-              name: projectName,
-              destinationPath: destinationPath,
-            });
-            
-            clearInterval(progressInterval);
+            try {
+              // Update progress
+              progress.report({ increment: 50, message: 'Running RapidKit CLI...' });
+
+              logger.info(
+                `Executing: npx rapidkit "${projectName}" --demo-only in ${destinationPath}`
+              );
+
+              // Execute synchronously and capture output for debugging
+              const execOptions = { cwd: destinationPath, encoding: 'utf-8' } as const;
+              try {
+                // Provide the same non-interactive answers to the CLI in case it prompts
+                const snakeName = projectName.replace(/-/g, '_');
+                const authorName = process.env.USER || '';
+                const description = 'FastAPI service generated with RapidKit';
+                const inputPayload = `${snakeName}\n${authorName}\n${description}\n`;
+                const stdout = require('child_process').execSync(
+                  `npx rapidkit "${projectName}" --demo-only`,
+                  { ...execOptions, stdio: 'pipe', input: inputPayload }
+                );
+                logger.info('RapidKit CLI stdout:', { output: String(stdout) });
+              } catch (childErr: any) {
+                try {
+                  const out = childErr.stdout ? String(childErr.stdout) : undefined;
+                  const err = childErr.stderr ? String(childErr.stderr) : undefined;
+                  logger.error('RapidKit CLI failed - stdout:', out);
+                  logger.error('RapidKit CLI failed - stderr:', err);
+                } catch {
+                  // Ignore errors when accessing stdout/stderr
+                }
+                throw childErr;
+              }
+
+              // Verify project was created
+              const projectDir = path.join(destinationPath, projectName);
+              const projectExists = await fs.pathExists(projectDir);
+              logger.info(`Project directory exists after generation: ${projectExists}`, {
+                path: projectDir,
+              });
+              if (!projectExists) {
+                throw new Error(`Project directory was not created at ${projectDir}`);
+              }
+
+              logger.info('Demo project generated successfully via CLI');
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              logger.error('Failed to generate demo project via CLI', error);
+              throw new Error(`RapidKit CLI failed: ${errorMsg}`);
+            }
           }
 
           progress.report({ increment: 100, message: 'Done!' });

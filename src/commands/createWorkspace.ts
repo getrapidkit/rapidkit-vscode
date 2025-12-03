@@ -45,9 +45,7 @@ export async function createWorkspaceCommand() {
           // Check if CLI is available
           const isAvailable = await cli.isAvailable();
           if (!isAvailable) {
-            vscode.window.showWarningMessage(
-              '⚠️ RapidKit CLI not found. Installing via npx...'
-            );
+            vscode.window.showWarningMessage('⚠️ RapidKit CLI not found. Installing via npx...');
           }
 
           progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
@@ -70,7 +68,7 @@ export async function createWorkspaceCommand() {
           await fs.writeJSON(
             markerPath,
             {
-              $schema: 'https://rapidkit.dev/schemas/workspace.json',
+              $schema: 'https://getrapidkit.com/schemas/workspace.json',
               signature: 'RAPIDKIT_VSCODE_WORKSPACE',
               version: '1.0.0',
               mode: config.mode,
@@ -90,7 +88,7 @@ export async function createWorkspaceCommand() {
           progress.report({ increment: 80, message: 'Refreshing views...' });
 
           // Wait a bit for file system to sync
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
 
           // Refresh workspace explorer
           await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');

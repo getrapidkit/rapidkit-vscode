@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Official VS Code extension for RapidKit - Create production-ready FastAPI & NestJS projects with ease",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "engines": {
@@ -214,7 +214,7 @@
     "viewsWelcome": [
       {
         "view": "rapidkitWorkspaces",
-        "contents": "No RapidKit workspaces found.\n\nGet started by creating a new workspace or adding an existing one.\n\n[$(new-folder) Create New Workspace](command:rapidkit.createWorkspace)\n\n[$(folder-opened) Add Existing Workspace](command:rapidkit.addWorkspace)\n\n[$(search) Discover Workspaces](command:rapidkit.discoverWorkspaces)\n\n[Learn More](https://rapidkit.dev/docs)"
+        "contents": "No RapidKit workspaces found.\n\nGet started by creating a new workspace or adding an existing one.\n\n[$(new-folder) Create New Workspace](command:rapidkit.createWorkspace)\n\n[$(folder-opened) Add Existing Workspace](command:rapidkit.addWorkspace)\n\n[$(search) Discover Workspaces](command:rapidkit.discoverWorkspaces)\n\n[Learn More](https://getrapidkit.com/docs)"
       },
       {
         "view": "rapidkitProjects",
@@ -223,7 +223,7 @@
       },
       {
         "view": "rapidkitProjects",
-        "contents": "No projects found in this workspace.\n\nGet started by creating your first RapidKit project.\n\n[$(new-folder) Create New Project](command:rapidkit.createProject)\n\n[$(rocket) Generate Demo Project](command:rapidkit.generateDemo)\n\n[Learn More](https://rapidkit.dev/docs)",
+        "contents": "No projects found in this workspace.\n\nGet started by creating your first RapidKit project.\n\n[$(new-folder) Create New Project](command:rapidkit.createProject)\n\n[$(rocket) Generate Demo Project](command:rapidkit.generateDemo)\n\n[Learn More](https://getrapidkit.com/docs)",
         "when": "rapidkit:workspaceSelected && rapidkit:noProjects"
       },
       {
@@ -232,7 +232,7 @@
       },
       {
         "view": "rapidkitTemplates",
-        "contents": "Template library coming soon.\n\n[Browse Online](https://rapidkit.dev/templates)"
+        "contents": "Template library coming soon.\n\n[Browse Online](https://getrapidkit.com/templates)"
       }
     ],
     "menus": {
@@ -483,7 +483,10 @@
     "package": "vsce package",
     "publish": "vsce publish",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "prepare": "husky"
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -505,8 +508,16 @@
     "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.12",
     "eslint": "^8.57.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.2.5",
     "typescript": "^5.5.0",
     "vitest": "^4.0.7"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }

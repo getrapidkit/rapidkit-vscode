@@ -33,7 +33,7 @@ export class WelcomePanel {
             vscode.commands.executeCommand('rapidkit.doctor');
             break;
           case 'openDocs':
-            vscode.env.openExternal(vscode.Uri.parse('https://rapidkit.dev'));
+            vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com'));
             break;
         }
       },

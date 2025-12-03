@@ -251,8 +251,8 @@ This checks:
 
 ## 📚 Documentation
 
-- [Official Documentation](https://docs.rapidkit.dev)
-- [RapidKit Website](https://rapidkit.dev)
+- [Official Documentation](https://getrapidkit.com/docs)
+- [RapidKit Website](https://getrapidkit.com)
 - [GitHub Repository](https://github.com/getrapidkit/rapidkit-npm)
 - [Discord Community](https://discord.gg/rapidkit)
 
@@ -278,13 +278,13 @@ Special thanks to:
 - **Issues**: [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/getrapidkit/rapidkit-vscode/discussions)
 - **Discord**: [Join our server](https://discord.gg/rapidkit)
-- **Email**: support@rapidkit.dev
+- **Email**: support@getrapidkit.com
 
 ---
 
 <div align="center">
 
-**Made with 🚀 by [RapidKit](https://rapidkit.dev)**
+**Made with 🚀 by [RapidKit](https://getrapidkit.com)**
 
 ⭐ Star us on [GitHub](https://github.com/getrapidkit/rapidkit-vscode)
 
