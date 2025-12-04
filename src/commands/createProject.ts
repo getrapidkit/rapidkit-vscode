@@ -243,7 +243,7 @@ export async function createProjectCommand(
             `✅ Project "${config.name}" created successfully!\n\n` +
               `📁 Location: ${projectPath}\n` +
               `🚀 Framework: ${config.framework}\n` +
-              `💡 Next: Run 'rapidkit dev' to start development server`,
+              `💡 Next: cd ${config.name} && rapidkit init && rapidkit dev`,
             openAction,
             docsAction,
             'Close'

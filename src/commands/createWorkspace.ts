@@ -109,7 +109,7 @@ export async function createWorkspaceCommand() {
           const selected = await vscode.window.showInformationMessage(
             `✅ Workspace "${config.name}" created successfully!\n\n` +
               `📁 Location: ${config.path}\n` +
-              `💡 Tip: Activate workspace with 'source .rapidkit/activate' in terminal`,
+              `💡 Tip: Use 'rapidkit create my-api --template fastapi' to add projects`,
             openAction,
             docsAction,
             'Close'

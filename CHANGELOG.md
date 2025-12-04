@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-04
+
+### Changed
+- 📝 **Updated notification messages** for rapidkit npm v0.12.3 smart CLI delegation
+  - Project success: Shows `rapidkit init && rapidkit dev` (no source activate needed)
+  - Workspace success: Shows `rapidkit create` command tip
+- 📚 **New README** - Completely rewritten for clarity and quick reference
+  - Added screenshot for marketplace gallery
+  - Simplified structure with project commands and keyboard shortcuts
+  - Clear requirements table
+
+### Documentation
+- 📁 Moved all release notes to `releases/` folder for cleaner root
+- Created main `RELEASE_NOTES.md` with links to history
+- Removed `.vsix` files from git tracking
+- Added `preview` and `qna` fields to package.json for marketplace
+
 ## [0.4.0] - 2025-12-03
 
 ### 🚀 **MAJOR REFACTORING: Complete Migration to npm Package**

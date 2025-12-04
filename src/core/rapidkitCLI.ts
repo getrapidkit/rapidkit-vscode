@@ -106,7 +106,7 @@ export class RapidKitCLI {
   /**
    * Create a project inside an existing workspace
    * Uses: rapidkit create <project-name> --template <fastapi|nestjs>
-   * Note: Requires activating workspace first (source .rapidkit/activate)
+   * Note: Since v0.12.3, global rapidkit auto-delegates to local CLI when inside workspace
    */
   async createProjectInWorkspace(
     options: CreateProjectInWorkspaceOptions

@@ -2,9 +2,15 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Create FastAPI & NestJS projects instantly with RapidKit npm package - No Python/Poetry required",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "preview": false,
+  "qna": "https://github.com/getrapidkit/rapidkit-vscode/discussions",
   "engines": {
     "vscode": "^1.85.0"
   },
