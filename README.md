@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![RapidKit Logo](media/icons/icon.png)
-
 **Create production-ready FastAPI & NestJS projects in seconds!**
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
@@ -18,7 +16,7 @@
 
 ## 📸 Screenshot
 
-![RapidKit VS Code Extension](media/screenshots/rapidkit-vscode-ext-screen.png)
+![RapidKit VS Code Extension](media/screenshots/rapidki-vscode-screens.gif)
 
 ---
 

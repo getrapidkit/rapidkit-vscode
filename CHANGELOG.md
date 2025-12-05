@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-12-05
+
+### Added
+- **🪵 Logging Commands** - New command palette options for log management
+  - `rapidkit.showLogs` - Display RapidKit logs output panel
+  - `rapidkit.closeLogs` - Close the logs panel
+  - `rapidkit.clearLogs` - Clear all logs output
+- **Logger Enhancements**
+  - Added `clear()` method to Logger class
+  - Added `getOutputChannel()` method for direct OutputChannel access
+
+### Changed
+- **📺 Marketplace Presentation**
+  - Replaced static PNG screenshot with animated GIF (1200×642px)
+  - Removed duplicate icon from README
+  - Optimized README layout for marketplace gallery
+
 ## [0.4.1] - 2025-12-04
 
 ### Changed

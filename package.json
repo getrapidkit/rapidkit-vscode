@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Create FastAPI & NestJS projects instantly with RapidKit npm package - No Python/Poetry required",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -63,6 +63,9 @@
     "onCommand:rapidkit.previewTemplate",
     "onCommand:rapidkit.doctor",
     "onCommand:rapidkit.showWelcome",
+    "onCommand:rapidkit.showLogs",
+    "onCommand:rapidkit.closeLogs",
+    "onCommand:rapidkit.clearLogs",
     "onCommand:rapidkit.addModule"
   ],
   "main": "./dist/extension.js",
@@ -193,6 +196,24 @@
         "title": "Show Welcome",
         "category": "RapidKit",
         "icon": "$(home)"
+      },
+      {
+        "command": "rapidkit.showLogs",
+        "title": "Show Logs",
+        "category": "RapidKit",
+        "icon": "$(output)"
+      },
+      {
+        "command": "rapidkit.closeLogs",
+        "title": "Close Logs",
+        "category": "RapidKit",
+        "icon": "$(close)"
+      },
+      {
+        "command": "rapidkit.clearLogs",
+        "title": "Clear Logs",
+        "category": "RapidKit",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {

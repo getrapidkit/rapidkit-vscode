@@ -1,20 +1,22 @@
 # Release Notes
 
-## Latest Release: v0.4.1 (December 4, 2025)
+## Latest Release: v0.4.2 (December 5, 2025)
 
-### 📝 Documentation & Compatibility Update
+### UI & Documentation Improvements
 
-**Updated for rapidkit npm v0.12.3 smart CLI delegation!**
+**Enhanced marketplace presence and logging functionality!**
 
 ### What's New
 
-- **📝 Updated Messages** - Notification messages now show simplified workflow
-  - `rapidkit init && rapidkit dev` (no `source .rapidkit/activate` needed)
-- **📚 New README** - Completely rewritten for clarity
-  - Added screenshot for marketplace gallery
-  - Project structure and commands reference
-  - Keyboard shortcuts table
-- **📁 Organized Releases** - All release notes moved to `releases/` folder
+- **🪵 Logging Commands** - New command palette options for log management
+  - `RapidKit: Show Logs` - Display RapidKit logs panel
+  - `RapidKit: Close Logs` - Close the logs panel
+  - `RapidKit: Clear Logs` - Clear all logs
+- **📺 Enhanced Marketplace Profile** - Improved README and screenshots
+  - Replaced static screenshot with animated GIF (1200×642px)
+  - Removed duplicate icon from README (shown in marketplace profile)
+  - Optimized layout for better marketplace presentation
+- **🎨 Better UX** - Logger utility now supports clearing output and direct access to OutputChannel
 
 ---
 
@@ -22,6 +24,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.4.1](releases/RELEASE_NOTES_v0.4.1.md) | Dec 4, 2025 | Documentation update, README rewrite |
 | [v0.4.0](releases/RELEASE_NOTES_v0.4.0.md) | Dec 3, 2025 | Smart location detection, npm migration |
 | [v0.3.1](releases/RELEASE_NOTES_v0.3.1.md) | Dec 3, 2025 | Bug fixes |
 | [v0.3.0](releases/RELEASE_NOTES_v0.3.0.md) | Dec 2, 2025 | New features |

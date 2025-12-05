@@ -32,6 +32,14 @@ export class Logger {
     this.outputChannel.hide();
   }
 
+  public clear(): void {
+    this.outputChannel.clear();
+  }
+
+  public getOutputChannel(): vscode.OutputChannel {
+    return this.outputChannel;
+  }
+
   public info(message: string, ...args: any[]): void {
     const timestamp = new Date().toISOString();
     const formattedMessage = `[${timestamp}] [INFO] ${message}`;

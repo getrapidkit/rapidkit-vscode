@@ -265,6 +265,18 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.openProjectDashboard', async (projectItem) => {
         // Dashboard implementation
         vscode.window.showInformationMessage(`Dashboard for ${projectItem.label} - Coming soon!`);
+      }),
+      vscode.commands.registerCommand('rapidkit.showLogs', () => {
+        const logger = Logger.getInstance();
+        logger.show();
+      }),
+      vscode.commands.registerCommand('rapidkit.closeLogs', () => {
+        const logger = Logger.getInstance();
+        logger.hide();
+      }),
+      vscode.commands.registerCommand('rapidkit.clearLogs', () => {
+        const logger = Logger.getInstance();
+        logger.clear();
       })
     );
 
