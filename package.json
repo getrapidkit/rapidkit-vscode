@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Create FastAPI & NestJS projects instantly with RapidKit npm package - No Python/Poetry required",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -250,18 +250,13 @@
           "name": "Available Modules",
           "icon": "media/icons/icon-128.png",
           "contextualTitle": "RapidKit Modules"
-        },
-        {
-          "id": "rapidkitTemplates",
-          "name": "Templates",
-          "icon": "media/icons/icon-128.png"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "rapidkitActions",
-        "contents": "Get started with RapidKit by creating workspaces and projects.\n\n[$(add) Create Workspace](command:rapidkit.createWorkspace)\n\n[$(file-code) Create FastAPI Project](command:rapidkit.createFastAPIProject)\n\n[$(bracket) Create NestJS Project](command:rapidkit.createNestJSProject)\n\n[$(book) Documentation](command:rapidkit.openDocs)"
+        "contents": "Get started with RapidKit by creating workspaces and projects.\n\n**Quick Start**\n\n[$(add) Create Workspace](command:rapidkit.createWorkspace)\n\n[$(file-code) Create FastAPI Project](command:rapidkit.createFastAPIProject)\n\n[$(bracket) Create NestJS Project](command:rapidkit.createNestJSProject)\n\n**Resources**\n\n[$(pulse) System Check](command:rapidkit.doctor)\n\n[$(book) Documentation](command:rapidkit.openDocs)\n\n[$(github) View on GitHub](https://github.com/getrapidkit/rapidkit-vscode)\n\n**Feedback**\n\n[$(star) Rate Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode&ssr=false#review-details)"
       },
       {
         "view": "rapidkitWorkspaces",
@@ -280,10 +275,6 @@
       {
         "view": "rapidkitModules",
         "contents": "Available modules will appear here once you select a project."
-      },
-      {
-        "view": "rapidkitTemplates",
-        "contents": "Available templates:\n• FastAPI - Python web framework\n• NestJS - TypeScript framework"
       }
     ],
     "menus": {
@@ -314,24 +305,14 @@
       ],
       "view/title": [
         {
-          "command": "rapidkit.createWorkspace",
+          "command": "rapidkit.refreshWorkspaces",
           "when": "view == rapidkitWorkspaces",
           "group": "navigation@1"
         },
         {
-          "command": "rapidkit.addWorkspace",
-          "when": "view == rapidkitWorkspaces",
-          "group": "navigation@2"
-        },
-        {
-          "command": "rapidkit.refreshWorkspaces",
-          "when": "view == rapidkitWorkspaces",
-          "group": "navigation@3"
-        },
-        {
           "command": "rapidkit.discoverWorkspaces",
           "when": "view == rapidkitWorkspaces",
-          "group": "navigation@4"
+          "group": "navigation@2"
         },
         {
           "command": "rapidkit.createProject",
@@ -363,7 +344,7 @@
         {
           "command": "rapidkit.removeWorkspace",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
-          "group": "danger@1"
+          "group": "z_danger@99"
         },
         {
           "command": "rapidkit.addModule",
@@ -388,7 +369,7 @@
         {
           "command": "rapidkit.deleteProject",
           "when": "view == rapidkitProjects && viewItem == project",
-          "group": "danger@1"
+          "group": "z_danger@99"
         }
       ],
       "explorer/context": [

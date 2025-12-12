@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2025-12-12
+
+### Added
+- **🧩 Enhanced Module Explorer** - Complete module catalog with 27 modules across 12 categories
+  - 🌟 AI (1 module)
+  - 🛡️ Authentication (5 modules)
+  - 💳 Billing (3 modules)
+  - 💼 Business (1 module)
+  - ⚡ Cache (1 module)
+  - 📧 Communication (2 modules)
+  - 🗄️ Database (3 modules)
+  - 🔧 Essentials (4 modules)
+  - 📊 Observability (1 module)
+  - 🔒 Security (3 modules)
+  - ✅ Tasks (1 module)
+  - 👤 Users (2 modules)
+  - All modules marked with "🔜 Coming Soon" preview status
+
+### Changed
+- **🎨 UI/UX Improvements**
+  - Removed TEMPLATES tab (redundant, simplified sidebar)
+  - Enhanced ACTIONS panel with categorized links (Quick Start, Resources, Feedback)
+  - Optimized context menus - moved dangerous operations (Delete, Remove) to bottom using `z_danger@99` group
+  - Upgraded status bar to show project count: `🚀 RapidKit | X Projects | Ready`
+- **📢 Enhanced Notifications** - Added action buttons for better workflow
+  - After project creation: `📂 Open in Editor`, `⚡ Open Terminal`, `🧩 Add Modules`, `📖 View Docs`
+  - After adding module: `📖 View Module Docs`, `➕ Add Another Module`
+  - System check results: `📊 View Full Report` or `🔧 View Issues`
+- **📝 Welcome Page** - Updated version reference to `v0.4.x` for consistency
+
+### Fixed
+- Doctor command async/await handling for notification action buttons
+- Terminal integration for post-creation workflows
+
 ## [0.4.2] - 2025-12-05
 
 ### Added

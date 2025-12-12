@@ -204,7 +204,7 @@ export class WelcomePanel {
     </div>
 
     <div class="features">
-        <h2>✨ What's New in v0.4.0</h2>
+        <h2>✨ What's New in v0.4.x</h2>
         <div class="feature-list">
             <div class="feature-item">
                 <span class="feature-icon">📦</span>

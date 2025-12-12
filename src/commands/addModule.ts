@@ -51,12 +51,27 @@ export async function addModuleCommand(module?: RapidKitModule) {
 
           progress.report({ increment: 100, message: 'Done!' });
 
-          vscode.window.showInformationMessage(
-            `✅ Module "${module!.displayName}" added successfully!`
+          // Show success with actions
+          const viewDocsAction = '📖 View Module Docs';
+          const addMoreAction = '➕ Add Another Module';
+
+          const selected = await vscode.window.showInformationMessage(
+            `✅ Module "${module!.displayName}" added successfully!`,
+            { modal: false },
+            viewDocsAction,
+            addMoreAction
           );
 
           // Refresh project explorer
-          vscode.commands.executeCommand('rapidkit.refreshProjects');
+          await vscode.commands.executeCommand('rapidkit.refreshProjects');
+
+          if (selected === viewDocsAction) {
+            await vscode.env.openExternal(
+              vscode.Uri.parse(`https://getrapidkit.com/docs/modules/${module!.id}`)
+            );
+          } else if (selected === addMoreAction) {
+            await vscode.commands.executeCommand('rapidkit.addModule');
+          }
         } catch (error) {
           logger.error('Failed to add module', error);
           vscode.window.showErrorMessage(

@@ -1,22 +1,25 @@
 # Release Notes
 
-## Latest Release: v0.4.2 (December 5, 2025)
+## Latest Release: v0.4.3 (December 12, 2025)
 
-### UI & Documentation Improvements
+### UI/UX Enhancements & Complete Module Catalog
 
-**Enhanced marketplace presence and logging functionality!**
+**Major UI improvements with enhanced notifications, cleaner sidebar, and 27-module preview catalog!**
 
 ### What's New
 
-- **🪵 Logging Commands** - New command palette options for log management
-  - `RapidKit: Show Logs` - Display RapidKit logs panel
-  - `RapidKit: Close Logs` - Close the logs panel
-  - `RapidKit: Clear Logs` - Clear all logs
-- **📺 Enhanced Marketplace Profile** - Improved README and screenshots
-  - Replaced static screenshot with animated GIF (1200×642px)
-  - Removed duplicate icon from README (shown in marketplace profile)
-  - Optimized layout for better marketplace presentation
-- **🎨 Better UX** - Logger utility now supports clearing output and direct access to OutputChannel
+- **🧩 Complete Module Explorer** - 27 modules across 12 categories (AI, Auth, Billing, Business, Cache, Communication, Database, Essentials, Observability, Security, Tasks, Users)
+  - All marked as "🔜 Coming Soon" preview
+  - Full integration planned for Q1 2026
+- **📢 Enhanced Notifications** - Action buttons for better workflow
+  - Project creation: `📂 Open in Editor`, `⚡ Open Terminal`, `🧩 Add Modules`, `📖 View Docs`
+  - Module addition: `📖 View Module Docs`, `➕ Add Another Module`
+  - System check: `📊 View Full Report` or `🔧 View Issues`
+- **🎨 Cleaner UI**
+  - Removed TEMPLATES tab (redundant)
+  - Enhanced ACTIONS panel with categories (Quick Start, Resources, Feedback)
+  - Safer context menus - dangerous operations at bottom
+- **📊 Better Status Bar** - Shows project count: `🚀 RapidKit | X Projects | Ready`
 
 ---
 
@@ -24,6 +27,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.4.2](releases/RELEASE_NOTES_v0.4.2.md) | Dec 5, 2025 | Logging commands, marketplace improvements |
 | [v0.4.1](releases/RELEASE_NOTES_v0.4.1.md) | Dec 4, 2025 | Documentation update, README rewrite |
 | [v0.4.0](releases/RELEASE_NOTES_v0.4.0.md) | Dec 3, 2025 | Smart location detection, npm migration |
 | [v0.3.1](releases/RELEASE_NOTES_v0.3.1.md) | Dec 3, 2025 | Bug fixes |

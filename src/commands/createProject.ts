@@ -236,17 +236,19 @@ export async function createProjectCommand(
 
           progress.report({ increment: 100, message: 'Done!' });
 
-          // Show success with actions
-          const openAction = 'Open Project';
-          const docsAction = 'View Docs';
+          // Show success with enhanced actions
+          const openAction = '📂 Open in Editor';
+          const terminalAction = '⚡ Open Terminal';
+          const addModulesAction = '🧩 Add Modules';
+          const docsAction = '📖 View Docs';
+
           const selected = await vscode.window.showInformationMessage(
-            `✅ Project "${config.name}" created successfully!\n\n` +
-              `📁 Location: ${projectPath}\n` +
-              `🚀 Framework: ${config.framework}\n` +
-              `💡 Next: cd ${config.name} && rapidkit init && rapidkit dev`,
+            `✅ Project "${config.name}" created successfully!`,
+            { modal: false },
             openAction,
-            docsAction,
-            'Close'
+            terminalAction,
+            addModulesAction,
+            docsAction
           );
 
           if (selected === openAction) {
@@ -254,6 +256,16 @@ export async function createProjectCommand(
             await vscode.commands.executeCommand('vscode.openFolder', projectUri, {
               forceNewWindow: false,
             });
+          } else if (selected === terminalAction) {
+            const terminal = vscode.window.createTerminal({
+              name: `RapidKit - ${config.name}`,
+              cwd: projectPath,
+            });
+            terminal.show();
+            terminal.sendText('# Run: rapidkit init && rapidkit dev');
+          } else if (selected === addModulesAction) {
+            // Set project path context then trigger add module
+            await vscode.commands.executeCommand('rapidkit.addModule', projectPath);
           } else if (selected === docsAction) {
             await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
           }
