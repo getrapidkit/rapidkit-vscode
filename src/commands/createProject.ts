@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ProjectWizard } from '../ui/wizards/projectWizard';
 import { Logger } from '../utils/logger';
 import { WorkspaceManager } from '../core/workspaceManager';
+import { getExtensionVersion, MARKERS } from '../utils/constants';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
@@ -95,8 +96,8 @@ export async function createProjectCommand(
 
             // Create marker file so extension can recognize this custom location
             await fs.writeJson(markerPath, {
-              signature: 'rapidkit-vscode',
-              version: '0.4.0',
+              signature: MARKERS.WORKSPACE_SIGNATURE,
+              version: getExtensionVersion(),
               type: 'custom-location',
               created: new Date().toISOString(),
             });
@@ -131,8 +132,8 @@ export async function createProjectCommand(
             // Add marker file for extension
             const markerPath = path.join(defaultWorkspacePath, '.rapidkit-workspace');
             await fs.writeJson(markerPath, {
-              signature: 'rapidkit-vscode',
-              version: '0.4.0',
+              signature: MARKERS.WORKSPACE_SIGNATURE,
+              version: getExtensionVersion(),
               created: new Date().toISOString(),
             });
 

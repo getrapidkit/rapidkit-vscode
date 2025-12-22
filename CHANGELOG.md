@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2025-12-22
+
+### Added
+- **🩺 RapidKit npm check in Doctor** - System check now verifies `npx rapidkit --version`
+  - Shows installed version or "Not cached" status
+  - Helps diagnose npm package availability
+
+### Changed
+- **🔄 Dynamic version markers** - Marker files now use extension version from package.json
+  - New `getExtensionVersion()` utility function
+  - Centralized constants in `utils/constants.ts`
+  - No more hardcoded version strings
+
+### Fixed
+- **🐛 TypeScript error** - Added `'preview'` to `RapidKitModule.status` type
+  - Fixed 30 compilation errors in `moduleExplorer.ts`
+- **📝 CHANGELOG links** - Updated version links to include all releases (0.4.0-0.4.3)
+
 ## [0.4.3] - 2025-12-12
 
 ### Added
@@ -399,7 +417,14 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.4
+[0.4.3]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.3
+[0.4.2]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.2
+[0.4.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.1
+[0.4.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.0
+[0.3.2]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.3.2
+[0.3.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.3.1
 [0.3.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.3.0
 [0.2.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.2.0
 [0.1.3]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.1.3

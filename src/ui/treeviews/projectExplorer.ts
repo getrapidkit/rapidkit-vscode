@@ -162,14 +162,14 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
                 this.projects.push(project);
               }
-            } catch (_error) {
+            } catch {
               // Invalid package.json, skip
             }
           }
         }
       }
-    } catch (_error) {
-      console.error('Error loading projects:', _error);
+    } catch (error) {
+      console.error('Error loading projects:', error);
     }
   }
 

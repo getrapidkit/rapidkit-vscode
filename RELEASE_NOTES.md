@@ -1,12 +1,31 @@
 # Release Notes
 
-## Latest Release: v0.4.3 (December 12, 2025)
+## Latest Release: v0.4.4 (December 22, 2025)
 
-### UI/UX Enhancements & Complete Module Catalog
+### Doctor Enhancement & Code Quality 🩺
 
-**Major UI improvements with enhanced notifications, cleaner sidebar, and 27-module preview catalog!**
+**RapidKit npm check in Doctor, dynamic version markers, and TypeScript fixes!**
 
 ### What's New
+
+- **🩺 RapidKit npm Check in Doctor** - System check now verifies `npx rapidkit --version`
+  - Shows installed version or "Not cached" status
+  - Helps diagnose npm package availability issues
+- **🔄 Dynamic Version Markers** - Marker files now use extension version from package.json
+  - New `getExtensionVersion()` utility function
+  - Centralized constants in `utils/constants.ts`
+  - No more hardcoded version strings
+- **🐛 TypeScript Fix** - Added `'preview'` to `RapidKitModule.status` type
+  - Fixed 30+ compilation errors in moduleExplorer.ts
+- **📝 Documentation** - Updated CHANGELOG links (0.4.0-0.4.3)
+
+---
+
+## Previous Releases
+
+### v0.4.3 (December 12, 2025)
+
+**UI/UX Enhancements & Complete Module Catalog**
 
 - **🧩 Complete Module Explorer** - 27 modules across 12 categories (AI, Auth, Billing, Business, Cache, Communication, Database, Essentials, Observability, Security, Tasks, Users)
   - All marked as "🔜 Coming Soon" preview
@@ -23,10 +42,10 @@
 
 ---
 
-## Previous Releases
-
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.4.4](releases/RELEASE_NOTES_v0.4.4.md) | Dec 22, 2025 | Doctor npm check, dynamic versions |
+| [v0.4.3](releases/RELEASE_NOTES_v0.4.3.md) | Dec 12, 2025 | Module explorer, UI enhancements |
 | [v0.4.2](releases/RELEASE_NOTES_v0.4.2.md) | Dec 5, 2025 | Logging commands, marketplace improvements |
 | [v0.4.1](releases/RELEASE_NOTES_v0.4.1.md) | Dec 4, 2025 | Documentation update, README rewrite |
 | [v0.4.0](releases/RELEASE_NOTES_v0.4.0.md) | Dec 3, 2025 | Smart location detection, npm migration |

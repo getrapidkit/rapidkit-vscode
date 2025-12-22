@@ -26,7 +26,7 @@ export interface RapidKitModule {
   version: string;
   description: string;
   category: string;
-  status: 'stable' | 'beta' | 'experimental';
+  status: 'stable' | 'beta' | 'experimental' | 'preview';
   tags: string[];
   dependencies: string[];
   installed: boolean;

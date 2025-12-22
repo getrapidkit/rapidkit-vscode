@@ -166,7 +166,7 @@ export class WorkspaceManager {
               }
             }
           }
-        } catch (_error) {
+        } catch {
           // Ignore permission errors
         }
       }
@@ -196,7 +196,7 @@ export class WorkspaceManager {
         return (
           marker.signature === 'RAPIDKIT_VSCODE_WORKSPACE' || marker.signature === 'rapidkit-vscode'
         );
-      } catch (_error) {
+      } catch {
         return false;
       }
     }
@@ -228,13 +228,13 @@ export class WorkspaceManager {
               if (pkg.dependencies?.['@nestjs/core']) {
                 projects.push(entry.name);
               }
-            } catch (_error) {
+            } catch {
               // Ignore
             }
           }
         }
       }
-    } catch (_error) {
+    } catch {
       // Ignore errors
     }
 

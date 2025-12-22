@@ -35,7 +35,7 @@ async function runSystemChecks(
     });
   }
 
-  progress.report({ increment: 25, message: 'Checking Node.js...' });
+  progress.report({ increment: 20, message: 'Checking Node.js...' });
 
   // Check Node.js
   try {
@@ -54,7 +54,7 @@ async function runSystemChecks(
     });
   }
 
-  progress.report({ increment: 50, message: 'Checking Poetry...' });
+  progress.report({ increment: 40, message: 'Checking Poetry...' });
 
   // Check Poetry
   try {
@@ -73,7 +73,7 @@ async function runSystemChecks(
     });
   }
 
-  progress.report({ increment: 75, message: 'Checking Git...' });
+  progress.report({ increment: 60, message: 'Checking Git...' });
 
   // Check Git
   try {
@@ -89,6 +89,26 @@ async function runSystemChecks(
       name: 'Git',
       status: 'warning',
       message: 'Git not found (optional)',
+    });
+  }
+
+  progress.report({ increment: 80, message: 'Checking RapidKit npm...' });
+
+  // Check RapidKit npm package
+  try {
+    const { execa } = await import('execa');
+    const rapidkitResult = await execa('npx', ['rapidkit', '--version'], { timeout: 10000 });
+    const version = rapidkitResult.stdout.trim();
+    result.checks.push({
+      name: 'RapidKit npm',
+      status: 'pass',
+      message: `v${version}`,
+    });
+  } catch {
+    result.checks.push({
+      name: 'RapidKit npm',
+      status: 'warning',
+      message: 'Not cached (will download on first use)',
     });
   }
 

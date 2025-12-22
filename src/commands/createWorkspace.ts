@@ -10,6 +10,7 @@ import { WorkspaceWizard } from '../ui/wizards/workspaceWizard';
 import { Logger } from '../utils/logger';
 import { RapidKitCLI } from '../core/rapidkitCLI';
 import { WorkspaceManager } from '../core/workspaceManager';
+import { getExtensionVersion, MARKERS } from '../utils/constants';
 
 export async function createWorkspaceCommand() {
   const logger = Logger.getInstance();
@@ -76,9 +77,9 @@ export async function createWorkspaceCommand() {
           await fs.writeJSON(
             markerPath,
             {
-              signature: 'RAPIDKIT_VSCODE_WORKSPACE',
+              signature: MARKERS.WORKSPACE_SIGNATURE_LEGACY,
               createdBy: 'rapidkit-vscode-extension',
-              version: '0.4.0',
+              version: getExtensionVersion(),
               createdAt: new Date().toISOString(),
               name: config.name,
             },
