@@ -2,13 +2,13 @@
 
 <div align="center">
 
-**Create production-ready FastAPI & NestJS projects in seconds!**
+**Scaffold production-ready FastAPI & NestJS APIs with clean architecture**
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square&color=red&label=npm)](https://www.npmjs.com/package/rapidkit)
 
-[Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://getrapidkit.com) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
+[Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.getrapidkit.com/docs) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
 </div>
 
@@ -16,7 +16,7 @@
 
 ## 📸 Screenshot
 
-![RapidKit VS Code Extension](media/screenshots/rapidki-vscode-screens.gif)
+![RapidKit VS Code Extension](media/screenshots/rapidki-vscode-screens.webp)
 
 ---
 
@@ -39,12 +39,14 @@ Your project is ready with:
 
 ## 🎯 What is RapidKit?
 
-RapidKit generates **production-ready backend projects** with best practices built-in:
+RapidKit generates **production-ready backend projects** with **clean architecture** built-in:
 
 | Framework | Language | Features |
 |-----------|----------|----------|
 | **FastAPI** | Python | Async, auto-docs, type hints, Poetry |
 | **NestJS** | TypeScript | Modular, decorators, DI, npm/yarn/pnpm |
+
+**Plus 27+ production-ready modules:** Auth, Database, Cache, Logging, and more!
 
 ---
 
@@ -92,15 +94,15 @@ After creating a project, use these commands:
 
 ```bash
 cd my-api
-rapidkit init      # Install dependencies
-rapidkit dev       # Start dev server (port 8000)
-rapidkit test      # Run tests
-rapidkit build     # Build for production
-rapidkit lint      # Lint code
-rapidkit format    # Format code
+npx rapidkit init      # Install dependencies
+npx rapidkit dev       # Start dev server (port 8000)
+npx rapidkit test      # Run tests
+npx rapidkit build     # Build for production
+npx rapidkit lint      # Lint code
+npx rapidkit format    # Format code
 ```
 
-> **Note:** The global `rapidkit` command auto-detects when you're inside a project. No `./` prefix needed!
+> **Note:** `npx rapidkit` auto-detects when you're inside a project. Or install globally: `npm i -g rapidkit`
 
 ---
 
@@ -136,9 +138,9 @@ rapidkit format    # Format code
 
 | Tool | Version | Required For |
 |------|---------|--------------|
-| VS Code | 1.85+ | Extension |
+| VS Code | 1.100+ | Extension |
 | Node.js | 18+ | CLI & NestJS |
-| Python | 3.10+ | FastAPI |
+| Python | 3.11+ | FastAPI |
 | Poetry | Latest | FastAPI dependencies |
 | Git | Latest | Version control |
 
@@ -149,7 +151,8 @@ rapidkit format    # Format code
 ## 🔗 Links
 
 - 📦 **npm package:** [npmjs.com/package/rapidkit](https://www.npmjs.com/package/rapidkit)
-- 📖 **Documentation:** [getrapidkit.com](https://getrapidkit.com)
+- 📖 **Documentation:** [www.getrapidkit.com](https://www.getrapidkit.com/docs)
+- 🧩 **Modules:** [27+ production-ready modules](https://www.getrapidkit.com/modules)
 - 🐛 **Issues:** [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
 - 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
@@ -157,4 +160,4 @@ rapidkit format    # Format code
 
 ## 📄 License
 
-MIT © [RapidKit](https://getrapidkit.com)
+MIT © [RapidKit](https://www.getrapidkit.com)

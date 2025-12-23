@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2025-12-23
+
+### Added
+- **🖼️ rapidkit.svg** - Official RapidKit brand icon in SVG format
+  - 3-layer design: shadow (#1C1C1C), main R (#00CFC1), crown (#1C1C1C)
+  - 24x24 viewBox, scalable to any size
+- **🎨 ACTIONS WebviewView** - Completely redesigned sidebar with professional buttons
+  - Replaced TreeView with WebviewView for rich UI
+  - Minimal, compact design (GitLens-style)
+  - Inline SVG icons (codicons don't work in webviews)
+  - Framework badges: `PY` for FastAPI, `TS` for NestJS
+  - Smooth hover effects with brand colors
+  - Organized sections: Create, Tools, Resources
+- **⚡ Project Quick Actions** - 5 inline action buttons on each project in PROJECTS panel
+  - `$(terminal)` **Open Terminal** - Opens terminal in project directory
+  - `$(package)` **Install Dependencies** - Runs `npx rapidkit init`
+  - `$(play)` **Start Dev Server** - Runs `npx rapidkit dev`
+  - `$(beaker)` **Run Tests** - Runs `npx rapidkit test` ✨ NEW
+  - `$(globe)` **Open Browser** - Opens `localhost:8000/docs` with options ✨ NEW
+- **📂 Project File Tree** - Expand project to see key files
+  - Shows `src/`, `tests/`, config files, README
+  - Click any file to open it in editor
+  - Smart detection based on framework (FastAPI vs NestJS)
+
+### Changed
+- **🎨 Welcome Panel SVG Logo** - Upgraded from PNG to SVG for better quality
+  - Uses `rapidkit.svg` instead of `icon.png`
+  - Crisp rendering at any size
+  - Official brand colors: #00CFC1 (cyan) + #1C1C1C (shadow)
+- **📝 Better Description** - Updated marketplace description to match website
+  - New: "Scaffold production-ready FastAPI & NestJS APIs with clean architecture"
+- **🎨 Improved Project Icons** - Framework-specific icons and colors
+  - 🐍 Python icon (green) for FastAPI projects
+  - 🟢 Class icon (red) for NestJS projects
+- **📖 README Sync** - Aligned with npm package documentation
+  - Commands now show `npx rapidkit` prefix
+  - Python requirement updated to 3.11+
+  - Added 27+ modules link
+
+### Fixed
+- **🐛 Remove annoying workspace switch** - Clicking project no longer switches VS Code workspace
+  - Before: Click = reload entire VS Code with new workspace 😱
+  - After: Click = expand/collapse, use action icons instead ✅
+- **🐛 rapidkitTemplates error** - Removed orphan TreeView registration
+  - Fixed "No view is registered with id: rapidkitTemplates" notification
+
+### Requirements
+- **VS Code** 1.100+ (updated from 1.85)
+
 ## [0.4.4] - 2025-12-22
 
 ### Added
@@ -417,7 +466,8 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.5
 [0.4.4]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.4
 [0.4.3]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.3
 [0.4.2]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.2

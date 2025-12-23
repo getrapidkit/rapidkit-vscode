@@ -67,7 +67,7 @@
 
 ### 1. Install Dependencies
 ```bash
-cd /home/debux/WOSP/Rapid/Front/rapidkit-vscode
+cd rapidkit-vscode
 npm install
 ```
 

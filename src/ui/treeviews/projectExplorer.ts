@@ -1,12 +1,72 @@
 /**
  * Project Explorer TreeView Provider
- * Shows projects in the selected workspace
+ * Shows projects in the selected workspace with full file tree
  */
 
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { RapidKitProject, RapidKitWorkspace } from '../../types';
+import { runningServers } from '../../extension';
+
+// Store extension path for icons
+let extensionPath: string = '';
+
+export function setExtensionPath(extPath: string) {
+  extensionPath = extPath;
+}
+
+// Files/folders to ALWAYS hide (system/cache files)
+const ALWAYS_HIDDEN = new Set([
+  '.git',
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+  '.DS_Store',
+  'Thumbs.db',
+  '.coverage',
+  '.tox',
+  '.nox',
+]);
+
+// Framework-specific hidden items
+const FASTAPI_HIDDEN = new Set([
+  'node_modules', // Not needed for Python projects
+]);
+
+const NESTJS_HIDDEN = new Set([
+  '.venv', // Not needed for Node projects
+  '*.pyc',
+  '*.egg-info',
+]);
+
+function shouldHide(name: string, projectType?: string): boolean {
+  // Always hide system/cache items
+  if (ALWAYS_HIDDEN.has(name)) {
+    return true;
+  }
+
+  // Framework-specific hiding
+  if (projectType === 'fastapi') {
+    if (FASTAPI_HIDDEN.has(name)) {
+      return true;
+    }
+    // Hide compiled Python files
+    if (name.endsWith('.pyc') || name.endsWith('.pyo')) {
+      return true;
+    }
+    if (name.endsWith('.egg-info')) {
+      return true;
+    }
+  } else if (projectType === 'nestjs') {
+    if (NESTJS_HIDDEN.has(name)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<ProjectTreeItem | undefined | null | void> =
@@ -58,7 +118,6 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   }
 
   private async updateProjectsContext(): Promise<void> {
-    // Set context based on whether we have projects
     const hasProjects = this.projects.length > 0;
     await vscode.commands.executeCommand(
       'setContext',
@@ -69,48 +128,81 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   }
 
   getTreeItem(element: ProjectTreeItem): vscode.TreeItem {
-    const item = element;
-
-    // Set command arguments for context menu actions
-    if (element.contextValue === 'project' && element.project) {
-      // Add path to item so context menu commands can use it
-      (item as any).projectPath = element.project.path;
-    }
-
-    return item;
+    return element;
   }
 
   async getChildren(element?: ProjectTreeItem): Promise<ProjectTreeItem[]> {
+    // Root level - show projects
     if (!element) {
-      // Root level
-      const items: ProjectTreeItem[] = [];
-
       if (!this.selectedWorkspace) {
-        // No workspace selected - return empty array
-        // Welcome view "No workspace selected" will be shown automatically by VS Code
         return [];
       }
 
-      // Workspace is selected - load and show projects
       await this.loadProjects();
-
-      // Update context after loading
       await this.updateProjectsContext();
 
-      // Add projects (if any)
-      this.projects.forEach((project) => {
-        items.push(new ProjectTreeItem(project, 'project'));
+      return this.projects.map((project) => {
+        // Check if server is running for this project
+        const isRunning = runningServers.has(project.path);
+        return new ProjectTreeItem(project, isRunning ? 'project-running' : 'project');
       });
+    }
 
-      // Return projects array (empty or with items)
-      // If empty, toolbar buttons will still be visible because workspace is selected
-      return items;
-    } else if (element.contextValue === 'project') {
-      // Show project details
-      return this.getProjectChildren(element.project!);
+    // Project level - show file tree
+    if (
+      (element.contextValue === 'project' || element.contextValue === 'project-running') &&
+      element.project
+    ) {
+      return this.getFileChildren(element.project.path, element.project);
+    }
+
+    // Folder level - show contents
+    if (element.contextValue === 'folder' && element.filePath) {
+      return this.getFileChildren(element.filePath, element.project);
     }
 
     return [];
+  }
+
+  private async getFileChildren(
+    dirPath: string,
+    project: RapidKitProject | null
+  ): Promise<ProjectTreeItem[]> {
+    const items: ProjectTreeItem[] = [];
+    const projectType = project?.type;
+
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+      // Sort: folders first, then files, both alphabetically
+      const sorted = entries.sort((a, b) => {
+        if (a.isDirectory() && !b.isDirectory()) {
+          return -1;
+        }
+        if (!a.isDirectory() && b.isDirectory()) {
+          return 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      for (const entry of sorted) {
+        if (shouldHide(entry.name, projectType)) {
+          continue;
+        }
+
+        const fullPath = path.join(dirPath, entry.name);
+
+        if (entry.isDirectory()) {
+          items.push(new ProjectTreeItem(project, 'folder', entry.name, fullPath));
+        } else {
+          items.push(new ProjectTreeItem(project, 'file', entry.name, fullPath));
+        }
+      }
+    } catch (error) {
+      console.error('Error reading directory:', error);
+    }
+
+    return items;
   }
 
   private async loadProjects(): Promise<void> {
@@ -172,92 +264,75 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
       console.error('Error loading projects:', error);
     }
   }
-
-  private getProjectChildren(project: RapidKitProject): ProjectTreeItem[] {
-    const children: ProjectTreeItem[] = [];
-
-    // Framework info
-    children.push(
-      new ProjectTreeItem(
-        {
-          ...project,
-          name: `Framework: ${project.type}`,
-        },
-        'info',
-        `$(code) ${project.type.toUpperCase()}`
-      )
-    );
-
-    // Kit info
-    children.push(
-      new ProjectTreeItem(
-        {
-          ...project,
-          name: `Kit: ${project.kit}`,
-        },
-        'info',
-        `$(package) ${project.kit}`
-      )
-    );
-
-    // Modules section
-    if (project.modules.length > 0) {
-      const modulesItem = new ProjectTreeItem(
-        {
-          ...project,
-          name: `Modules (${project.modules.length})`,
-        },
-        'modules',
-        `$(extensions) Modules (${project.modules.length})`
-      );
-      children.push(modulesItem);
-    } else {
-      children.push(
-        new ProjectTreeItem(
-          {
-            ...project,
-            name: 'No modules installed',
-          },
-          'info',
-          '$(info) No modules'
-        )
-      );
-    }
-
-    return children;
-  }
 }
 
 export class ProjectTreeItem extends vscode.TreeItem {
+  public readonly filePath?: string;
+
   constructor(
     public readonly project: RapidKitProject | null,
     public readonly contextValue: string,
-    customLabel?: string
+    customLabel?: string,
+    filePath?: string
   ) {
-    super(
-      customLabel || project?.name || '',
-      contextValue === 'project'
+    // Determine collapsible state
+    const collapsibleState =
+      contextValue === 'project' || contextValue === 'project-running' || contextValue === 'folder'
         ? vscode.TreeItemCollapsibleState.Collapsed
-        : contextValue === 'modules'
-          ? vscode.TreeItemCollapsibleState.Collapsed
-          : vscode.TreeItemCollapsibleState.None
-    );
+        : vscode.TreeItemCollapsibleState.None;
 
+    super(customLabel || project?.name || '', collapsibleState);
+
+    this.filePath = filePath;
+
+    // === Project Item (not running) ===
     if (contextValue === 'project' && project) {
-      this.tooltip = project.path;
-      this.description = project.kit;
-      this.iconPath = new vscode.ThemeIcon('folder-library', new vscode.ThemeColor('charts.blue'));
+      this.tooltip = `${project.path}\n\n▶️ Click Play to start dev server`;
+      this.description = project.type === 'fastapi' ? 'FastAPI' : 'NestJS';
 
-      // Make project items openable
+      // Use custom framework icons
+      if (extensionPath) {
+        const iconName = project.type === 'fastapi' ? 'fastapi.svg' : 'nestjs.svg';
+        this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+      } else {
+        this.iconPath = new vscode.ThemeIcon(
+          project.type === 'fastapi' ? 'symbol-method' : 'symbol-class',
+          new vscode.ThemeColor(project.type === 'fastapi' ? 'charts.green' : 'charts.red')
+        );
+      }
+    }
+    // === Project Item (running) ===
+    else if (contextValue === 'project-running' && project) {
+      this.tooltip = `${project.path}\n\n🚀 Server running! Click Stop to terminate`;
+      this.description = project.type === 'fastapi' ? 'FastAPI 🟢' : 'NestJS 🟢';
+
+      // Use custom framework icons with running indicator
+      if (extensionPath) {
+        const iconName = project.type === 'fastapi' ? 'fastapi.svg' : 'nestjs.svg';
+        this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+      } else {
+        this.iconPath = new vscode.ThemeIcon(
+          'vm-running',
+          new vscode.ThemeColor('testing.runAction')
+        );
+      }
+    }
+    // === Folder Item ===
+    else if (contextValue === 'folder' && filePath) {
+      this.tooltip = filePath;
+      this.iconPath = vscode.ThemeIcon.Folder;
+      this.resourceUri = vscode.Uri.file(filePath);
+    }
+    // === File Item ===
+    else if (contextValue === 'file' && filePath) {
+      this.tooltip = filePath;
+      this.iconPath = vscode.ThemeIcon.File;
+      this.resourceUri = vscode.Uri.file(filePath);
       this.command = {
-        command: 'vscode.openFolder',
-        title: 'Open Project',
-        arguments: [vscode.Uri.file(project.path), { forceNewWindow: false }],
+        command: 'vscode.open',
+        title: 'Open File',
+        arguments: [vscode.Uri.file(filePath)],
       };
-    } else if (contextValue === 'modules') {
-      this.iconPath = new vscode.ThemeIcon('extensions');
-    } else if (contextValue === 'info') {
-      this.iconPath = new vscode.ThemeIcon('info');
     }
 
     this.contextValue = contextValue;

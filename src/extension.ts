@@ -4,11 +4,11 @@
  */
 
 import * as vscode from 'vscode';
-import { ActionsProvider } from './ui/actionsProvider';
+import { ActionsWebviewProvider } from './ui/webviews/actionsWebviewProvider';
 import { WorkspaceExplorerProvider } from './ui/treeviews/workspaceExplorer';
-import { ProjectExplorerProvider } from './ui/treeviews/projectExplorer';
+import { ProjectExplorerProvider, setExtensionPath } from './ui/treeviews/projectExplorer';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
-import { TemplateExplorerProvider } from './ui/treeviews/templateExplorer';
+// templateExplorer removed in v0.4.3 (redundant with npm package)
 import { createWorkspaceCommand } from './commands/createWorkspace';
 import { createProjectCommand } from './commands/createProject';
 import { addModuleCommand } from './commands/addModule';
@@ -27,11 +27,14 @@ import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceCont
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 
 let statusBar: RapidKitStatusBar;
-let actionsProvider: ActionsProvider;
+let actionsWebviewProvider: ActionsWebviewProvider;
 let workspaceExplorer: WorkspaceExplorerProvider;
 let projectExplorer: ProjectExplorerProvider;
 let moduleExplorer: ModuleExplorerProvider;
-let templateExplorer: TemplateExplorerProvider;
+// templateExplorer removed
+
+// Track running dev servers per project (exported for ProjectExplorer)
+export const runningServers: Map<string, vscode.Terminal> = new Map();
 
 /**
  * Ensure default workspace exists and is registered in WorkspaceManager
@@ -66,6 +69,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
   logger.info('🚀 RapidKit extension is activating...');
 
+  // Set extension path for custom icons
+  setExtensionPath(context.extensionPath);
+
   try {
     // Register commands FIRST - these MUST succeed
     logger.info('Step 1: Registering commands...');
@@ -94,29 +100,41 @@ export async function activate(context: vscode.ExtensionContext) {
           );
         }
       }),
-      vscode.commands.registerCommand('rapidkit.createProject', async (workspacePath?: string) => {
-        try {
-          logger.info('Executing createProject command');
-          if (!workspaceExplorer) {
-            vscode.window.showErrorMessage('Extension not fully initialized');
-            return;
+      vscode.commands.registerCommand(
+        'rapidkit.createProject',
+        async (workspacePathOrUri?: string | vscode.Uri) => {
+          try {
+            logger.info('Executing createProject command');
+            if (!workspaceExplorer) {
+              vscode.window.showErrorMessage('Extension not fully initialized');
+              return;
+            }
+
+            // Handle different input types
+            let workspacePath: string | undefined;
+            if (typeof workspacePathOrUri === 'string') {
+              workspacePath = workspacePathOrUri;
+            } else if (workspacePathOrUri instanceof vscode.Uri) {
+              workspacePath = workspacePathOrUri.fsPath;
+            }
+
+            // If workspace path not provided, get from selected workspace
+            if (!workspacePath) {
+              const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+              workspacePath = selectedWorkspace?.path;
+            }
+            await createProjectCommand(workspacePath);
+            if (projectExplorer) {
+              projectExplorer.refresh();
+            }
+          } catch (error) {
+            logger.error('Failed to create project', error);
+            vscode.window.showErrorMessage(
+              `Failed to create project: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
-          // If workspace path not provided, get from selected workspace
-          if (!workspacePath) {
-            const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
-            workspacePath = selectedWorkspace?.path;
-          }
-          await createProjectCommand(workspacePath);
-          if (projectExplorer) {
-            projectExplorer.refresh();
-          }
-        } catch (error) {
-          logger.error('Failed to create project', error);
-          vscode.window.showErrorMessage(
-            `Failed to create project: ${error instanceof Error ? error.message : String(error)}`
-          );
         }
-      }),
+      ),
       vscode.commands.registerCommand('rapidkit.createFastAPIProject', async () => {
         try {
           logger.info('Executing createFastAPIProject command');
@@ -173,9 +191,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         if (moduleExplorer) {
           moduleExplorer.refresh();
-        }
-        if (templateExplorer) {
-          templateExplorer.refresh();
         }
       }),
       vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
@@ -277,10 +292,404 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.clearLogs', () => {
         const logger = Logger.getInstance();
         logger.clear();
+      }),
+
+      // Project Quick Actions - Init, Dev, Terminal
+      vscode.commands.registerCommand('rapidkit.projectTerminal', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        if (projectPath) {
+          const terminal = vscode.window.createTerminal({
+            name: `RapidKit: ${item?.project?.name || 'Project'}`,
+            cwd: projectPath,
+          });
+          terminal.show();
+          logger.info(`Opened terminal for project: ${projectPath}`);
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.projectInit', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        const projectName = item?.project?.name || 'Project';
+
+        if (projectPath) {
+          const terminal = vscode.window.createTerminal({
+            name: `📦 ${projectName} [init]`,
+            cwd: projectPath,
+          });
+          terminal.show();
+
+          // Both frameworks use rapidkit init
+          terminal.sendText('npx rapidkit init');
+
+          logger.info(`Running init for project: ${projectPath}`);
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.projectDev', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        const projectName = item?.project?.name || 'Project';
+        const projectType = item?.project?.type || 'fastapi';
+
+        if (projectPath) {
+          const fs = await import('fs');
+          const path = await import('path');
+
+          // Check if project is initialized based on framework
+          const isFastAPI = projectType === 'fastapi';
+          const checkPath = isFastAPI
+            ? path.join(projectPath, '.venv')
+            : path.join(projectPath, 'node_modules');
+          const isInitialized = fs.existsSync(checkPath);
+
+          if (!isInitialized) {
+            const missingText = isFastAPI ? '.venv' : 'node_modules';
+
+            // Different options for FastAPI vs NestJS
+            const action = isFastAPI
+              ? await vscode.window.showWarningMessage(
+                  `Project "${projectName}" is not initialized (${missingText} not found)`,
+                  'Initialize & Start',
+                  'Start Anyway',
+                  'Cancel'
+                )
+              : await vscode.window.showWarningMessage(
+                  `Project "${projectName}" is not initialized (${missingText} not found)`,
+                  'Initialize & Start',
+                  'Cancel'
+                );
+
+            if (action === 'Initialize & Start') {
+              const terminal = vscode.window.createTerminal({
+                name: `🔧 ${projectName} [init → dev]`,
+                cwd: projectPath,
+              });
+              terminal.show();
+
+              // Both frameworks use rapidkit commands
+              terminal.sendText('npx rapidkit init && npx rapidkit dev');
+
+              runningServers.set(projectPath, terminal);
+              projectExplorer?.refresh();
+
+              vscode.window.showInformationMessage(`🔧 Initializing ${projectName}...`);
+              logger.info(`Init + Dev for ${projectType} project: ${projectPath}`);
+              return;
+            } else if (action === 'Start Anyway' && isFastAPI) {
+              const terminal = vscode.window.createTerminal({
+                name: `🚀 ${projectName} [:8000]`,
+                cwd: projectPath,
+              });
+              terminal.show();
+              terminal.sendText('npx rapidkit dev --allow-global-runtime');
+
+              runningServers.set(projectPath, terminal);
+              projectExplorer?.refresh();
+
+              logger.info(`Dev (global runtime) for project: ${projectPath}`);
+              return;
+            } else {
+              return;
+            }
+          }
+
+          // START the server - find available port
+          const net = await import('net');
+          const defaultPort = 8000; // Both FastAPI and NestJS use 8000
+          let port = defaultPort;
+
+          const findAvailablePort = (startPort: number): Promise<number> => {
+            return new Promise((resolve) => {
+              const server = net.createServer();
+              server.listen(startPort, '0.0.0.0', () => {
+                server.close(() => resolve(startPort));
+              });
+              server.on('error', () => {
+                resolve(findAvailablePort(startPort + 1));
+              });
+            });
+          };
+          port = await findAvailablePort(defaultPort);
+
+          const terminal = vscode.window.createTerminal({
+            name: `🚀 ${projectName} [:${port}]`,
+            cwd: projectPath,
+          });
+          terminal.show();
+
+          if (isFastAPI) {
+            if (port !== defaultPort) {
+              terminal.sendText(`npx rapidkit dev --port ${port}`);
+              vscode.window.showInformationMessage(
+                `▶️ Started on port ${port} (${defaultPort} was busy)`
+              );
+            } else {
+              terminal.sendText('npx rapidkit dev');
+              vscode.window.showInformationMessage(`▶️ Started FastAPI server on port ${port}`);
+            }
+          } else {
+            // NestJS
+            if (port !== defaultPort) {
+              terminal.sendText(`PORT=${port} npm run start:dev`);
+              vscode.window.showInformationMessage(
+                `▶️ Started on port ${port} (${defaultPort} was busy)`
+              );
+            } else {
+              terminal.sendText('npm run start:dev');
+              vscode.window.showInformationMessage(`▶️ Started NestJS server on port ${port}`);
+            }
+          }
+
+          // Track running server
+          runningServers.set(projectPath, terminal);
+
+          // Refresh to update icon
+          projectExplorer?.refresh();
+
+          logger.info(
+            `Running ${projectType} dev server for project: ${projectPath} on port ${port}`
+          );
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.projectStop', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        const projectName = item?.project?.name || 'Project';
+        if (projectPath) {
+          const existingTerminal = runningServers.get(projectPath);
+          if (existingTerminal) {
+            existingTerminal.sendText('\x03'); // Ctrl+C
+            existingTerminal.show();
+            vscode.window.showInformationMessage(`⏹️ Stopped server for ${projectName}`);
+
+            runningServers.delete(projectPath);
+
+            // Refresh to update icon
+            projectExplorer?.refresh();
+
+            logger.info(`Stopped dev server for: ${projectPath}`);
+          }
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.projectTest', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        const projectName = item?.project?.name || 'Project';
+
+        if (projectPath) {
+          const terminal = vscode.window.createTerminal({
+            name: `🧪 ${projectName} [test]`,
+            cwd: projectPath,
+          });
+          terminal.show();
+
+          // Both frameworks use rapidkit test
+          terminal.sendText('npx rapidkit test');
+
+          logger.info(`Running tests for project: ${projectPath}`);
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.projectBrowser', async (item: any) => {
+        const projectPath = item?.project?.path || item?.projectPath;
+        const projectType = item?.project?.type || 'fastapi';
+        const isFastAPI = projectType === 'fastapi';
+
+        // Try to get port from running terminal name
+        let port = 8000; // Both FastAPI and NestJS use 8000
+        const runningTerminal = projectPath ? runningServers.get(projectPath) : null;
+        if (runningTerminal) {
+          // Extract port from terminal name like "🚀 project [:8001]"
+          const match = runningTerminal.name.match(/:([0-9]+)/);
+          if (match) {
+            port = parseInt(match[1], 10);
+          }
+        }
+
+        // Both frameworks have /docs (Swagger)
+        const url = `http://localhost:${port}/docs`;
+        vscode.env.openExternal(vscode.Uri.parse(url));
+        logger.info(`Opening browser: ${url}`);
+
+        if (isFastAPI) {
+          vscode.window
+            .showInformationMessage(`Opening ${url}`, 'Open /redoc')
+            .then((selection) => {
+              if (selection === 'Open /redoc') {
+                vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/redoc`));
+              }
+            });
+        } else {
+          vscode.window.showInformationMessage(`Opening ${url}`);
+        }
+      }),
+
+      // File management commands
+      vscode.commands.registerCommand('rapidkit.newFile', async (item: any) => {
+        const targetPath = item?.filePath || item?.project?.path;
+        if (!targetPath) {
+          vscode.window.showErrorMessage('No target path selected');
+          return;
+        }
+
+        const fileName = await vscode.window.showInputBox({
+          prompt: 'Enter file name',
+          placeHolder: 'example.py',
+          validateInput: (value) => {
+            if (!value || value.trim() === '') {
+              return 'File name cannot be empty';
+            }
+            if (/[<>:"/\\|?*]/.test(value)) {
+              return 'File name contains invalid characters';
+            }
+            return null;
+          },
+        });
+
+        if (fileName) {
+          const fs = await import('fs');
+          const path = await import('path');
+          const filePath = path.join(targetPath, fileName);
+
+          try {
+            fs.writeFileSync(filePath, '', 'utf-8');
+            const doc = await vscode.workspace.openTextDocument(filePath);
+            await vscode.window.showTextDocument(doc);
+            projectExplorer?.refresh();
+            logger.info(`Created new file: ${filePath}`);
+          } catch (err) {
+            vscode.window.showErrorMessage(`Failed to create file: ${err}`);
+          }
+        }
+      }),
+
+      vscode.commands.registerCommand('rapidkit.newFolder', async (item: any) => {
+        const targetPath = item?.filePath || item?.project?.path;
+        if (!targetPath) {
+          vscode.window.showErrorMessage('No target path selected');
+          return;
+        }
+
+        const folderName = await vscode.window.showInputBox({
+          prompt: 'Enter folder name',
+          placeHolder: 'new_folder',
+          validateInput: (value) => {
+            if (!value || value.trim() === '') {
+              return 'Folder name cannot be empty';
+            }
+            if (/[<>:"/\\|?*]/.test(value)) {
+              return 'Folder name contains invalid characters';
+            }
+            return null;
+          },
+        });
+
+        if (folderName) {
+          const fs = await import('fs');
+          const path = await import('path');
+          const folderPath = path.join(targetPath, folderName);
+
+          try {
+            fs.mkdirSync(folderPath, { recursive: true });
+            projectExplorer?.refresh();
+            logger.info(`Created new folder: ${folderPath}`);
+            vscode.window.showInformationMessage(`Created folder: ${folderName}`);
+          } catch (err) {
+            vscode.window.showErrorMessage(`Failed to create folder: ${err}`);
+          }
+        }
+      }),
+
+      vscode.commands.registerCommand('rapidkit.deleteFile', async (item: any) => {
+        const targetPath = item?.filePath;
+        if (!targetPath) {
+          vscode.window.showErrorMessage('No file/folder selected');
+          return;
+        }
+
+        const fs = await import('fs');
+        const path = await import('path');
+        const name = path.basename(targetPath);
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete "${name}"?`,
+          { modal: true },
+          'Delete'
+        );
+
+        if (confirm === 'Delete') {
+          try {
+            const stats = fs.statSync(targetPath);
+            if (stats.isDirectory()) {
+              fs.rmSync(targetPath, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(targetPath);
+            }
+            projectExplorer?.refresh();
+            logger.info(`Deleted: ${targetPath}`);
+          } catch (err) {
+            vscode.window.showErrorMessage(`Failed to delete: ${err}`);
+          }
+        }
+      }),
+
+      vscode.commands.registerCommand('rapidkit.renameFile', async (item: any) => {
+        const targetPath = item?.filePath;
+        if (!targetPath) {
+          vscode.window.showErrorMessage('No file/folder selected');
+          return;
+        }
+
+        const path = await import('path');
+        const fs = await import('fs');
+        const oldName = path.basename(targetPath);
+        const dirPath = path.dirname(targetPath);
+
+        const newName = await vscode.window.showInputBox({
+          prompt: 'Enter new name',
+          value: oldName,
+          validateInput: (value) => {
+            if (!value || value.trim() === '') {
+              return 'Name cannot be empty';
+            }
+            if (/[<>:"/\\|?*]/.test(value)) {
+              return 'Name contains invalid characters';
+            }
+            return null;
+          },
+        });
+
+        if (newName && newName !== oldName) {
+          const newPath = path.join(dirPath, newName);
+          try {
+            fs.renameSync(targetPath, newPath);
+            projectExplorer?.refresh();
+            logger.info(`Renamed: ${oldName} → ${newName}`);
+          } catch (err) {
+            vscode.window.showErrorMessage(`Failed to rename: ${err}`);
+          }
+        }
+      }),
+
+      vscode.commands.registerCommand('rapidkit.revealInExplorer', async (item: any) => {
+        const targetPath = item?.filePath || item?.project?.path;
+        if (targetPath) {
+          vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(targetPath));
+        }
       })
     );
 
     logger.info('✅ Commands registered successfully');
+
+    // Listen for terminal close events to update running servers
+    context.subscriptions.push(
+      vscode.window.onDidCloseTerminal((closedTerminal) => {
+        // Find and remove from runningServers
+        for (const [projectPath, terminal] of runningServers.entries()) {
+          if (terminal === closedTerminal) {
+            runningServers.delete(projectPath);
+            logger.info(`Terminal closed for project: ${projectPath}`);
+            // Refresh tree to update icons
+            projectExplorer?.refresh();
+            break;
+          }
+        }
+      })
+    );
 
     // Initialize configuration manager
     logger.info('Step 2: Initializing configuration manager...');
@@ -303,20 +712,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize tree view providers
     logger.info('Step 5: Initializing tree view providers...');
-    actionsProvider = new ActionsProvider();
+    actionsWebviewProvider = new ActionsWebviewProvider(context.extensionUri);
     workspaceExplorer = new WorkspaceExplorerProvider();
     projectExplorer = new ProjectExplorerProvider();
     moduleExplorer = new ModuleExplorerProvider();
-    templateExplorer = new TemplateExplorerProvider();
 
     // Register tree views
     logger.info('Step 6: Registering tree views...');
     context.subscriptions.push(
-      vscode.window.registerTreeDataProvider('rapidkitActions', actionsProvider),
+      vscode.window.registerWebviewViewProvider('rapidkitActionsWebview', actionsWebviewProvider),
       vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer),
       vscode.window.registerTreeDataProvider('rapidkitProjects', projectExplorer),
-      vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer),
-      vscode.window.registerTreeDataProvider('rapidkitTemplates', templateExplorer)
+      vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer)
+      // Note: rapidkitTemplates removed in v0.4.3 (redundant with npm package)
     );
 
     // Register IntelliSense providers

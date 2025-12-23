@@ -1,8 +1,8 @@
 {
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
-  "description": "Create FastAPI & NestJS projects instantly with RapidKit npm package - No Python/Poetry required",
-  "version": "0.4.4",
+  "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
+  "version": "0.4.5",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -12,7 +12,7 @@
   "preview": false,
   "qna": "https://github.com/getrapidkit/rapidkit-vscode/discussions",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Programming Languages",
@@ -214,6 +214,72 @@
         "title": "Clear Logs",
         "category": "RapidKit",
         "icon": "$(trash)"
+      },
+      {
+        "command": "rapidkit.projectInit",
+        "title": "Install Dependencies",
+        "category": "RapidKit",
+        "icon": "$(package)"
+      },
+      {
+        "command": "rapidkit.projectDev",
+        "title": "Start Dev Server",
+        "category": "RapidKit",
+        "icon": "$(play)"
+      },
+      {
+        "command": "rapidkit.projectTerminal",
+        "title": "Open Terminal",
+        "category": "RapidKit",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "rapidkit.projectTest",
+        "title": "Run Tests",
+        "category": "RapidKit",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "rapidkit.projectBrowser",
+        "title": "Open in Browser",
+        "category": "RapidKit",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "rapidkit.projectStop",
+        "title": "Stop Server",
+        "category": "RapidKit",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "rapidkit.newFile",
+        "title": "New File",
+        "category": "RapidKit",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "rapidkit.newFolder",
+        "title": "New Folder",
+        "category": "RapidKit",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "rapidkit.deleteFile",
+        "title": "Delete",
+        "category": "RapidKit",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "rapidkit.renameFile",
+        "title": "Rename",
+        "category": "RapidKit",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "rapidkit.revealInExplorer",
+        "title": "Reveal in Explorer",
+        "category": "RapidKit",
+        "icon": "$(folder-opened)"
       }
     ],
     "viewsContainers": {
@@ -228,8 +294,9 @@
     "views": {
       "rapidkit-explorer": [
         {
-          "id": "rapidkitActions",
-          "name": "Actions",
+          "type": "webview",
+          "id": "rapidkitActionsWebview",
+          "name": "Quick Actions",
           "icon": "media/icons/icon-128.png",
           "contextualTitle": "Quick Actions"
         },
@@ -254,10 +321,6 @@
       ]
     },
     "viewsWelcome": [
-      {
-        "view": "rapidkitActions",
-        "contents": "Get started with RapidKit by creating workspaces and projects.\n\n**Quick Start**\n\n[$(add) Create Workspace](command:rapidkit.createWorkspace)\n\n[$(file-code) Create FastAPI Project](command:rapidkit.createFastAPIProject)\n\n[$(bracket) Create NestJS Project](command:rapidkit.createNestJSProject)\n\n**Resources**\n\n[$(pulse) System Check](command:rapidkit.doctor)\n\n[$(book) Documentation](command:rapidkit.openDocs)\n\n[$(github) View on GitHub](https://github.com/getrapidkit/rapidkit-vscode)\n\n**Feedback**\n\n[$(star) Rate Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode&ssr=false#review-details)"
-      },
       {
         "view": "rapidkitWorkspaces",
         "contents": "No RapidKit workspaces found.\n\nUse the Actions panel above to create your first workspace."
@@ -370,6 +433,61 @@
           "command": "rapidkit.deleteProject",
           "when": "view == rapidkitProjects && viewItem == project",
           "group": "z_danger@99"
+        },
+        {
+          "command": "rapidkit.projectTerminal",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "rapidkit.projectInit",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "rapidkit.projectDev",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "inline@3"
+        },
+        {
+          "command": "rapidkit.projectStop",
+          "when": "view == rapidkitProjects && viewItem == project-running",
+          "group": "inline@3"
+        },
+        {
+          "command": "rapidkit.projectTest",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@4"
+        },
+        {
+          "command": "rapidkit.projectBrowser",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@5"
+        },
+        {
+          "command": "rapidkit.newFile",
+          "when": "view == rapidkitProjects && viewItem =~ /^(project|folder)$/",
+          "group": "file@1"
+        },
+        {
+          "command": "rapidkit.newFolder",
+          "when": "view == rapidkitProjects && viewItem =~ /^(project|folder)$/",
+          "group": "file@2"
+        },
+        {
+          "command": "rapidkit.renameFile",
+          "when": "view == rapidkitProjects && viewItem =~ /^(file|folder)$/",
+          "group": "file@3"
+        },
+        {
+          "command": "rapidkit.deleteFile",
+          "when": "view == rapidkitProjects && viewItem =~ /^(file|folder)$/",
+          "group": "file@4"
+        },
+        {
+          "command": "rapidkit.revealInExplorer",
+          "when": "view == rapidkitProjects && viewItem =~ /^(project|file|folder)$/",
+          "group": "navigation@3"
         }
       ],
       "explorer/context": [

@@ -73,6 +73,12 @@ export class WorkspaceManager {
    * Add a new workspace
    */
   public async addWorkspace(workspacePath: string): Promise<RapidKitWorkspace | null> {
+    // Ensure we have the latest workspaces loaded from storage
+    // This prevents overwriting existing workspaces when adding a new one
+    if (this.workspaces.length === 0) {
+      await this.loadWorkspaces();
+    }
+
     // Check if path exists
     if (!(await fs.pathExists(workspacePath))) {
       vscode.window.showErrorMessage(`Path does not exist: ${workspacePath}`);
