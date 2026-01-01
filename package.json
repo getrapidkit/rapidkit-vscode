@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -40,34 +40,6 @@
   },
   "homepage": "https://getrapidkit.com",
   "license": "MIT",
-  "activationEvents": [
-    "onView:rapidkitWorkspaces",
-    "onCommand:rapidkit.createWorkspace",
-    "onCommand:rapidkit.createProject",
-    "onCommand:rapidkit.createFastAPIProject",
-    "onCommand:rapidkit.createNestJSProject",
-    "onCommand:rapidkit.openDocs",
-    "onCommand:rapidkit.addModule",
-    "onCommand:rapidkit.refreshProjects",
-    "onCommand:rapidkit.refreshWorkspaces",
-    "onCommand:rapidkit.selectWorkspace",
-    "onCommand:rapidkit.addWorkspace",
-    "onCommand:rapidkit.removeWorkspace",
-    "onCommand:rapidkit.discoverWorkspaces",
-    "onCommand:rapidkit.openWorkspaceFolder",
-    "onCommand:rapidkit.copyWorkspacePath",
-    "onCommand:rapidkit.openProjectFolder",
-    "onCommand:rapidkit.copyProjectPath",
-    "onCommand:rapidkit.deleteProject",
-    "onCommand:rapidkit.openProjectDashboard",
-    "onCommand:rapidkit.previewTemplate",
-    "onCommand:rapidkit.doctor",
-    "onCommand:rapidkit.showWelcome",
-    "onCommand:rapidkit.showLogs",
-    "onCommand:rapidkit.closeLogs",
-    "onCommand:rapidkit.clearLogs",
-    "onCommand:rapidkit.addModule"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -190,6 +162,12 @@
         "title": "Run System Check",
         "category": "RapidKit",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "rapidkit.checkForUpdates",
+        "title": "Check for Updates",
+        "category": "RapidKit",
+        "icon": "$(cloud-download)"
       },
       {
         "command": "rapidkit.showWelcome",
@@ -364,6 +342,9 @@
         },
         {
           "command": "rapidkit.doctor"
+        },
+        {
+          "command": "rapidkit.checkForUpdates"
         }
       ],
       "view/title": [

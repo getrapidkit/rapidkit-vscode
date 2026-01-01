@@ -5,12 +5,9 @@
 import * as vscode from 'vscode';
 import { RapidKitTemplate } from '../../types';
 
-export class TemplateExplorerProvider
-  implements vscode.TreeDataProvider<TemplateTreeItem>
-{
-  private _onDidChangeTreeData: vscode.EventEmitter<
-    TemplateTreeItem | undefined | null | void
-  > = new vscode.EventEmitter<TemplateTreeItem | undefined | null | void>();
+export class TemplateExplorerProvider implements vscode.TreeDataProvider<TemplateTreeItem> {
+  private _onDidChangeTreeData: vscode.EventEmitter<TemplateTreeItem | undefined | null | void> =
+    new vscode.EventEmitter<TemplateTreeItem | undefined | null | void>();
   readonly onDidChangeTreeData: vscode.Event<TemplateTreeItem | undefined | null | void> =
     this._onDidChangeTreeData.event;
 
@@ -43,10 +40,7 @@ export class TemplateExplorerProvider
     ];
 
     return frameworks.map((fw) => {
-      const item = new vscode.TreeItem(
-        fw.name,
-        vscode.TreeItemCollapsibleState.Collapsed
-      );
+      const item = new vscode.TreeItem(fw.name, vscode.TreeItemCollapsibleState.Collapsed);
       item.contextValue = 'framework';
       item.iconPath = new vscode.ThemeIcon(fw.icon);
       return new TemplateTreeItem(item, 'framework');

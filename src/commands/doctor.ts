@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { SystemCheckResult } from '../types';
+import { getPoetryVersion } from '../utils/poetryHelper';
 
 async function runSystemChecks(
   progress: vscode.Progress<{ message?: string; increment?: number }>
@@ -56,20 +57,19 @@ async function runSystemChecks(
 
   progress.report({ increment: 40, message: 'Checking Poetry...' });
 
-  // Check Poetry
-  try {
-    const { execa } = await import('execa');
-    const poetryResult = await execa('poetry', ['--version']);
+  // Check Poetry with enhanced detection
+  const poetryVersion = await getPoetryVersion();
+  if (poetryVersion) {
     result.checks.push({
       name: 'Poetry',
       status: 'pass',
-      message: poetryResult.stdout,
+      message: `Poetry version ${poetryVersion}`,
     });
-  } catch {
+  } else {
     result.checks.push({
       name: 'Poetry',
       status: 'warning',
-      message: 'Poetry not found (optional)',
+      message: 'Poetry not found (optional, but recommended for FastAPI projects)',
     });
   }
 

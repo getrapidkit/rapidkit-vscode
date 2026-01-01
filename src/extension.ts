@@ -8,6 +8,8 @@ import { ActionsWebviewProvider } from './ui/webviews/actionsWebviewProvider';
 import { WorkspaceExplorerProvider } from './ui/treeviews/workspaceExplorer';
 import { ProjectExplorerProvider, setExtensionPath } from './ui/treeviews/projectExplorer';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
+import { detectPythonVirtualenv } from './utils/poetryHelper';
+import { checkAndNotifyUpdates } from './utils/updateChecker';
 // templateExplorer removed in v0.4.3 (redundant with npm package)
 import { createWorkspaceCommand } from './commands/createWorkspace';
 import { createProjectCommand } from './commands/createProject';
@@ -334,14 +336,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
           // Check if project is initialized based on framework
           const isFastAPI = projectType === 'fastapi';
-          const checkPath = isFastAPI
-            ? path.join(projectPath, '.venv')
-            : path.join(projectPath, 'node_modules');
-          const isInitialized = fs.existsSync(checkPath);
+
+          let isInitialized = false;
+          let missingText = '';
+
+          if (isFastAPI) {
+            // Smart detection: check both .venv and Poetry virtualenv
+            const venvInfo = await detectPythonVirtualenv(projectPath);
+            isInitialized = venvInfo.exists;
+            missingText = venvInfo.exists ? '' : 'virtualenv (.venv or Poetry cache)';
+          } else {
+            // NestJS: check node_modules
+            const checkPath = path.join(projectPath, 'node_modules');
+            isInitialized = fs.existsSync(checkPath);
+            missingText = 'node_modules';
+          }
 
           if (!isInitialized) {
-            const missingText = isFastAPI ? '.venv' : 'node_modules';
-
             // Different options for FastAPI vs NestJS
             const action = isFastAPI
               ? await vscode.window.showWarningMessage(
@@ -670,6 +681,11 @@ export async function activate(context: vscode.ExtensionContext) {
         if (targetPath) {
           vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(targetPath));
         }
+      }),
+
+      vscode.commands.registerCommand('rapidkit.checkForUpdates', async () => {
+        const { forceCheckForUpdates } = await import('./utils/updateChecker.js');
+        await forceCheckForUpdates(context);
       })
     );
 
@@ -771,6 +787,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     logger.info('✅ RapidKit commands registered successfully!');
     statusBar.updateStatus('ready');
+
+    // Check for rapidkit npm updates (non-blocking, runs in background)
+    checkAndNotifyUpdates(context).catch((err) => {
+      logger.error('Update check failed', err);
+    });
 
     // Initialize workspace selection ASYNCHRONOUSLY (non-blocking)
     // This allows commands to be available immediately even if initialization fails

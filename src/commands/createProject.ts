@@ -19,14 +19,68 @@ export async function createProjectCommand(
   try {
     const path = require('path');
     const os = require('os');
+    const fs = require('fs-extra');
 
     // Determine workspace: use selected, or ask user
-    let workspaceRoot: string;
+    let workspaceRoot: string | undefined;
 
     if (selectedWorkspacePath) {
-      // Use the provided workspace path (from UI or selected workspace)
-      workspaceRoot = selectedWorkspacePath;
-    } else {
+      // Check if the selected workspace path actually exists
+      const workspaceExists = await fs.pathExists(selectedWorkspacePath);
+
+      if (!workspaceExists) {
+        logger.warn('Selected workspace path does not exist:', selectedWorkspacePath);
+
+        // Show warning and ask user what to do
+        const action = await vscode.window.showWarningMessage(
+          `⚠️ Selected workspace no longer exists: ${path.basename(selectedWorkspacePath)}`,
+          'Choose New Location',
+          'Recreate Workspace',
+          'Cancel'
+        );
+
+        if (action === 'Recreate Workspace') {
+          // Recreate the workspace
+          logger.info('Recreating workspace:', selectedWorkspacePath);
+          const parentPath = path.dirname(selectedWorkspacePath);
+          const workspaceName = path.basename(selectedWorkspacePath);
+
+          await fs.ensureDir(parentPath);
+
+          const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
+          const cli = new RapidKitCLI();
+
+          await cli.createWorkspace({
+            name: workspaceName,
+            parentPath: parentPath,
+            skipGit: false,
+          });
+
+          // Add marker file
+          const markerPath = path.join(selectedWorkspacePath, '.rapidkit-workspace');
+          await fs.writeJson(markerPath, {
+            signature: MARKERS.WORKSPACE_SIGNATURE,
+            version: getExtensionVersion(),
+            created: new Date().toISOString(),
+          });
+
+          workspaceRoot = selectedWorkspacePath;
+          logger.info('Workspace recreated successfully');
+          vscode.window.showInformationMessage(`✅ Recreated workspace: ${workspaceName}`);
+        } else if (action === 'Choose New Location') {
+          // Let user proceed to location selection
+          selectedWorkspacePath = undefined; // Reset to trigger location prompt
+        } else {
+          logger.info('Project creation cancelled by user');
+          return;
+        }
+      } else {
+        // Use the provided workspace path (from UI or selected workspace)
+        workspaceRoot = selectedWorkspacePath;
+      }
+    }
+
+    if (!selectedWorkspacePath || typeof workspaceRoot === 'undefined') {
       // Check if currently in a RapidKit workspace
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0];
       const isInRapidKitWorkspace = currentWorkspace?.uri.fsPath.includes('.rapidkit');
@@ -156,6 +210,13 @@ export async function createProjectCommand(
           logger.info('Using default workspace:', workspaceRoot);
         }
       }
+    }
+
+    // Ensure workspaceRoot is defined before proceeding
+    if (!workspaceRoot) {
+      logger.error('Workspace root is undefined');
+      vscode.window.showErrorMessage('Failed to determine workspace location');
+      return;
     }
 
     // Show wizard

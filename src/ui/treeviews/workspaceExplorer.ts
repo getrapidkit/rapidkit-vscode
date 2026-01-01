@@ -7,15 +7,11 @@ import * as vscode from 'vscode';
 import { RapidKitWorkspace } from '../../types';
 import { WorkspaceManager } from '../../core/workspaceManager';
 
-export class WorkspaceExplorerProvider
-  implements vscode.TreeDataProvider<WorkspaceTreeItem>
-{
-  private _onDidChangeTreeData: vscode.EventEmitter<
-    WorkspaceTreeItem | undefined | null | void
-  > = new vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<
-    WorkspaceTreeItem | undefined | null | void
-  > = this._onDidChangeTreeData.event;
+export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<WorkspaceTreeItem> {
+  private _onDidChangeTreeData: vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void> =
+    new vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void>();
+  readonly onDidChangeTreeData: vscode.Event<WorkspaceTreeItem | undefined | null | void> =
+    this._onDidChangeTreeData.event;
 
   private workspaceManager = WorkspaceManager.getInstance();
   private workspaces: RapidKitWorkspace[] = [];
@@ -58,7 +54,7 @@ export class WorkspaceExplorerProvider
     if (!element) {
       // Root level - only show workspaces (no action buttons)
       const items: WorkspaceTreeItem[] = [];
-      
+
       // Add workspaces
       this.workspaces.forEach((ws) => {
         const item = new WorkspaceTreeItem(ws, 'workspace');
@@ -67,7 +63,7 @@ export class WorkspaceExplorerProvider
         }
         items.push(item);
       });
-      
+
       return items;
     }
 
@@ -76,7 +72,7 @@ export class WorkspaceExplorerProvider
 
   private async loadWorkspaces(): Promise<void> {
     this.workspaces = await this.workspaceManager.loadWorkspaces();
-    
+
     // Auto-select first workspace if none selected
     if (!this.selectedWorkspace && this.workspaces.length > 0) {
       this.selectedWorkspace = this.workspaces[0];
@@ -122,16 +118,16 @@ export class WorkspaceExplorerProvider
   }
 
   public async autoDiscover(): Promise<void> {
-    const message = vscode.window.setStatusBarMessage('$(search) Discovering RapidKit workspaces...');
-    
+    const message = vscode.window.setStatusBarMessage(
+      '$(search) Discovering RapidKit workspaces...'
+    );
+
     try {
       const discovered = await this.workspaceManager.autoDiscover();
       message.dispose();
-      
+
       if (discovered.length > 0) {
-        vscode.window.showInformationMessage(
-          `Found ${discovered.length} RapidKit workspace(s)`
-        );
+        vscode.window.showInformationMessage(`Found ${discovered.length} RapidKit workspace(s)`);
         await this.refresh();
       } else {
         vscode.window.showInformationMessage('No new RapidKit workspaces found');
@@ -145,10 +141,10 @@ export class WorkspaceExplorerProvider
   public async selectWorkspace(workspace: RapidKitWorkspace): Promise<void> {
     this.selectedWorkspace = workspace;
     this._onDidChangeTreeData.fire();
-    
+
     // Set context for toolbar buttons
     await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
-    
+
     // Fire event for other views to update
     await vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
   }
@@ -158,7 +154,7 @@ export class WorkspaceExplorerProvider
   }
 
   public getWorkspaceByPath(path: string): RapidKitWorkspace | undefined {
-    return this.workspaces.find(ws => ws.path === path);
+    return this.workspaces.find((ws) => ws.path === path);
   }
 }
 
@@ -168,10 +164,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     public readonly contextValue: string,
     customLabel?: string
   ) {
-    super(
-      customLabel || workspace?.name || '',
-      vscode.TreeItemCollapsibleState.None
-    );
+    super(customLabel || workspace?.name || '', vscode.TreeItemCollapsibleState.None);
 
     if (contextValue === 'workspace' && workspace) {
       this.tooltip = `${workspace.path}\nMode: ${workspace.mode}\nProjects: ${workspace.projects.length}`;

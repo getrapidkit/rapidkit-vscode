@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **🐛 Missing workspace directory handling** - Fixed crash when selected workspace no longer exists
+  - Extension now detects when workspace directory has been deleted
+  - Shows helpful options: "Recreate Workspace", "Choose New Location", or "Cancel"
+  - Automatically recreates workspace if user chooses to do so
+  - Prevents `ENOENT: no such file or directory` error when creating projects
+  - No need to restart VS Code if workspace is accidentally deleted
+
+## [0.4.6] - 2026-01-01
+
+### Added
+- **🐍 Smart Poetry virtualenv detection** - Extension now detects Poetry virtualenvs in cache
+  - Checks both `.venv` in project directory and Poetry cache (`~/.cache/pypoetry/virtualenvs/`)
+  - Uses `poetry env info --path` to find virtualenv location
+  - Eliminates false "not initialized" warnings for Poetry projects
+  - Synced with rapidkit-npm v0.14.1 Poetry detection improvements
+- **🔔 Update notification system** - Automatic checks for rapidkit npm package updates
+  - Checks NPM registry every 24 hours for new versions
+  - Shows notification with update, release notes, and dismiss options
+  - Manual check command: `RapidKit: Check for Updates`
+  - Respects user preferences (can dismiss specific versions)
+- **📦 Enhanced Doctor command** - Better Poetry detection in system check
+  - Shows exact Poetry version instead of raw output
+  - Improved error messages and recommendations
+
+### Changed
+- **🧹 Removed redundant activationEvents** - Cleaned up package.json
+  - VS Code auto-generates activation events from contributes
+  - Removed 26 lines of deprecated configuration
+  - No functional changes, just cleaner code
+
+### Fixed
+- **🐛 Poetry cache virtualenv support** - FastAPI projects no longer show false initialization warnings
+  - Before: Extension only checked for `.venv` folder
+  - After: Checks Poetry cache, `.venv`, and Poetry config
+  - Aligns with rapidkit-npm v0.14.1 behavior
+
 ## [0.4.5] - 2025-12-23
 
 ### Added

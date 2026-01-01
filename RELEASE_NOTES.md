@@ -1,6 +1,40 @@
 # Release Notes
 
-## Latest Release: v0.4.5 (December 23, 2025)
+## Latest Release: v0.4.6 (January 1, 2026)
+
+### Poetry Smart Detection + Update Notifications 🐍🔔
+
+**Seamless Poetry integration + Never miss npm package updates!**
+
+### What's New
+
+- **🐍 Smart Poetry Virtualenv Detection** - No more false warnings!
+  - Detects `.venv` in project directory
+  - Detects Poetry cache virtualenvs (`~/.cache/pypoetry/virtualenvs/`)
+  - Uses `poetry env info --path` for accurate detection
+  - Synced with rapidkit-npm v0.14.1
+- **🔔 Automatic Update Notifications** - Stay up-to-date effortlessly
+  - Auto-checks NPM registry every 24 hours
+  - Smart notifications: Update Now | Release Notes | Skip Version
+  - Manual check: `RapidKit: Check for Updates` command
+  - Respects user preferences (dismissible)
+- **�️ Missing Workspace Recovery** - Auto-fix deleted workspaces
+  - Detects when workspace directory no longer exists
+  - Shows recovery dialog: Recreate | Choose New Location | Cancel
+  - No need to restart VS Code
+  - Eliminates `ENOENT` errors
+- **�📦 Enhanced Doctor Command** - Better Poetry detection
+  - Shows exact Poetry version
+  - Improved error messages
+- **🧹 Cleaner Configuration** - Removed 26 deprecated activation events
+  - Smaller package.json
+  - No functional changes
+
+---
+
+## Previous Releases
+
+### v0.4.5 (December 23, 2025)
 
 ### Actions Panel Redesign + Project Quick Actions ⚡
 
@@ -68,6 +102,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.4.6](releases/RELEASE_NOTES_v0.4.6.md) | Jan 1, 2026 | Poetry smart detection, update notifications |
 | [v0.4.5](releases/RELEASE_NOTES_v0.4.5.md) | Dec 23, 2025 | Project quick actions, no workspace switch |
 | [v0.4.4](releases/RELEASE_NOTES_v0.4.4.md) | Dec 22, 2025 | Doctor npm check, dynamic versions |
 | [v0.4.3](releases/RELEASE_NOTES_v0.4.3.md) | Dec 12, 2025 | Module explorer, UI enhancements |

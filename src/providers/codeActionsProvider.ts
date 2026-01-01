@@ -20,7 +20,10 @@ export class RapidKitCodeActionsProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     // Quick fixes for configuration files
-    if (document.fileName.endsWith('.rapidkitrc.json') || document.fileName.endsWith('rapidkit.json')) {
+    if (
+      document.fileName.endsWith('.rapidkitrc.json') ||
+      document.fileName.endsWith('rapidkit.json')
+    ) {
       actions.push(...this.getConfigurationQuickFixes(document, _range, _context));
     }
 
@@ -42,7 +45,10 @@ export class RapidKitCodeActionsProvider implements vscode.CodeActionProvider {
     // Add missing fields
     const text = document.getText();
     if (!text.includes('"framework"')) {
-      const action = new vscode.CodeAction('Add missing framework field', vscode.CodeActionKind.QuickFix);
+      const action = new vscode.CodeAction(
+        'Add missing framework field',
+        vscode.CodeActionKind.QuickFix
+      );
       action.edit = new vscode.WorkspaceEdit();
       action.edit.insert(document.uri, new vscode.Position(1, 0), '  "framework": "fastapi",\n');
       actions.push(action);

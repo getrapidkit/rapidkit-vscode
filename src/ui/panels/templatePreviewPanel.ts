@@ -11,10 +11,7 @@ export class TemplatePreviewPanel {
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
 
-  private constructor(
-    panel: vscode.WebviewPanel,
-    template: RapidKitTemplate
-  ) {
+  private constructor(panel: vscode.WebviewPanel, template: RapidKitTemplate) {
     this._panel = panel;
     this._panel.webview.html = this._getHtmlContent(template);
 

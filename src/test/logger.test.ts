@@ -30,7 +30,7 @@ describe('Logger', () => {
   it('should enable/disable debug mode', () => {
     logger.setDebug(true);
     expect(() => logger.debug('Debug message')).not.toThrow();
-    
+
     logger.setDebug(false);
     expect(() => logger.debug('Debug message')).not.toThrow();
   });

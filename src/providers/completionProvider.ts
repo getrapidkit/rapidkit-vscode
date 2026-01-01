@@ -31,9 +31,14 @@ export class RapidKitCompletionProvider implements vscode.CompletionItemProvider
     const items: vscode.CompletionItem[] = [];
 
     // Framework completions
-    const frameworkItem = new vscode.CompletionItem('framework', vscode.CompletionItemKind.Property);
+    const frameworkItem = new vscode.CompletionItem(
+      'framework',
+      vscode.CompletionItemKind.Property
+    );
     frameworkItem.detail = 'Framework type';
-    frameworkItem.documentation = new vscode.MarkdownString('Specify the framework: `fastapi` or `nestjs`');
+    frameworkItem.documentation = new vscode.MarkdownString(
+      'Specify the framework: `fastapi` or `nestjs`'
+    );
     frameworkItem.insertText = new vscode.SnippetString('"framework": "${1|fastapi,nestjs|}"');
     items.push(frameworkItem);
 
@@ -47,8 +52,12 @@ export class RapidKitCompletionProvider implements vscode.CompletionItemProvider
     // Profile completions
     const profileItem = new vscode.CompletionItem('profile', vscode.CompletionItemKind.Property);
     profileItem.detail = 'Project profile';
-    profileItem.documentation = new vscode.MarkdownString('Specify the profile: `minimal`, `standard`, or `enterprise`');
-    profileItem.insertText = new vscode.SnippetString('"profile": "${1|minimal,standard,enterprise|}"');
+    profileItem.documentation = new vscode.MarkdownString(
+      'Specify the profile: `minimal`, `standard`, or `enterprise`'
+    );
+    profileItem.insertText = new vscode.SnippetString(
+      '"profile": "${1|minimal,standard,enterprise|}"'
+    );
     items.push(profileItem);
 
     return items;
@@ -66,7 +75,10 @@ export class RapidKitCompletionProvider implements vscode.CompletionItemProvider
     versionItem.insertText = new vscode.SnippetString('version: "${1:1.0.0}"');
     items.push(versionItem);
 
-    const descriptionItem = new vscode.CompletionItem('description', vscode.CompletionItemKind.Property);
+    const descriptionItem = new vscode.CompletionItem(
+      'description',
+      vscode.CompletionItemKind.Property
+    );
     descriptionItem.insertText = new vscode.SnippetString('description: ${1:Module description}');
     items.push(descriptionItem);
 
