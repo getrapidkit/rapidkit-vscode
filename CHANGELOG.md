@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-01-23
+
 ### Fixed
+
 - **🐛 Missing workspace directory handling** - Fixed crash when selected workspace no longer exists
   - Extension now detects when workspace directory has been deleted
   - Shows helpful options: "Recreate Workspace", "Choose New Location", or "Cancel"
@@ -15,9 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents `ENOENT: no such file or directory` error when creating projects
   - No need to restart VS Code if workspace is accidentally deleted
 
+### Changed
+
+- **📦 Updated dependencies** - Updated 11 packages to latest stable versions
+  - @types/node: 20.19.24 → 20.19.30
+  - @types/vscode: 1.106.1 → 1.108.1
+  - @typescript-eslint/\*: 8.48.1 → 8.53.1
+  - vitest: 4.0.15 → 4.0.18
+  - @vitest/coverage-v8: 4.0.15 → 4.0.18
+  - prettier: 3.7.4 → 3.8.1
+  - fs-extra: 11.3.2 → 11.3.3
+  - @vscode/test-cli: 0.0.4 → 0.0.12
+  - Fixed 3 security vulnerabilities (1 low, 2 moderate)
+- **🔄 Compatibility** - Synced with rapidkit-npm v0.14.2
+  - Compatible with latest npm package features
+  - Aligned documentation and messaging
+
 ## [0.4.6] - 2026-01-01
 
 ### Added
+
 - **🐍 Smart Poetry virtualenv detection** - Extension now detects Poetry virtualenvs in cache
   - Checks both `.venv` in project directory and Poetry cache (`~/.cache/pypoetry/virtualenvs/`)
   - Uses `poetry env info --path` to find virtualenv location
@@ -33,12 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved error messages and recommendations
 
 ### Changed
+
 - **🧹 Removed redundant activationEvents** - Cleaned up package.json
   - VS Code auto-generates activation events from contributes
   - Removed 26 lines of deprecated configuration
   - No functional changes, just cleaner code
 
 ### Fixed
+
 - **🐛 Poetry cache virtualenv support** - FastAPI projects no longer show false initialization warnings
   - Before: Extension only checked for `.venv` folder
   - After: Checks Poetry cache, `.venv`, and Poetry config
@@ -47,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.5] - 2025-12-23
 
 ### Added
+
 - **🖼️ rapidkit.svg** - Official RapidKit brand icon in SVG format
   - 3-layer design: shadow (#1C1C1C), main R (#00CFC1), crown (#1C1C1C)
   - 24x24 viewBox, scalable to any size
@@ -69,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Smart detection based on framework (FastAPI vs NestJS)
 
 ### Changed
+
 - **🎨 Welcome Panel SVG Logo** - Upgraded from PNG to SVG for better quality
   - Uses `rapidkit.svg` instead of `icon.png`
   - Crisp rendering at any size
@@ -84,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added 27+ modules link
 
 ### Fixed
+
 - **🐛 Remove annoying workspace switch** - Clicking project no longer switches VS Code workspace
   - Before: Click = reload entire VS Code with new workspace 😱
   - After: Click = expand/collapse, use action icons instead ✅
@@ -91,22 +116,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed "No view is registered with id: rapidkitTemplates" notification
 
 ### Requirements
+
 - **VS Code** 1.100+ (updated from 1.85)
 
 ## [0.4.4] - 2025-12-22
 
 ### Added
+
 - **🩺 RapidKit npm check in Doctor** - System check now verifies `npx rapidkit --version`
   - Shows installed version or "Not cached" status
   - Helps diagnose npm package availability
 
 ### Changed
+
 - **🔄 Dynamic version markers** - Marker files now use extension version from package.json
   - New `getExtensionVersion()` utility function
   - Centralized constants in `utils/constants.ts`
   - No more hardcoded version strings
 
 ### Fixed
+
 - **🐛 TypeScript error** - Added `'preview'` to `RapidKitModule.status` type
   - Fixed 30 compilation errors in `moduleExplorer.ts`
 - **📝 CHANGELOG links** - Updated version links to include all releases (0.4.0-0.4.3)
@@ -114,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.3] - 2025-12-12
 
 ### Added
+
 - **🧩 Enhanced Module Explorer** - Complete module catalog with 27 modules across 12 categories
   - 🌟 AI (1 module)
   - 🛡️ Authentication (5 modules)
@@ -130,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All modules marked with "🔜 Coming Soon" preview status
 
 ### Changed
+
 - **🎨 UI/UX Improvements**
   - Removed TEMPLATES tab (redundant, simplified sidebar)
   - Enhanced ACTIONS panel with categorized links (Quick Start, Resources, Feedback)
@@ -142,12 +173,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📝 Welcome Page** - Updated version reference to `v0.4.x` for consistency
 
 ### Fixed
+
 - Doctor command async/await handling for notification action buttons
 - Terminal integration for post-creation workflows
 
 ## [0.4.2] - 2025-12-05
 
 ### Added
+
 - **🪵 Logging Commands** - New command palette options for log management
   - `rapidkit.showLogs` - Display RapidKit logs output panel
   - `rapidkit.closeLogs` - Close the logs panel
@@ -157,6 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `getOutputChannel()` method for direct OutputChannel access
 
 ### Changed
+
 - **📺 Marketplace Presentation**
   - Replaced static PNG screenshot with animated GIF (1200×642px)
   - Removed duplicate icon from README
@@ -165,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.1] - 2025-12-04
 
 ### Changed
+
 - 📝 **Updated notification messages** for rapidkit npm v0.12.3 smart CLI delegation
   - Project success: Shows `rapidkit init && rapidkit dev` (no source activate needed)
   - Workspace success: Shows `rapidkit create` command tip
@@ -174,6 +209,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clear requirements table
 
 ### Documentation
+
 - 📁 Moved all release notes to `releases/` folder for cleaner root
 - Created main `RELEASE_NOTES.md` with links to history
 - Removed `.vsix` files from git tracking
@@ -186,6 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This is a **breaking change** that completely refactors the extension to use the RapidKit npm package instead of Python CLI.
 
 ### Changed
+
 - 🔄 **Complete architecture overhaul** - Migrated from Python-based CLI to npm package
   - **RapidKitCLI Class**: Completely rewritten to use `npx rapidkit` commands
   - Removed Python/Poetry dependencies - no longer required
@@ -233,6 +270,7 @@ This is a **breaking change** that completely refactors the extension to use the
   - Silently skips invalid folders instead of prompting user
 
 ### Removed
+
 - ❌ **Python CLI dependencies**: No longer depends on Python RapidKit CLI
 - ❌ **Generate Demo feature**: Removed (unnecessary with only 2 templates)
 - ❌ **Demo workspace mode**: Workspaces are now standard npm package workspaces
@@ -242,6 +280,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - ❌ **Annoying confirmation dialogs**: "Add it anyway?" removed
 
 ### Added
+
 - ✨ **npm package integration**: Full integration with `rapidkit` npm package (v0.12.1+)
 - ✨ **Smart location choice**: Default workspace vs Custom location with intelligent detection
 - ✨ **Marker file system**: `.rapidkit-workspace` files for custom location recognition
@@ -253,6 +292,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - ✨ **Parent directory creation**: `fs.ensureDir()` before all CLI calls to prevent ENOENT errors
 
 ### Fixed
+
 - 🐛 **Fixed interactive prompts blocking**: Added `--yes` flag to all CLI commands
 - 🐛 **Fixed custom location not showing in list**: Auto-registration after project creation
 - 🐛 **Fixed workspace validation**: Enhanced to accept npm CLI created workspaces
@@ -260,6 +300,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - 🐛 **Fixed import order conflict**: Moved path import inside function to avoid variable shadowing
 
 ### Benefits
+
 - 🎯 **Simpler**: No Python/Poetry installation required
 - ⚡ **5-6x Faster**: Direct npm execution vs Python environment setup
 - 🔄 **Consistent**: Single source of truth (npm package) for templates
@@ -268,6 +309,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - 🎨 **Better UX**: Smart defaults, no annoying dialogs, professional UI
 
 ### Migration Notes
+
 - **For Users**: Extension now requires Node.js/npm (already available in VS Code)
 - **For Developers**: Python RapidKit CLI no longer needed for development
 - **Workspaces**: Existing workspaces continue to work, new API for creation
@@ -275,6 +317,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - **Custom Locations**: Now fully supported with marker files
 
 ### Technical Details
+
 - Updated `RapidKitCLI` class with new methods:
   - `createWorkspace(options)`: Workspace creation with `--yes` flag
   - `createProject(options)`: Standalone project creation with `--yes` flag
@@ -288,6 +331,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.3.2] - 2025-12-03
 
 ### Changed
+
 - 🌐 **Updated domain references** - Migrated all URLs from `rapidkit.top` to `getrapidkit.com`
   - Updated package.json viewsWelcome contents
   - Updated README.md documentation links and support email
@@ -311,6 +355,7 @@ This is a **breaking change** that completely refactors the extension to use the
   - Updated `lint-staged` to 16.2.7
 
 ### Fixed
+
 - 🔒 **Security improvements** - Fixed npm audit vulnerabilities
   - Fixed glob vulnerability (GHSA-5j98-mcp5-4vw2)
   - Fixed js-yaml prototype pollution (GHSA-mh29-5h37-fv8m)
@@ -321,6 +366,7 @@ This is a **breaking change** that completely refactors the extension to use the
   - Reduced ESLint warnings from 13 to 9 (errors eliminated)
 
 ### Documentation
+
 - 📚 Updated all documentation links to point to getrapidkit.com
 - 📧 Updated support email to support@getrapidkit.com
 - 🔗 Updated schema references to use new domain
@@ -328,6 +374,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.3.1] - 2025-11-15
 
 ### Fixed
+
 - 🐛 **Fixed code quality warnings** - Addressed 9 ESLint warnings related to unused error variables
   - Prefixed unused error variables with underscore (`_error`) per ESLint rules in:
     - `src/commands/doctor.ts` (4 warnings fixed)
@@ -336,6 +383,7 @@ This is a **breaking change** that completely refactors the extension to use the
   - Improved error handling patterns for consistency
 
 ### Changed
+
 - Modified test infrastructure to disable Vitest tests until VS Code mocking is properly configured
 - Updated npm test script to focus on compilation and linting verification
 - Updated vitest.config.ts to exclude test files requiring VS Code API
@@ -343,6 +391,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.3.0] - 2025-11-10
 
 ### Fixed
+
 - 🐛 **CRITICAL FIX: Fixed Generate Demo Project hanging issue** - The command was using `stdio: 'pipe'` which prevented output from being shown to users, making it appear frozen
   - Changed `stdio: 'pipe'` to `stdio: 'inherit'` in `RapidKitCLI.generateDemo()`
   - Changed `stdio: 'inherit'` in `RapidKitCLI.createWorkspace()` for consistent output streaming
@@ -353,6 +402,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - Demo workspaces now properly generate projects without requiring folder selection
 
 ### Changed
+
 - Improved `generateDemoCommand` to accept workspace parameter and retrieve selected workspace from context
 - Added progress interval tracking during demo project generation
 - Added `rapidkit.getSelectedWorkspace` command to ProjectExplorer for getting current workspace
@@ -361,6 +411,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.2.0] - 2025-11-08
 
 ### Changed
+
 - ⚡ **Bundle Optimization**: Reduced extension bundle size by 55% (464KB → 209KB)
 - Enabled aggressive tree-shaking to remove unused code
 - Removed console.log statements and debugger calls in production builds
@@ -368,30 +419,35 @@ This is a **breaking change** that completely refactors the extension to use the
 - Improved extension load time and performance
 
 ### Fixed
+
 - Fixed production mode detection in esbuild configuration (now supports both `--production` flag and `NODE_ENV=production`)
 
 ## [0.1.3] - 2025-11-07
 
 ### Fixed
+
 - Fixed NestJS projects not appearing in Projects view
 - Project explorer now correctly detects both FastAPI (pyproject.toml) and NestJS (package.json) projects
 
 ### Changed
+
 - Simplified kit selection to show only `standard` kit for both frameworks
 - Removed incomplete kits (advanced, ddd) from project creation wizard until they are fully ready
 
 ## [0.1.2] - 2025-11-07
 
 ### Fixed
+
 - 🔥 **CRITICAL FIX**: Fixed commands not being registered when installed from VSIX package
 - Fixed missing runtime dependencies in packaged extension causing activation failures
 - Fixed "command 'rapidkit.createWorkspace' not found" errors
-- Fixed "command 'rapidkit.addWorkspace' not found" errors  
+- Fixed "command 'rapidkit.addWorkspace' not found" errors
 - Fixed "command 'rapidkit.refreshWorkspaces' not found" errors
 - Updated `.vscodeignore` to include all necessary `node_modules` dependencies
 - All buttons and commands now work correctly in installed VSIX
 
 ### Changed
+
 - Improved dependency packaging to ensure runtime libraries are available
 - Updated build configuration to prevent pruning of required dependencies
 - Updated Vitest to v4.0.7 to align with @vitest/coverage-v8 peer requirements
@@ -399,6 +455,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.1.1] - 2025-11-07
 
 ### Fixed
+
 - 🔧 Fixed workspace and project selection context keys not being set properly
 - Fixed buttons in workspace explorer not becoming enabled after selecting workspace
 - Fixed project creation button not working in Projects view
@@ -408,6 +465,7 @@ This is a **breaking change** that completely refactors the extension to use the
 ## [0.1.0] - 2025-11-07
 
 ### Added
+
 - 🎉 Initial pre-release version
 - Workspace creation wizard with interactive prompts
 - Project generation for FastAPI and NestJS frameworks
@@ -462,6 +520,7 @@ This is a **breaking change** that completely refactors the extension to use the
 - Package manager selection for NestJS projects (npm, yarn, pnpm)
 
 ### Fixed
+
 - NestJS project creation package manager parameter handling
 - Extension activation on startup
 - Command registration order for reliable button functionality
@@ -477,6 +536,7 @@ This is a **breaking change** that completely refactors the extension to use the
 Welcome to RapidKit for Visual Studio Code! This is the first pre-release of the official VS Code extension for RapidKit.
 
 **Key Features:**
+
 - 🚀 Create workspaces and projects with interactive wizards
 - 🧩 Browse and install 100+ modules
 - 📦 Preview templates before generation
@@ -485,6 +545,7 @@ Welcome to RapidKit for Visual Studio Code! This is the first pre-release of the
 - 🔧 System doctor for troubleshooting
 
 **Getting Started:**
+
 1. Click the RapidKit icon in the Activity Bar
 2. Click "Create New Workspace" to get started
 3. Follow the wizard to create your first project
@@ -492,6 +553,7 @@ Welcome to RapidKit for Visual Studio Code! This is the first pre-release of the
 5. Start coding!
 
 **Important Notes:**
+
 - This is a pre-release version - please report any issues
 - Demo mode is enabled by default for easy testing
 - Full mode will be available in future stable releases
