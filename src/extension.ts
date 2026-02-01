@@ -6,7 +6,12 @@
 import * as vscode from 'vscode';
 import { ActionsWebviewProvider } from './ui/webviews/actionsWebviewProvider';
 import { WorkspaceExplorerProvider } from './ui/treeviews/workspaceExplorer';
-import { ProjectExplorerProvider, setExtensionPath } from './ui/treeviews/projectExplorer';
+import {
+  ProjectExplorerProvider,
+  ProjectTreeItem,
+  setExtensionPath,
+} from './ui/treeviews/projectExplorer';
+import { setSelectedProjectPath } from './core/selectedProject';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
 import { detectPythonVirtualenv } from './utils/poetryHelper';
 import { checkAndNotifyUpdates } from './utils/updateChecker';
@@ -27,6 +32,7 @@ import { RapidKitCompletionProvider } from './providers/completionProvider';
 import { RapidKitHoverProvider } from './providers/hoverProvider';
 import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceContextMenu';
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
+import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
 
 let statusBar: RapidKitStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -49,21 +55,41 @@ async function ensureDefaultWorkspace(): Promise<void> {
 
   const defaultWorkspacePath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
 
-  // Check if default workspace exists
-  if (await fs.pathExists(defaultWorkspacePath)) {
-    // Add to WorkspaceManager if not already there
+  try {
+    // Ensure the directory exists
+    await fs.ensureDir(defaultWorkspacePath);
+
+    // Add to WorkspaceManager
     const manager = WorkspaceManager.getInstance();
     const workspaces = manager.getWorkspaces();
     const isInManager = workspaces.some((ws: any) => ws.path === defaultWorkspacePath);
 
     if (!isInManager) {
-      await manager.addWorkspace(defaultWorkspacePath);
-      logger.info('✅ Default workspace registered:', defaultWorkspacePath);
+      // Create marker file for this workspace
+      const markerPath = path.join(defaultWorkspacePath, '.rapidkit-workspace');
+      if (!(await fs.pathExists(markerPath))) {
+        // Ensure parent directories exist before writing marker
+        await fs.ensureDir(path.dirname(markerPath));
+        try {
+          const { getExtensionVersion, MARKERS } = await import('./utils/constants.js');
+          await fs.writeJSON(markerPath, {
+            signature: MARKERS.WORKSPACE_SIGNATURE,
+            createdBy: MARKERS.CREATED_BY_VSCODE,
+            version: getExtensionVersion(),
+            createdAt: new Date().toISOString(),
+            name: 'rapidkits',
+          });
+          await manager.addWorkspace(defaultWorkspacePath);
+        } catch (markerError) {
+          logger.error('Failed to write workspace marker file:', markerError);
+        }
+      }
+      logger.info('✅ Default workspace initialized:', defaultWorkspacePath);
     } else {
       logger.info('Default workspace already registered');
     }
-  } else {
-    logger.info('Default workspace does not exist yet, will be created on first project creation');
+  } catch (error) {
+    logger.error('Failed to ensure default workspace:', error);
   }
 }
 
@@ -247,6 +273,13 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
         if (workspaceExplorer) {
           await workspaceExplorer.autoDiscover();
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.selectProject', async (item: ProjectTreeItem) => {
+        // Select project when user clicks on it in the tree
+        if (item && item.project && projectExplorer) {
+          projectExplorer.setSelectedProject(item.project);
+          logger.info('Project selected:', item.project.name);
         }
       }),
       vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item: any) => {
@@ -737,10 +770,20 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.info('Step 6: Registering tree views...');
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider('rapidkitActionsWebview', actionsWebviewProvider),
-      vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer),
-      vscode.window.registerTreeDataProvider('rapidkitProjects', projectExplorer),
+      vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer)
+    );
+    const projectsTreeView = vscode.window.createTreeView('rapidkitProjects', {
+      treeDataProvider: projectExplorer,
+    });
+    context.subscriptions.push(projectsTreeView);
+    projectsTreeView.onDidChangeSelection((e) => {
+      const item = e.selection[0];
+      if (item && item instanceof ProjectTreeItem && item.project?.path) {
+        setSelectedProjectPath(item.project.path);
+      }
+    });
+    context.subscriptions.push(
       vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer)
-      // Note: rapidkitTemplates removed in v0.4.3 (redundant with npm package)
     );
 
     // Register IntelliSense providers
@@ -806,6 +849,11 @@ export async function activate(context: vscode.ExtensionContext) {
         if (config.get('showWelcomeOnStartup', true)) {
           await showWelcomeCommand(context);
         }
+
+        // Step 11: Initialize workspace usage tracking
+        logger.info('Step 11: Initializing workspace usage tracker...');
+        const usageTracker = WorkspaceUsageTracker.getInstance();
+        await usageTracker.initialize();
 
         logger.info('✅ RapidKit extension initialized successfully!');
 

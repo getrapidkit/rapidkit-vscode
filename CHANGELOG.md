@@ -7,6 +7,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-01
+
+### Added
+
+- 📋 **Shared Workspace Registry** - Cross-tool workspace discovery with npm package
+  - Registry stored at `~/.rapidkit/workspaces.json`
+  - Extension auto-detects workspaces created via npm package
+  - npm package can list workspaces created by Extension
+  - Workspace detection from any subdirectory using registry fallback
+
+### Changed
+
+- 🏷️ **Unified Workspace Signature** - Changed from `RAPIDKIT_VSCODE_WORKSPACE` to `RAPIDKIT_WORKSPACE`
+  - Improves cross-tool compatibility with npm package
+  - Constants centralized in `constants.ts` (no hardcoded strings)
+  - Workspace markers include `createdBy: 'rapidkit-vscode'` for attribution
+  - Backward compatible: Both old and new signatures are recognized
+
+- 🔍 **Enhanced Workspace Detection** - Multi-layer workspace discovery
+  - Primary: `.rapidkit-workspace` marker file with signature validation
+  - Fallback: Structure detection (pyproject.toml + .venv + rapidkit script)
+  - Last resort: Shared registry lookup (`~/.rapidkit/workspaces.json`)
+
+- 🎯 **Project Selection UX** - Visual indicators for selected project
+  - Checkmark (✓) shows currently selected project
+  - Blue color highlight for active selection
+  - Tooltip displays selection status
+  - Better guidance when project selection required
+
+### Fixed
+
+- ✅ **Workspace Creation** - Removed unnecessary Python validation
+  - Workspace creation no longer requires Python pre-flight checks
+  - Python only needed for project creation (not workspace structure)
+  - Clearer error messages distinguish workspace vs project requirements
+
+- ✅ **Module Addition** - Robust workspace detection
+  - Uses `findWorkspace` utility with registry fallback
+  - Clear messages showing installation target
+  - Better error handling when workspace not found
+
+- ✅ **Attribution Consistency** - All workspace markers use correct constants
+  - Fixed hardcoded strings in `extension.ts`, `createWorkspace.ts`, `createProject.ts`
+  - Centralized constants prevent attribution mismatches
+  - Proper `createdBy` tracking (Extension vs npm package)
+
+### Documentation
+
+- 📝 Added workspace registry documentation to README
+- 📝 Documented cross-tool compatibility workflow
+- 📝 Added examples for npm/Extension interoperability
+
+- **🐍 Python Core Bridge** - Direct integration with `rapidkit-core` Python engine
+  - Smart Python detection with 3 resolution scenarios (System Python with core, System Python without core, No Python)
+  - Cached venv management in `~/.cache/rapidkit/` (prevents repeated setup)
+  - JSON result protocol aligned with npm package for reliable interop
+  - Auto-fallback chain: System → Cached Venv → Workspace Venv
+  - Zero-configuration: Works out of the box across platforms
+
+- **🔗 Cross-platform Exec Utilities** - Stable command execution
+  - Transparent handling of `python3` (Unix) vs `python` (Windows)
+  - Proper stdout/stderr capture and exit code handling
+  - Timeout management to prevent hanging commands
+  - Process isolation with automatic cleanup
+
+- **🎯 Project Context Tracking** - Enhanced project/workspace awareness
+  - Tracks selected project in workspace
+  - Provides context for module commands
+  - Better command routing based on project type (FastAPI vs NestJS)
+
+- **📦 Bridge-Aware Doctor Command** - System diagnostics include Python engine
+  - Checks Python availability
+  - Verifies `rapidkit-core` installation
+  - Detects cached bridge environments
+  - npm integration status
+
+### Changed
+
+- **🔄 All commands delegate to Python Core** - Extension is now a smart UX bridge
+  - `createWorkspace` → Python engine via bridge
+  - `createProject` → Python engine via bridge
+  - `addModule` → Python engine via bridge
+  - `doctor` → Includes Python/core diagnostics
+  - Single source of truth: Python engine handles all generation logic
+
+- **🔄 Workspace Detection Enhanced**
+  - Auto-discovers RapidKit workspaces in standard locations
+  - Better marker file handling (npm-compatible `RAPIDKIT_VSCODE_WORKSPACE`)
+  - Remembers last-selected workspace per project
+  - Supports custom workspace paths
+
+- **🔄 Module Explorer Refactored** - Using Python bridge
+  - Queries modules from Python engine
+  - Better module search and filtering
+  - Aligned with npm package module catalog
+
+- **🔄 Aligned with rapidkit-npm v0.15.1**
+  - Marker format: `RAPIDKIT_VSCODE_WORKSPACE`, `createdBy: rapidkit-npm`
+  - Do not overwrite marker when npm already wrote it
+  - Constants: `MARKERS.WORKSPACE_SIGNATURE` = `RAPIDKIT_VSCODE_WORKSPACE`
+  - API alignment: `RapidkitJsonResult<T>` protocol
+
+### Fixed
+
+- 🐛 Workspace context lost when quick-switching between projects
+- 🐛 Module commands failing due to missing project context
+- 🐛 Cross-platform Python inconsistencies (hardcoded `python3` paths)
+- 🐛 Process cleanup on command timeout
+
+### Technical Details
+
+**New Files:**
+- `src/core/bridge/pythonRapidkit.ts` — Python bridge with Scenario A/B/C resolution
+- `src/utils/exec.ts` — Cross-platform command execution wrapper
+- `src/core/selectedProject.ts` — Project context management
+
+**Refactored Files:**
+- `src/core/rapidkitCLI.ts` — Bridge integration
+- `src/commands/{addModule,createProject,createWorkspace,doctor}.ts` — Bridge delegation
+- `src/core/{workspaceDetector,workspaceManager}.ts` — Enhanced detection
+- `src/ui/treeviews/moduleExplorer.ts` — Python bridge backend
+- `src/utils/constants.ts` — Marker alignment
+
+---
+
 ## [0.4.7] - 2026-01-23
 
 ### Fixed

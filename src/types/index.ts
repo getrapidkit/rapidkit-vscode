@@ -6,7 +6,10 @@ export interface RapidKitWorkspace {
   name: string;
   path: string;
   mode: 'demo' | 'full';
-  projects: string[];
+  projects: Array<{
+    name: string;
+    path: string;
+  }>;
 }
 
 export interface RapidKitProject {

@@ -32,19 +32,42 @@ export class WelcomePanel {
           case 'doctor':
             vscode.commands.executeCommand('rapidkit.doctor');
             break;
+          case 'browseModules':
+            vscode.commands.executeCommand('rapidkitModules.focus');
+            break;
           case 'openDocs':
             vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
             break;
           case 'openGitHub':
-            vscode.env.openExternal(vscode.Uri.parse('https://github.com/rapidkit/rapidkit'));
+            vscode.env.openExternal(
+              vscode.Uri.parse('https://github.com/getrapidkit/rapidkit-vscode')
+            );
             break;
           case 'openMarketplace':
             vscode.env.openExternal(
               vscode.Uri.parse(
-                'https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit'
+                'https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode'
               )
             );
             break;
+          case 'openNpmPackage':
+            vscode.env.openExternal(vscode.Uri.parse('https://www.npmjs.com/package/rapidkit'));
+            break;
+          case 'openPyPI':
+            vscode.env.openExternal(vscode.Uri.parse('https://pypi.org/project/rapidkit-core/'));
+            break;
+          case 'installNpmGlobal': {
+            const terminal = vscode.window.createTerminal('Install RapidKit CLI');
+            terminal.show();
+            terminal.sendText('npm install -g rapidkit');
+            break;
+          }
+          case 'installPipCore': {
+            const terminalPip = vscode.window.createTerminal('Install RapidKit Core');
+            terminalPip.show();
+            terminalPip.sendText('pip install rapidkit-core');
+            break;
+          }
         }
       },
       null,
@@ -126,12 +149,12 @@ export class WelcomePanel {
         }
         .header {
             text-align: center;
-            margin-bottom: 50px;
+            margin-bottom: 32px;
         }
         .logo {
-            width: 96px;
-            height: 96px;
-            margin-bottom: 16px;
+            width: 64px;
+            height: 64px;
+            margin-bottom: 12px;
             animation: float 3s ease-in-out infinite;
         }
         @keyframes float {
@@ -140,9 +163,9 @@ export class WelcomePanel {
         }
         h1 {
             font-family: 'MuseoModerno', var(--vscode-font-family);
-            font-size: 2.8rem;
+            font-size: 2rem;
             font-weight: 700;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
         h1 .rapid {
             color: #00cfc1;
@@ -151,9 +174,10 @@ export class WelcomePanel {
             color: var(--vscode-foreground);
         }
         .tagline {
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             color: var(--vscode-descriptionForeground);
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+            line-height: 1.4;
         }
         .version {
             display: inline-block;
@@ -166,81 +190,122 @@ export class WelcomePanel {
         }
         
         .actions {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-bottom: 50px;
+            margin-bottom: 40px;
         }
-        .action-card {
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 12px;
-            padding: 24px;
-            cursor: pointer;
+        
+        /* Hero Action */
+        .hero-action {
+            background: linear-gradient(135deg, rgba(0,207,193,0.1), rgba(0,150,136,0.1));
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 16px;
+            padding: 28px 32px;
+            text-align: center;
+            margin-bottom: 20px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
             position: relative;
             overflow: hidden;
         }
-        .action-card::before {
+        .hero-action::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             height: 3px;
-            background: linear-gradient(90deg, var(--card-color, #00cfc1), transparent);
+            background: linear-gradient(90deg, #00cfc1, #009688);
             opacity: 0;
             transition: opacity 0.3s;
         }
-        .action-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--card-color, #00cfc1);
-            box-shadow: 0 8px 25px rgba(0,207,193,0.15);
+        .hero-action:hover {
+            border-color: #00cfc1;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,207,193,0.2);
         }
-        .action-card:hover::before {
+        .hero-action:hover::before {
             opacity: 1;
         }
-        .action-card.fastapi { --card-color: #009688; }
-        .action-card.nestjs { --card-color: #E0234E; }
-        .action-card.workspace { --card-color: #00cfc1; }
-        .action-card.doctor { --card-color: #FF9800; }
-        
-        .action-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+        .hero-icon {
+            font-size: 36px;
             margin-bottom: 12px;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
         }
-        .action-icon {
+        .hero-title {
+            font-family: 'MuseoModerno', var(--vscode-font-family);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .hero-description {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #00cfc1, #009688);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Quick Links Grid */
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .quick-link {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .quick-link:hover {
+            border-color: var(--link-color, #00cfc1);
+            background: var(--vscode-list-hoverBackground);
+            transform: translateY(-2px);
+        }
+        .quick-link.fastapi { --link-color: #009688; }
+        .quick-link.nestjs { --link-color: #E0234E; }
+        .quick-link.modules { --link-color: #9C27B0; }
+        .quick-link.doctor { --link-color: #FF9800; }
+        
+        .quick-link-icon {
             font-size: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            margin-bottom: 10px;
+            display: block;
         }
-        .action-icon img {
+        .quick-link-icon img {
             width: 28px;
             height: 28px;
         }
-        .action-title {
-            font-family: 'MuseoModerno', var(--vscode-font-family);
-            font-size: 18px;
-            font-weight: 700;
+        .quick-link-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
         }
-        .action-description {
-            font-size: 13px;
+        .quick-link-subtitle {
+            font-size: 11px;
             color: var(--vscode-descriptionForeground);
-            line-height: 1.5;
         }
-        .action-badge {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: var(--card-color, #00cfc1);
+        .quick-link-badge {
+            display: inline-block;
+            background: var(--link-color, #00cfc1);
             color: white;
-            font-size: 10px;
             padding: 2px 8px;
             border-radius: 10px;
-            font-weight: 600;
+            font-size: 9px;
+            font-weight: 700;
+            margin-top: 6px;
         }
 
         .section {
@@ -334,9 +399,122 @@ export class WelcomePanel {
             color: #E0234E;
         }
 
+        /* Ecosystem Section */
+        .ecosystem {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .ecosystem-card {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 10px;
+            padding: 18px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .ecosystem-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--card-accent, #00cfc1);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .ecosystem-card:hover {
+            border-color: var(--card-accent, #00cfc1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .ecosystem-card:hover::before {
+            opacity: 1;
+        }
+        .ecosystem-card.npm { --card-accent: #CB3837; }
+        .ecosystem-card.pypi { --card-accent: #3775A9; }
+        .ecosystem-card.vscode { --card-accent: #007ACC; }
+        
+        .ecosystem-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .ecosystem-icon {
+            font-size: 22px;
+            line-height: 1;
+        }
+        .ecosystem-title {
+            font-family: 'MuseoModerno', var(--vscode-font-family);
+            font-size: 15px;
+            font-weight: 700;
+            flex: 1;
+        }
+        .ecosystem-badge {
+            background: var(--card-accent, #00cfc1);
+            color: white;
+            font-size: 9px;
+            padding: 3px 7px;
+            border-radius: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .ecosystem-desc {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 14px;
+            line-height: 1.5;
+            min-height: 36px;
+        }
+        .ecosystem-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .ecosystem-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-panel-border);
+            padding: 7px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .ecosystem-btn:hover {
+            background: var(--card-accent, #00cfc1);
+            color: white;
+            border-color: var(--card-accent, #00cfc1);
+            transform: scale(1.02);
+        }
+        .ecosystem-btn.primary {
+            background: var(--card-accent, #00cfc1);
+            color: white;
+            border-color: var(--card-accent, #00cfc1);
+            font-weight: 600;
+        }
+        .ecosystem-btn.primary:hover {
+            opacity: 0.85;
+            transform: scale(1.02);
+        }
+        .btn-icon {
+            font-size: 13px;
+        }
+
         @media (max-width: 600px) {
             .actions { grid-template-columns: 1fr; }
             .features { grid-template-columns: 1fr; }
+            .ecosystem { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -345,49 +523,106 @@ export class WelcomePanel {
         <div class="header">
             <img class="logo" src="${iconUri}" alt="RapidKit Logo" />
             <h1><span class="rapid">Rapid</span><span class="kit">Kit</span></h1>
-            <p class="tagline">Scaffold production-ready APIs with clean architecture</p>
+            <p class="tagline">Build production-ready APIs at warp speed</p>
+            <p class="tagline" style="font-size: 0.85rem; margin-top: 4px;">FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automation-first workflows</p>
             <span class="version">v${version}</span>
         </div>
 
         <div class="actions">
-            <div class="action-card workspace" onclick="createWorkspace()">
-                <span class="action-badge">Start Here</span>
-                <div class="action-header">
-                    <span class="action-icon">📂</span>
-                    <span class="action-title">Create Workspace</span>
+            <!-- Hero Action: Primary CTA -->
+            <div class="hero-action" onclick="createWorkspace()">
+                <div class="hero-icon">🚀</div>
+                <div class="hero-title">Create Your First Workspace</div>
+                <div class="hero-description">
+                    Organize multiple microservices in one environment
                 </div>
-                <div class="action-description">
-                    Set up a workspace to organize your projects
-                </div>
+                <span class="hero-badge">GET STARTED</span>
             </div>
 
-            <div class="action-card fastapi" onclick="createFastAPIProject()">
-                <div class="action-header">
-                    <span class="action-icon"><img src="${fastapiIconUri}" alt="FastAPI" /></span>
-                    <span class="action-title">FastAPI Project</span>
+            <!-- Quick Links: Secondary Actions -->
+            <div class="quick-links">
+                <div class="quick-link fastapi" onclick="createFastAPIProject()">
+                    <span class="quick-link-icon"><img src="${fastapiIconUri}" alt="FastAPI" /></span>
+                    <div class="quick-link-title">FastAPI</div>
+                    <div class="quick-link-subtitle">Python + Async</div>
                 </div>
-                <div class="action-description">
-                    Python backend with async support, auto docs & type hints
+
+                <div class="quick-link nestjs" onclick="createNestJSProject()">
+                    <span class="quick-link-icon"><img src="${nestjsIconUri}" alt="NestJS" /></span>
+                    <div class="quick-link-title">NestJS</div>
+                    <div class="quick-link-subtitle">TypeScript + DI</div>
+                </div>
+
+                <div class="quick-link modules" onclick="browseModules()">
+                    <span class="quick-link-icon">🧩</span>
+                    <div class="quick-link-title">Modules</div>
+                    <div class="quick-link-subtitle">Auth, DB, Cache...</div>
+                    <span class="quick-link-badge">27+ Free</span>
+                </div>
+
+                <div class="quick-link doctor" onclick="runDoctor()">
+                    <span class="quick-link-icon">🩺</span>
+                    <div class="quick-link-title">System Check</div>
+                    <div class="quick-link-subtitle">Verify setup</div>
                 </div>
             </div>
+        </div>
 
-            <div class="action-card nestjs" onclick="createNestJSProject()">
-                <div class="action-header">
-                    <span class="action-icon"><img src="${nestjsIconUri}" alt="NestJS" /></span>
-                    <span class="action-title">NestJS Project</span>
+        <div class="section">
+            <div class="section-title">🌐 RapidKit Ecosystem</div>
+            <div class="ecosystem">
+                <div class="ecosystem-card vscode">
+                    <div class="ecosystem-header">
+                        <span class="ecosystem-icon">🎨</span>
+                        <span class="ecosystem-title">VS Code</span>
+                        <span class="ecosystem-badge">THIS</span>
+                    </div>
+                    <div class="ecosystem-desc">
+                        Visual interface with one-click setup, sidebar navigation & system diagnostics
+                    </div>
+                    <div class="ecosystem-buttons">
+                        <button class="ecosystem-btn" onclick="openMarketplace()">
+                            <span class="btn-icon">📦</span> Marketplace
+                        </button>
+                    </div>
                 </div>
-                <div class="action-description">
-                    TypeScript backend with decorators, DI & modules
-                </div>
-            </div>
 
-            <div class="action-card doctor" onclick="runDoctor()">
-                <div class="action-header">
-                    <span class="action-icon">🩺</span>
-                    <span class="action-title">System Check</span>
+                <div class="ecosystem-card npm">
+                    <div class="ecosystem-header">
+                        <span class="ecosystem-icon">📦</span>
+                        <span class="ecosystem-title">npm Package</span>
+                        <span class="ecosystem-badge">CLI</span>
+                    </div>
+                    <div class="ecosystem-desc">
+                        Command-line tool for advanced workflows, automation & CI/CD pipelines
+                    </div>
+                    <div class="ecosystem-buttons">
+                        <button class="ecosystem-btn primary" onclick="installNpmGlobal()">
+                            <span class="btn-icon">⚡</span> Install CLI
+                        </button>
+                        <button class="ecosystem-btn" onclick="openNpmPackage()">
+                            <span class="btn-icon">📄</span> View Docs
+                        </button>
+                    </div>
                 </div>
-                <div class="action-description">
-                    Verify Node.js and dependencies are ready
+
+                <div class="ecosystem-card pypi">
+                    <div class="ecosystem-header">
+                        <span class="ecosystem-icon">🐍</span>
+                        <span class="ecosystem-title">Python Core</span>
+                        <span class="ecosystem-badge">ENGINE</span>
+                    </div>
+                    <div class="ecosystem-desc">
+                        Generation engine with 27+ modules (auto-installed by Extension & npm)
+                    </div>
+                    <div class="ecosystem-buttons">
+                        <button class="ecosystem-btn" onclick="openPyPI()">
+                            <span class="btn-icon">🐍</span> PyPI Page
+                        </button>
+                        <button class="ecosystem-btn" onclick="installPipCore()">
+                            <span class="btn-icon">🔧</span> Manual Install
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -470,6 +705,9 @@ export class WelcomePanel {
         function runDoctor() {
             vscode.postMessage({ command: 'doctor' });
         }
+        function browseModules() {
+            vscode.postMessage({ command: 'browseModules' });
+        }
         function openDocs() {
             vscode.postMessage({ command: 'openDocs' });
         }
@@ -478,6 +716,18 @@ export class WelcomePanel {
         }
         function openMarketplace() {
             vscode.postMessage({ command: 'openMarketplace' });
+        }
+        function openNpmPackage() {
+            vscode.postMessage({ command: 'openNpmPackage' });
+        }
+        function openPyPI() {
+            vscode.postMessage({ command: 'openPyPI' });
+        }
+        function installNpmGlobal() {
+            vscode.postMessage({ command: 'installNpmGlobal' });
+        }
+        function installPipCore() {
+            vscode.postMessage({ command: 'installPipCore' });
         }
     </script>
 </body>

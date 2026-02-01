@@ -128,7 +128,7 @@ export class ConfigurationManager {
       const defaultConfig: RapidKitConfig = {
         defaultKit: 'fastapi.standard',
         defaultInstallMethod: 'poetry',
-        pythonVersion: '3.11',
+        pythonVersion: '3.10',
         author: '',
         license: 'MIT',
         skipGit: false,

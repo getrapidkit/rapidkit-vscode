@@ -60,7 +60,7 @@ export class ProjectWizard {
       framework = selectedFramework.framework;
     }
 
-    // Note: npm package uses --template flag (fastapi or nestjs)
+    // Maps to kit slug: fastapi → fastapi.standard, nestjs → nestjs.standard (npx rapidkit create project <kit> <name> --output .)
     // Always use npm as default package manager
 
     return {

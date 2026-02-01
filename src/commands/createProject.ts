@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { ProjectWizard } from '../ui/wizards/projectWizard';
 import { Logger } from '../utils/logger';
 import { WorkspaceManager } from '../core/workspaceManager';
-import { getExtensionVersion, MARKERS } from '../utils/constants';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
@@ -56,14 +55,7 @@ export async function createProjectCommand(
             skipGit: false,
           });
 
-          // Add marker file
-          const markerPath = path.join(selectedWorkspacePath, '.rapidkit-workspace');
-          await fs.writeJson(markerPath, {
-            signature: MARKERS.WORKSPACE_SIGNATURE,
-            version: getExtensionVersion(),
-            created: new Date().toISOString(),
-          });
-
+          // Marker file is created by npm package with standard format
           workspaceRoot = selectedWorkspacePath;
           logger.info('Workspace recreated successfully');
           vscode.window.showInformationMessage(`✅ Recreated workspace: ${workspaceName}`);
@@ -144,19 +136,15 @@ export async function createProjectCommand(
             (await fs.pathExists(rapidkitDir)) || (await fs.pathExists(markerPath));
 
           if (!hasRapidkitMarker) {
-            logger.info(
-              'Custom location is not a workspace, creating marker for extension recognition'
-            );
+            logger.info('Custom location is not a workspace - project will be created standalone');
+            // Note: Projects created outside workspaces will prompt via npm package
+          }
 
-            // Create marker file so extension can recognize this custom location
-            await fs.writeJson(markerPath, {
-              signature: MARKERS.WORKSPACE_SIGNATURE,
-              version: getExtensionVersion(),
-              type: 'custom-location',
-              created: new Date().toISOString(),
-            });
-
-            logger.info('Created marker file at:', markerPath);
+          // Register custom workspace in manager so it persists across restarts
+          const manager = WorkspaceManager.getInstance();
+          const registered = await manager.addWorkspace(workspaceRoot);
+          if (registered) {
+            logger.info('Custom workspace registered in manager:', workspaceRoot);
           }
         } else {
           // Use default workspace: ~/RapidKit/rapidkits
@@ -173,6 +161,10 @@ export async function createProjectCommand(
             await fs.ensureDir(rapidkitDir);
             logger.info('RapidKit directory ensured:', rapidkitDir);
 
+            // Ensure rapidkits directory exists
+            await fs.ensureDir(defaultWorkspacePath);
+            logger.info('Rapidkits directory ensured:', defaultWorkspacePath);
+
             // Create default workspace
             const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
             const cli = new RapidKitCLI();
@@ -183,13 +175,7 @@ export async function createProjectCommand(
               skipGit: false,
             });
 
-            // Add marker file for extension
-            const markerPath = path.join(defaultWorkspacePath, '.rapidkit-workspace');
-            await fs.writeJson(markerPath, {
-              signature: MARKERS.WORKSPACE_SIGNATURE,
-              version: getExtensionVersion(),
-              created: new Date().toISOString(),
-            });
+            // Marker file is created by npm package with standard format
 
             // Add to WorkspaceManager
             const manager = WorkspaceManager.getInstance();
@@ -251,26 +237,46 @@ export async function createProjectCommand(
 
           progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
 
-          // Always use workspace mode (workspaceRoot is always set)
-          logger.info('Creating project in workspace:', workspaceRoot);
+          // Always use workspace mode: npx rapidkit create project <kit> <name> --output . (cwd = workspaceRoot)
+          const workspacePathAbs = path.isAbsolute(workspaceRoot)
+            ? workspaceRoot
+            : path.resolve(workspaceRoot);
+          logger.info('Creating project in workspace:', workspacePathAbs, 'name:', config.name);
 
-          await cli.createProjectInWorkspace({
+          const result = await cli.createProjectInWorkspace({
             name: config.name,
             template: template as 'fastapi' | 'nestjs',
-            workspacePath: workspaceRoot,
+            workspacePath: workspacePathAbs,
             skipInstall: false,
           });
 
-          const projectPath = path.join(workspaceRoot, config.name);
+          const exitCode = (result as { exitCode?: number }).exitCode ?? 1;
+          if (exitCode !== 0) {
+            const stderr = (result as { stderr?: string }).stderr ?? '';
+            const stdout = (result as { stdout?: string }).stdout ?? '';
+            logger.error('rapidkit create project failed', { exitCode, stderr, stdout });
+            throw new Error(
+              stderr.trim() ||
+                stdout.trim() ||
+                `rapidkit create project exited with code ${exitCode}`
+            );
+          }
+
+          const projectPath = path.join(workspacePathAbs, config.name);
 
           progress.report({ increment: 70, message: 'Verifying project...' });
 
-          // Wait for file system
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Verify project was created
-          if (!(await fs.pathExists(projectPath))) {
-            throw new Error(`Project was not created at ${projectPath}`);
+          // Wait for file system (Poetry/lock can be slow)
+          for (let i = 0; i < 15; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            if (await fs.pathExists(projectPath)) {
+              break;
+            }
+            if (i === 14) {
+              throw new Error(
+                `Project was not created at ${projectPath}. Check Output > RapidKit for CLI errors.`
+              );
+            }
           }
 
           logger.info('Project created successfully at:', projectPath);

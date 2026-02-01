@@ -1,28 +1,68 @@
 # Release Notes
 
-## Latest Release: v0.4.7 (January 23, 2026)
+## Latest Release: v0.5.0 (February 1, 2026)
 
-### Bug Fix & Dependency Updates 🐛📦
+### 🔗 Python Core Bridge + Workspace Registry Integration
 
-**Workspace recovery + Latest stable dependencies + Security fixes!**
+**Complete Python engine integration + Cross-tool workspace discovery + Unified signatures!**
 
 ### What's New
 
-- **🐛 Missing Workspace Recovery** - Fixed crash when workspace directory is deleted
-  - Auto-detects deleted workspace directories
-  - Shows recovery dialog: Recreate | Choose New Location | Cancel
-  - No need to restart VS Code
-  - Eliminates `ENOENT: no such file or directory` errors
-- **📦 Updated 11 Dependencies** - Latest stable versions
-  - @types/node: 20.19.24 → 20.19.30
-  - @types/vscode: 1.106.1 → 1.108.1
-  - @typescript-eslint/*: 8.48.1 → 8.53.1
-  - vitest: 4.0.15 → 4.0.18
-  - prettier: 3.7.4 → 3.8.1
-  - fs-extra: 11.3.2 → 11.3.3
-  - @vscode/test-cli: 0.0.4 → 0.0.12
-- **🔒 Security** - Fixed 3 vulnerabilities (1 low, 2 moderate)
-- **🔄 Compatibility** - Synced with rapidkit-npm v0.14.2
+- **🐍 Python Core Bridge** - Direct integration with `rapidkit-core` engine
+  - Smart Python detection: Scenario A (system + core), B (system without core), C (no python)
+  - Cached venv in `~/.cache/rapidkit/` (prevents repeated setup)
+  - Zero-configuration: Works out of the box
+  - Auto-fallback chain: System → Cached → Workspace
+
+- **📋 Shared Workspace Registry** - Cross-tool workspace discovery
+  - Registry stored at `~/.rapidkit/workspaces.json`
+  - Extension auto-detects workspaces created via npm package
+  - npm package can list workspaces created by Extension
+  - Workspace detection from any subdirectory using registry fallback
+
+- **🏷️ Unified Workspace Signature** - Changed from `RAPIDKIT_VSCODE_WORKSPACE` to `RAPIDKIT_WORKSPACE`
+  - Improves cross-tool compatibility with npm package
+  - Constants centralized (no hardcoded strings)
+  - Workspace markers include `createdBy: 'rapidkit-vscode'`
+  - Backward compatible: Both signatures recognized
+
+- **🔗 Cross-Platform Exec** - Stable command execution anywhere
+  - Transparent `python3` vs `python` handling (Unix vs Windows)
+  - Timeout management, process isolation, auto-cleanup
+  - Proper stdout/stderr capture and exit codes
+
+- **🎯 Project Context Tracking** - Know which project you're working on
+  - Tracks selected project in workspace
+  - Better module command routing
+  - Multi-framework awareness (FastAPI, NestJS)
+  - Visual indicators: Checkmark (✓) for selected project
+
+- **🔍 Enhanced Workspace Detection** - Multi-layer workspace discovery
+  - Primary: `.rapidkit-workspace` marker file with signature validation
+  - Fallback: Structure detection (pyproject.toml + .venv + rapidkit script)
+  - Last resort: Shared registry lookup
+
+- **📦 Bridge-Aware Doctor** - System diagnostics include Python engine
+  - Checks Python availability across scenarios
+  - Verifies `rapidkit-core` installation
+  - Detects cached environments
+
+### Architecture Milestone
+
+**RapidKit Ecosystem Fully Unified:**
+
+```
+VS Code Extension ↔ Python Bridge → Python Core Engine
+                 ↕
+        Shared Registry (~/.rapidkit/workspaces.json)
+                 ↕
+           npm CLI Package
+```
+
+- **Single source of truth**: Python engine handles all generation
+- **Cross-tool discovery**: Start with CLI, continue in Extension (or vice versa)
+- **Unified format**: Same workspace markers across all tools
+- **Better UX**: Seamless workflow across tools
 
 ---
 
@@ -130,6 +170,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.5.0](releases/RELEASE_NOTES_v0.5.0.md) | Feb 1, 2026 | Core bridge, Python integration, workspace registry |
 | [v0.4.7](releases/RELEASE_NOTES_v0.4.7.md) | Jan 23, 2026 | Bug fix & dependency updates, security fixes |
 | [v0.4.6](releases/RELEASE_NOTES_v0.4.6.md) | Jan 1, 2026 | Poetry smart detection, update notifications |
 | [v0.4.5](releases/RELEASE_NOTES_v0.4.5.md) | Dec 23, 2025 | Project quick actions, no workspace switch |

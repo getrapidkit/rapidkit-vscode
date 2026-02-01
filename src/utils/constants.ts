@@ -23,11 +23,17 @@ export const EXTENSION = {
 } as const;
 
 /**
- * Marker file signatures
+ * Marker file signatures (aligned with rapidkit-npm package)
  */
 export const MARKERS = {
-  WORKSPACE_SIGNATURE: 'rapidkit-vscode',
+  /** Unified signature for all workspace markers (npm + extension) */
+  WORKSPACE_SIGNATURE: 'RAPIDKIT_WORKSPACE',
+  /** Legacy VS Code-specific signature; still accepted for detection */
   WORKSPACE_SIGNATURE_LEGACY: 'RAPIDKIT_VSCODE_WORKSPACE',
+  /** createdBy value when marker is written by npm package */
+  CREATED_BY_NPM: 'rapidkit-npm',
+  /** createdBy value when marker is written by extension */
+  CREATED_BY_VSCODE: 'rapidkit-vscode',
 } as const;
 
 /**

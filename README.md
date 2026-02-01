@@ -2,7 +2,9 @@
 
 <div align="center">
 
-**Scaffold production-ready FastAPI & NestJS APIs with clean architecture**
+**Build production-ready APIs at warp speed**
+
+FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automation-first workflows
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
@@ -47,6 +49,30 @@ RapidKit generates **production-ready backend projects** with **clean architectu
 | **NestJS** | TypeScript | Modular, decorators, DI, npm/yarn/pnpm |
 
 **Plus 27+ production-ready modules:** Auth, Database, Cache, Logging, and more!
+
+### 🧩 Available Modules
+
+<details>
+<summary><b>Click to see all 27 modules</b></summary>
+
+| Category | Modules |
+|----------|--------|
+| 🔐 **Auth** | Authentication Core, API Keys, OAuth, Passwordless, Session Management |
+| 💳 **Billing** | Cart, Inventory, Stripe Payment |
+| 🗄️ **Database** | PostgreSQL, MongoDB, SQLite |
+| 🔒 **Security** | CORS, Rate Limiting, Security Headers |
+| 📧 **Communication** | Email, Unified Notifications |
+| 👥 **Users** | Users Core, Users Profiles |
+| ⚙️ **Essentials** | Settings, Middleware, Logging, Deployment |
+| 📊 **Observability** | Observability Core |
+| 💾 **Caching** | Redis Cache |
+| 🤖 **AI** | AI Assistant |
+| ⚡ **Tasks** | Celery |
+| 💼 **Business** | Storage |
+
+**Install via Extension:** Browse Modules sidebar • **Install via CLI:** `rapidkit add module <slug>`
+
+</details>
 
 ---
 
@@ -140,20 +166,189 @@ npx rapidkit format    # Format code
 |------|---------|--------------|
 | VS Code | 1.100+ | Extension |
 | Node.js | 18+ | CLI & NestJS |
-| Python | 3.11+ | FastAPI |
-| Poetry | Latest | FastAPI dependencies |
+| Python | 3.10+ | FastAPI & RapidKit Core |
+| Poetry | Latest | FastAPI dependencies (auto-installed) |
 | Git | Latest | Version control |
 
 **Check requirements:** Run `RapidKit: System Doctor` from Command Palette.
 
 ---
 
-## 🔗 Links
+## 🌐 RapidKit Ecosystem
 
-- 📦 **npm package:** [npmjs.com/package/rapidkit](https://www.npmjs.com/package/rapidkit)
-- 📖 **Documentation:** [www.getrapidkit.com](https://www.getrapidkit.com/docs)
+RapidKit consists of three integrated components that work seamlessly together:
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 1️⃣ VS Code Extension
+**This Extension**
+
+[![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&label=version)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
+
+**Installation:**
+```bash
+# VS Code Marketplace
+code --install-extension rapidkit.rapidkit-vscode
+```
+
+**Features:**
+- 🎨 Visual workspace management
+- 🚀 One-click project creation
+- 📂 Sidebar navigation
+- 🩺 System diagnostics
+- ⌨️ Command palette integration
+
+[📦 Marketplace](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
+
+</td>
+<td width="33%" valign="top">
+
+### 2️⃣ npm Package
+**CLI Bridge**
+
+[![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square)](https://www.npmjs.com/package/rapidkit)
+[![downloads](https://img.shields.io/npm/dm/rapidkit?style=flat-square&label=downloads)](https://www.npmjs.com/package/rapidkit)
+
+**Installation:**
+```bash
+# Use directly (no install)
+npx rapidkit my-workspace
+
+# Or install globally
+npm install -g rapidkit
+```
+
+**Features:**
+- 🔧 Full CLI for workspace & project management
+- 🐍 Bridges TypeScript to Python Core
+- 📦 Manages Poetry/venv automatically
+- 📋 Shared workspace registry
+
+**Quick Commands:**
+```bash
+rapidkit create          # Interactive
+rapidkit workspace list  # List all
+rapidkit add module auth # Add modules
+```
+
+[📦 npm](https://www.npmjs.com/package/rapidkit) • [💻 GitHub](https://github.com/getrapidkit/rapidkit-npm)
+
+</td>
+<td width="33%" valign="top">
+
+### 3️⃣ Python Core
+**Generation Engine**
+
+[![PyPI](https://img.shields.io/pypi/v/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
+[![Python](https://img.shields.io/pypi/pyversions/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
+
+**Installation:**
+```bash
+# Auto-installed by Extension & npm
+# Or install manually:
+pip install rapidkit-core
+```
+
+**Features:**
+- 🏗️ Core code generation engine
+- 📚 27+ production modules
+- 🎯 FastAPI & NestJS templates
+- 🔄 Module registry & dependencies
+
+**What it provides:**
+- Auth, Database, Cache
+- Logging, Monitoring, Testing
+- API clients, WebSockets
+- And much more...
+
+[🐍 PyPI](https://pypi.org/project/rapidkit-core/)
+
+</td>
+</tr>
+</table>
+
+---
+
+### 🔗 How They Work Together
+
+```mermaid
+graph TD
+    A[VS Code Extension] -->|commands| B[npm Package CLI]
+    B -->|executes| C[Python Core Engine]
+    C -->|generates| D[Your FastAPI/NestJS Project ✨]
+```
+
+**Integration Flow:**
+1. **Extension** provides beautiful UI and VS Code integration
+2. **npm Package** bridges TypeScript and Python ecosystems  
+3. **Python Core** handles all code generation and scaffolding
+4. **Result** is a production-ready project with clean architecture
+
+---
+
+### 🔄 Cross-Tool Workspace Compatibility
+
+All workspaces are **fully compatible** across tools:
+
+| Feature | Description |
+|---------|-------------|
+| **Shared Registry** | `~/.rapidkit/workspaces.json` stores all workspaces |
+| **Unified Signature** | Both tools use `RAPIDKIT_WORKSPACE` marker |
+| **Auto-Detection** | Works from any subdirectory in either tool |
+| **Module Management** | Add via Extension UI or `rapidkit add module` |
+
+**Example Workflow:**
+```bash
+# 1. Create workspace via npm
+npx rapidkit my-workspace
+
+# 2. Open in VS Code (auto-detected)
+code my-workspace
+
+# 3. Create project via Extension UI (Ctrl+Shift+P → RapidKit: Create Project)
+
+# 4. Add modules via CLI
+cd my-project
+rapidkit add module auth
+rapidkit add module redis
+
+# 5. View all workspaces
+rapidkit workspace list
+```
+
+---
+
+## � Troubleshooting
+
+### Extension not showing commands?
+- Reload VS Code: `Ctrl+Shift+P` → `Developer: Reload Window`
+- Check VS Code version: 1.100+ required
+
+### Python not found?
+- Run `RapidKit: System Doctor` to check requirements
+- Install Python 3.10+ from [python.org](https://python.org)
+- Restart VS Code after Python installation
+
+### Project not creating?
+- Ensure Node.js 18+ and Python 3.10+ are installed
+- Check `Output` panel (View → Output → RapidKit)
+- Report issue with logs at [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
+
+### Workspace not detected?
+- Ensure `.rapidkit-workspace` marker exists
+- Run `rapidkit workspace sync` from terminal
+- Check `~/.rapidkit/workspaces.json` registry
+
+---
+
+## �🔗 Links
+
+- 📖 **Documentation:** [www.getrapidkit.com/docs](https://www.getrapidkit.com/docs)
 - 🧩 **Modules:** [27+ production-ready modules](https://www.getrapidkit.com/modules)
 - 🐛 **Issues:** [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
+- 💬 **Community:** [Discord Server](https://discord.gg/rapidkit)
 - 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ---

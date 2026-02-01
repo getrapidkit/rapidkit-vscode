@@ -74,17 +74,31 @@ export class WorkspaceDetector {
    * Check if directory is a RapidKit project
    */
   private async isRapidKitProject(dirPath: string): Promise<boolean> {
-    const indicators = [
+    // Strong markers created by RapidKit
+    const strongIndicators = [
+      path.join('.rapidkit', 'project.json'),
+      path.join('.rapidkit', 'context.json'),
+    ];
+    for (const indicator of strongIndicators) {
+      if (await fs.pathExists(path.join(dirPath, indicator))) {
+        return true;
+      }
+    }
+
+    // Fallback: require a .rapidkit directory plus at least one language hint.
+    const hasRapidkitDir = await fs.pathExists(path.join(dirPath, '.rapidkit'));
+    if (!hasRapidkitDir) {
+      return false;
+    }
+
+    const weakIndicators = [
       'pyproject.toml',
-      '.rapidkit',
-      'rapidkit.json',
+      'package.json',
       path.join('src', 'main.py'),
       path.join('src', 'app.ts'),
     ];
-
-    for (const indicator of indicators) {
-      const indicatorPath = path.join(dirPath, indicator);
-      if (await fs.pathExists(indicatorPath)) {
+    for (const indicator of weakIndicators) {
+      if (await fs.pathExists(path.join(dirPath, indicator))) {
         return true;
       }
     }

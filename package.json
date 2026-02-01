@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -539,6 +539,16 @@
           "type": "boolean",
           "default": true,
           "description": "Initialize git repository for new projects"
+        },
+        "rapidkit.dontShowFirstTimeSetup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Don't show first-time setup welcome message"
+        },
+        "rapidkit.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for RapidKit npm package updates"
         }
       }
     },

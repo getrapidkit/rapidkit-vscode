@@ -76,6 +76,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
   private selectedWorkspace: RapidKitWorkspace | null = null;
   private projects: RapidKitProject[] = [];
+  private selectedProject: RapidKitProject | null = null;
 
   constructor() {
     // Listen for workspace selection changes
@@ -89,6 +90,11 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     // Register command to get selected workspace
     vscode.commands.registerCommand('rapidkit.getSelectedWorkspace', () => {
       return this.selectedWorkspace;
+    });
+
+    // Register command to get selected project
+    vscode.commands.registerCommand('rapidkit.getSelectedProject', () => {
+      return this.selectedProject;
     });
 
     // Initialize context
@@ -115,6 +121,17 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
   getSelectedWorkspace(): RapidKitWorkspace | null {
     return this.selectedWorkspace;
+  }
+
+  setSelectedProject(project: RapidKitProject | null): void {
+    this.selectedProject = project;
+    // Update context for UI elements that depend on selection
+    vscode.commands.executeCommand('setContext', 'rapidkit:projectSelected', project !== null);
+    this._onDidChangeTreeData.fire();
+  }
+
+  getSelectedProject(): RapidKitProject | null {
+    return this.selectedProject;
   }
 
   private async updateProjectsContext(): Promise<void> {
@@ -144,7 +161,9 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
       return this.projects.map((project) => {
         // Check if server is running for this project
         const isRunning = runningServers.has(project.path);
-        return new ProjectTreeItem(project, isRunning ? 'project-running' : 'project');
+        const isSelected = this.selectedProject?.path === project.path;
+
+        return new ProjectTreeItem(project, isRunning ? 'project-running' : 'project', isSelected);
       });
     }
 
@@ -193,9 +212,9 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
         const fullPath = path.join(dirPath, entry.name);
 
         if (entry.isDirectory()) {
-          items.push(new ProjectTreeItem(project, 'folder', entry.name, fullPath));
+          items.push(new ProjectTreeItem(project, 'folder', false, entry.name, fullPath));
         } else {
-          items.push(new ProjectTreeItem(project, 'file', entry.name, fullPath));
+          items.push(new ProjectTreeItem(project, 'file', false, entry.name, fullPath));
         }
       }
     } catch (error) {
@@ -272,6 +291,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
   constructor(
     public readonly project: RapidKitProject | null,
     public readonly contextValue: string,
+    public readonly isSelected: boolean = false,
     customLabel?: string,
     filePath?: string
   ) {
@@ -287,8 +307,8 @@ export class ProjectTreeItem extends vscode.TreeItem {
 
     // === Project Item (not running) ===
     if (contextValue === 'project' && project) {
-      this.tooltip = `${project.path}\n\n▶️ Click Play to start dev server`;
-      this.description = project.type === 'fastapi' ? 'FastAPI' : 'NestJS';
+      this.tooltip = `${project.path}\n\n▶️ Click Play to start dev server${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
+      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'}${isSelected ? ' ✓' : ''}`;
 
       // Use custom framework icons
       if (extensionPath) {
@@ -297,14 +317,23 @@ export class ProjectTreeItem extends vscode.TreeItem {
       } else {
         this.iconPath = new vscode.ThemeIcon(
           project.type === 'fastapi' ? 'symbol-method' : 'symbol-class',
-          new vscode.ThemeColor(project.type === 'fastapi' ? 'charts.green' : 'charts.red')
+          new vscode.ThemeColor(
+            isSelected ? 'charts.blue' : project.type === 'fastapi' ? 'charts.green' : 'charts.red'
+          )
         );
       }
+
+      // Add click command to select project
+      this.command = {
+        command: 'rapidkit.selectProject',
+        title: 'Select Project',
+        arguments: [this],
+      };
     }
     // === Project Item (running) ===
     else if (contextValue === 'project-running' && project) {
-      this.tooltip = `${project.path}\n\n🚀 Server running! Click Stop to terminate`;
-      this.description = project.type === 'fastapi' ? 'FastAPI 🟢' : 'NestJS 🟢';
+      this.tooltip = `${project.path}\n\n🚀 Server running! Click Stop to terminate${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
+      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'} 🟢${isSelected ? ' ✓' : ''}`;
 
       // Use custom framework icons with running indicator
       if (extensionPath) {
@@ -313,9 +342,16 @@ export class ProjectTreeItem extends vscode.TreeItem {
       } else {
         this.iconPath = new vscode.ThemeIcon(
           'vm-running',
-          new vscode.ThemeColor('testing.runAction')
+          new vscode.ThemeColor(isSelected ? 'charts.blue' : 'testing.runAction')
         );
       }
+
+      // Add click command to select project
+      this.command = {
+        command: 'rapidkit.selectProject',
+        title: 'Select Project',
+        arguments: [this],
+      };
     }
     // === Folder Item ===
     else if (contextValue === 'folder' && filePath) {

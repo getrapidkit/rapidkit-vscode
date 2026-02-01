@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { SystemCheckResult } from '../types';
 import { getPoetryVersion } from '../utils/poetryHelper';
+import { checkPythonEnvironment } from '../utils/pythonChecker';
 
 async function runSystemChecks(
   progress: vscode.Progress<{ message?: string; increment?: number }>
@@ -18,21 +19,52 @@ async function runSystemChecks(
     checks: [],
   };
 
-  // Check Python
-  try {
-    const { execa } = await import('execa');
-    const pythonResult = await execa('python3', ['--version']);
+  // Check Python environment comprehensively
+  const pythonEnv = await checkPythonEnvironment();
+
+  if (pythonEnv.available) {
     result.checks.push({
       name: 'Python',
       status: 'pass',
-      message: pythonResult.stdout,
+      message: `${pythonEnv.version} (${pythonEnv.command})`,
     });
-  } catch {
+
+    // Check venv support
+    if (pythonEnv.venvSupport) {
+      result.checks.push({
+        name: 'Python venv',
+        status: 'pass',
+        message: 'Virtual environment support available',
+      });
+    } else {
+      result.passed = false;
+      result.checks.push({
+        name: 'Python venv',
+        status: 'fail',
+        message: pythonEnv.recommendation || 'Virtual environment support missing',
+      });
+    }
+
+    // Check RapidKit core
+    if (pythonEnv.rapidkitCoreInstalled) {
+      result.checks.push({
+        name: 'RapidKit core',
+        status: 'pass',
+        message: 'Installed in system Python',
+      });
+    } else {
+      result.checks.push({
+        name: 'RapidKit core',
+        status: 'warning',
+        message: 'Not installed in system Python (will use workspace venv)',
+      });
+    }
+  } else {
     result.passed = false;
     result.checks.push({
       name: 'Python',
       status: 'fail',
-      message: 'Python 3 not found',
+      message: pythonEnv.recommendation || 'Python 3.10+ not found',
     });
   }
 
@@ -92,7 +124,7 @@ async function runSystemChecks(
     });
   }
 
-  progress.report({ increment: 80, message: 'Checking RapidKit npm...' });
+  progress.report({ increment: 85, message: 'Checking RapidKit npm...' });
 
   // Check RapidKit npm package
   try {
