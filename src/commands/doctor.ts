@@ -9,6 +9,102 @@ import { SystemCheckResult } from '../types';
 import { getPoetryVersion } from '../utils/poetryHelper';
 import { checkPythonEnvironment } from '../utils/pythonChecker';
 
+// Helper function to fetch JSON from HTTPS URL (version checking)
+const fetchJson = (url: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const https = require('https');
+    https
+      .get(url, (res: any) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          fetchJson(res.headers.location).then(resolve).catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+        let data = '';
+        res.on('data', (chunk: string) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      })
+      .on('error', reject);
+  });
+};
+
+// Helper to parse version
+const parseVersion = (version: string) => {
+  if (!version) {
+    return null;
+  }
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)((?:rc|alpha|beta)\d*)?$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    major: parseInt(match[1]),
+    minor: parseInt(match[2]),
+    patch: parseInt(match[3]),
+    prerelease: match[4] || null,
+  };
+};
+
+// Helper to compare semantic versions
+const isNewerVersion = (current: string, latest: string): boolean => {
+  if (!current || !latest) {
+    return false;
+  }
+  try {
+    const curr = parseVersion(current);
+    const last = parseVersion(latest);
+
+    if (!curr || !last) {
+      return false;
+    }
+
+    // Compare major.minor.patch
+    if (last.major > curr.major) {
+      return true;
+    }
+    if (last.major < curr.major) {
+      return false;
+    }
+
+    if (last.minor > curr.minor) {
+      return true;
+    }
+    if (last.minor < curr.minor) {
+      return false;
+    }
+
+    if (last.patch > curr.patch) {
+      return true;
+    }
+    if (last.patch < curr.patch) {
+      return false;
+    }
+
+    // Same version, check prerelease
+    if (!curr.prerelease && last.prerelease) {
+      return false;
+    }
+    if (curr.prerelease && !last.prerelease) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 async function runSystemChecks(
   progress: vscode.Progress<{ message?: string; increment?: number }>
 ) {
@@ -45,12 +141,44 @@ async function runSystemChecks(
       });
     }
 
-    // Check RapidKit core
+    // Check RapidKit core with version checking
     if (pythonEnv.rapidkitCoreInstalled) {
+      let coreMessage = `Installed in system Python`;
+
+      // Try to get version from rapidkit-core
+      try {
+        const { execa } = await import('execa');
+        const coreVerResult = await execa(
+          'python3',
+          ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+          { timeout: 5000 }
+        );
+        const coreVersion = coreVerResult.stdout.trim();
+
+        if (coreVersion) {
+          coreMessage = `v${coreVersion}`;
+
+          // Check for newer version
+          try {
+            const data = await fetchJson('https://pypi.org/pypi/rapidkit-core/json');
+            if (data.info && data.info.version) {
+              const latestVersion = data.info.version;
+              if (isNewerVersion(coreVersion, latestVersion)) {
+                coreMessage += ` → v${latestVersion} available`;
+              }
+            }
+          } catch {
+            // Silently fail version check
+          }
+        }
+      } catch {
+        // Silently fail version detection
+      }
+
       result.checks.push({
         name: 'RapidKit core',
         status: 'pass',
-        message: 'Installed in system Python',
+        message: coreMessage,
       });
     } else {
       result.checks.push({
@@ -126,21 +254,51 @@ async function runSystemChecks(
 
   progress.report({ increment: 85, message: 'Checking RapidKit npm...' });
 
-  // Check RapidKit npm package
+  // Check RapidKit npm package - distinguish global vs npx cache
   try {
     const { execa } = await import('execa');
+
+    // Check global installation first
+    let isGlobal = false;
+    try {
+      await execa('which', ['rapidkit']);
+      isGlobal = true;
+    } catch {
+      // Not in PATH, might be in npx cache
+    }
+
+    // Get version from npx
     const rapidkitResult = await execa('npx', ['rapidkit', '--version'], { timeout: 10000 });
     const version = rapidkitResult.stdout.trim();
+
+    let npmMessage = `v${version}`;
+    if (isGlobal) {
+      npmMessage += ' (globally installed)';
+    } else {
+      npmMessage += ' (npx cache only)';
+    }
+
+    // Check for newer version
+    try {
+      const data = await fetchJson('https://registry.npmjs.org/rapidkit/latest');
+      const latestVersion = data.version;
+      if (isNewerVersion(version, latestVersion)) {
+        npmMessage += ` → v${latestVersion} available`;
+      }
+    } catch {
+      // Silently fail version check
+    }
+
     result.checks.push({
       name: 'RapidKit npm',
-      status: 'pass',
-      message: `v${version}`,
+      status: isGlobal ? 'pass' : 'warning',
+      message: npmMessage,
     });
   } catch {
     result.checks.push({
       name: 'RapidKit npm',
       status: 'warning',
-      message: 'Not cached (will download on first use)',
+      message: 'Not installed (will download on first use via npx)',
     });
   }
 
@@ -150,15 +308,17 @@ async function runSystemChecks(
   const lines = ['# RapidKit System Check\n'];
 
   for (const check of result.checks) {
-    const icon = check.status === 'pass' ? '✅' : check.status === 'warning' ? '⚠️' : '❌';
-    lines.push(`${icon} **${check.name}**: ${check.message}`);
+    const icon = check.status === 'pass' ? '✅' : check.status === 'warning' ? '⚠' : '❌';
+    // Simplify message by removing extra details
+    let message = check.message;
+    // Remove parenthetical details like "(globally installed)", "(python3)", etc.
+    message = message.replace(/\s*\([^)]*\)$/g, '');
+    lines.push(`${icon} ${check.name}: ${message}`);
   }
 
   lines.push(
     '\n---\n',
-    result.passed
-      ? '✅ All required checks passed!'
-      : '❌ Some checks failed. Please install missing requirements.'
+    result.passed ? '✅ All required checks passed!' : '⚠ Some checks failed. See details above.'
   );
 
   // Show in output channel

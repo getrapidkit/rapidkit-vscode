@@ -93,15 +93,175 @@ export async function checkPythonEnvironment(): Promise<PythonCheckResult> {
         };
       }
 
-      // Check if rapidkit-core is installed
-      const rapidkitCheck = await run(
-        cmd,
-        ['-c', 'import importlib.util; print(1 if importlib.util.find_spec("rapidkit") else 0)'],
-        { timeout: 3000, stdio: 'pipe' }
-      );
+      // Check if rapidkit-core is installed - Comprehensive detection
+      let rapidkitCoreInstalled = false;
 
-      const rapidkitCoreInstalled =
-        rapidkitCheck.exitCode === 0 && rapidkitCheck.stdout?.trim() === '1';
+      // Method 1: Try import check
+      try {
+        const rapidkitCheck = await run(cmd, ['-c', 'import rapidkit_core; print(1)'], {
+          timeout: 3000,
+          stdio: 'pipe',
+        });
+        rapidkitCoreInstalled =
+          rapidkitCheck.exitCode === 0 && rapidkitCheck.stdout?.trim() === '1';
+      } catch {
+        // Try other methods
+      }
+
+      // Method 2: Try pip show via python -m pip
+      if (!rapidkitCoreInstalled) {
+        try {
+          const pipCheck = await run(cmd, ['-m', 'pip', 'show', 'rapidkit-core'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+          rapidkitCoreInstalled =
+            pipCheck.exitCode === 0 && pipCheck.stdout?.includes('Name: rapidkit-core');
+        } catch {
+          // Continue to next method
+        }
+      }
+
+      // Method 3: Try with pip/pip3 command directly
+      if (!rapidkitCoreInstalled) {
+        try {
+          const pipCmd = cmd === 'python3' ? 'pip3' : 'pip';
+          const pipCheck = await run(pipCmd, ['show', 'rapidkit-core'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+          rapidkitCoreInstalled =
+            pipCheck.exitCode === 0 && pipCheck.stdout?.includes('Name: rapidkit-core');
+        } catch {
+          // Continue to next method
+        }
+      }
+
+      // Method 4: Check all pyenv versions
+      if (!rapidkitCoreInstalled) {
+        try {
+          // Get list of pyenv versions
+          const versionsResult = await run('pyenv', ['versions', '--bare'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+
+          if (versionsResult.exitCode === 0 && versionsResult.stdout) {
+            const versions = versionsResult.stdout.split('\n').filter((v) => v.trim());
+
+            // Check each version using direct path
+            for (const version of versions) {
+              try {
+                const pyenvRoot = process.env.PYENV_ROOT || `${process.env.HOME}/.pyenv`;
+                const pipPath = `${pyenvRoot}/versions/${version.trim()}/bin/pip`;
+
+                const pyenvCheck = await run(pipPath, ['show', 'rapidkit-core'], {
+                  timeout: 3000,
+                  stdio: 'pipe',
+                });
+                if (
+                  pyenvCheck.exitCode === 0 &&
+                  pyenvCheck.stdout?.includes('Name: rapidkit-core')
+                ) {
+                  rapidkitCoreInstalled = true;
+                  break;
+                }
+              } catch {
+                // Try with PYENV_VERSION environment variable
+                try {
+                  const pyenvCheck = await run(
+                    'bash',
+                    ['-c', `PYENV_VERSION=${version.trim()} pyenv exec pip show rapidkit-core`],
+                    {
+                      timeout: 3000,
+                      stdio: 'pipe',
+                    }
+                  );
+                  if (
+                    pyenvCheck.exitCode === 0 &&
+                    pyenvCheck.stdout?.includes('Name: rapidkit-core')
+                  ) {
+                    rapidkitCoreInstalled = true;
+                    break;
+                  }
+                } catch {
+                  continue;
+                }
+              }
+            }
+          }
+        } catch {
+          // pyenv not available
+        }
+      }
+
+      // Method 5: Check user site-packages
+      if (!rapidkitCoreInstalled) {
+        try {
+          const userSiteCheck = await run(cmd, ['-m', 'site', '--user-site'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+
+          if (userSiteCheck.exitCode === 0 && userSiteCheck.stdout) {
+            const userSite = userSiteCheck.stdout.trim();
+            const fs = await import('fs');
+            const path = await import('path');
+
+            const pkgPath = path.join(userSite, 'rapidkit_core');
+            if (fs.existsSync(pkgPath)) {
+              rapidkitCoreInstalled = true;
+            }
+          }
+        } catch {
+          // Can't check user site
+        }
+      }
+
+      // Method 6: pipx
+      if (!rapidkitCoreInstalled) {
+        try {
+          const pipxCheck = await run('pipx', ['list'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+          if (pipxCheck.exitCode === 0 && pipxCheck.stdout?.includes('rapidkit-core')) {
+            rapidkitCoreInstalled = true;
+          }
+        } catch {
+          // pipx not available
+        }
+      }
+
+      // Method 7: poetry show
+      if (!rapidkitCoreInstalled) {
+        try {
+          const poetryCheck = await run('poetry', ['show', 'rapidkit-core'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+          if (poetryCheck.exitCode === 0) {
+            rapidkitCoreInstalled = true;
+          }
+        } catch {
+          // poetry not available or package not found
+        }
+      }
+
+      // Method 8: conda
+      if (!rapidkitCoreInstalled) {
+        try {
+          const condaCheck = await run('conda', ['list', 'rapidkit-core'], {
+            timeout: 3000,
+            stdio: 'pipe',
+          });
+          if (condaCheck.exitCode === 0 && condaCheck.stdout?.includes('rapidkit-core')) {
+            rapidkitCoreInstalled = true;
+          }
+        } catch {
+          // conda not available
+        }
+      }
 
       return {
         available: true,

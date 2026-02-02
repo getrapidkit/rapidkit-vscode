@@ -147,53 +147,18 @@ export async function createProjectCommand(
             logger.info('Custom workspace registered in manager:', workspaceRoot);
           }
         } else {
-          // Use default workspace: ~/RapidKit/rapidkits
-          const defaultWorkspacePath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
-          workspaceRoot = defaultWorkspacePath;
-
-          // Check if default workspace exists, if not create it
-          const fs = require('fs-extra');
-          if (!(await fs.pathExists(defaultWorkspacePath))) {
-            logger.info('Default workspace does not exist, creating:', defaultWorkspacePath);
-
-            // Ensure RapidKit parent directory exists
-            const rapidkitDir = path.join(os.homedir(), 'RapidKit');
-            await fs.ensureDir(rapidkitDir);
-            logger.info('RapidKit directory ensured:', rapidkitDir);
-
-            // Ensure rapidkits directory exists
-            await fs.ensureDir(defaultWorkspacePath);
-            logger.info('Rapidkits directory ensured:', defaultWorkspacePath);
-
-            // Create default workspace
-            const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
-            const cli = new RapidKitCLI();
-
-            await cli.createWorkspace({
-              name: 'rapidkits',
-              parentPath: rapidkitDir,
-              skipGit: false,
+          // No workspace selected - prompt user to create one
+          vscode.window
+            .showErrorMessage(
+              'No workspace found. Please create a workspace first using "RapidKit: Create Workspace" command.',
+              'Create Workspace'
+            )
+            .then((selection) => {
+              if (selection === 'Create Workspace') {
+                vscode.commands.executeCommand('rapidkit.createWorkspace');
+              }
             });
-
-            // Marker file is created by npm package with standard format
-
-            // Add to WorkspaceManager
-            const manager = WorkspaceManager.getInstance();
-            await manager.addWorkspace(defaultWorkspacePath);
-
-            logger.info('Default workspace created successfully');
-            vscode.window.showInformationMessage('✅ Created default workspace: rapidkits');
-          } else {
-            // Make sure default workspace is in manager
-            const manager = WorkspaceManager.getInstance();
-            const workspaces = manager.getWorkspaces();
-            const isInManager = workspaces.some((ws) => ws.path === defaultWorkspacePath);
-            if (!isInManager) {
-              await manager.addWorkspace(defaultWorkspacePath);
-              logger.info('Added existing default workspace to manager');
-            }
-          }
-          logger.info('Using default workspace:', workspaceRoot);
+          return;
         }
       }
     }

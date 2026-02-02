@@ -7,6 +7,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-02-02
+
+### Added
+
+- 🔍 **Comprehensive Python Detection** - 8-method detection for rapidkit-core package
+  - Method 1: Python import check
+  - Method 2: `python -m pip show`
+  - Method 3: Direct pip/pip3 commands
+  - Method 4: pyenv versions checking (solves pyenv issue!)
+  - Method 5: User site-packages detection
+  - Method 6: pipx list checking
+  - Method 7: poetry show checking
+  - Method 8: conda list checking
+  - Handles complex Python environments (pyenv, virtualenv, poetry, conda, pipx)
+  - Falls back gracefully when one method fails
+
+- 🧙 **Interactive Setup Wizard** - Integrated into Welcome page
+  - Real-time detection of npm and Python Core packages
+  - Visual status indicators (✓ installed, ⚠ missing, ⏳ checking)
+  - One-click installation with proper npm/pip commands
+  - Refresh button to recheck status after installation
+  - Progress tracking (X/2 components installed)
+  - Persistent state (remembers if user dismissed wizard)
+  - Enabled "Finish Setup" button only when both ready
+  - Runs doctor command on completion
+
+- 📋 **Comprehensive Doctor Command** - Enhanced system diagnostics
+  - Checks Python version and availability
+  - Detects rapidkit-core with version checking
+  - Verifies venv support
+  - Checks Node.js availability
+  - Detects Poetry installation and version
+  - Checks Git availability
+  - Detects npm package (global vs npx cache)
+  - Fetches latest versions from registries
+  - Shows available updates with version comparisons
+
+- 🎯 **New checkSystem Command** - Quick system status check
+  - Shows package installation status
+  - Displays version information
+  - Checks for available updates
+  - Shows installation location
+  - Provides installation suggestions
+
+- 📚 **Extensive Documentation** - 5 new comprehensive guides
+  - `PYTHON_DETECTION_METHODS.md` - All 8 detection methods explained with scenarios
+  - `SETUP_WIZARD_UPDATE.md` - Complete wizard implementation details
+  - `WIZARD_TESTING.md` - 10 test cases with step-by-step instructions
+  - `WIZARD_VISUAL_GUIDE.md` - UI mockups and interaction flows
+  - `WORKSPACE_COMPARISON.md` - Fallback workspace structure documentation
+
+### Changed
+
+- 🧹 **Removed auto-create default workspace** - User must manually create workspace now
+  - Prevents unnecessary folder creation
+  - Cleaner first-time experience
+  - User explicitly chooses workspace location
+
+- 🎨 **Redesigned Actions Panel** - More compact button layout
+  - Changed from single-row to 3-column grid
+  - Added "Welcome" button for easy access
+  - Smaller icons and labels for better space usage
+  - Added tooltips for clarity
+  - Added new "Check" button for system diagnostics
+
+- 📖 **Welcome Page Styling** - Responsive and compact design
+  - Reduced padding and margins for tighter layout
+  - Smaller header and logo sizes
+  - Improved responsive grid for mobile
+  - Better visual hierarchy
+  - Enhanced button hover states
+
+### Fixed
+
+- 🐛 **pyenv Python detection** - Now properly detects rapidkit-core in pyenv versions
+  - Checks all pyenv Python versions, not just system
+  - Uses both `pyenv exec` and direct path methods
+  - Solves issue where package in v3.10.19 wasn't detected when global=3.13.5
+
+- 🐛 **Workspace already exists handling** - Returns existing workspace instead of error
+  - Silently skips duplicate workspace additions
+  - Prevents duplicate notifications
+  - Better user experience when adding same workspace twice
+
+- 🐛 **Extension activation flow** - Removed async initialization race conditions
+  - Fixed timing issues with context key setup
+  - Improved command registration reliability
+  - Better error handling during activation
+
+### Documentation
+
+- 📖 Translated all Persian documentation to English
+  - PYTHON_DETECTION_METHODS.md now fully English
+  - Improved clarity for international users
+  - Better maintainability
+
+### Technical Details
+
+**New Files:**
+- `src/commands/checkSystem.ts` — Quick system status check
+- `src/utils/errorParser.ts` — Error parsing and suggestions
+- `docs/PYTHON_DETECTION_METHODS.md` — Detection methods documentation
+- `docs/SETUP_WIZARD_UPDATE.md` — Setup wizard implementation guide
+- `docs/WIZARD_TESTING.md` — Comprehensive test cases
+- `docs/WIZARD_VISUAL_GUIDE.md` — UI/UX documentation
+- `docs/WORKSPACE_COMPARISON.md` — Workspace structure reference
+- `releases/RELEASE_NOTES_v0.5.1.md` — Release notes
+
+**Modified Files:**
+- `src/commands/doctor.ts` — Added version checking and npm detection
+- `src/utils/pythonChecker.ts` — Added 8-method detection (4 more methods)
+- `src/ui/panels/welcomePanel.ts` — Complete wizard integration
+- `src/ui/webviews/actionsWebviewProvider.ts` — 3-column layout
+- `src/extension.ts` — Removed auto-workspace, added checkSystem command
+- `src/core/workspaceManager.ts` — Better duplicate handling
+- `package.json` — Updated to v0.5.1
+- `README.md` — Updated for new features
+- `CHANGELOG.md` — This entry
+- `RELEASE_NOTES.md` — Updated latest release
+
 ## [0.5.0] - 2026-02-01
 
 ### Added

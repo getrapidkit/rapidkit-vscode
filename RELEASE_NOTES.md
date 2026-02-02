@@ -1,12 +1,112 @@
 # Release Notes
 
-## Latest Release: v0.5.0 (February 1, 2026)
+## Latest Release: v0.5.1 (February 2, 2026)
 
-### 🔗 Python Core Bridge + Workspace Registry Integration
+### � Python Detection + Setup Wizard
 
-**Complete Python engine integration + Cross-tool workspace discovery + Unified signatures!**
+**Complete Python environment detection + Interactive setup wizard + Comprehensive diagnostics!**
 
 ### What's New
+
+- **🔍 8-Method Python Detection** - Detects rapidkit-core in any Python environment
+  - System Python, pyenv, virtualenv, poetry, conda, pipx, user site-packages
+  - Automatically finds the right Python even with complex setups
+  - **Fixed**: Now detects package in pyenv v3.10.19 even when global=system Python
+
+- **🧙 Interactive Setup Wizard** - Built into welcome page
+  - Real-time status checking for npm and Python Core
+  - One-click installation with correct commands
+  - Visual indicators (✓ installed, ⚠ missing, ⏳ checking)
+  - Refresh button to verify after manual installation
+  - Only enables "Finish Setup" when both components ready
+  - Persistent state (remembers user dismissal)
+
+- **💉 Enhanced Doctor Command** - Comprehensive system checks
+  - Detects all system requirements with versions
+  - Checks for available updates
+  - Shows package installation location
+  - Distinguishes global npm vs npx cache
+  - Compares semantic versions for updates
+
+- **📚 Complete Documentation** - 5 new guides
+  - All 8 detection methods explained with real scenarios
+  - Setup wizard implementation details
+  - 10 comprehensive test cases
+  - Visual UI mockups and interaction flows
+  - Workspace structure comparison
+
+### Key Improvements
+
+- ✅ Pyenv Python detection now works (Method 4 specifically for this)
+- ✅ Simplified welcome page with integrated wizard
+- ✅ Better action buttons (3-column layout, compact)
+- ✅ Cleaner activation flow (no auto-default workspace)
+- ✅ More reliable workspace creation
+- ✅ All English documentation (no Persian text)
+
+### Files Updated
+
+**New:**
+- `docs/PYTHON_DETECTION_METHODS.md` - 8 detection methods
+- `docs/SETUP_WIZARD_UPDATE.md` - Implementation guide
+- `docs/WIZARD_TESTING.md` - Test cases
+- `docs/WIZARD_VISUAL_GUIDE.md` - UI guide
+- `docs/WORKSPACE_COMPARISON.md` - Structure reference
+- `src/commands/checkSystem.ts` - Quick check command
+- `src/utils/errorParser.ts` - Error parsing
+
+**Modified:**
+- `src/commands/doctor.ts` - Version checking
+- `src/utils/pythonChecker.ts` - 8-method detection
+- `src/ui/panels/welcomePanel.ts` - Integrated wizard
+- `src/ui/webviews/actionsWebviewProvider.ts` - Compact layout
+- `src/extension.ts` - Simplified activation
+- `src/core/workspaceManager.ts` - Better handling
+- `package.json` - Version 0.5.1
+
+### System Requirements
+
+- **Node.js**: 14+
+- **Python**: 3.10+ (for Python Core)
+- **VS Code**: 1.100+
+
+### Installation
+
+Install from VS Code Extensions marketplace or:
+```bash
+code --install-extension rapidkit.rapidkit-vscode
+```
+
+### Setup Steps
+
+1. Open VS Code
+2. Welcome page auto-opens with Setup Wizard
+3. Wizard shows missing components (npm/Python Core)
+4. Click install buttons to add components
+5. Click refresh to verify
+6. Click "Finish Setup" to run doctor check
+
+### Documentation
+
+- 📖 [Getting Started](./docs/GETTING_STARTED.md)
+- 🔍 [Python Detection Methods](./docs/PYTHON_DETECTION_METHODS.md)
+- 🧙 [Setup Wizard Guide](./docs/SETUP_WIZARD_UPDATE.md)
+- 🧪 [Testing Guide](./docs/WIZARD_TESTING.md)
+- 🎨 [Visual Guide](./docs/WIZARD_VISUAL_GUIDE.md)
+
+### Known Issues
+
+- None reported yet
+
+### Feedback
+
+Report issues: https://github.com/getrapidkit/rapidkit-vscode/issues  
+Feature requests: https://github.com/getrapidkit/rapidkit-vscode/discussions  
+Email: support@getrapidkit.com
+
+---
+
+## Previous Release: v0.5.0 (February 1, 2026)
 
 - **🐍 Python Core Bridge** - Direct integration with `rapidkit-core` engine
   - Smart Python detection: Scenario A (system + core), B (system without core), C (no python)

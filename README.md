@@ -178,14 +178,9 @@ npx rapidkit format    # Format code
 
 RapidKit consists of three integrated components that work seamlessly together:
 
-<table>
-<tr>
-<td width="33%" valign="top">
+### 1️⃣ VS Code Extension (This Extension)
 
-### 1️⃣ VS Code Extension
-**This Extension**
-
-[![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&label=version)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&label=version)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 
 **Installation:**
 ```bash
@@ -200,20 +195,17 @@ code --install-extension rapidkit.rapidkit-vscode
 - 🩺 System diagnostics
 - ⌨️ Command palette integration
 
-[📦 Marketplace](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
+[📦 Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 
-</td>
-<td width="33%" valign="top">
+---
 
-### 2️⃣ npm Package
-**CLI Bridge**
+### 2️⃣ npm Package (CLI Bridge)
 
-[![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square)](https://www.npmjs.com/package/rapidkit)
-[![downloads](https://img.shields.io/npm/dm/rapidkit?style=flat-square&label=downloads)](https://www.npmjs.com/package/rapidkit)
+[![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square)](https://www.npmjs.com/package/rapidkit) [![downloads](https://img.shields.io/npm/dm/rapidkit?style=flat-square&label=downloads)](https://www.npmjs.com/package/rapidkit)
 
 **Installation:**
 ```bash
-# Use directly (no install)
+# Use directly (no install needed)
 npx rapidkit my-workspace
 
 # Or install globally
@@ -228,46 +220,39 @@ npm install -g rapidkit
 
 **Quick Commands:**
 ```bash
-rapidkit create          # Interactive
-rapidkit workspace list  # List all
-rapidkit add module auth # Add modules
+rapidkit create          # Interactive mode
+rapidkit workspace list  # List all workspaces
+rapidkit add module auth # Add modules to project
 ```
 
-[📦 npm](https://www.npmjs.com/package/rapidkit) • [💻 GitHub](https://github.com/getrapidkit/rapidkit-npm)
+[📦 View on npm](https://www.npmjs.com/package/rapidkit) • [💻 GitHub Repo](https://github.com/getrapidkit/rapidkit-npm)
 
-</td>
-<td width="33%" valign="top">
+---
 
-### 3️⃣ Python Core
-**Generation Engine**
+### 3️⃣ Python Core (Generation Engine)
 
-[![PyPI](https://img.shields.io/pypi/v/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
-[![Python](https://img.shields.io/pypi/pyversions/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
+[![PyPI](https://img.shields.io/pypi/v/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/) [![Python](https://img.shields.io/pypi/pyversions/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
 
 **Installation:**
 ```bash
-# Auto-installed by Extension & npm
+# Auto-installed by Extension & npm package
 # Or install manually:
 pip install rapidkit-core
 ```
 
 **Features:**
 - 🏗️ Core code generation engine
-- 📚 27+ production modules
+- 📚 27+ production-ready modules
 - 🎯 FastAPI & NestJS templates
-- 🔄 Module registry & dependencies
+- 🔄 Module registry & dependency management
 
-**What it provides:**
-- Auth, Database, Cache
+**Provides:**
+- Auth, Database, Cache, Redis
 - Logging, Monitoring, Testing
-- API clients, WebSockets
-- And much more...
+- API clients, WebSockets, Storage
+- Deployment, Security, and more...
 
-[🐍 PyPI](https://pypi.org/project/rapidkit-core/)
-
-</td>
-</tr>
-</table>
+[🐍 View on PyPI](https://pypi.org/project/rapidkit-core/)
 
 ---
 

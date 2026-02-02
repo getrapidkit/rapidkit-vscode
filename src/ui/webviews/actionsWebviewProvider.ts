@@ -199,6 +199,14 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             gap: 6px;
         }
         
+        /* Three Column Grid */
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+        
         .compact-btn {
             display: flex;
             align-items: center;
@@ -209,6 +217,14 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.15s ease;
+        }
+        
+        .grid-3col .compact-btn {
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 4px;
+            min-height: 60px;
+            justify-content: center;
         }
         
         .compact-btn:hover {
@@ -224,10 +240,21 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             justify-content: center;
         }
         
+        .grid-3col .compact-btn .icon {
+            width: 18px;
+            height: 18px;
+            font-size: 16px;
+        }
+        
         .compact-btn .icon svg {
             width: 16px;
             height: 16px;
             fill: var(--vscode-descriptionForeground);
+        }
+        
+        .grid-3col .compact-btn .icon svg {
+            width: 18px;
+            height: 18px;
         }
         
         .compact-btn:hover .icon svg {
@@ -241,12 +268,21 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-foreground);
         }
         
+        .grid-3col .compact-btn .label {
+            flex: 1;
+            font-size: 8px;
+            text-align: center;
+            line-height: 1.1;
+            opacity: 0.7;
+        }
+        
         /* Colors */
         .workspace { --c: #00cfc1; }
         .fastapi { --c: #009688; }
         .nestjs { --c: #E0234E; }
         .modules { --c: #9C27B0; }
         .doctor { --c: #FF9800; }
+        .welcome { --c: #00cfc1; }
         .docs { --c: #2196F3; }
     </style>
 </head>
@@ -277,16 +313,21 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     
     <div class="divider"></div>
     
-    <!-- Secondary Actions: Compact List -->
-    <div class="single-row">
-        <button class="compact-btn doctor" onclick="send('doctor')">
-            <span class="icon">${icons.doctor}</span>
-            <span class="label">System Check</span>
+    <!-- Secondary Actions: 3-Column Grid -->
+    <div class="grid-3col">
+         <button class="compact-btn welcome" onclick="send('openWelcome')" title="Open welcome page">
+            <span class="icon">${icons.home}</span>
+            <span class="label">Welcome</span>
         </button>
         
-        <button class="compact-btn docs" onclick="send('openDocs')">
+        <button class="compact-btn doctor" onclick="send('doctor')" title="Run system checks">
+            <span class="icon">${icons.doctor}</span>
+            <span class="label">Check</span>
+        </button>   
+
+        <button class="compact-btn docs" onclick="send('openDocs')" title="Open documentation">
             <span class="icon">${icons.docs}</span>
-            <span class="label">Documentation</span>
+            <span class="label">Docs</span>
         </button>
     </div>
     

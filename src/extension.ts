@@ -21,11 +21,11 @@ import { createProjectCommand } from './commands/createProject';
 import { addModuleCommand } from './commands/addModule';
 import { previewTemplateCommand } from './commands/previewTemplate';
 import { doctorCommand } from './commands/doctor';
+import { checkSystemCommand } from './commands/checkSystem';
 import { showWelcomeCommand } from './commands/showWelcome';
 import { RapidKitStatusBar } from './ui/statusBar';
 import { ConfigurationManager } from './core/configurationManager';
 import { WorkspaceDetector } from './core/workspaceDetector';
-import { WorkspaceManager } from './core/workspaceManager';
 import { Logger } from './utils/logger';
 import { RapidKitCodeActionsProvider } from './providers/codeActionsProvider';
 import { RapidKitCompletionProvider } from './providers/completionProvider';
@@ -43,55 +43,6 @@ let moduleExplorer: ModuleExplorerProvider;
 
 // Track running dev servers per project (exported for ProjectExplorer)
 export const runningServers: Map<string, vscode.Terminal> = new Map();
-
-/**
- * Ensure default workspace exists and is registered in WorkspaceManager
- */
-async function ensureDefaultWorkspace(): Promise<void> {
-  const logger = Logger.getInstance();
-  const path = require('path');
-  const os = require('os');
-  const fs = require('fs-extra');
-
-  const defaultWorkspacePath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
-
-  try {
-    // Ensure the directory exists
-    await fs.ensureDir(defaultWorkspacePath);
-
-    // Add to WorkspaceManager
-    const manager = WorkspaceManager.getInstance();
-    const workspaces = manager.getWorkspaces();
-    const isInManager = workspaces.some((ws: any) => ws.path === defaultWorkspacePath);
-
-    if (!isInManager) {
-      // Create marker file for this workspace
-      const markerPath = path.join(defaultWorkspacePath, '.rapidkit-workspace');
-      if (!(await fs.pathExists(markerPath))) {
-        // Ensure parent directories exist before writing marker
-        await fs.ensureDir(path.dirname(markerPath));
-        try {
-          const { getExtensionVersion, MARKERS } = await import('./utils/constants.js');
-          await fs.writeJSON(markerPath, {
-            signature: MARKERS.WORKSPACE_SIGNATURE,
-            createdBy: MARKERS.CREATED_BY_VSCODE,
-            version: getExtensionVersion(),
-            createdAt: new Date().toISOString(),
-            name: 'rapidkits',
-          });
-          await manager.addWorkspace(defaultWorkspacePath);
-        } catch (markerError) {
-          logger.error('Failed to write workspace marker file:', markerError);
-        }
-      }
-      logger.info('✅ Default workspace initialized:', defaultWorkspacePath);
-    } else {
-      logger.info('Default workspace already registered');
-    }
-  } catch (error) {
-    logger.error('Failed to ensure default workspace:', error);
-  }
-}
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
@@ -207,6 +158,7 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
       vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
       vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
+      vscode.commands.registerCommand('rapidkit.checkSystem', checkSystemCommand),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
       vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
         if (workspaceExplorer) {
@@ -752,7 +704,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Ensure default workspace is registered
     logger.info('Step 3.5: Checking default workspace...');
-    await ensureDefaultWorkspace();
+    // NOTE: Do not auto-create default workspace - user should create workspace manually via command
+    // await ensureDefaultWorkspace();
 
     // Initialize status bar
     logger.info('Step 4: Initializing status bar...');
@@ -846,6 +799,9 @@ export async function activate(context: vscode.ExtensionContext) {
         // Show welcome page on first activation
         logger.info('Step 10: Checking welcome page settings...');
         const config = vscode.workspace.getConfiguration('rapidkit');
+
+        // Always show welcome page on first activation or if configured
+        // Setup wizard is now integrated into welcome page
         if (config.get('showWelcomeOnStartup', true)) {
           await showWelcomeCommand(context);
         }

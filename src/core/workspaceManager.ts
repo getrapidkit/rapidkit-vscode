@@ -99,10 +99,9 @@ export class WorkspaceManager {
       return null;
     }
 
-    // Check if already added
+    // Check if already added (silently skip if exists)
     if (this.workspaces.some((ws) => ws.path === workspacePath)) {
-      vscode.window.showWarningMessage('Workspace already exists in the list');
-      return null;
+      return this.workspaces.find((ws) => ws.path === workspacePath) || null;
     }
 
     // Detect if it's a RapidKit workspace

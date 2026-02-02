@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -162,6 +162,12 @@
         "title": "Run System Check",
         "category": "RapidKit",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "rapidkit.checkSystem",
+        "title": "Check RapidKit Installation",
+        "category": "RapidKit",
+        "icon": "$(checklist)"
       },
       {
         "command": "rapidkit.checkForUpdates",
@@ -342,6 +348,9 @@
         },
         {
           "command": "rapidkit.doctor"
+        },
+        {
+          "command": "rapidkit.checkSystem"
         },
         {
           "command": "rapidkit.checkForUpdates"
