@@ -81,6 +81,40 @@ export class WelcomePanel {
             terminalPip.sendText('pip install --upgrade rapidkit-core');
             break;
           }
+          case 'installPoetry': {
+            const terminalPoetry = vscode.window.createTerminal('Install Poetry');
+            terminalPoetry.show();
+            if (process.platform === 'win32') {
+              terminalPoetry.sendText(
+                '(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -'
+              );
+            } else {
+              terminalPoetry.sendText('curl -sSL https://install.python-poetry.org | python3 -');
+            }
+            break;
+          }
+          case 'installBoth': {
+            const terminalBoth = vscode.window.createTerminal('Install RapidKit');
+            terminalBoth.show();
+            terminalBoth.sendText('npm install -g rapidkit && pip install rapidkit-core');
+            break;
+          }
+          case 'upgradeBoth': {
+            const terminalBoth = vscode.window.createTerminal('Upgrade RapidKit');
+            terminalBoth.show();
+            terminalBoth.sendText(
+              'npm install -g rapidkit@latest && pip install --upgrade rapidkit-core'
+            );
+            break;
+          }
+          case 'showInfo': {
+            vscode.window.showInformationMessage(message.message);
+            break;
+          }
+          case 'openUrl': {
+            vscode.env.openExternal(vscode.Uri.parse(message.url));
+            break;
+          }
           case 'checkInstallStatus': {
             const status = await this._checkInstallationStatus();
             this._panel.webview.postMessage({ command: 'installStatusUpdate', data: status });
@@ -790,8 +824,8 @@ export class WelcomePanel {
         }
         .wizard-steps {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
             margin-bottom: 12px;
         }
         .wizard-step {
@@ -913,6 +947,9 @@ export class WelcomePanel {
             cursor: not-allowed;
         }
 
+        @media (max-width: 900px) {
+            .wizard-steps { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 600px) {
             .actions { grid-template-columns: 1fr; }
             .features { grid-template-columns: 1fr; }
@@ -942,43 +979,55 @@ export class WelcomePanel {
             </div>
             
             <div class="wizard-steps">
-                <!-- RapidKit CLI Step -->
-                <div class="wizard-step" id="npmStep">
+                <!-- Python Step -->
+                <div class="wizard-step" id="pythonStep">
                     <div class="step-header">
-                        <span class="step-icon">📦</span>
-                        <span class="step-title">RapidKit CLI</span>
-                        <span class="step-status loading" id="npmStatus">⏳</span>
+                        <span class="step-icon">🐍</span>
+                        <span class="step-title">Python</span>
+                        <span class="step-status loading" id="pythonStatus">⏳</span>
                     </div>
-                    <div class="step-details" id="npmDetails">
-                        Checking...
-                    </div>
-                    <div class="step-actions" id="npmActions" style="display: none;">
-                        <button class="step-btn" onclick="installNpmCLI()">⚡ Install</button>
-                        <button class="step-btn secondary" onclick="openNpmPackage()">📄 Docs</button>
-                    </div>
-                    <div class="step-actions" id="npmUpgrade" style="display: none;">
-                        <button class="step-btn" onclick="upgradeNpm()" style="background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                        <button class="step-btn secondary" onclick="openNpmPackage()">📄 Docs</button>
+                    <div class="step-details" id="pythonDetails">Checking...</div>
+                    <div class="step-actions" id="pythonActions" style="display: none;">
+                        <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px;">📥 Download</button>
                     </div>
                 </div>
 
-                <!-- RapidKit Core Step -->
-                <div class="wizard-step" id="coreStep">
+                <!-- pip Step -->
+                <div class="wizard-step" id="pipStep">
                     <div class="step-header">
-                        <span class="step-icon">🐍</span>
-                        <span class="step-title">RapidKit Core</span>
-                        <span class="step-status loading" id="coreStatus">⏳</span>
+                        <span class="step-icon">📦</span>
+                        <span class="step-title">pip</span>
+                        <span class="step-status loading" id="pipStatus">⏳</span>
                     </div>
-                    <div class="step-details" id="coreDetails">
-                        Checking...
+                    <div class="step-details" id="pipDetails">Checking...</div>
+                    <div class="step-actions" id="pipActions" style="display: none;">
+                        <button class="step-btn" onclick="showPipInstall()" style="font-size: 9px;">ℹ️ Info</button>
                     </div>
-                    <div class="step-actions" id="coreActions" style="display: none;">
-                        <button class="step-btn" onclick="installPythonCore()">🔧 Install</button>
-                        <button class="step-btn secondary" onclick="openPyPI()">🐍 PyPI</button>
+                </div>
+
+                <!-- Poetry Step -->
+                <div class="wizard-step" id="poetryStep">
+                    <div class="step-header">
+                        <span class="step-icon">📝</span>
+                        <span class="step-title">Poetry</span>
+                        <span class="step-status loading" id="poetryStatus">⏳</span>
                     </div>
-                    <div class="step-actions" id="coreUpgrade" style="display: none;">
-                        <button class="step-btn" onclick="upgradeCore()" style="background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                        <button class="step-btn secondary" onclick="openPyPI()">🐍 PyPI</button>
+                    <div class="step-details" id="poetryDetails">Checking...</div>
+                    <div class="step-actions" id="poetryActions" style="display: none;">
+                        <button class="step-btn" onclick="installPoetry()" style="font-size: 9px;">⚡ Install</button>
+                    </div>
+                </div>
+
+                <!-- RapidKit Step -->
+                <div class="wizard-step" id="rapidkitStep">
+                    <div class="step-header">
+                        <span class="step-icon">🚀</span>
+                        <span class="step-title">RapidKit</span>
+                        <span class="step-status loading" id="rapidkitStatus">⏳</span>
+                    </div>
+                    <div class="step-details" id="rapidkitDetails">Checking...</div>
+                    <div class="step-actions" id="rapidkitActions" style="display: none;">
+                        <button class="step-btn" onclick="installRapidKit()" style="font-size: 9px;">⚡ Install</button>
                     </div>
                 </div>
             </div>
@@ -1471,124 +1520,173 @@ export class WelcomePanel {
                 versionInfo.textContent = 'Up to date';
             }
 
-            // Update npm step
-            const npmStep = document.getElementById('npmStep');
-            const npmStatus = document.getElementById('npmStatus');
-            const npmDetails = document.getElementById('npmDetails');
-            const npmActions = document.getElementById('npmActions');
-            const npmUpgrade = document.getElementById('npmUpgrade');
+            // Update Python step
+            const pythonStep = document.getElementById('pythonStep');
+            const pythonStatus = document.getElementById('pythonStatus');
+            const pythonDetails = document.getElementById('pythonDetails');
+            const pythonActions = document.getElementById('pythonActions');
 
-            if (status.npmInstalled) {
-                npmStep.classList.remove('not-installed');
-                npmStep.classList.add('installed');
-                npmStatus.textContent = '✓';
-                npmStatus.classList.remove('loading');
-                
-                let npmDisplay = \`<span class="step-version">v\${status.npmVersion}</span>\`;
-                if (status.latestNpmVersion && isNewerVersion(status.npmVersion, status.latestNpmVersion)) {
-                    console.log('[RapidKit] npm update available:', status.npmVersion, '→', status.latestNpmVersion);
-                    npmDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestNpmVersion} available</span>\`;
-                    npmActions.style.display = 'none';
-                    npmUpgrade.style.display = 'flex';
-                } else if (status.latestNpmVersion) {
-                    console.log('[RapidKit] npm latest:', status.latestNpmVersion, 'current:', status.npmVersion, 'is newer:', isNewerVersion(status.npmVersion, status.latestNpmVersion));
-                    npmActions.style.display = 'none';
-                    npmUpgrade.style.display = 'none';
-                } else {
-                    npmActions.style.display = 'none';
-                    npmUpgrade.style.display = 'none';
-                }
-                npmDetails.innerHTML = npmDisplay;
+            if (status.pythonInstalled) {
+                pythonStep.classList.remove('not-installed');
+                pythonStep.classList.add('installed');
+                pythonStatus.textContent = '✓';
+                pythonStatus.classList.remove('loading');
+                pythonDetails.innerHTML = \`<span class="step-version">v\${status.pythonVersion}</span>\`;
+                pythonActions.style.display = 'none';
             } else {
-                npmStep.classList.remove('installed');
-                npmStep.classList.add('not-installed');
-                npmStatus.textContent = '⚠';
-                npmStatus.classList.remove('loading');
-                npmDetails.innerHTML = 'Not installed';
-                npmActions.style.display = 'flex';
-                npmUpgrade.style.display = 'none';
+                pythonStep.classList.remove('installed');
+                pythonStep.classList.add('not-installed');
+                pythonStatus.textContent = '⚠';
+                pythonStatus.classList.remove('loading');
+                pythonDetails.innerHTML = 'Not installed';
+                pythonActions.style.display = 'flex';
             }
 
-            // Update core step
-            const coreStep = document.getElementById('coreStep');
-            const coreStatus = document.getElementById('coreStatus');
-            const coreDetails = document.getElementById('coreDetails');
-            const coreActions = document.getElementById('coreActions');
-            const coreUpgrade = document.getElementById('coreUpgrade');
+            // Update pip step
+            const pipStep = document.getElementById('pipStep');
+            const pipStatus = document.getElementById('pipStatus');
+            const pipDetails = document.getElementById('pipDetails');
+            const pipActions = document.getElementById('pipActions');
 
-            if (status.coreInstalled) {
-                coreStep.classList.remove('not-installed');
-                coreStep.classList.add('installed');
-                coreStatus.textContent = '✓';
-                coreStatus.classList.remove('loading');
-                
-                let coreDisplay = \`<span class="step-version">v\${status.coreVersion}</span>\`;
-                if (status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion)) {
-                    console.log('[RapidKit] core update available:', status.coreVersion, '→', status.latestCoreVersion);
-                    coreDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestCoreVersion} available</span>\`;
-                    coreActions.style.display = 'none';
-                    coreUpgrade.style.display = 'flex';
-                } else if (status.latestCoreVersion) {
-                    console.log('[RapidKit] core latest:', status.latestCoreVersion, 'current:', status.coreVersion, 'is newer:', isNewerVersion(status.coreVersion, status.latestCoreVersion));
-                    coreActions.style.display = 'none';
-                    coreUpgrade.style.display = 'none';
-                } else {
-                    coreActions.style.display = 'none';
-                    coreUpgrade.style.display = 'none';
-                }
-                coreDetails.innerHTML = coreDisplay;
+            if (status.pipInstalled) {
+                pipStep.classList.remove('not-installed');
+                pipStep.classList.add('installed');
+                pipStatus.textContent = '✓';
+                pipStatus.classList.remove('loading');
+                pipDetails.innerHTML = \`<span class="step-version">v\${status.pipVersion}</span>\`;
+                pipActions.style.display = 'none';
             } else {
-                coreStep.classList.remove('installed');
-                coreStep.classList.add('not-installed');
-                coreStatus.textContent = '⚠';
-                coreStatus.classList.remove('loading');
-                coreDetails.innerHTML = 'Not installed';
-                coreActions.style.display = 'flex';
-                coreUpgrade.style.display = 'none';
+                pipStep.classList.remove('installed');
+                pipStep.classList.add('not-installed');
+                pipStatus.textContent = '⚠';
+                pipStatus.classList.remove('loading');
+                pipDetails.innerHTML = 'Not installed';
+                pipActions.style.display = 'flex';
             }
 
-            // Update progress
+            // Update Poetry step
+            const poetryStep = document.getElementById('poetryStep');
+            const poetryStatus = document.getElementById('poetryStatus');
+            const poetryDetails = document.getElementById('poetryDetails');
+            const poetryActions = document.getElementById('poetryActions');
+
+            if (status.poetryInstalled) {
+                poetryStep.classList.remove('not-installed');
+                poetryStep.classList.add('installed');
+                poetryStatus.textContent = '✓';
+                poetryStatus.classList.remove('loading');
+                poetryDetails.innerHTML = \`<span class="step-version">v\${status.poetryVersion}</span>\`;
+                poetryActions.style.display = 'none';
+            } else {
+                poetryStep.classList.remove('installed');
+                poetryStep.classList.add('not-installed');
+                poetryStatus.textContent = '⚠';
+                poetryStatus.classList.remove('loading');
+                poetryDetails.innerHTML = 'Required for workspaces';
+                poetryActions.style.display = 'flex';
+            }
+
+            // Update RapidKit step (combined npm + core)
+            const rapidkitStep = document.getElementById('rapidkitStep');
+            const rapidkitStatus = document.getElementById('rapidkitStatus');
+            const rapidkitDetails = document.getElementById('rapidkitDetails');
+            const rapidkitActions = document.getElementById('rapidkitActions');
+            const rapidkitUpgrade = document.getElementById('rapidkitUpgrade');
+
+            if (status.npmInstalled && status.coreInstalled) {
+                rapidkitStep.classList.remove('not-installed');
+                rapidkitStep.classList.add('installed');
+                rapidkitStatus.textContent = '✓';
+                rapidkitStatus.classList.remove('loading');
+                
+                let rapidkitDisplay = \`<span class="step-version">CLI v\${status.npmVersion}, Core v\${status.coreVersion}</span>\`;
+                const npmUpdate = status.latestNpmVersion && isNewerVersion(status.npmVersion, status.latestNpmVersion);
+                const coreUpdate = status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion);
+                
+                if (npmUpdate || coreUpdate) {
+                    rapidkitDisplay += \` <span style="color: #FF9800; margin-left: 8px;">Updates available</span>\`;
+                    rapidkitActions.style.display = 'none';
+                    rapidkitUpgrade.style.display = 'flex';
+                } else {
+                    rapidkitActions.style.display = 'none';
+                    rapidkitUpgrade.style.display = 'none';
+                }
+                rapidkitDetails.innerHTML = rapidkitDisplay;
+            } else if (status.npmInstalled || status.coreInstalled) {
+                rapidkitStep.classList.remove('installed');
+                rapidkitStep.classList.add('not-installed');
+                rapidkitStatus.textContent = '⚠';
+                rapidkitStatus.classList.remove('loading');
+                if (status.npmInstalled) {
+                    rapidkitDetails.innerHTML = \`CLI v\${status.npmVersion} <span style="color: #FF9800;">• Core missing</span>\`;
+                } else {
+                    rapidkitDetails.innerHTML = \`Core v\${status.coreVersion} <span style="color: #FF9800;">• CLI missing</span>\`;
+                }
+                rapidkitActions.style.display = 'flex';
+                rapidkitUpgrade.style.display = 'none';
+            } else {
+                rapidkitStep.classList.remove('installed');
+                rapidkitStep.classList.add('not-installed');
+                rapidkitStatus.textContent = '⚠';
+                rapidkitStatus.classList.remove('loading');
+                rapidkitDetails.innerHTML = 'Not installed';
+                rapidkitActions.style.display = 'flex';
+                rapidkitUpgrade.style.display = 'none';
+            }
+
+            // Update progress (Poetry is critical for workspace creation)
             const progress = document.getElementById('wizardProgress');
-            const installedCount = (status.npmInstalled ? 1 : 0) + (status.coreInstalled ? 1 : 0);
+            const pythonOk = status.pythonInstalled ? 1 : 0;
+            const pipOk = status.pipInstalled ? 1 : 0;
+            const poetryOk = status.poetryInstalled ? 1 : 0;
+            const rapidkitOk = (status.npmInstalled && status.coreInstalled) ? 1 : 0;
+            const installedCount = pythonOk + pipOk + poetryOk + rapidkitOk;
             
-            if (installedCount === 2) {
-                progress.textContent = '✅ Ready to create workspaces';
+            if (installedCount === 4) {
+                progress.textContent = '✅ All dependencies ready';
                 document.getElementById('finishBtn').disabled = false;
-            } else if (installedCount === 1) {
-                progress.textContent = \`⚡ \${installedCount}/2 installed\`;
+            } else if (installedCount >= 2) {
+                progress.textContent = \`⚡ \${installedCount}/4 installed\`;
                 document.getElementById('finishBtn').disabled = true;
             } else {
-                progress.textContent = '⚠ Components not installed';
+                progress.textContent = '⚠ Dependencies missing';
                 document.getElementById('finishBtn').disabled = true;
             }
         }
 
-        function installNpmCLI() {
-            vscode.postMessage({ command: 'installNpmGlobal' });
+        function openPythonDownload() {
+            vscode.postMessage({ command: 'openUrl', url: 'https://www.python.org/downloads/' });
+        }
+
+        function showPipInstall() {
+            vscode.postMessage({ command: 'showInfo', message: 'pip is usually included with Python. If missing, reinstall Python or run: python -m ensurepip' });
+        }
+
+        function installPoetry() {
+            vscode.postMessage({ command: 'installPoetry' });
             setTimeout(checkInstallationStatus, 5000);
         }
 
-        function upgradeNpm() {
-            vscode.postMessage({ command: 'upgradeNpmGlobal' });
+        function installRapidKit() {
+            vscode.postMessage({ command: 'installBoth' });
             setTimeout(checkInstallationStatus, 5000);
         }
 
-        function installPythonCore() {
-            vscode.postMessage({ command: 'installPipCore' });
-            setTimeout(checkInstallationStatus, 5000);
-        }
-
-        function upgradeCore() {
-            vscode.postMessage({ command: 'upgradePipCore' });
+        function upgradeRapidKit() {
+            vscode.postMessage({ command: 'upgradeBoth' });
             setTimeout(checkInstallationStatus, 5000);
         }
 
         function refreshWizard() {
             // Reset UI to loading
-            document.getElementById('npmStatus').textContent = '⏳';
-            document.getElementById('npmStatus').classList.add('loading');
-            document.getElementById('coreStatus').textContent = '⏳';
-            document.getElementById('coreStatus').classList.add('loading');
+            const statuses = ['pythonStatus', 'pipStatus', 'poetryStatus', 'rapidkitStatus'];
+            statuses.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.textContent = '⏳';
+                    el.classList.add('loading');
+                }
+            });
             
             checkInstallationStatus();
         }
