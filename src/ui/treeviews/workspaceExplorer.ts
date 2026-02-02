@@ -57,10 +57,20 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
       // Add workspaces
       this.workspaces.forEach((ws) => {
-        const item = new WorkspaceTreeItem(ws, 'workspace');
-        if (this.selectedWorkspace?.path === ws.path) {
-          item.description = '● Active';
+        const isActive = this.selectedWorkspace?.path === ws.path;
+        const item = new WorkspaceTreeItem(ws, 'workspace', isActive);
+
+        // Show active status with icon or time since last opened
+        if (isActive) {
+          item.description = '🟢 Active';
+        } else {
+          // Calculate time since last opened
+          const lastOpened = this.getLastOpenedTime(ws);
+          if (lastOpened) {
+            item.description = lastOpened;
+          }
         }
+
         items.push(item);
       });
 
@@ -68,6 +78,32 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
 
     return [];
+  }
+
+  private getLastOpenedTime(workspace: RapidKitWorkspace): string | undefined {
+    const lastAccessed = (workspace as any).lastAccessed;
+    if (!lastAccessed) {
+      return undefined;
+    }
+
+    const now = Date.now();
+    const diff = now - lastAccessed;
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) {
+      return 'Just now';
+    } else if (minutes < 60) {
+      return `${minutes}m ago`;
+    } else if (hours < 24) {
+      return `${hours}h ago`;
+    } else if (days < 7) {
+      return `${days}d ago`;
+    } else {
+      return undefined;
+    }
   }
 
   private async loadWorkspaces(): Promise<void> {
@@ -98,7 +134,10 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       const workspace = await this.workspaceManager.addWorkspace(result[0].fsPath);
       if (workspace) {
         await this.refresh();
-        vscode.window.showInformationMessage(`Workspace "${workspace.name}" added successfully!`);
+        vscode.window.showInformationMessage(
+          `Workspace "${workspace.name}" added successfully!`,
+          'OK'
+        );
       }
     }
   }
@@ -113,7 +152,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     if (answer === 'Remove') {
       await this.workspaceManager.removeWorkspace(workspace.path);
       await this.refresh();
-      vscode.window.showInformationMessage(`Workspace "${workspace.name}" removed`);
+      vscode.window.showInformationMessage(`Workspace "${workspace.name}" removed`, 'OK');
     }
   }
 
@@ -127,10 +166,13 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       message.dispose();
 
       if (discovered.length > 0) {
-        vscode.window.showInformationMessage(`Found ${discovered.length} RapidKit workspace(s)`);
+        vscode.window.showInformationMessage(
+          `Found ${discovered.length} RapidKit workspace(s)`,
+          'OK'
+        );
         await this.refresh();
       } else {
-        vscode.window.showInformationMessage('No new RapidKit workspaces found');
+        vscode.window.showInformationMessage('No new RapidKit workspaces found', 'OK');
       }
     } catch (error) {
       message.dispose();
@@ -140,6 +182,10 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   public async selectWorkspace(workspace: RapidKitWorkspace): Promise<void> {
     this.selectedWorkspace = workspace;
+
+    // Update last accessed time
+    await this.workspaceManager.touchWorkspace(workspace.path);
+
     this._onDidChangeTreeData.fire();
 
     // Set context for toolbar buttons
@@ -162,15 +208,23 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
   constructor(
     public readonly workspace: RapidKitWorkspace | null,
     public readonly contextValue: string,
+    isActive: boolean = false,
     customLabel?: string
   ) {
-    super(customLabel || workspace?.name || '', vscode.TreeItemCollapsibleState.None);
+    const projectCount = workspace?.projects?.length || 0;
+    const label = customLabel || workspace?.name || '';
+    const labelWithCount = projectCount > 0 ? `${label} (${projectCount})` : label;
+
+    super(labelWithCount, vscode.TreeItemCollapsibleState.None);
 
     if (contextValue === 'workspace' && workspace) {
-      this.tooltip = `${workspace.path}\nMode: ${workspace.mode}\nProjects: ${workspace.projects.length}`;
+      const projectText = projectCount === 1 ? '1 project' : `${projectCount} projects`;
+      this.tooltip = `${workspace.name}\n${workspace.path}\nMode: ${workspace.mode}\n${projectText}`;
+
+      // Icon based on active status
       this.iconPath = new vscode.ThemeIcon(
-        workspace.mode === 'demo' ? 'rocket' : 'folder-library',
-        new vscode.ThemeColor('charts.purple')
+        workspace.mode === 'demo' ? 'rocket' : isActive ? 'folder-opened' : 'folder-library',
+        new vscode.ThemeColor(isActive ? 'charts.green' : 'charts.purple')
       );
 
       // Make workspace selectable

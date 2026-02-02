@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-02-02
+
+### Fixed
+
+- 🔧 **NPM Package Caching Issue** - Always use latest rapidkit npm package
+  - Added `--yes` and `@latest` flags to all `npx rapidkit` commands
+  - Prevents using cached outdated versions of rapidkit CLI
+  - Ensures workspace/project creation always uses latest available version
+  - Fixes "Invalid project name" errors caused by old cached CLI versions
+  - Updated 15 files: rapidkitCLI.ts, doctor.ts, firstTimeSetup.ts, updateChecker.ts, and more
+
+- 🩺 **Doctor Command Accuracy** - Fixed false positive "All checks passed"
+  - RapidKit Core changed from optional (warning) to required (fail)
+  - npm package now required for full functionality
+  - Command properly fails when critical components missing
+  - Aligned with Setup Wizard behavior
+  - Now shows accurate system status
+
+- 💬 **Notification Polish** - All notifications now have "OK" button
+  - Fixed notifications that couldn't be closed
+  - Updated 9 files with proper button handling
+  - Removed duplicate "Creating workspace..." notification
+  - Better user experience with dismissible messages
+
+### Added
+
+- 📦 **Standalone Project Mode** - Create projects without workspace
+  - When creating a project without an existing workspace, users now get 3 options:
+    1. Create Workspace First (Recommended) - Full workspace setup then project
+    2. Create Standalone Project - Direct project creation without workspace
+    3. Cancel
+  - Standalone projects are created at `~/RapidKit/rapidkits/` by default
+  - Seamless workflow: Creating workspace first automatically prompts for project creation
+  - Clear labeling of projects as "standalone" or "workspace" in success messages
+
+- 📋 **Command Reference** - Added to Welcome Page
+  - 4 collapsible categories with 14 commands total
+  - Workspace Commands (2): Create workspace with various options
+  - Project Commands (4): FastAPI/NestJS project creation and dev server
+  - Module Commands (5): Real module slugs (auth_core, db_postgres, redis, email, storage)
+  - Development & Utilities (3): doctor, version, help commands
+  - Copy-to-clipboard functionality with visual feedback (✓ Copied!)
+  - Expandable/collapsible categories with ▼ toggle
+  - Professional code blocks with hover effects
+
+- 📂 **Recent Workspaces** - Dynamic list in Welcome Page
+  - Shows up to 5 most recent workspaces
+  - Displays project count and path for each workspace
+  - Click to open workspace directly
+  - Manual refresh button (↻) for updating list
+  - Auto-refreshes after creating workspace or project
+  - Empty state with helpful message
+  - Sorted by last accessed time
+
+- ⚡ **Workspace Explorer Enhancements**
+  - **Project Count**: Shows in label format "workspace-name (3)"
+  - **Last Opened Time**: Smart time formatting
+    - "Just now" (< 1 minute)
+    - "15m ago" (< 1 hour)
+    - "3h ago" (< 24 hours)
+    - "2d ago" (< 7 days)
+    - Hidden after 7 days
+  - **Status Icons**: Visual indicators for workspace state
+    - Active: 🟢 with green folder-opened icon
+    - Inactive: purple folder-library icon
+  - **Time Tracking**: Automatic lastAccessed timestamp
+    - Updates when workspace selected
+    - Persists to workspaces.json
+    - Used for sorting in Recent Workspaces
+
+### Changed
+
+- Updated all CLI invocations to use `npx --yes rapidkit@latest` instead of `npx rapidkit`
+- Improved reliability of workspace and project creation commands
+- Welcome Page icons updated for professionalism:
+  - 💻 VS Code Extension (was 🎨)
+  - 🔍 System Check (was 🩺)
+  - ⚡ Key Features (was ✨)
+- Refresh icons changed from 🔄 to ↻ (minimal and clear)
+- Welcome Panel now auto-refreshes after workspace/project creation
+- Stored extension context globally for cross-file access
+- Enhanced tooltips in workspace explorer with more details
+
 ## [0.5.1] - 2026-02-02
 
 ### Added

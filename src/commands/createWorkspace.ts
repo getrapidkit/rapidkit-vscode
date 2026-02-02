@@ -13,6 +13,7 @@ import { RapidKitCLI } from '../core/rapidkitCLI';
 import { WorkspaceManager } from '../core/workspaceManager';
 import { isFirstTimeSetup, showFirstTimeSetupMessage } from '../utils/firstTimeSetup';
 import { updateWorkspaceMetadata } from '../utils/workspaceMarker';
+import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 export async function createWorkspaceCommand() {
   const logger = Logger.getInstance();
@@ -328,6 +329,12 @@ export async function createWorkspaceCommand() {
             });
           } else if (selected === docsAction) {
             await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
+          }
+
+          // Refresh welcome page if it's open
+          const context = (global as any).extensionContext;
+          if (context) {
+            WelcomePanel.refresh(context);
           }
         } catch (error) {
           logger.error('Failed to create workspace', error);

@@ -181,10 +181,11 @@ async function runSystemChecks(
         message: coreMessage,
       });
     } else {
+      result.passed = false;
       result.checks.push({
         name: 'RapidKit core',
-        status: 'warning',
-        message: 'Not installed in system Python (will use workspace venv)',
+        status: 'fail',
+        message: 'Not installed - required for Python projects',
       });
     }
   } else {
@@ -268,7 +269,9 @@ async function runSystemChecks(
     }
 
     // Get version from npx
-    const rapidkitResult = await execa('npx', ['rapidkit', '--version'], { timeout: 10000 });
+    const rapidkitResult = await execa('npx', ['--yes', 'rapidkit@latest', '--version'], {
+      timeout: 10000,
+    });
     const version = rapidkitResult.stdout.trim();
 
     let npmMessage = `v${version}`;
@@ -291,14 +294,15 @@ async function runSystemChecks(
 
     result.checks.push({
       name: 'RapidKit npm',
-      status: isGlobal ? 'pass' : 'warning',
-      message: npmMessage,
+      status: isGlobal ? 'pass' : 'fail',
+      message: npmMessage + (isGlobal ? '' : ' - global installation recommended'),
     });
   } catch {
+    result.passed = false;
     result.checks.push({
       name: 'RapidKit npm',
-      status: 'warning',
-      message: 'Not installed (will download on first use via npx)',
+      status: 'fail',
+      message: 'Not installed - run: npm install -g rapidkit',
     });
   }
 

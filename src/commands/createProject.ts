@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ProjectWizard } from '../ui/wizards/projectWizard';
 import { Logger } from '../utils/logger';
 import { WorkspaceManager } from '../core/workspaceManager';
+import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
@@ -22,6 +23,7 @@ export async function createProjectCommand(
 
     // Determine workspace: use selected, or ask user
     let workspaceRoot: string | undefined;
+    let isStandaloneMode = false; // Track if user chose standalone project
 
     if (selectedWorkspacePath) {
       // Check if the selected workspace path actually exists
@@ -58,7 +60,7 @@ export async function createProjectCommand(
           // Marker file is created by npm package with standard format
           workspaceRoot = selectedWorkspacePath;
           logger.info('Workspace recreated successfully');
-          vscode.window.showInformationMessage(`✅ Recreated workspace: ${workspaceName}`);
+          vscode.window.showInformationMessage(`✅ Recreated workspace: ${workspaceName}`, 'OK');
         } else if (action === 'Choose New Location') {
           // Let user proceed to location selection
           selectedWorkspacePath = undefined; // Reset to trigger location prompt
@@ -147,18 +149,71 @@ export async function createProjectCommand(
             logger.info('Custom workspace registered in manager:', workspaceRoot);
           }
         } else {
-          // No workspace selected - prompt user to create one
-          vscode.window
-            .showErrorMessage(
-              'No workspace found. Please create a workspace first using "RapidKit: Create Workspace" command.',
-              'Create Workspace'
-            )
-            .then((selection) => {
-              if (selection === 'Create Workspace') {
-                vscode.commands.executeCommand('rapidkit.createWorkspace');
-              }
-            });
-          return;
+          // Default location - no workspace exists yet
+          // Give user 3 options: Create workspace first, standalone project, or cancel
+          const workspaceChoice = await vscode.window.showQuickPick(
+            [
+              {
+                label: '$(folder) Create Workspace First',
+                description: 'Recommended',
+                detail: 'Create a workspace to organize multiple projects',
+                value: 'workspace',
+              },
+              {
+                label: '$(file-directory) Create Standalone Project',
+                description: 'Without workspace',
+                detail: 'Create project directly in ~/RapidKit/rapidkits/',
+                value: 'standalone',
+              },
+              {
+                label: '$(x) Cancel',
+                description: '',
+                detail: 'Go back',
+                value: 'cancel',
+              },
+            ],
+            {
+              placeHolder: 'No workspace found. What would you like to do?',
+              ignoreFocusOut: true,
+            }
+          );
+
+          if (!workspaceChoice || workspaceChoice.value === 'cancel') {
+            logger.info('Project creation cancelled by user');
+            return;
+          }
+
+          if (workspaceChoice.value === 'workspace') {
+            // Create workspace first, then ask if user wants to create project
+            logger.info('User chose to create workspace first');
+
+            // Execute create workspace command
+            await vscode.commands.executeCommand('rapidkit.createWorkspace');
+
+            // After workspace creation, ask if they want to continue with project
+            const continueWithProject = await vscode.window.showInformationMessage(
+              '✅ Workspace created! Would you like to create a project inside it now?',
+              'Yes',
+              'Later'
+            );
+
+            if (continueWithProject === 'Yes') {
+              // Re-run this command to create project in the new workspace
+              return await createProjectCommand(undefined, preselectedFramework);
+            } else {
+              logger.info('User chose to create project later');
+              return;
+            }
+          } else if (workspaceChoice.value === 'standalone') {
+            // Create standalone project without workspace
+            logger.info('User chose standalone project mode');
+            isStandaloneMode = true;
+            workspaceRoot = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+
+            // Ensure directory exists
+            await fs.ensureDir(workspaceRoot);
+            logger.info('Using standalone location:', workspaceRoot);
+          }
         }
       }
     }
@@ -196,24 +251,43 @@ export async function createProjectCommand(
 
         try {
           const path = require('path');
-          const fs = require('fs-extra');
           const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
           const cli = new RapidKitCLI();
 
           progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
 
-          // Always use workspace mode: npx rapidkit create project <kit> <name> --output . (cwd = workspaceRoot)
           const workspacePathAbs = path.isAbsolute(workspaceRoot)
             ? workspaceRoot
             : path.resolve(workspaceRoot);
-          logger.info('Creating project in workspace:', workspacePathAbs, 'name:', config.name);
 
-          const result = await cli.createProjectInWorkspace({
-            name: config.name,
-            template: template as 'fastapi' | 'nestjs',
-            workspacePath: workspacePathAbs,
-            skipInstall: false,
-          });
+          let result: any;
+          let projectPath: string;
+
+          if (isStandaloneMode) {
+            // Standalone mode: Use createProject (Direct mode)
+            logger.info('Creating standalone project at:', workspacePathAbs, 'name:', config.name);
+
+            result = await cli.createProject({
+              name: config.name,
+              template: template as 'fastapi' | 'nestjs',
+              parentPath: workspacePathAbs,
+              skipInstall: false,
+            });
+
+            projectPath = path.join(workspacePathAbs, config.name);
+          } else {
+            // Workspace mode: Use createProjectInWorkspace
+            logger.info('Creating project in workspace:', workspacePathAbs, 'name:', config.name);
+
+            result = await cli.createProjectInWorkspace({
+              name: config.name,
+              template: template as 'fastapi' | 'nestjs',
+              workspacePath: workspacePathAbs,
+              skipInstall: false,
+            });
+
+            projectPath = path.join(workspacePathAbs, config.name);
+          }
 
           const exitCode = (result as { exitCode?: number }).exitCode ?? 1;
           if (exitCode !== 0) {
@@ -227,11 +301,10 @@ export async function createProjectCommand(
             );
           }
 
-          const projectPath = path.join(workspacePathAbs, config.name);
-
           progress.report({ increment: 70, message: 'Verifying project...' });
 
           // Wait for file system (Poetry/lock can be slow)
+          const fs = require('fs-extra');
           for (let i = 0; i < 15; i++) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             if (await fs.pathExists(projectPath)) {
@@ -251,21 +324,25 @@ export async function createProjectCommand(
           // Refresh views
           await vscode.commands.executeCommand('rapidkit.refreshProjects');
 
-          // Update workspace in manager and ensure it's registered
-          const manager = WorkspaceManager.getInstance();
-          const workspaces = manager.getWorkspaces();
-          const isRegistered = workspaces.some((ws) => ws.path === workspaceRoot);
+          // Update workspace in manager only if not standalone mode
+          if (!isStandaloneMode) {
+            const manager = WorkspaceManager.getInstance();
+            const workspaces = manager.getWorkspaces();
+            const isRegistered = workspaces.some((ws) => ws.path === workspaceRoot);
 
-          if (!isRegistered) {
-            // Add this workspace to manager
-            await manager.addWorkspace(workspaceRoot);
-            logger.info('Registered new workspace in manager:', workspaceRoot);
+            if (!isRegistered) {
+              // Add this workspace to manager
+              await manager.addWorkspace(workspaceRoot);
+              logger.info('Registered new workspace in manager:', workspaceRoot);
+            } else {
+              // Just update existing workspace
+              await manager.updateWorkspace(workspaceRoot);
+            }
+
+            await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
           } else {
-            // Just update existing workspace
-            await manager.updateWorkspace(workspaceRoot);
+            logger.info('Standalone project created - skipping workspace registration');
           }
-
-          await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
 
           progress.report({ increment: 100, message: 'Done!' });
 
@@ -275,8 +352,9 @@ export async function createProjectCommand(
           const addModulesAction = '🧩 Add Modules';
           const docsAction = '📖 View Docs';
 
+          const modeLabel = isStandaloneMode ? 'standalone project' : 'workspace project';
           const selected = await vscode.window.showInformationMessage(
-            `✅ Project "${config.name}" created successfully!`,
+            `✅ ${config.name} (${modeLabel}) created successfully!`,
             { modal: false },
             openAction,
             terminalAction,
@@ -301,6 +379,12 @@ export async function createProjectCommand(
             await vscode.commands.executeCommand('rapidkit.addModule', projectPath);
           } else if (selected === docsAction) {
             await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
+          }
+
+          // Refresh welcome page if it's open
+          const context = (global as any).extensionContext;
+          if (context) {
+            WelcomePanel.refresh(context);
           }
         } catch (error: any) {
           logger.error('Failed to create project:', {

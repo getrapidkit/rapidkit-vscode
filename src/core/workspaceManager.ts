@@ -315,6 +315,18 @@ export class WorkspaceManager {
     if (workspace) {
       workspace.projects = await this.getWorkspaceProjects(workspacePath);
       workspace.mode = (await this.isDemoWorkspace(workspacePath)) ? 'demo' : 'full';
+      (workspace as any).lastAccessed = Date.now();
+      await this.saveWorkspaces();
+    }
+  }
+
+  /**
+   * Update last accessed time for a workspace
+   */
+  public async touchWorkspace(workspacePath: string): Promise<void> {
+    const workspace = this.workspaces.find((ws) => ws.path === workspacePath);
+    if (workspace) {
+      (workspace as any).lastAccessed = Date.now();
       await this.saveWorkspaces();
     }
   }

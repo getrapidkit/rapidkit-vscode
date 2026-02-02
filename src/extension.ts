@@ -48,6 +48,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
   logger.info('🚀 RapidKit extension is activating...');
 
+  // Store context globally for access from commands
+  (global as any).extensionContext = context;
+
   // Set extension path for custom icons
   setExtensionPath(context.extensionPath);
 
@@ -66,8 +69,6 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
         try {
           logger.info('Executing createWorkspace command');
-          // Show that command was triggered
-          vscode.window.showInformationMessage('Creating RapidKit Workspace...');
           await createWorkspaceCommand();
           if (workspaceExplorer) {
             workspaceExplorer.refresh();
@@ -583,7 +584,7 @@ export async function activate(context: vscode.ExtensionContext) {
             fs.mkdirSync(folderPath, { recursive: true });
             projectExplorer?.refresh();
             logger.info(`Created new folder: ${folderPath}`);
-            vscode.window.showInformationMessage(`Created folder: ${folderName}`);
+            vscode.window.showInformationMessage(`Created folder: ${folderName}`, 'OK');
           } catch (err) {
             vscode.window.showErrorMessage(`Failed to create folder: ${err}`);
           }

@@ -22,6 +22,22 @@ FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automatio
 
 ---
 
+## 🎉 What's New in v0.5.2
+
+**Critical fixes + UX enhancements + Workspace improvements!**
+
+- 🔧 **NPM Caching Fix** - Resolved "Invalid project name" errors by always using latest CLI
+- 📦 **Standalone Mode** - Create projects without workspace (3-option dialog)
+- 🩺 **Accurate Doctor** - Shows real status instead of false positives
+- 📋 **Command Reference** - 14 ready-to-copy commands in Welcome Page
+- 📂 **Recent Workspaces** - Dynamic list with auto-refresh
+- ⚡ **Workspace Explorer** - Project count, smart time display, status icons
+- 💬 **Better Notifications** - All messages now have "OK" button
+
+[See full release notes →](releases/RELEASE_NOTES_v0.5.2.md)
+
+---
+
 ## ⚡ Quick Start
 
 ```

@@ -54,7 +54,7 @@ export class RapidKitCLI {
    * Creates workspace at the specified parent path
    */
   async createWorkspace(options: CreateWorkspaceOptions): Promise<ExecaReturnValue> {
-    const args = ['rapidkit', options.name, '--yes', '--install-method', 'poetry'];
+    const args = ['--yes', 'rapidkit@latest', options.name, '--yes', '--install-method', 'poetry'];
 
     if (options.skipGit) {
       args.push('--skip-git');
@@ -83,7 +83,8 @@ export class RapidKitCLI {
   async createProject(options: CreateProjectOptions): Promise<ExecaReturnValue> {
     const kit = templateToKit(options.template);
     const args = [
-      'rapidkit',
+      '--yes',
+      'rapidkit@latest',
       'create',
       'project',
       kit,
@@ -113,7 +114,7 @@ export class RapidKitCLI {
 
     if (!options.skipInstall) {
       const projectPath = (await import('path')).join(options.parentPath, options.name);
-      await run('npx', ['rapidkit', 'init', projectPath], {
+      await run('npx', ['--yes', 'rapidkit@latest', 'init', projectPath], {
         cwd: options.parentPath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
@@ -136,7 +137,8 @@ export class RapidKitCLI {
   ): Promise<ExecaReturnValue> {
     const kit = templateToKit(options.template);
     const args = [
-      'rapidkit',
+      '--yes',
+      'rapidkit@latest',
       'create',
       'project',
       kit,
@@ -176,7 +178,7 @@ export class RapidKitCLI {
       this.logger.info('Running rapidkit init in project:', projectPath);
 
       // Run init from project directory (not workspace)
-      await run('npx', ['rapidkit', 'init'], {
+      await run('npx', ['--yes', 'rapidkit@latest', 'init'], {
         cwd: projectPath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
@@ -207,7 +209,7 @@ export class RapidKitCLI {
     }
 
     try {
-      await run('npx', ['rapidkit', '--version'], { stdio: 'pipe', timeout: 5000 });
+      await run('npx', ['--yes', 'rapidkit@latest', '--version'], { stdio: 'pipe', timeout: 5000 });
       return true;
     } catch (error) {
       this.logger.debug('RapidKit CLI not available', error);
@@ -230,7 +232,7 @@ export class RapidKitCLI {
     }
 
     try {
-      const result = await run('npx', ['rapidkit', '--version'], {
+      const result = await run('npx', ['--yes', 'rapidkit@latest', '--version'], {
         stdio: 'pipe',
         timeout: 5000,
       });
@@ -255,7 +257,7 @@ export class RapidKitCLI {
         });
       } catch (e) {
         this.logger.debug('Direct rapidkit binary failed, falling back to npx', e);
-        return await run('npx', ['rapidkit', ...args], {
+        return await run('npx', ['--yes', 'rapidkit@latest', ...args], {
           cwd: cwd || process.cwd(),
           stdio: 'pipe',
         });

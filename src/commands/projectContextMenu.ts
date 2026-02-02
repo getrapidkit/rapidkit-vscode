@@ -31,7 +31,7 @@ export async function copyProjectPath(projectPath: string): Promise<void> {
 
   try {
     await vscode.env.clipboard.writeText(projectPath);
-    vscode.window.showInformationMessage(`Copied: ${projectPath}`);
+    vscode.window.showInformationMessage(`Copied: ${projectPath}`, 'OK');
   } catch (error) {
     logger.error('Failed to copy project path', error);
     vscode.window.showErrorMessage(

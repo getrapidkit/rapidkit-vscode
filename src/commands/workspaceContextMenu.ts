@@ -30,7 +30,7 @@ export async function copyWorkspacePath(workspacePath: string): Promise<void> {
 
   try {
     await vscode.env.clipboard.writeText(workspacePath);
-    vscode.window.showInformationMessage(`Copied: ${workspacePath}`);
+    vscode.window.showInformationMessage(`Copied: ${workspacePath}`, 'OK');
   } catch (error) {
     logger.error('Failed to copy workspace path', error);
     vscode.window.showErrorMessage(

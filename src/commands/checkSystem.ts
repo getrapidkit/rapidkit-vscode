@@ -67,7 +67,7 @@ export async function checkSystemCommand() {
     const summary = coreInfo.installed
       ? `rapidkit-core ${coreInfo.version} installed`
       : 'rapidkit-core not installed';
-    vscode.window.showInformationMessage(`RapidKit System: ${summary}`);
+    vscode.window.showInformationMessage(`RapidKit System: ${summary}`, 'OK');
   } catch (error) {
     logger.error('System check failed:', error);
     vscode.window.showErrorMessage('Failed to check system status');

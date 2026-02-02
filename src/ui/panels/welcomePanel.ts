@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { WorkspaceManager } from '../../core/workspaceManager';
 
 export class WelcomePanel {
   public static currentPanel: WelcomePanel | undefined;
@@ -85,6 +86,21 @@ export class WelcomePanel {
             this._panel.webview.postMessage({ command: 'installStatusUpdate', data: status });
             break;
           }
+          case 'openWorkspace': {
+            const workspacePath = message.path;
+            if (workspacePath) {
+              const uri = vscode.Uri.file(workspacePath);
+              await vscode.commands.executeCommand('vscode.openFolder', uri, {
+                forceNewWindow: false,
+              });
+            }
+            break;
+          }
+          case 'refreshWorkspaces': {
+            const workspaces = this._getRecentWorkspaces();
+            this._panel.webview.postMessage({ command: 'workspacesUpdate', data: workspaces });
+            break;
+          }
           case 'showWelcome':
             WelcomePanel.createOrShow(context);
             break;
@@ -117,6 +133,13 @@ export class WelcomePanel {
     );
 
     WelcomePanel.currentPanel = new WelcomePanel(panel, context);
+  }
+
+  public static refresh(context: vscode.ExtensionContext) {
+    if (WelcomePanel.currentPanel) {
+      WelcomePanel.currentPanel._panel.webview.html =
+        WelcomePanel.currentPanel._getHtmlContent(context);
+    }
   }
 
   private _getHtmlContent(context: vscode.ExtensionContext): string {
@@ -392,6 +415,204 @@ export class WelcomePanel {
             font-family: monospace;
             font-size: 10px;
             border: 1px solid var(--vscode-panel-border);
+        }
+
+        /* Command Reference Styles */
+        .command-reference {
+            margin-bottom: 30px;
+        }
+
+        /* Recent Workspaces Styles */
+        .recent-workspaces {
+            margin-bottom: 30px;
+        }
+        .workspace-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .workspace-item {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .workspace-item:hover {
+            border-color: #00cfc1;
+            background: var(--vscode-list-hoverBackground);
+            transform: translateX(4px);
+        }
+        .workspace-icon {
+            font-size: 24px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .workspace-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .workspace-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+            color: var(--vscode-foreground);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workspace-meta {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .workspace-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            opacity: 0.7;
+        }
+        .workspace-badge {
+            background: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .workspace-empty {
+            text-align: center;
+            padding: 32px;
+            color: var(--vscode-descriptionForeground);
+            font-size: 13px;
+        }
+        .workspace-empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .command-reference {
+            margin-bottom: 30px;
+        }
+        .command-category {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .category-header:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        .category-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .category-icon {
+            font-size: 18px;
+        }
+        .category-count {
+            background: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .category-toggle {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            transition: transform 0.3s;
+        }
+        .category-header.expanded .category-toggle {
+            transform: rotate(180deg);
+        }
+        .category-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .category-content.expanded {
+            max-height: 2000px;
+        }
+        .command-list {
+            padding: 0 16px 16px 16px;
+        }
+        .command-item {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        .command-item:hover {
+            border-color: #00cfc1;
+            box-shadow: 0 2px 8px rgba(0,207,193,0.15);
+        }
+        .command-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .command-code {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: var(--vscode-textCodeBlock-background);
+            padding: 8px 10px;
+            border-radius: 4px;
+            color: #00cfc1;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+        .command-copy {
+            background: var(--vscode-button-secondaryBackground);
+            border: 1px solid var(--vscode-panel-border);
+            color: var(--vscode-button-secondaryForeground);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        .command-copy:hover {
+            background: #00cfc1;
+            color: white;
+            border-color: #00cfc1;
+        }
+        .command-copy.copied {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        .command-desc {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            line-height: 1.4;
         }
 
         .footer {
@@ -741,11 +962,11 @@ export class WelcomePanel {
                     </div>
                 </div>
 
-                <!-- Python Core Step -->
+                <!-- RapidKit Core Step -->
                 <div class="wizard-step" id="coreStep">
                     <div class="step-header">
                         <span class="step-icon">🐍</span>
-                        <span class="step-title">Python Core</span>
+                        <span class="step-title">RapidKit Core</span>
                         <span class="step-status loading" id="coreStatus">⏳</span>
                     </div>
                     <div class="step-details" id="coreDetails">
@@ -765,11 +986,22 @@ export class WelcomePanel {
             <div class="wizard-footer">
                 <div class="wizard-progress" id="wizardProgress">Checking...</div>
                 <div class="wizard-actions">
-                    <button class="wizard-btn" onclick="refreshWizard()">🔄</button>
+                    <button class="wizard-btn" onclick="refreshWizard()">↻</button>
                     <button class="wizard-btn primary" onclick="finishSetup()" id="finishBtn" disabled>
                         ✓ Run Doctor
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Recent Workspaces Section -->
+        <div class="section recent-workspaces" id="recentWorkspaces">
+            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <span>📂 Recent Workspaces</span>
+                <button class="wizard-btn" onclick="refreshWorkspaces()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh workspaces">↻</button>
+            </div>
+            <div class="workspace-list" id="workspaceList">
+                <!-- Will be populated by JavaScript -->
             </div>
         </div>
 
@@ -806,7 +1038,7 @@ export class WelcomePanel {
                 </div>
 
                 <div class="quick-link doctor" onclick="runDoctor()">
-                    <span class="quick-link-icon">🩺</span>
+                    <span class="quick-link-icon">🔍</span>
                     <div class="quick-link-title">System Check</div>
                     <div class="quick-link-subtitle">Verify setup</div>
                 </div>
@@ -818,8 +1050,8 @@ export class WelcomePanel {
             <div class="ecosystem">
                 <div class="ecosystem-card vscode">
                     <div class="ecosystem-header">
-                        <span class="ecosystem-icon">🎨</span>
-                        <span class="ecosystem-title">VS Code</span>
+                        <span class="ecosystem-icon">💻</span>
+                        <span class="ecosystem-title">VS Code Extension</span>
                         <span class="ecosystem-badge">THIS</span>
                     </div>
                     <div class="ecosystem-desc">
@@ -827,7 +1059,7 @@ export class WelcomePanel {
                     </div>
                     <div class="ecosystem-buttons">
                         <button class="ecosystem-btn" onclick="openMarketplace()">
-                            <span class="btn-icon">📦</span> Marketplace
+                            <span class="btn-icon">⭐</span> Marketplace
                         </button>
                     </div>
                 </div>
@@ -835,7 +1067,7 @@ export class WelcomePanel {
                 <div class="ecosystem-card npm">
                     <div class="ecosystem-header">
                         <span class="ecosystem-icon">📦</span>
-                        <span class="ecosystem-title">npm Package</span>
+                        <span class="ecosystem-title">NPM Package</span>
                         <span class="ecosystem-badge">CLI</span>
                     </div>
                     <div class="ecosystem-desc">
@@ -854,7 +1086,7 @@ export class WelcomePanel {
                 <div class="ecosystem-card pypi">
                     <div class="ecosystem-header">
                         <span class="ecosystem-icon">🐍</span>
-                        <span class="ecosystem-title">Python Core</span>
+                        <span class="ecosystem-title">RapidKit Core</span>
                         <span class="ecosystem-badge">ENGINE</span>
                     </div>
                     <div class="ecosystem-desc">
@@ -873,7 +1105,7 @@ export class WelcomePanel {
         </div>
 
         <div class="section">
-            <div class="section-title">✨ Features</div>
+            <div class="section-title">⚡ Key Features</div>
             <div class="features">
                 <div class="feature">
                     <span class="feature-icon">⚡</span>
@@ -898,6 +1130,172 @@ export class WelcomePanel {
                 <div class="feature">
                     <span class="feature-icon">📦</span>
                     <span>Modular design</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section command-reference">
+            <div class="section-title">📋 Command Reference</div>
+            
+            <!-- Workspace Commands -->
+            <div class="command-category">
+                <div class="category-header" onclick="toggleCategory('workspace')">
+                    <div class="category-title">
+                        <span class="category-icon">🗂️</span>
+                        <span>Workspace Commands</span>
+                        <span class="category-count">2</span>
+                    </div>
+                    <span class="category-toggle">▼</span>
+                </div>
+                <div class="category-content" id="workspace-content">
+                    <div class="command-list">
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit my-workspace</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit my-workspace')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Create a new workspace with interactive setup</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit my-workspace --yes --skip-git</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit my-workspace --yes --skip-git')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Create workspace with defaults, skip git initialization</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Commands -->
+            <div class="command-category">
+                <div class="category-header" onclick="toggleCategory('project')">
+                    <div class="category-title">
+                        <span class="category-icon">🚀</span>
+                        <span>Project Commands</span>
+                        <span class="category-count">4</span>
+                    </div>
+                    <span class="category-toggle">▼</span>
+                </div>
+                <div class="category-content" id="project-content">
+                    <div class="command-list">
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit create project fastapi.standard my-api --output .</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit create project fastapi.standard my-api --output .')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Create FastAPI project in current workspace</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit create project nestjs.standard my-service --output .</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit create project nestjs.standard my-service --output .')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Create NestJS project in current workspace</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit create project fastapi.standard my-api --output ~/projects</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit create project fastapi.standard my-api --output ~/projects')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Create standalone FastAPI project at custom location</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit init && npx rapidkit dev</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit init && npx rapidkit dev')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Initialize dependencies and start development server</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Module Commands -->
+            <div class="command-category">
+                <div class="category-header" onclick="toggleCategory('module')">
+                    <div class="category-title">
+                        <span class="category-icon">🧩</span>
+                        <span>Module Commands</span>
+                        <span class="category-count">5</span>
+                    </div>
+                    <span class="category-toggle">▼</span>
+                </div>
+                <div class="category-content" id="module-content">
+                    <div class="command-list">
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit add module auth_core</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit add module auth_core')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Password hashing, token signing, and runtime auth</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit add module db_postgres</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit add module db_postgres')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">SQLAlchemy async Postgres with DI and health checks</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit add module redis</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit add module redis')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Redis runtime with async and sync client</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit add module email</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit add module email')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Email delivery with SMTP support</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit add module storage</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit add module storage')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">File storage and media management</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Development Commands -->
+            <div class="command-category">
+                <div class="category-header" onclick="toggleCategory('dev')">
+                    <div class="category-title">
+                        <span class="category-icon">⚙️</span>
+                        <span>Development & Utilities</span>
+                        <span class="category-count">3</span>
+                    </div>
+                    <span class="category-toggle">▼</span>
+                </div>
+                <div class="category-content" id="dev-content">
+                    <div class="command-list">
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit doctor</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit doctor')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Check system requirements and dependencies</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit --version</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit --version')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Show RapidKit CLI version</div>
+                        </div>
+                        <div class="command-item">
+                            <div class="command-header">
+                                <div class="command-code">npx rapidkit --help</div>
+                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit --help')">📋 Copy</button>
+                            </div>
+                            <div class="command-desc">Display all available commands and options</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -938,6 +1336,60 @@ export class WelcomePanel {
     <script>
         const vscode = acquireVsCodeApi();
 
+        // Recent Workspaces Data (injected from extension)
+        let recentWorkspaces = ${JSON.stringify(this._getRecentWorkspaces())};
+
+        // Handle messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'installStatusUpdate') {
+                updateWizardUI(message.data);
+            } else if (message.command === 'workspacesUpdate') {
+                recentWorkspaces = message.data;
+                populateRecentWorkspaces();
+            }
+        });
+
+        // Populate recent workspaces
+        function populateRecentWorkspaces() {
+            const workspaceList = document.getElementById('workspaceList');
+            
+            if (!recentWorkspaces || recentWorkspaces.length === 0) {
+                workspaceList.innerHTML = \`
+                    <div class="workspace-empty">
+                        <div class="workspace-empty-icon">📦</div>
+                        <div>No recent workspaces</div>
+                        <div style="margin-top: 8px; font-size: 12px;">Create your first workspace to get started!</div>
+                    </div>
+                \`;
+                return;
+            }
+
+            workspaceList.innerHTML = recentWorkspaces.slice(0, 5).map(ws => \`
+                <div class="workspace-item" onclick="openWorkspace('\${ws.path}')">
+                    <div class="workspace-icon">🗂️</div>
+                    <div class="workspace-info">
+                        <div class="workspace-name">\${ws.name}</div>
+                        <div class="workspace-meta">
+                            <span class="workspace-badge">\${ws.projectCount || 0} project\${ws.projectCount === 1 ? '' : 's'}</span>
+                            <span class="workspace-path" title="\${ws.path}">\${ws.path}</span>
+                        </div>
+                    </div>
+                </div>
+            \`).join('');
+        }
+
+        function openWorkspace(path) {
+            vscode.postMessage({ command: 'openWorkspace', path: path });
+        }
+
+        function refreshWorkspaces() {
+            vscode.postMessage({ command: 'refreshWorkspaces' });
+        }
+
+        // Initialize
+        populateRecentWorkspaces();
+
         // Wizard state
         let wizardState = {
             npmInstalled: false,
@@ -958,13 +1410,7 @@ export class WelcomePanel {
             vscode.postMessage({ command: 'checkInstallStatus' });
         }
 
-        // Handle messages from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            if (message.command === 'installStatusUpdate') {
-                updateWizardUI(message.data);
-            }
-        });
+
 
         function updateWizardUI(status) {
             wizardState.npmInstalled = status.npmInstalled;
@@ -1196,9 +1642,76 @@ export class WelcomePanel {
         function showWelcome() {
             vscode.postMessage({ command: 'showWelcome' });
         }
+
+        // Command Reference Functions
+        function toggleCategory(categoryId) {
+            const header = document.querySelector(\`#\${categoryId}-content\`).previousElementSibling;
+            const content = document.getElementById(\`\${categoryId}-content\`);
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                header.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                header.classList.add('expanded');
+            }
+        }
+
+        function copyCommand(button, command) {
+            // Copy to clipboard
+            navigator.clipboard.writeText(command).then(() => {
+                // Update button state
+                const originalText = button.textContent;
+                button.textContent = '✓ Copied!';
+                button.classList.add('copied');
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                button.textContent = '✗ Failed';
+                setTimeout(() => {
+                    button.textContent = '📋 Copy';
+                }, 2000);
+            });
+        }
+
+        // Expand first category by default on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const firstCategory = document.getElementById('workspace-content');
+            if (firstCategory) {
+                firstCategory.classList.add('expanded');
+                firstCategory.previousElementSibling.classList.add('expanded');
+            }
+        });
     </script>
 </body>
 </html>`;
+  }
+
+  private _getRecentWorkspaces() {
+    try {
+      const manager = WorkspaceManager.getInstance();
+      const workspaces = manager.getWorkspaces();
+
+      // Sort by last accessed time if available
+      const sorted = workspaces.sort((a, b) => {
+        const timeA = (a as any).lastAccessed || 0;
+        const timeB = (b as any).lastAccessed || 0;
+        return timeB - timeA;
+      });
+
+      return sorted.map((ws) => ({
+        name: ws.name,
+        path: ws.path,
+        projectCount: ws.projects?.length || 0,
+      }));
+    } catch (error) {
+      return [];
+    }
   }
 
   private async _checkInstallationStatus() {
@@ -1488,7 +2001,7 @@ export class WelcomePanel {
         }
       }
 
-      // Get latest Python core version from PyPI (using Node.js https module)
+      // Get latest  RapidKit Core version from PyPI (using Node.js https module)
       try {
         const data = await fetchJson('https://pypi.org/pypi/rapidkit-core/json');
 
