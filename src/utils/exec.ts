@@ -10,6 +10,7 @@ export type RunOptions = {
   timeout?: number;
   stdio?: unknown;
   reject?: boolean;
+  shell?: boolean;
 } & Record<string, unknown>;
 
 export async function run(
@@ -18,9 +19,15 @@ export async function run(
   options?: RunOptions
 ): Promise<ExecaResult & Record<string, unknown>> {
   const { execa } = (await import('execa')) as any;
-  return (await (execa as any)(cmd, args, {
+
+  // Auto-detect Windows and set shell option if not explicitly provided
+  const isWindows = process.platform === 'win32';
+  const finalOptions = {
     reject: false,
     stdio: 'pipe',
+    shell: isWindows, // Enable shell on Windows by default for better compatibility
     ...options,
-  })) as any;
+  };
+
+  return (await (execa as any)(cmd, args, finalOptions)) as any;
 }

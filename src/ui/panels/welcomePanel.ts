@@ -942,11 +942,11 @@ export class WelcomePanel {
             </div>
             
             <div class="wizard-steps">
-                <!-- npm Package Step -->
+                <!-- RapidKit CLI Step -->
                 <div class="wizard-step" id="npmStep">
                     <div class="step-header">
                         <span class="step-icon">📦</span>
-                        <span class="step-title">npm CLI</span>
+                        <span class="step-title">RapidKit CLI</span>
                         <span class="step-status loading" id="npmStatus">⏳</span>
                     </div>
                     <div class="step-details" id="npmDetails">
@@ -1716,28 +1716,62 @@ export class WelcomePanel {
 
   private async _checkInstallationStatus() {
     const { execa } = await import('execa');
+    const os = await import('os');
 
     const status = {
+      // System info
+      platform: process.platform, // 'win32', 'darwin', 'linux'
+      isWindows: process.platform === 'win32',
+      isMac: process.platform === 'darwin',
+      isLinux: process.platform === 'linux',
+
+      // Core requirements
+      nodeInstalled: false,
+      nodeVersion: null as string | null,
       npmInstalled: false,
       npmVersion: null as string | null,
       npmLocation: null as string | null,
       latestNpmVersion: null as string | null,
+
+      // Python ecosystem
+      pythonInstalled: false,
+      pythonVersion: null as string | null,
+      pipInstalled: false,
+      pipVersion: null as string | null,
+      poetryInstalled: false,
+      poetryVersion: null as string | null,
+
+      // RapidKit packages
       coreInstalled: false,
       coreVersion: null as string | null,
       latestCoreVersion: null as string | null,
-      pythonVersion: null as string | null,
     };
 
-    // Check npm package - must be globally installed, not just available via npx
+    // Check Node.js (should always be available in VS Code)
     try {
-      // Check if rapidkit is globally installed via npm
-      const result = await execa('npm', ['list', '-g', 'rapidkit', '--depth=0'], { timeout: 5000 });
+      const result = await execa('node', ['--version'], {
+        shell: status.isWindows,
+        timeout: 2000,
+      });
+      status.nodeInstalled = true;
+      status.nodeVersion = result.stdout.trim().replace('v', '');
+    } catch {
+      // Node not found (very unlikely in VS Code context)
+    }
 
-      // If npm list succeeds and contains "rapidkit", it's installed
+    // Check npm package - must be globally installed
+    try {
+      const result = await execa('npm', ['list', '-g', 'rapidkit', '--depth=0'], {
+        shell: status.isWindows,
+        timeout: 5000,
+      });
+
       if (result.stdout.includes('rapidkit')) {
-        // Get version from the global installation
         try {
-          const versionResult = await execa('rapidkit', ['--version'], { timeout: 2000 });
+          const versionResult = await execa('rapidkit', ['--version'], {
+            shell: status.isWindows,
+            timeout: 2000,
+          });
           status.npmVersion = versionResult.stdout.trim();
           status.npmInstalled = true;
           status.npmLocation = 'npm global';
@@ -1748,16 +1782,21 @@ export class WelcomePanel {
         }
       }
     } catch {
-      // Not globally installed - mark as not installed
-      // (npx will still work temporarily, but that's not the same as having it installed)
       status.npmInstalled = false;
     }
 
-    // Check Python version - try multiple sources
-    const pythonCommands = ['python3', 'python', 'python3.10', 'python3.11', 'python3.12'];
+    // Check Python - try multiple commands (python3, python, python.exe on Windows)
+    const pythonCommands = status.isWindows
+      ? ['python', 'python3', 'py']
+      : ['python3', 'python', 'python3.10', 'python3.11', 'python3.12'];
+
     for (const cmd of pythonCommands) {
       try {
-        const result = await execa(cmd, ['--version']);
+        const result = await execa(cmd, ['--version'], {
+          shell: status.isWindows,
+          timeout: 2000,
+        });
+        status.pythonInstalled = true;
         status.pythonVersion = result.stdout.trim().replace('Python ', '');
         break;
       } catch {
@@ -1765,16 +1804,61 @@ export class WelcomePanel {
       }
     }
 
-    // Comprehensive rapidkit-core detection - try ALL possible methods
+    // Check pip (only if Python is installed)
+    if (status.pythonInstalled) {
+      const pipCommands = status.isWindows ? ['pip', 'pip3', 'py -m pip'] : ['pip3', 'pip'];
+
+      for (const cmd of pipCommands) {
+        try {
+          const args = cmd.includes(' ')
+            ? cmd.split(' ').slice(1).concat(['--version'])
+            : ['--version'];
+          const executable = cmd.includes(' ') ? cmd.split(' ')[0] : cmd;
+
+          const result = await execa(executable, args, {
+            shell: status.isWindows,
+            timeout: 2000,
+          });
+          status.pipInstalled = true;
+          status.pipVersion = result.stdout.match(/pip ([\d.]+)/)?.[1] || 'unknown';
+          break;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    // Check Poetry (only if Python and pip are installed)
+    if (status.pythonInstalled && status.pipInstalled) {
+      try {
+        const result = await execa('poetry', ['--version'], {
+          shell: status.isWindows,
+          timeout: 3000,
+        });
+        status.poetryInstalled = true;
+        status.poetryVersion =
+          result.stdout.match(/Poetry .*version ([\d.]+)/)?.[1] ||
+          result.stdout.match(/([\d.]+)/)?.[1] ||
+          'unknown';
+      } catch {
+        status.poetryInstalled = false;
+      }
+    }
+
+    // Comprehensive rapidkit-core detection
     const detectionMethods = [
-      // Method 1: Try all Python commands with import
+      // Method 1: Try Python import
       async () => {
-        for (const cmd of ['python3', 'python', 'python3.10', 'python3.11', 'python3.12']) {
+        for (const cmd of pythonCommands) {
           try {
-            const result = await execa(cmd, [
-              '-c',
-              'import rapidkit_core; print(rapidkit_core.__version__)',
-            ]);
+            const result = await execa(
+              cmd,
+              ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+              {
+                shell: status.isWindows,
+                timeout: 3000,
+              }
+            );
             return result.stdout.trim();
           } catch {
             continue;
@@ -1783,11 +1867,14 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 2: Try python -m pip show
+      // Method 2: python -m pip show
       async () => {
-        for (const cmd of ['python3', 'python']) {
+        for (const cmd of pythonCommands) {
           try {
-            const result = await execa(cmd, ['-m', 'pip', 'show', 'rapidkit-core']);
+            const result = await execa(cmd, ['-m', 'pip', 'show', 'rapidkit-core'], {
+              shell: status.isWindows,
+              timeout: 3000,
+            });
             const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
             if (versionMatch) {
               return versionMatch[1];
@@ -1799,11 +1886,15 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 3: Direct pip/pip3 commands
+      // Method 3: Direct pip commands
       async () => {
-        for (const cmd of ['pip', 'pip3']) {
+        const pipCommands = status.isWindows ? ['pip', 'pip3'] : ['pip3', 'pip'];
+        for (const cmd of pipCommands) {
           try {
-            const result = await execa(cmd, ['show', 'rapidkit-core']);
+            const result = await execa(cmd, ['show', 'rapidkit-core'], {
+              shell: status.isWindows,
+              timeout: 3000,
+            });
             const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
             if (versionMatch) {
               return versionMatch[1];
@@ -1815,78 +1906,42 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 4: pyenv versions (check all installed Python versions)
+      // Method 4: pyenv (Unix only)
       async () => {
+        if (status.isWindows) {
+          return null;
+        }
         try {
-          const versionsResult = await execa('pyenv', ['versions', '--bare']);
+          const versionsResult = await execa('pyenv', ['versions', '--bare'], { timeout: 3000 });
           const versions = versionsResult.stdout.split('\n').filter((v) => v.trim());
 
           for (const version of versions) {
             try {
-              // Try direct path to pyenv Python's pip
-              const pyenvRoot = process.env.PYENV_ROOT || `${process.env.HOME}/.pyenv`;
+              const pyenvRoot = process.env.PYENV_ROOT || `${os.homedir()}/.pyenv`;
               const pipPath = `${pyenvRoot}/versions/${version.trim()}/bin/pip`;
 
-              const result = await execa(pipPath, ['show', 'rapidkit-core']);
+              const result = await execa(pipPath, ['show', 'rapidkit-core'], { timeout: 2000 });
               const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
               if (versionMatch) {
                 return versionMatch[1];
               }
             } catch {
-              // Try with pyenv shell + pip
-              try {
-                const result = await execa('bash', [
-                  '-c',
-                  `PYENV_VERSION=${version.trim()} pyenv exec pip show rapidkit-core`,
-                ]);
-                const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
-                if (versionMatch) {
-                  return versionMatch[1];
-                }
-              } catch {
-                continue;
-              }
+              continue;
             }
           }
         } catch {
-          // pyenv not available or no versions
+          // pyenv not available
         }
         return null;
       },
 
-      // Method 5: Check user site-packages directly
+      // Method 5: pipx
       async () => {
         try {
-          const result = await execa('python3', ['-m', 'site', '--user-site']);
-          const userSite = result.stdout.trim();
-          // Check if rapidkit_core exists in user site
-          const fs = await import('fs');
-          const path = await import('path');
-          const pkgPath = path.join(userSite, 'rapidkit_core');
-          if (fs.existsSync(pkgPath)) {
-            // Try to read version
-            try {
-              const versionResult = await execa('python3', [
-                '-c',
-                'import sys; sys.path.insert(0, "' +
-                  userSite +
-                  '"); import rapidkit_core; print(rapidkit_core.__version__)',
-              ]);
-              return versionResult.stdout.trim();
-            } catch {
-              return 'installed';
-            }
-          }
-        } catch {
-          // Can't check user site
-        }
-        return null;
-      },
-
-      // Method 6: pipx list
-      async () => {
-        try {
-          const result = await execa('pipx', ['list']);
+          const result = await execa('pipx', ['list'], {
+            shell: status.isWindows,
+            timeout: 3000,
+          });
           if (result.stdout.includes('rapidkit-core')) {
             const versionMatch = result.stdout.match(/rapidkit-core\s+(\S+)/);
             if (versionMatch) {
@@ -1900,10 +1955,14 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 7: poetry show in potential poetry projects
+      // Method 6: poetry show
       async () => {
         try {
-          const result = await execa('poetry', ['show', 'rapidkit-core'], { reject: false });
+          const result = await execa('poetry', ['show', 'rapidkit-core'], {
+            shell: status.isWindows,
+            reject: false,
+            timeout: 3000,
+          });
           if (result.exitCode === 0) {
             const versionMatch = result.stdout.match(/version\s+:\s+(\S+)/);
             if (versionMatch) {
@@ -1917,10 +1976,13 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 8: conda list
+      // Method 7: conda
       async () => {
         try {
-          const result = await execa('conda', ['list', 'rapidkit-core']);
+          const result = await execa('conda', ['list', 'rapidkit-core'], {
+            shell: status.isWindows,
+            timeout: 3000,
+          });
           if (result.stdout.includes('rapidkit-core')) {
             const lines = result.stdout.split('\n');
             for (const line of lines) {
