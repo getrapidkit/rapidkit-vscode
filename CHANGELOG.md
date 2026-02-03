@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.6.1] - 2026-02-03
+
+### Added
+
+- 📋 **Copy install commands** on Setup Wizard and Module cards (single-click copy of `rapidkit add module <slug>` and relevant install commands)
+- 🖥️ **Manual install** button with terminal-style icon for module cards
+
+### Fixed
+
+- 🛠️ **Setup Status stuck on "Checking..."** — removed interval-based polling and added debounced updates to avoid continuous rechecks and UI flicker
+- 🔍 **npm vs pipx detection** — improved detection logic to distinguish npm CLI from pipx-installed RapidKit to prevent false positives
+- 📋 **Copy-to-clipboard UX** — unified copy button behavior and added visual feedback for modules and install actions
+
+### Changed
+
+- 🧩 Module Browser: added copy-to-clipboard for module install commands; improved actions layout and consistent button styling
+- 🏷️ Header shows current extension version alongside update status (e.g., `v0.6.1 — Up to date`)
+
+
+
 ## [0.6.0] - 2026-02-03
 
 ### Added
@@ -938,7 +959,8 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.6.1
 [0.4.5]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.5
 [0.4.4]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.4
 [0.4.3]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.3

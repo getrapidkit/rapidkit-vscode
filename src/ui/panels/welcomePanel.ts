@@ -236,6 +236,12 @@ export class WelcomePanel {
     // Use setImmediate to run after constructor completes
     setImmediate(() => this._checkAndUpdateWorkspace());
 
+    // Initial installation status check - send to webview immediately after panel is ready
+    setImmediate(async () => {
+      const status = await this._checkInstallationStatus();
+      this._panel.webview.postMessage({ command: 'installStatusUpdate', data: status });
+    });
+
     // Clean up when panel is closed
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
   }
@@ -560,9 +566,12 @@ export class WelcomePanel {
                         <span class="module-badge ${module.category}">${badgeLabel}</span>
                     </div>
                     <div class="module-desc">${module.description}</div>
-                    <button class="module-install-btn" data-module-id="${module.id}" data-module-slug="${module.slug}" data-module-name="${module.name}" disabled>
+                    <div class="module-actions">
+                      <button class="module-install-btn" data-module-id="${module.id}" data-module-slug="${module.slug}" data-module-name="${module.name}" disabled>
                         <span>⚡</span> Install
-                    </button>
+                      </button>
+                        <button class="module-copy-btn" onclick="copyCommand(this, 'rapidkit add module ${module.slug}')">🖥️ Manual install</button>
+                    </div>
                 </div>`;
     }).join('\n');
   }
@@ -1305,20 +1314,48 @@ export class WelcomePanel {
             line-height: 1.4;
             flex: 1;
         }
+        .module-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
         .module-install-btn {
-            background: linear-gradient(135deg, #00cfc1, #009688);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
+          flex: 1;
+          background: linear-gradient(135deg, #00cfc1, #009688);
+          color: white;
+          border: none;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .module-copy-btn {
+          background: var(--vscode-button-secondaryBackground);
+          color: var(--vscode-button-secondaryForeground);
+          border: 1px solid var(--vscode-panel-border);
+          padding: 8px 10px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        .module-copy-btn:hover {
+          background: #00cfc1;
+          color: white;
+          border-color: #00cfc1;
+        }
+        .module-copy-btn.copied {
+          background: #4CAF50;
+          color: white;
+          border-color: #4CAF50;
         }
         .module-install-btn:hover:not(:disabled) {
             opacity: 0.85;
@@ -1677,7 +1714,7 @@ export class WelcomePanel {
             <h1><span class="rapid">Rapid</span><span class="kit">Kit</span></h1>
             <p class="tagline">Build production-ready APIs at warp speed</p>
             <p class="tagline" style="font-size: 0.85rem; margin-top: 4px;">FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automation-first workflows</p>
-            <span class="version">v${version}</span>
+            <span class="version" id="versionInfo">v${version}</span>
         </div>
 
         <!-- Setup Wizard -->
@@ -1700,7 +1737,12 @@ export class WelcomePanel {
                     </div>
                     <div class="step-details" id="pythonDetails">Checking...</div>
                     <div class="step-actions" id="pythonActions" style="display: none;">
-                        <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px;">📥 Download</button>
+                      <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px;">📥 Download</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'https://www.python.org/downloads/')" style="font-size: 9px;">📋 Copy</button>
+                    </div>
+                    <div class="step-actions" id="pythonUpgrade" style="display: none;">
+                      <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px; background: linear-gradient(135deg, #FF5722, #FF7043); border: none;">⬆ Upgrade to 3.10+</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'https://www.python.org/downloads/')" style="font-size: 9px;">📋 Copy</button>
                     </div>
                 </div>
                 <!-- Python Core Package -->
@@ -1712,12 +1754,14 @@ export class WelcomePanel {
                     </div>
                     <div class="step-details" id="coreDetails">Checking...</div>
                     <div class="step-actions" id="coreActions" style="display: none;">
-                        <button class="step-btn" onclick="installPythonCore()" style="font-size: 9px;">⚡ Install</button>
-                        <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
+                      <button class="step-btn" onclick="installPythonCore()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'pip install rapidkit-core')" style="font-size: 9px;">📋 Copy</button>
+                      <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
                     </div>
                     <div class="step-actions" id="coreUpgrade" style="display: none;">
-                        <button class="step-btn" onclick="upgradeCore()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                        <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
+                      <button class="step-btn" onclick="upgradeCore()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'pip install --upgrade rapidkit-core')" style="font-size: 9px;">📋 Copy</button>
+                      <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
                     </div>
                 </div>
                 <!-- npm CLI Package -->
@@ -1729,12 +1773,14 @@ export class WelcomePanel {
                     </div>
                     <div class="step-details" id="npmDetails">Checking...</div>
                     <div class="step-actions" id="npmActions" style="display: none;">
-                        <button class="step-btn" onclick="installNpmCLI()" style="font-size: 9px;">⚡ Install</button>
-                        <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
+                      <button class="step-btn" onclick="installNpmCLI()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'npm install -g rapidkit')" style="font-size: 9px;">📋 Copy</button>
+                      <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
                     </div>
                     <div class="step-actions" id="npmUpgrade" style="display: none;">
-                        <button class="step-btn" onclick="upgradeNpm()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                        <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
+                      <button class="step-btn" onclick="upgradeNpm()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, 'npm install -g rapidkit@latest')" style="font-size: 9px;">📋 Copy</button>
+                      <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
                     </div>
                 </div>
 
@@ -1757,7 +1803,8 @@ export class WelcomePanel {
                     </div>
                     <div class="step-details" id="poetryDetails">Checking...</div>
                     <div class="step-actions" id="poetryActions" style="display: none;">
-                        <button class="step-btn" onclick="installPoetry()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn" onclick="installPoetry()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, getPoetryInstallCommand())" style="font-size: 9px;">📋 Copy</button>
                     </div>
                 </div>
 
@@ -1783,7 +1830,8 @@ export class WelcomePanel {
                     </div>
                     <div class="step-details" id="pipxDetails">Checking...</div>
                     <div class="step-actions" id="pipxActions" style="display: none;">
-                        <button class="step-btn" onclick="installPipx()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn" onclick="installPipx()" style="font-size: 9px;">⚡ Install</button>
+                      <button class="step-btn secondary" onclick="copyCommand(this, getPipxInstallCommand())" style="font-size: 9px;">📋 Copy</button>
                     </div>
                 </div>
             </div>
@@ -2151,13 +2199,28 @@ export class WelcomePanel {
         // Recent Workspaces Data (injected from extension)
         let recentWorkspaces = ${JSON.stringify(this._getRecentWorkspaces())};
         let lastWorkspaceStatusSeq = 0;
+        
+        // Debouncing for installation status updates
+        let installStatusDebounceTimer = null;
+        let pendingInstallStatus = null;
 
         // Handle messages from extension
         window.addEventListener('message', event => {
             const message = event.data;
             console.log('[WelcomePanel] Received message:', message.command, message);
+            
             if (message.command === 'installStatusUpdate') {
-                updateWizardUI(message.data);
+                // Debounce installation status updates to prevent flickering
+                pendingInstallStatus = message.data;
+                if (installStatusDebounceTimer) {
+                    clearTimeout(installStatusDebounceTimer);
+                }
+                installStatusDebounceTimer = setTimeout(() => {
+                    if (pendingInstallStatus) {
+                        updateWizardUI(pendingInstallStatus);
+                        pendingInstallStatus = null;
+                    }
+                }, 500); // 500ms debounce
             } else if (message.command === 'workspacesUpdate') {
                 recentWorkspaces = message.data;
                 populateRecentWorkspaces();
@@ -2222,10 +2285,11 @@ export class WelcomePanel {
 
         // Wizard state
         let wizardState = {
-            npmInstalled: false,
-            coreInstalled: false,
-            dismissed: false
+          npmInstalled: false,
+          coreInstalled: false,
+          dismissed: false
         };
+        let isWindowsEnv = false;
 
         // Check if wizard was dismissed
         const state = vscode.getState() || {};
@@ -2243,6 +2307,7 @@ export class WelcomePanel {
 
 
         function updateWizardUI(status) {
+          isWindowsEnv = !!status.isWindows;
             wizardState.npmInstalled = status.npmInstalled;
             wizardState.coreInstalled = status.coreInstalled;
 
@@ -2296,9 +2361,9 @@ export class WelcomePanel {
             const latestExtVersion = status.latestExtensionVersion || currentExtVersion;
             
             if (latestExtVersion && latestExtVersion !== currentExtVersion) {
-                versionInfo.innerHTML = \`<span style="color: #FF9800;">⚠ Update available (v\${latestExtVersion})</span> <a href="#" onclick="openMarketplace()" style="color: #00cfc1; text-decoration: none;">Update</a>\`;
+              versionInfo.innerHTML = \`v\${currentExtVersion} <span style="color: #FF9800; margin-left: 6px;">⚠ Update available (v\${latestExtVersion})</span> <a href="#" onclick="openMarketplace()" style="color: #00cfc1; text-decoration: none; margin-left: 6px;">Update</a>\`;
             } else {
-                versionInfo.textContent = 'Up to date';
+              versionInfo.textContent = \`v\${currentExtVersion} — Up to date\`;
             }
 
             // Update Python step
@@ -2306,14 +2371,30 @@ export class WelcomePanel {
             const pythonStatus = document.getElementById('pythonStatus');
             const pythonDetails = document.getElementById('pythonDetails');
             const pythonActions = document.getElementById('pythonActions');
+            const pythonUpgrade = document.getElementById('pythonUpgrade');
 
             if (status.pythonInstalled) {
                 pythonStep.classList.remove('not-installed');
                 pythonStep.classList.add('installed');
-                pythonStatus.textContent = '✓';
                 pythonStatus.classList.remove('loading');
-                pythonDetails.innerHTML = \`<span class="step-version">v\${status.pythonVersion}</span>\`;
-                pythonActions.style.display = 'none';
+                
+                let pythonDisplay = \`<span class="step-version">v\${status.pythonVersion}</span>\`;
+                
+                // Only suggest upgrade if Python < 3.10 (minimum for rapidkit-core)
+                if (status.pythonNeedsUpgrade) {
+                    pythonStatus.textContent = '⚠';
+                    pythonStep.classList.add('needs-upgrade');
+                    pythonDisplay += \` <span style="color: #FF5722; margin-left: 8px; font-size: 10px;">⚠ Requires 3.10+</span>\`;
+                    pythonActions.style.display = 'none';
+                    if (pythonUpgrade) pythonUpgrade.style.display = 'flex';
+                } else {
+                    pythonStatus.textContent = '✓';
+                    pythonStep.classList.remove('needs-upgrade');
+                    pythonActions.style.display = 'none';
+                    if (pythonUpgrade) pythonUpgrade.style.display = 'none';
+                }
+                
+                pythonDetails.innerHTML = pythonDisplay;
             } else {
                 pythonStep.classList.remove('installed');
                 pythonStep.classList.add('not-installed');
@@ -2321,6 +2402,7 @@ export class WelcomePanel {
                 pythonStatus.classList.remove('loading');
                 pythonDetails.innerHTML = 'Not installed';
                 pythonActions.style.display = 'flex';
+                if (pythonUpgrade) pythonUpgrade.style.display = 'none';
             }
 
             // Update pip step
@@ -2578,6 +2660,20 @@ export class WelcomePanel {
             vscode.postMessage({ command: 'showWelcome' });
         }
 
+        function getPoetryInstallCommand() {
+          if (isWindowsEnv) {
+            return '(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -';
+          }
+          return 'curl -sSL https://install.python-poetry.org | python3 -';
+        }
+
+        function getPipxInstallCommand() {
+          if (isWindowsEnv) {
+            return 'python -m pip install --user pipx';
+          }
+          return 'python3 -m pip install --user pipx';
+        }
+
         // Module Browser Functions
         let currentCategory = 'all';
         let hasWorkspace = false;
@@ -2587,15 +2683,17 @@ export class WelcomePanel {
         window.addEventListener('DOMContentLoaded', () => {
             console.log('[Module Browser] DOM loaded, checking workspace status...');
             checkWorkspace();
-            
-            // Re-check periodically to detect workspace changes
-            setInterval(checkWorkspace, 3000);
+            // Trigger installation check once on load
+            vscode.postMessage({ command: 'checkInstallStatus' });
         });
         
         // Also check immediately (in case DOM is already loaded)
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
             console.log('[Module Browser] Document already loaded, checking workspace...');
-            setTimeout(checkWorkspace, 100);
+            setTimeout(() => {
+                checkWorkspace();
+                vscode.postMessage({ command: 'checkInstallStatus' });
+            }, 100);
         }
 
         function checkWorkspace() {
@@ -3067,6 +3165,7 @@ export class WelcomePanel {
       // Python ecosystem
       pythonInstalled: false,
       pythonVersion: null as string | null,
+      pythonNeedsUpgrade: false, // true if Python < 3.10 (minimum required for rapidkit-core)
       pipInstalled: false,
       pipVersion: null as string | null,
       pipxInstalled: false,
@@ -3092,36 +3191,58 @@ export class WelcomePanel {
       // Node not found (very unlikely in VS Code context)
     }
 
-    // Check npm package - must be globally installed
+    // Check npm CLI package - must be globally installed and distinguish from pipx
     try {
-      const result = await execa('npm', ['list', '-g', 'rapidkit', '--depth=0'], {
+      // First check if rapidkit command exists
+      const versionResult = await execa('rapidkit', ['--version'], {
         shell: status.isWindows,
-        timeout: 5000,
+        timeout: 3000,
       });
+      const output = versionResult.stdout.trim();
 
-      if (result.stdout.includes('rapidkit')) {
+      // Distinguish npm CLI from pipx Python package by output format
+      // npm CLI: "0.16.4" or "rapidkit 0.16.4" (plain version)
+      // pipx/Python: "RapidKit Version v0.2.2rc1" (formatted with 'Version' keyword)
+      if (output.includes('RapidKit Version') || output.includes('rapidkit-core')) {
+        // This is the Python package via pipx, not npm CLI
+        status.npmInstalled = false;
+      } else {
+        // Verify it's from npm global by checking npm list
         try {
-          const versionResult = await execa('rapidkit', ['--version'], {
+          const npmCheck = await execa('npm', ['list', '-g', 'rapidkit', '--depth=0'], {
             shell: status.isWindows,
-            timeout: 2000,
+            timeout: 3000,
           });
-          status.npmVersion = versionResult.stdout.trim();
-          status.npmInstalled = true;
-          status.npmLocation = 'npm global';
+          if (npmCheck.stdout.includes('rapidkit')) {
+            status.npmVersion = output.replace('rapidkit', '').trim();
+            status.npmInstalled = true;
+            status.npmLocation = 'npm global';
+          } else {
+            // Command exists but not via npm - might be local or other package manager
+            status.npmInstalled = false;
+          }
         } catch {
-          status.npmVersion = 'unknown';
-          status.npmInstalled = true;
-          status.npmLocation = 'npm global';
+          // npm check failed but command works - assume it's npm if output is plain version
+          if (/^[\d.]+$/.test(output)) {
+            status.npmVersion = output;
+            status.npmInstalled = true;
+            status.npmLocation = 'npm global';
+          } else {
+            status.npmInstalled = false;
+          }
         }
       }
     } catch {
+      // rapidkit command not found at all
       status.npmInstalled = false;
     }
 
-    // Check Python - try multiple commands (python3, python, python.exe on Windows)
+    // Check Python - try multiple commands with proper priority
+    // Windows: py (Python Launcher) is most reliable, avoid 'python' which might be MS Store stub
+    // Linux/Mac: python3 is standard, fallback to python and specific versions
     const pythonCommands = status.isWindows
-      ? ['python', 'python3', 'py']
-      : ['python3', 'python', 'python3.10', 'python3.11', 'python3.12'];
+      ? ['py', 'python3', 'python']
+      : ['python3', 'python', 'python3.10', 'python3.11', 'python3.12', 'python3.13'];
 
     for (const cmd of pythonCommands) {
       try {
@@ -3130,7 +3251,19 @@ export class WelcomePanel {
           timeout: 2000,
         });
         status.pythonInstalled = true;
-        status.pythonVersion = result.stdout.trim().replace('Python ', '');
+        const versionString = result.stdout.trim().replace('Python ', '');
+        status.pythonVersion = versionString;
+
+        // Check if Python version is below minimum required (3.10)
+        // rapidkit-core requires Python >= 3.10
+        const versionMatch = versionString.match(/^(\d+)\.(\d+)/);
+        if (versionMatch) {
+          const major = parseInt(versionMatch[1]);
+          const minor = parseInt(versionMatch[2]);
+          if (major < 3 || (major === 3 && minor < 10)) {
+            status.pythonNeedsUpgrade = true;
+          }
+        }
         break;
       } catch {
         continue;
@@ -3139,21 +3272,28 @@ export class WelcomePanel {
 
     // Check pip (only if Python is installed)
     if (status.pythonInstalled) {
-      const pipCommands = status.isWindows ? ['pip', 'pip3', 'py -m pip'] : ['pip3', 'pip'];
+      // Try different pip variants based on platform
+      const pipVariants = status.isWindows
+        ? [
+            { cmd: 'py', args: ['-m', 'pip', '--version'] },
+            { cmd: 'pip3', args: ['--version'] },
+            { cmd: 'pip', args: ['--version'] },
+          ]
+        : [
+            { cmd: 'pip3', args: ['--version'] },
+            { cmd: 'pip', args: ['--version'] },
+            { cmd: 'python3', args: ['-m', 'pip', '--version'] },
+          ];
 
-      for (const cmd of pipCommands) {
+      for (const variant of pipVariants) {
         try {
-          const args = cmd.includes(' ')
-            ? cmd.split(' ').slice(1).concat(['--version'])
-            : ['--version'];
-          const executable = cmd.includes(' ') ? cmd.split(' ')[0] : cmd;
-
-          const result = await execa(executable, args, {
+          const result = await execa(variant.cmd, variant.args, {
             shell: status.isWindows,
-            timeout: 2000,
+            timeout: 3000,
           });
           status.pipInstalled = true;
-          status.pipVersion = result.stdout.match(/pip ([\d.]+)/)?.[1] || 'unknown';
+          const versionMatch = result.stdout.match(/pip ([\d.]+)/);
+          status.pipVersion = versionMatch ? versionMatch[1] : 'unknown';
           break;
         } catch {
           continue;
@@ -3166,7 +3306,7 @@ export class WelcomePanel {
       try {
         const result = await execa('pipx', ['--version'], {
           shell: status.isWindows,
-          timeout: 2000,
+          timeout: 3000,
         });
         status.pipxInstalled = true;
         status.pipxVersion =

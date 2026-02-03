@@ -1,6 +1,22 @@
 # Release Notes
 
-## Latest Release: v0.6.0 (February 3, 2026)
+## Latest Release: v0.6.1 (February 3, 2026)
+
+### 🛠️ Patch: v0.6.1 — fixes & polish
+
+**Summary:** Small but impactful fixes addressing Setup Status reliability, installation UX improvements, and copy-to-clipboard workflows for modules and installation commands.
+
+#### Fixed & Improved
+
+- 🔧 **Fixed "Checking..." stuck state** — Removed interval polling and implemented debounced installation status updates; also ensure backend sends initial status on panel load
+- 🔍 **Improved npm vs pipx detection** — Now correctly distinguishes npm CLI from pipx RapidKit to avoid false positives
+- 📋 **Copy install command** — Added single `Manual install` copy button (uses slug) to every module card and copy buttons next to install actions in the Setup Wizard
+- 🖥️ **Manual install button UI** — Terminal-style icon and clearer label for manual install command
+- 🏷️ **Extension version badge** now shows current version and update status (e.g., `v0.6.1 — Up to date`)
+
+---
+
+## Previous Release: v0.6.0 (February 3, 2026)
 
 ### 🎯 Module Browser + Setup Wizard + Installation Methods
 
@@ -97,6 +113,7 @@ code --install-extension rapidkit.rapidkit-vscode
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.6.1](releases/RELEASE_NOTES_v0.6.1.md) | Feb 3, 2026 | 🛠️ Fixes & polish: setup stability, module copy commands, detection improvements |
 | [v0.6.0](releases/RELEASE_NOTES_v0.6.0.md) | Feb 3, 2026 | 🎯 Module Browser, Setup Wizard, Package Manager Selection |
 | [v0.5.2](releases/RELEASE_NOTES_v0.5.2.md) | Feb 2, 2026 | 🔧 NPM caching fix, Standalone mode, Recent workspaces |
 | [v0.5.1](releases/RELEASE_NOTES_v0.5.1.md) | Feb 2, 2026 | 📝 Documentation translation, Consistency improvements |
