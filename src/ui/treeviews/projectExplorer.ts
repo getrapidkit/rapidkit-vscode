@@ -103,19 +103,30 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   }
 
   refresh(): void {
-    this.loadProjectsAndUpdateContext().catch((err) => {
-      console.error('Error refreshing projects:', err);
-    });
+    // Don't load projects here - getChildren will do it
+    // Just fire the change event to trigger getChildren
     this._onDidChangeTreeData.fire();
-  }
-
-  private async loadProjectsAndUpdateContext(): Promise<void> {
-    await this.loadProjects();
-    this.updateProjectsContext();
   }
 
   setWorkspace(workspace: RapidKitWorkspace | null): void {
     this.selectedWorkspace = workspace;
+
+    // Clear selected project when workspace changes
+    if (this.selectedProject) {
+      console.log('[ProjectExplorer] Workspace changed - clearing selected project');
+      this.setSelectedProject(null);
+
+      // Also clear in WelcomePanel
+      const { WelcomePanel } = require('../panels/welcomePanel');
+      WelcomePanel.clearSelectedProject();
+    }
+
+    // Clear moduleExplorer for this workspace
+    const { ModuleExplorerProvider } = require('./moduleExplorer');
+    if (ModuleExplorerProvider.instance) {
+      ModuleExplorerProvider.instance.setProjectPath(null);
+    }
+
     this.refresh();
   }
 

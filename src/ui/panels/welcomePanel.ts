@@ -4,12 +4,22 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs-extra';
+import * as path from 'path';
 import { WorkspaceManager } from '../../core/workspaceManager';
+import { MODULES, CATEGORY_INFO, getTotalModuleCount } from '../../data/modules';
 
 export class WelcomePanel {
   public static currentPanel: WelcomePanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
+  private static _selectedProject: { name: string; path: string } | null = null;
+  private static _workspaceStatusSeq = 0;
+
+  private static _getNextWorkspaceStatusSeq(): number {
+    WelcomePanel._workspaceStatusSeq += 1;
+    return WelcomePanel._workspaceStatusSeq;
+  }
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this._panel = panel;
@@ -93,6 +103,16 @@ export class WelcomePanel {
             }
             break;
           }
+          case 'installPipx': {
+            const terminalPipx = vscode.window.createTerminal('Install pipx');
+            terminalPipx.show();
+            if (process.platform === 'win32') {
+              terminalPipx.sendText('python -m pip install --user pipx');
+            } else {
+              terminalPipx.sendText('python3 -m pip install --user pipx');
+            }
+            break;
+          }
           case 'installBoth': {
             const terminalBoth = vscode.window.createTerminal('Install RapidKit');
             terminalBoth.show();
@@ -138,20 +158,96 @@ export class WelcomePanel {
           case 'showWelcome':
             WelcomePanel.createOrShow(context);
             break;
+          case 'installModuleFromWelcome': {
+            const moduleId = message.moduleId;
+            const moduleName = message.moduleName;
+
+            console.log('[Backend] Install module request:', moduleId, moduleName);
+
+            // Find module from MODULES data to get correct slug
+            const moduleData = MODULES.find((m) => m.id === moduleId);
+
+            // Create module object with slug for addModule command
+            const moduleObj: any = {
+              id: moduleId,
+              name: moduleId,
+              displayName: moduleName,
+              version: moduleData?.version || '0.1.0',
+              description: moduleData?.description || '',
+              category: moduleData?.category || 'unknown',
+              status: moduleData?.status || 'stable',
+              tags: moduleData?.tags || [],
+              dependencies: moduleData?.dependencies || [],
+              installed: false,
+              slug: moduleData?.slug || `unknown/${moduleId}`, // Use slug from module data
+            };
+
+            // Use the addModule command which handles everything properly
+            vscode.commands.executeCommand('rapidkit.addModule', moduleObj);
+            break;
+          }
+          case 'checkWorkspace': {
+            // Check and update workspace status
+            await this._checkAndUpdateWorkspace();
+            break;
+          }
+          case 'refreshModules': {
+            console.log('[Backend] Refresh modules requested');
+            // Re-check workspace and send updated installed modules
+            await this._checkAndUpdateWorkspace();
+            break;
+          }
+          case 'installModule': {
+            const moduleName = message.moduleName;
+            const workspacePath = message.workspacePath;
+
+            // Validate workspace path exists
+            if (!workspacePath) {
+              vscode.window.showErrorMessage('Please open a RapidKit workspace first!');
+              break;
+            }
+
+            // Open terminal and run install command
+            const terminal = vscode.window.createTerminal(`Install ${moduleName}`);
+            terminal.show();
+            terminal.sendText(`cd "${workspacePath}" && rapidkit add module ${moduleName}`);
+            break;
+          }
         }
       },
       null,
       this._disposables
     );
 
+    // Listen for workspace folder changes (when user switches projects)
+    vscode.workspace.onDidChangeWorkspaceFolders(
+      async () => {
+        console.log('[WelcomePanel] Workspace folders changed - clearing selected project');
+        // Clear manually selected project when workspace changes
+        WelcomePanel._selectedProject = null;
+        // Immediately check workspace when folders change
+        await this._checkAndUpdateWorkspace();
+      },
+      null,
+      this._disposables
+    );
+
+    // Initial workspace check (fire and forget, but without awaiting in constructor)
+    // Use setImmediate to run after constructor completes
+    setImmediate(() => this._checkAndUpdateWorkspace());
+
     // Clean up when panel is closed
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
   }
 
   public static createOrShow(context: vscode.ExtensionContext) {
-    // If panel exists, show it
+    // If panel exists, show it and update workspace status
     if (WelcomePanel.currentPanel) {
       WelcomePanel.currentPanel._panel.reveal();
+      // Refresh workspace status when panel is shown (don't await, but it will update UI when ready)
+      WelcomePanel.currentPanel
+        ._checkAndUpdateWorkspace()
+        .catch((err) => console.error('[Backend] Error checking workspace:', err));
       return;
     }
 
@@ -169,6 +265,253 @@ export class WelcomePanel {
     WelcomePanel.currentPanel = new WelcomePanel(panel, context);
   }
 
+  /**
+   * Update Welcome Panel with selected project info
+   */
+  public static async updateWithProject(projectPath: string, projectName: string) {
+    console.log('[WelcomePanel] ========== updateWithProject CALLED ==========');
+    console.log('[WelcomePanel] Project:', projectName);
+    console.log('[WelcomePanel] Path:', projectPath);
+    const seq = WelcomePanel._getNextWorkspaceStatusSeq();
+
+    // Store selected project
+    WelcomePanel._selectedProject = { name: projectName, path: projectPath };
+    console.log('[WelcomePanel] Stored in _selectedProject:', WelcomePanel._selectedProject);
+
+    if (WelcomePanel.currentPanel) {
+      console.log('[WelcomePanel] ✅ currentPanel exists, reading installed modules...');
+
+      // Read installed modules from registry.json
+      const installedModules = await WelcomePanel.currentPanel._getInstalledModules(projectPath);
+      console.log('[WelcomePanel] Found', installedModules.length, 'installed modules');
+
+      if (
+        seq !== WelcomePanel._workspaceStatusSeq ||
+        !WelcomePanel._selectedProject ||
+        WelcomePanel._selectedProject.path !== projectPath
+      ) {
+        console.log('[WelcomePanel] ⏭️ Skipping stale workspaceStatus for:', projectPath);
+        return;
+      }
+
+      // Send project info to frontend
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'workspaceStatus',
+        workspace: {
+          name: projectName,
+          path: projectPath,
+        },
+        installedModules: installedModules,
+        seq,
+      });
+      console.log('[WelcomePanel] ✅ Message sent to webview');
+    } else {
+      console.log('[WelcomePanel] ❌ No currentPanel - message not sent');
+    }
+    console.log('[WelcomePanel] ========== updateWithProject END ==========');
+  }
+
+  /**
+   * Clear selected project and update UI to show "No Project Selected"
+   */
+  public static clearSelectedProject() {
+    console.log('[WelcomePanel] ========== clearSelectedProject CALLED ==========');
+
+    // Clear selected project
+    WelcomePanel._selectedProject = null;
+    console.log('[WelcomePanel] Cleared _selectedProject');
+
+    if (WelcomePanel.currentPanel) {
+      console.log('[WelcomePanel] ✅ currentPanel exists, sending null workspace...');
+      // Send null workspace to frontend
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'workspaceStatus',
+        workspace: null,
+      });
+      console.log('[WelcomePanel] ✅ Null message sent to webview');
+    } else {
+      console.log('[WelcomePanel] ❌ No currentPanel - message not sent');
+    }
+    console.log('[WelcomePanel] ========== clearSelectedProject END ==========');
+  }
+
+  /**
+   * Read installed modules from registry.json
+   */
+  private async _getInstalledModules(
+    projectPath: string
+  ): Promise<{ slug: string; version: string; display_name: string }[]> {
+    try {
+      const primaryRegistryPath = path.join(projectPath, 'registry.json');
+      const legacyRegistryPath = path.join(projectPath, '.rapidkit', 'registry.json');
+
+      const primaryExists = await fs.pathExists(primaryRegistryPath);
+      const legacyExists = await fs.pathExists(legacyRegistryPath);
+
+      const registryPath = primaryExists ? primaryRegistryPath : legacyRegistryPath;
+      const exists = primaryExists || legacyExists;
+
+      if (exists) {
+        const content = await fs.readFile(registryPath, 'utf-8');
+        const registry = JSON.parse(content);
+        return registry.installed_modules || [];
+      }
+    } catch (error) {
+      console.error('[Backend] ❌ Error reading registry.json:', error);
+    }
+    return [];
+  }
+
+  /**
+   * Check if a folder is a RapidKit workspace/project (user projects only, not the core engine)
+   */
+  private async _isRapidKitProject(folderPath: string): Promise<boolean> {
+    try {
+      console.log('[Backend] Checking folder:', folderPath);
+
+      // Check for .rapidkit-workspace marker (workspace created by CLI)
+      const markerPath = path.join(folderPath, '.rapidkit-workspace');
+      if (await fs.pathExists(markerPath)) {
+        console.log('[Backend] ✓ Found .rapidkit-workspace marker');
+        return true;
+      }
+
+      // Check for .rapidkit directory (project with modules installed)
+      const rapidkitDir = path.join(folderPath, '.rapidkit');
+      if (await fs.pathExists(rapidkitDir)) {
+        console.log('[Backend] ✓ Found .rapidkit directory');
+        return true;
+      }
+
+      // Check for pyproject.toml
+      const pyprojectPath = path.join(folderPath, 'pyproject.toml');
+      if (await fs.pathExists(pyprojectPath)) {
+        console.log('[Backend] Found pyproject.toml, checking content...');
+        const content = await fs.readFile(pyprojectPath, 'utf-8');
+
+        // Exclude the rapidkit-core engine itself
+        if (content.includes('name = "rapidkit-core"')) {
+          console.log('[Backend] ✗ This is rapidkit-core engine, excluding it');
+          return false;
+        }
+
+        // Accept projects that depend on rapidkit
+        if (content.includes('rapidkit-core') || content.includes('rapidkit-')) {
+          console.log('[Backend] ✓ Found rapidkit dependency in pyproject.toml');
+          return true;
+        }
+
+        // Check if it has any Python dependencies at all (fallback for basic projects)
+        if (content.includes('[tool.poetry.dependencies]') || content.includes('[project]')) {
+          console.log('[Backend] ✓ Found poetry/project config (assuming RapidKit project)');
+          return true;
+        }
+      }
+
+      // Check for package.json (for JS/TS projects)
+      const packageJsonPath = path.join(folderPath, 'package.json');
+      if (await fs.pathExists(packageJsonPath)) {
+        console.log('[Backend] Found package.json, checking content...');
+        const content = await fs.readFile(packageJsonPath, 'utf-8');
+        if (content.includes('rapidkit') || content.includes('@rapidkit')) {
+          console.log('[Backend] ✓ Found rapidkit dependency in package.json');
+          return true;
+        }
+      }
+
+      console.log('[Backend] ✗ No RapidKit markers found in:', folderPath);
+      return false;
+    } catch (error) {
+      console.error('[Backend] Error checking RapidKit project:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check current workspace and update webview
+   */
+  private async _checkAndUpdateWorkspace(): Promise<void> {
+    const seq = WelcomePanel._getNextWorkspaceStatusSeq();
+    // If user has manually selected a project, use that
+    if (WelcomePanel._selectedProject) {
+      console.log('[Backend] Using manually selected project:', WelcomePanel._selectedProject);
+
+      // Read installed modules
+      const installedModules = await this._getInstalledModules(WelcomePanel._selectedProject.path);
+      console.log(
+        '[Backend] 📦 Found',
+        installedModules.length,
+        'installed modules in selected project'
+      );
+      console.log('[Backend] 📋 installedModules data:', JSON.stringify(installedModules, null, 2));
+
+      if (seq !== WelcomePanel._workspaceStatusSeq || !WelcomePanel._selectedProject) {
+        console.log('[Backend] ⏭️ Skipping stale workspaceStatus for selected project');
+        return;
+      }
+
+      console.log('[Backend] 📤 Sending workspaceStatus message to frontend');
+      this._panel.webview.postMessage({
+        command: 'workspaceStatus',
+        workspace: WelcomePanel._selectedProject,
+        installedModules: installedModules,
+        seq,
+      });
+      console.log('[Backend] ✅ Message sent successfully');
+      return;
+    }
+
+    // Otherwise check VS Code workspace folders
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    console.log(
+      '[Backend] Checking workspace. Folders:',
+      workspaceFolders?.map((f) => f.uri.fsPath)
+    );
+
+    if (workspaceFolders && workspaceFolders.length > 0) {
+      const folder = workspaceFolders[0];
+      const folderPath = folder.uri.fsPath;
+
+      console.log('[Backend] Checking if RapidKit project:', folderPath);
+      // Validate if this is a RapidKit workspace/project
+      const isRapidKit = await this._isRapidKitProject(folderPath);
+      console.log('[Backend] Is RapidKit project:', isRapidKit);
+
+      if (isRapidKit) {
+        console.log('[Backend] Sending valid workspace to frontend');
+
+        // Read installed modules
+        const installedModules = await this._getInstalledModules(folderPath);
+        console.log('[Backend] Found', installedModules.length, 'installed modules');
+
+        this._panel.webview.postMessage({
+          command: 'workspaceStatus',
+          workspace: {
+            name: folder.name,
+            path: folderPath,
+          },
+          installedModules: installedModules,
+          seq,
+        });
+      } else {
+        // Not a RapidKit project - show as no workspace
+        console.log('[Backend] Not a RapidKit project, sending null');
+        this._panel.webview.postMessage({
+          command: 'workspaceStatus',
+          workspace: null,
+          seq,
+        });
+      }
+    } else {
+      console.log('[Backend] No workspace folders found');
+      this._panel.webview.postMessage({
+        command: 'workspaceStatus',
+        workspace: null,
+        seq,
+      });
+    }
+  }
+
   public static refresh(context: vscode.ExtensionContext) {
     if (WelcomePanel.currentPanel) {
       WelcomePanel.currentPanel._panel.webview.html =
@@ -176,8 +519,59 @@ export class WelcomePanel {
     }
   }
 
+  /**
+   * Generate filter buttons from available categories
+   */
+  private _generateFilterButtons(): string {
+    const categories = Array.from(new Set(MODULES.map((m) => m.category)));
+
+    const buttons = [
+      '<button class="filter-btn active" onclick="filterByCategory(\'all\')">All</button>',
+    ];
+
+    categories.forEach((cat) => {
+      const info = CATEGORY_INFO[cat as keyof typeof CATEGORY_INFO];
+      if (info) {
+        buttons.push(
+          `<button class="filter-btn" onclick="filterByCategory('${cat}')">${info.name}</button>`
+        );
+      }
+    });
+
+    return buttons.join('\n                    ');
+  }
+
+  /**
+   * Generate HTML for module cards from data
+   */
+  private _generateModulesHTML(): string {
+    return MODULES.map((module) => {
+      const categoryInfo = CATEGORY_INFO[module.category as keyof typeof CATEGORY_INFO];
+      const badgeLabel = categoryInfo?.name || module.category;
+
+      return `
+                <div class="module-card" data-category="${module.category}" data-name="${module.name}" data-module-slug="${module.slug}">
+                    <div class="module-header">
+                        <span class="module-icon">${module.icon}</span>
+                        <div class="module-info">
+                            <div class="module-name">${module.name}</div>
+                            <div class="module-version">v${module.version}</div>
+                        </div>
+                        <span class="module-badge ${module.category}">${badgeLabel}</span>
+                    </div>
+                    <div class="module-desc">${module.description}</div>
+                    <button class="module-install-btn" data-module-id="${module.id}" data-module-slug="${module.slug}" data-module-name="${module.name}" disabled>
+                        <span>⚡</span> Install
+                    </button>
+                </div>`;
+    }).join('\n');
+  }
+
   private _getHtmlContent(context: vscode.ExtensionContext): string {
     // Get URIs for webview
+    const rapidkitIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
+    );
     const iconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
     );
@@ -189,6 +583,18 @@ export class WelcomePanel {
     );
     const nestjsIconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'nestjs.svg')
+    );
+    const npmIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'npm.svg')
+    );
+    const pythonIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'python.svg')
+    );
+    const pypiIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'pypi.svg')
+    );
+    const poetryIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'poetry.svg')
     );
 
     // Get version from package.json
@@ -682,116 +1088,376 @@ export class WelcomePanel {
             color: #E0234E;
         }
 
-        /* Ecosystem Section */
-        .ecosystem {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
+        /* Module Browser Styles */
+        .module-browser {
             margin-bottom: 30px;
         }
-        .ecosystem-card {
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border: 2px solid var(--vscode-panel-border);
-            border-radius: 10px;
-            padding: 18px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-        .ecosystem-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--card-accent, #00cfc1);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .ecosystem-card:hover {
-            border-color: var(--card-accent, #00cfc1);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .ecosystem-card:hover::before {
-            opacity: 1;
-        }
-        .ecosystem-card.npm { --card-accent: #CB3837; }
-        .ecosystem-card.pypi { --card-accent: #3775A9; }
-        .ecosystem-card.vscode { --card-accent: #007ACC; }
-        
-        .ecosystem-header {
+        .module-stats {
             display: flex;
+            gap: 12px;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
         }
-        .ecosystem-icon {
-            font-size: 22px;
+        .module-count {
+            font-size: 12px;
+            background: rgba(0,207,193,0.1);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            color: #00cfc1;
+        }
+        
+        /* Workspace Warning & Info */
+        .workspace-warning {
+            background: linear-gradient(135deg, rgba(255,152,0,0.1), rgba(251,140,0,0.1));
+            border: 2px solid #FF9800;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .workspace-warning.hidden {
+            display: none;
+        }
+        .warning-icon {
+            font-size: 32px;
             line-height: 1;
         }
-        .ecosystem-title {
-            font-family: 'MuseoModerno', var(--vscode-font-family);
-            font-size: 15px;
-            font-weight: 700;
+        .warning-content {
             flex: 1;
         }
-        .ecosystem-badge {
-            background: var(--card-accent, #00cfc1);
-            color: white;
-            font-size: 9px;
-            padding: 3px 7px;
-            border-radius: 10px;
+        .warning-title {
+            font-size: 15px;
             font-weight: 700;
-            letter-spacing: 0.5px;
+            color: #FF9800;
+            margin-bottom: 4px;
         }
-        .ecosystem-desc {
+        .warning-desc {
             font-size: 12px;
             color: var(--vscode-descriptionForeground);
-            margin-bottom: 14px;
-            line-height: 1.5;
-            min-height: 36px;
+            margin-bottom: 10px;
+            line-height: 1.4;
         }
-        .ecosystem-buttons {
+        .warning-btn {
+            background: #FF9800;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .warning-btn:hover {
+            opacity: 0.85;
+        }
+        
+        .workspace-info {
+            background: linear-gradient(135deg, rgba(0,207,193,0.08), rgba(0,150,136,0.08));
+            border: 2px solid #00cfc1;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .workspace-info.hidden {
+            display: none;
+        }
+        .workspace-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        .workspace-details {
+            flex: 1;
+        }
+        .workspace-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #00cfc1;
+            margin-bottom: 2px;
+        }
+        .workspace-path {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            font-family: monospace;
+        }
+        
+        .module-controls {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 12px;
+            margin-bottom: 16px;
         }
-        .ecosystem-btn {
+        .module-search {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            color: var(--vscode-input-foreground);
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .module-search:focus {
+            outline: none;
+            border-color: #00cfc1;
+            box-shadow: 0 0 0 2px rgba(0,207,193,0.1);
+        }
+        .module-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-btn {
             background: var(--vscode-button-secondaryBackground);
             color: var(--vscode-button-secondaryForeground);
             border: 1px solid var(--vscode-panel-border);
-            padding: 7px 12px;
-            border-radius: 6px;
+            padding: 6px 14px;
+            border-radius: 16px;
             font-size: 11px;
             cursor: pointer;
             transition: all 0.2s;
-            text-align: center;
             font-weight: 500;
+        }
+        .filter-btn:hover {
+            background: rgba(0,207,193,0.1);
+            border-color: #00cfc1;
+            color: #00cfc1;
+        }
+        .filter-btn.active {
+            background: #00cfc1;
+            color: white;
+            border-color: #00cfc1;
+        }
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 14px;
+        }
+        .module-card {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 10px;
+            padding: 14px;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .module-card:hover {
+            border-color: #00cfc1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,207,193,0.15);
+        }
+        .module-card.hidden {
+            display: none;
+        }
+        .module-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .module-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+        .module-info {
+            flex: 1;
+        }
+        .module-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--vscode-foreground);
+            margin-bottom: 2px;
+        }
+        .module-version {
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+            font-family: monospace;
+        }
+        .module-badge {
+            font-size: 9px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .module-badge.ai { background: #9B59B6; color: white; }
+        .module-badge.essentials { background: #2196F3; color: white; }
+        .module-badge.database { background: #3775A9; color: white; }
+        .module-badge.cache { background: #CB3837; color: white; }
+        .module-badge.auth { background: #F59E0B; color: white; }
+        .module-badge.observability { background: #10B981; color: white; }
+        .module-badge.business { background: #FF6B6B; color: white; }
+        .module-badge.billing { background: #E91E63; color: white; }
+        .module-badge.communication { background: #4ECDC4; color: white; }
+        .module-badge.security { background: #F59E0B; color: white; }
+        .module-badge.tasks { background: #8E44AD; color: white; }
+        .module-badge.users { background: #3498DB; color: white; }
+        .module-desc {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            line-height: 1.4;
+            flex: 1;
+        }
+        .module-install-btn {
+            background: linear-gradient(135deg, #00cfc1, #009688);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
         }
-        .ecosystem-btn:hover {
-            background: var(--card-accent, #00cfc1);
-            color: white;
-            border-color: var(--card-accent, #00cfc1);
-            transform: scale(1.02);
-        }
-        .ecosystem-btn.primary {
-            background: var(--card-accent, #00cfc1);
-            color: white;
-            border-color: var(--card-accent, #00cfc1);
-            font-weight: 600;
-        }
-        .ecosystem-btn.primary:hover {
+        .module-install-btn:hover:not(:disabled) {
             opacity: 0.85;
             transform: scale(1.02);
         }
-        .btn-icon {
+        .module-install-btn:disabled {
+            background: linear-gradient(135deg, #555, #666);
+            color: #BDBDBD;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .module-install-btn.installed:disabled {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: #ffffff;
+            cursor: default;
+            opacity: 1;
+        }
+        .module-install-btn.update {
+            color: #ffffff;
+        }
+
+        /* Installation Progress Modal */
+        .progress-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(4px);
+        }
+        .progress-modal.hidden {
+            display: none;
+        }
+        .progress-container {
+            background: var(--vscode-editor-background);
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 12px;
+            padding: 24px;
+            min-width: 450px;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .progress-header h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--vscode-foreground);
+        }
+        .progress-close {
+            background: none;
+            border: none;
+            color: var(--vscode-descriptionForeground);
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .progress-close:hover {
+            color: var(--vscode-foreground);
+            transform: rotate(90deg);
+        }
+        .progress-module-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #00cfc1;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: var(--vscode-input-background);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00cfc1, #009688);
+            border-radius: 8px;
+            transition: width 0.3s ease;
+        }
+        .progress-percentage {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #00cfc1;
+            margin-bottom: 20px;
+        }
+        .progress-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .step-icon {
+            font-size: 16px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .step-icon.pending { color: var(--vscode-descriptionForeground); }
+        .step-icon.active { color: #00cfc1; animation: pulse 1s infinite; }
+        .step-icon.completed { color: #10B981; }
+        .progress-step.active .step-label {
+            color: var(--vscode-foreground);
+            font-weight: 600;
+        }
+        .progress-step.completed .step-label {
+            color: var(--vscode-descriptionForeground);
+            text-decoration: line-through;
+        }
+        .progress-status {
+            text-align: center;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
 
         /* Setup Wizard Styles */
@@ -824,9 +1490,30 @@ export class WelcomePanel {
         }
         .wizard-steps {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 12px;
+        }
+        .installation-methods-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        .method-recommendation {
+            font-size: 11px;
+            color: #667eea;
+            font-weight: 500;
+        }
+        .rapidkit-packages {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
         }
         .wizard-step {
             background: var(--vscode-editor-background);
@@ -834,6 +1521,19 @@ export class WelcomePanel {
             border-radius: 8px;
             padding: 12px;
             position: relative;
+        }
+        .step-recommended-badge {
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background: #667eea;
+            color: white;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .wizard-step.installed {
             border-color: #4CAF50;
@@ -861,11 +1561,21 @@ export class WelcomePanel {
             font-size: 16px;
         }
         .step-status.loading {
-            animation: spin 1s linear infinite;
+            font-family: monospace;
+            letter-spacing: 2px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .step-status.loading::after {
+            content: '●○○';
+            display: inline-block;
+            animation: spinnerDots 1.4s infinite;
+            font-size: 8px;
+            letter-spacing: 1px;
+        }
+        @keyframes spinnerDots {
+            0%, 20% { content: '●○○'; }
+            40% { content: '○●○'; }
+            60% { content: '○○●'; }
+            80%, 100% { content: '●○○'; }
         }
         .step-details {
             font-size: 11px;
@@ -949,12 +1659,14 @@ export class WelcomePanel {
 
         @media (max-width: 900px) {
             .wizard-steps { grid-template-columns: repeat(2, 1fr); }
+            .modules-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 600px) {
             .actions { grid-template-columns: 1fr; }
             .features { grid-template-columns: 1fr; }
-            .ecosystem { grid-template-columns: 1fr; }
             .wizard-steps { grid-template-columns: 1fr; }
+            .modules-grid { grid-template-columns: 1fr; }
+            .progress-container { min-width: 90vw; }
         }
     </style>
 </head>
@@ -973,44 +1685,75 @@ export class WelcomePanel {
             <div class="wizard-header">
                 <div>
                     <div class="wizard-title">🚀 Setup Status</div>
-                    <div class="wizard-subtitle">Extension v${version} • <span id="versionInfo">Checking...</span></div>
                 </div>
                 <button class="wizard-btn" onclick="hideWizard()" style="border: none; background: transparent; cursor: pointer; font-size: 16px;">✕</button>
             </div>
-            
-            <div class="wizard-steps">
+
+            <!-- Required Packages Section -->
+            <div class="rapidkit-packages">
                 <!-- Python Step -->
                 <div class="wizard-step" id="pythonStep">
                     <div class="step-header">
-                        <span class="step-icon">🐍</span>
+                        <span class="step-icon"><img src="${pythonIconUri}" width="20" height="20" alt="Python" /></span>
                         <span class="step-title">Python</span>
-                        <span class="step-status loading" id="pythonStatus">⏳</span>
+                        <span class="step-status loading" id="pythonStatus"></span>
                     </div>
                     <div class="step-details" id="pythonDetails">Checking...</div>
                     <div class="step-actions" id="pythonActions" style="display: none;">
                         <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px;">📥 Download</button>
                     </div>
                 </div>
-
-                <!-- pip Step -->
-                <div class="wizard-step" id="pipStep">
+                <!-- Python Core Package -->
+                <div class="wizard-step" id="coreStep">
                     <div class="step-header">
-                        <span class="step-icon">📦</span>
-                        <span class="step-title">pip</span>
-                        <span class="step-status loading" id="pipStatus">⏳</span>
+                        <span class="step-icon"><img src="${rapidkitIconUri}" width="20" height="20" alt="Python" /></span>
+                        <span class="step-title">RapidKit Core</span>
+                        <span class="step-status loading" id="coreStatus"></span>
                     </div>
-                    <div class="step-details" id="pipDetails">Checking...</div>
-                    <div class="step-actions" id="pipActions" style="display: none;">
-                        <button class="step-btn" onclick="showPipInstall()" style="font-size: 9px;">ℹ️ Info</button>
+                    <div class="step-details" id="coreDetails">Checking...</div>
+                    <div class="step-actions" id="coreActions" style="display: none;">
+                        <button class="step-btn" onclick="installPythonCore()" style="font-size: 9px;">⚡ Install</button>
+                        <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
+                    </div>
+                    <div class="step-actions" id="coreUpgrade" style="display: none;">
+                        <button class="step-btn" onclick="upgradeCore()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
+                        <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
+                    </div>
+                </div>
+                <!-- npm CLI Package -->
+                <div class="wizard-step" id="npmStep">
+                    <div class="step-header">
+                        <span class="step-icon"><img src="${npmIconUri}" width="20" height="20" alt="npm" /></span>
+                        <span class="step-title">RapidKit CLI</span>
+                        <span class="step-status loading" id="npmStatus"></span>
+                    </div>
+                    <div class="step-details" id="npmDetails">Checking...</div>
+                    <div class="step-actions" id="npmActions" style="display: none;">
+                        <button class="step-btn" onclick="installNpmCLI()" style="font-size: 9px;">⚡ Install</button>
+                        <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
+                    </div>
+                    <div class="step-actions" id="npmUpgrade" style="display: none;">
+                        <button class="step-btn" onclick="upgradeNpm()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
+                        <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
                     </div>
                 </div>
 
+
+            </div>
+            
+            <!-- Installation Methods Section Header -->
+            <div class="installation-methods-header">
+                <span>Choose one - each manages your Python packages & dependencies</span>
+            </div>
+            
+            <div class="wizard-steps">
                 <!-- Poetry Step -->
                 <div class="wizard-step" id="poetryStep">
+                    <div class="step-recommended-badge">Recommended</div>
                     <div class="step-header">
-                        <span class="step-icon">📝</span>
+                        <span class="step-icon"><img src="${poetryIconUri}" width="20" height="20" alt="Poetry" /></span>
                         <span class="step-title">Poetry</span>
-                        <span class="step-status loading" id="poetryStatus">⏳</span>
+                        <span class="step-status loading" id="poetryStatus"></span>
                     </div>
                     <div class="step-details" id="poetryDetails">Checking...</div>
                     <div class="step-actions" id="poetryActions" style="display: none;">
@@ -1018,19 +1761,34 @@ export class WelcomePanel {
                     </div>
                 </div>
 
-                <!-- RapidKit Step -->
-                <div class="wizard-step" id="rapidkitStep">
+                <!-- pip Step -->
+                <div class="wizard-step" id="pipStep">
                     <div class="step-header">
-                        <span class="step-icon">🚀</span>
-                        <span class="step-title">RapidKit</span>
-                        <span class="step-status loading" id="rapidkitStatus">⏳</span>
+                        <span class="step-icon"><img src="${pypiIconUri}" width="20" height="20" alt="PyPI" /></span>
+                        <span class="step-title">pip</span>
+                        <span class="step-status loading" id="pipStatus"></span>
                     </div>
-                    <div class="step-details" id="rapidkitDetails">Checking...</div>
-                    <div class="step-actions" id="rapidkitActions" style="display: none;">
-                        <button class="step-btn" onclick="installRapidKit()" style="font-size: 9px;">⚡ Install</button>
+                    <div class="step-details" id="pipDetails">Checking...</div>
+                    <div class="step-actions" id="pipActions" style="display: none;">
+                        <button class="step-btn" onclick="showPipInstall()" style="font-size: 9px;">ℹ️ Info</button>
+                    </div>
+                </div>
+
+                <!-- pipx Step -->
+                <div class="wizard-step" id="pipxStep">
+                    <div class="step-header">
+                        <span class="step-icon"><img src="${pypiIconUri}" width="20" height="20" alt="pipx" /></span>
+                        <span class="step-title">pipx</span>
+                        <span class="step-status loading" id="pipxStatus"></span>
+                    </div>
+                    <div class="step-details" id="pipxDetails">Checking...</div>
+                    <div class="step-actions" id="pipxActions" style="display: none;">
+                        <button class="step-btn" onclick="installPipx()" style="font-size: 9px;">⚡ Install</button>
                     </div>
                 </div>
             </div>
+
+ 
 
             <div class="wizard-footer">
                 <div class="wizard-progress" id="wizardProgress">Checking...</div>
@@ -1042,25 +1800,13 @@ export class WelcomePanel {
                 </div>
             </div>
         </div>
-
-        <!-- Recent Workspaces Section -->
-        <div class="section recent-workspaces" id="recentWorkspaces">
-            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
-                <span>📂 Recent Workspaces</span>
-                <button class="wizard-btn" onclick="refreshWorkspaces()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh workspaces">↻</button>
-            </div>
-            <div class="workspace-list" id="workspaceList">
-                <!-- Will be populated by JavaScript -->
-            </div>
-        </div>
-
         <div class="actions">
             <!-- Hero Action: Primary CTA -->
             <div class="hero-action" onclick="createWorkspace()">
                 <div class="hero-icon">🚀</div>
                 <div class="hero-title">Create Your First Workspace</div>
                 <div class="hero-description">
-                    Organize multiple microservices in one environment
+                    Choose your framework: FastAPI or NestJS, then create a complete project
                 </div>
                 <span class="hero-badge">GET STARTED</span>
             </div>
@@ -1077,79 +1823,7 @@ export class WelcomePanel {
                     <span class="quick-link-icon"><img src="${nestjsIconUri}" alt="NestJS" /></span>
                     <div class="quick-link-title">NestJS</div>
                     <div class="quick-link-subtitle">TypeScript + DI</div>
-                </div>
-
-                <div class="quick-link modules" onclick="browseModules()">
-                    <span class="quick-link-icon">🧩</span>
-                    <div class="quick-link-title">Modules</div>
-                    <div class="quick-link-subtitle">Auth, DB, Cache...</div>
-                    <span class="quick-link-badge">27+ Free</span>
-                </div>
-
-                <div class="quick-link doctor" onclick="runDoctor()">
-                    <span class="quick-link-icon">🔍</span>
-                    <div class="quick-link-title">System Check</div>
-                    <div class="quick-link-subtitle">Verify setup</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">🌐 RapidKit Ecosystem</div>
-            <div class="ecosystem">
-                <div class="ecosystem-card vscode">
-                    <div class="ecosystem-header">
-                        <span class="ecosystem-icon">💻</span>
-                        <span class="ecosystem-title">VS Code Extension</span>
-                        <span class="ecosystem-badge">THIS</span>
-                    </div>
-                    <div class="ecosystem-desc">
-                        Visual interface with one-click setup, sidebar navigation & system diagnostics
-                    </div>
-                    <div class="ecosystem-buttons">
-                        <button class="ecosystem-btn" onclick="openMarketplace()">
-                            <span class="btn-icon">⭐</span> Marketplace
-                        </button>
-                    </div>
-                </div>
-
-                <div class="ecosystem-card npm">
-                    <div class="ecosystem-header">
-                        <span class="ecosystem-icon">📦</span>
-                        <span class="ecosystem-title">NPM Package</span>
-                        <span class="ecosystem-badge">CLI</span>
-                    </div>
-                    <div class="ecosystem-desc">
-                        Command-line tool for advanced workflows, automation & CI/CD pipelines
-                    </div>
-                    <div class="ecosystem-buttons">
-                        <button class="ecosystem-btn primary" onclick="installNpmGlobal()">
-                            <span class="btn-icon">⚡</span> Install CLI
-                        </button>
-                        <button class="ecosystem-btn" onclick="openNpmPackage()">
-                            <span class="btn-icon">📄</span> View Docs
-                        </button>
-                    </div>
-                </div>
-
-                <div class="ecosystem-card pypi">
-                    <div class="ecosystem-header">
-                        <span class="ecosystem-icon">🐍</span>
-                        <span class="ecosystem-title">RapidKit Core</span>
-                        <span class="ecosystem-badge">ENGINE</span>
-                    </div>
-                    <div class="ecosystem-desc">
-                        Generation engine with 27+ modules (auto-installed by Extension & npm)
-                    </div>
-                    <div class="ecosystem-buttons">
-                        <button class="ecosystem-btn" onclick="openPyPI()">
-                            <span class="btn-icon">🐍</span> PyPI Page
-                        </button>
-                        <button class="ecosystem-btn" onclick="installPipCore()">
-                            <span class="btn-icon">🔧</span> Manual Install
-                        </button>
-                    </div>
-                </div>
+                </div>   
             </div>
         </div>
 
@@ -1180,6 +1854,95 @@ export class WelcomePanel {
                     <span class="feature-icon">📦</span>
                     <span>Modular design</span>
                 </div>
+            </div>
+        </div>
+        <!-- Recent Workspaces Section -->
+        <div class="section recent-workspaces" id="recentWorkspaces">
+            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <span>📂 Recent Workspaces</span>
+                <button class="wizard-btn" onclick="refreshWorkspaces()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh workspaces">↻</button>
+            </div>
+            <div class="workspace-list" id="workspaceList">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        <!-- Module Browser Section -->
+        <div class="section module-browser">
+            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <span>🧩 Module Browser</span>
+                    <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 4px;">Selected Project</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="module-count" id="moduleCount">${getTotalModuleCount()} free modules</span>
+                    <button class="wizard-btn" onclick="refreshModules()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh module status">↻</button>
+                </div>
+            </div>
+            
+            <!-- Workspace Warning -->
+            <div class="workspace-warning hidden" id="workspaceWarning">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-content">
+                    <div class="warning-title">No Project Selected</div>
+                    <div class="warning-desc">Select a project from the sidebar to install modules, or create a new project.</div>
+                    <button class="warning-btn" onclick="createWorkspace()">Create Workspace</button>
+                </div>
+            </div>
+
+            <!-- Current Workspace Info -->
+            <div class="workspace-info hidden" id="workspaceInfo">
+                <div class="workspace-icon">📁</div>
+                <div class="workspace-details">
+                    <div class="workspace-name" id="workspaceName"></div>
+                    <div class="workspace-path" id="workspacePath"></div>
+                </div>
+            </div>
+            
+            <!-- Search and Filter Bar -->
+            <div class="module-controls">
+                <input type="text" class="module-search" id="moduleSearch" placeholder="🔍 Search modules..." oninput="filterModules()" />
+                <div class="module-filters" id="moduleFilters">
+                    ${this._generateFilterButtons()}
+                </div>
+            </div>
+
+            <!-- Modules Grid -->
+            <div class="modules-grid" id="modulesGrid">
+                ${this._generateModulesHTML()}
+            </div>
+        </div>
+
+        <!-- Installation Progress Modal -->
+        <div class="progress-modal hidden" id="progressModal">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <h3>Installing Module</h3>
+                    <button class="progress-close" onclick="closeProgressModal()">✕</button>
+                </div>
+                <div class="progress-module-name" id="progressModuleName">redis</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-percentage" id="progressPercentage">0%</div>
+                <div class="progress-steps" id="progressSteps">
+                    <div class="progress-step" id="step1">
+                        <span class="step-icon pending">○</span>
+                        <span class="step-label">Downloading package...</span>
+                    </div>
+                    <div class="progress-step" id="step2">
+                        <span class="step-icon pending">○</span>
+                        <span class="step-label">Installing dependencies...</span>
+                    </div>
+                    <div class="progress-step" id="step3">
+                        <span class="step-icon pending">○</span>
+                        <span class="step-label">Generating files...</span>
+                    </div>
+                    <div class="progress-step" id="step4">
+                        <span class="step-icon pending">○</span>
+                        <span class="step-label">Verifying installation...</span>
+                    </div>
+                </div>
+                <div class="progress-status" id="progressStatus">Preparing...</div>
             </div>
         </div>
 
@@ -1387,15 +2150,33 @@ export class WelcomePanel {
 
         // Recent Workspaces Data (injected from extension)
         let recentWorkspaces = ${JSON.stringify(this._getRecentWorkspaces())};
+        let lastWorkspaceStatusSeq = 0;
 
         // Handle messages from extension
         window.addEventListener('message', event => {
             const message = event.data;
+            console.log('[WelcomePanel] Received message:', message.command, message);
             if (message.command === 'installStatusUpdate') {
                 updateWizardUI(message.data);
             } else if (message.command === 'workspacesUpdate') {
                 recentWorkspaces = message.data;
                 populateRecentWorkspaces();
+            } else if (message.command === 'workspaceStatus') {
+                const incomingSeq = typeof message.seq === 'number' ? message.seq : 0;
+                if (incomingSeq && incomingSeq < lastWorkspaceStatusSeq) {
+                    console.log('[WelcomePanel] ⏭️ Ignoring stale workspaceStatus:', incomingSeq, 'last:', lastWorkspaceStatusSeq);
+                    return;
+                }
+                if (incomingSeq) {
+                    lastWorkspaceStatusSeq = incomingSeq;
+                }
+                console.log('[WelcomePanel] 🔍 Received workspaceStatus message');
+                console.log('[WelcomePanel] 📦 workspace:', message.workspace);
+                console.log('[WelcomePanel] 📋 installedModules:', message.installedModules);
+                console.log('[WelcomePanel] 🔢 installedModules type:', typeof message.installedModules);
+                console.log('[WelcomePanel] ✅ Is Array?', Array.isArray(message.installedModules));
+                console.log('[WelcomePanel] 📊 installedModules length:', message.installedModules ? message.installedModules.length : 'N/A');
+                updateWorkspaceStatus(message.workspace, message.installedModules);
             }
         });
 
@@ -1560,7 +2341,7 @@ export class WelcomePanel {
                 pipStep.classList.add('not-installed');
                 pipStatus.textContent = '⚠';
                 pipStatus.classList.remove('loading');
-                pipDetails.innerHTML = 'Not installed';
+                pipDetails.innerHTML = 'Optional installation method';
                 pipActions.style.display = 'flex';
             }
 
@@ -1586,67 +2367,108 @@ export class WelcomePanel {
                 poetryActions.style.display = 'flex';
             }
 
-            // Update RapidKit step (combined npm + core)
-            const rapidkitStep = document.getElementById('rapidkitStep');
-            const rapidkitStatus = document.getElementById('rapidkitStatus');
-            const rapidkitDetails = document.getElementById('rapidkitDetails');
-            const rapidkitActions = document.getElementById('rapidkitActions');
-            const rapidkitUpgrade = document.getElementById('rapidkitUpgrade');
+            // Update pipx step
+            const pipxStep = document.getElementById('pipxStep');
+            const pipxStatus = document.getElementById('pipxStatus');
+            const pipxDetails = document.getElementById('pipxDetails');
+            const pipxActions = document.getElementById('pipxActions');
 
-            if (status.npmInstalled && status.coreInstalled) {
-                rapidkitStep.classList.remove('not-installed');
-                rapidkitStep.classList.add('installed');
-                rapidkitStatus.textContent = '✓';
-                rapidkitStatus.classList.remove('loading');
-                
-                let rapidkitDisplay = \`<span class="step-version">CLI v\${status.npmVersion}, Core v\${status.coreVersion}</span>\`;
-                const npmUpdate = status.latestNpmVersion && isNewerVersion(status.npmVersion, status.latestNpmVersion);
-                const coreUpdate = status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion);
-                
-                if (npmUpdate || coreUpdate) {
-                    rapidkitDisplay += \` <span style="color: #FF9800; margin-left: 8px;">Updates available</span>\`;
-                    rapidkitActions.style.display = 'none';
-                    rapidkitUpgrade.style.display = 'flex';
-                } else {
-                    rapidkitActions.style.display = 'none';
-                    rapidkitUpgrade.style.display = 'none';
-                }
-                rapidkitDetails.innerHTML = rapidkitDisplay;
-            } else if (status.npmInstalled || status.coreInstalled) {
-                rapidkitStep.classList.remove('installed');
-                rapidkitStep.classList.add('not-installed');
-                rapidkitStatus.textContent = '⚠';
-                rapidkitStatus.classList.remove('loading');
-                if (status.npmInstalled) {
-                    rapidkitDetails.innerHTML = \`CLI v\${status.npmVersion} <span style="color: #FF9800;">• Core missing</span>\`;
-                } else {
-                    rapidkitDetails.innerHTML = \`Core v\${status.coreVersion} <span style="color: #FF9800;">• CLI missing</span>\`;
-                }
-                rapidkitActions.style.display = 'flex';
-                rapidkitUpgrade.style.display = 'none';
+            if (status.pipxInstalled) {
+                pipxStep.classList.remove('not-installed');
+                pipxStep.classList.add('installed');
+                pipxStatus.textContent = '✓';
+                pipxStatus.classList.remove('loading');
+                pipxDetails.innerHTML = \`<span class="step-version">v\${status.pipxVersion}</span>\`;
+                pipxActions.style.display = 'none';
             } else {
-                rapidkitStep.classList.remove('installed');
-                rapidkitStep.classList.add('not-installed');
-                rapidkitStatus.textContent = '⚠';
-                rapidkitStatus.classList.remove('loading');
-                rapidkitDetails.innerHTML = 'Not installed';
-                rapidkitActions.style.display = 'flex';
-                rapidkitUpgrade.style.display = 'none';
+                pipxStep.classList.remove('installed');
+                pipxStep.classList.add('not-installed');
+                pipxStatus.textContent = '⚠';
+                pipxStatus.classList.remove('loading');
+                pipxDetails.innerHTML = 'Optional installation method';
+                pipxActions.style.display = 'flex';
             }
 
-            // Update progress (Poetry is critical for workspace creation)
+            // Update npm CLI step
+            const npmStep = document.getElementById('npmStep');
+            const npmStatus = document.getElementById('npmStatus');
+            const npmDetails = document.getElementById('npmDetails');
+            const npmActions = document.getElementById('npmActions');
+            const npmUpgrade = document.getElementById('npmUpgrade');
+
+            if (status.npmInstalled) {
+                npmStep.classList.remove('not-installed');
+                npmStep.classList.add('installed');
+                npmStatus.textContent = '✓';
+                npmStatus.classList.remove('loading');
+                
+                let npmDisplay = \`<span class="step-version">v\${status.npmVersion}</span>\`;
+                if (status.latestNpmVersion && isNewerVersion(status.npmVersion, status.latestNpmVersion)) {
+                    npmDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestNpmVersion}</span>\`;
+                    npmActions.style.display = 'none';
+                    npmUpgrade.style.display = 'flex';
+                } else {
+                    npmActions.style.display = 'none';
+                    npmUpgrade.style.display = 'none';
+                }
+                npmDetails.innerHTML = npmDisplay;
+            } else {
+                npmStep.classList.remove('installed');
+                npmStep.classList.add('not-installed');
+                npmStatus.textContent = '⚠';
+                npmStatus.classList.remove('loading');
+                npmDetails.innerHTML = 'Not installed';
+                npmActions.style.display = 'flex';
+                npmUpgrade.style.display = 'none';
+            }
+
+            // Update Python Core step
+            const coreStep = document.getElementById('coreStep');
+            const coreStatus = document.getElementById('coreStatus');
+            const coreDetails = document.getElementById('coreDetails');
+            const coreActions = document.getElementById('coreActions');
+            const coreUpgrade = document.getElementById('coreUpgrade');
+
+            if (status.coreInstalled) {
+                coreStep.classList.remove('not-installed');
+                coreStep.classList.add('installed');
+                coreStatus.textContent = '✓';
+                coreStatus.classList.remove('loading');
+                
+                let coreDisplay = \`<span class="step-version">v\${status.coreVersion}</span>\`;
+                if (status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion)) {
+                    coreDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestCoreVersion}</span>\`;
+                    coreActions.style.display = 'none';
+                    coreUpgrade.style.display = 'flex';
+                } else {
+                    coreActions.style.display = 'none';
+                    coreUpgrade.style.display = 'none';
+                }
+                coreDetails.innerHTML = coreDisplay;
+            } else {
+                coreStep.classList.remove('installed');
+                coreStep.classList.add('not-installed');
+                coreStatus.textContent = '⚠';
+                coreStatus.classList.remove('loading');
+                coreDetails.innerHTML = 'Not installed';
+                coreActions.style.display = 'flex';
+                coreUpgrade.style.display = 'none';
+            }
+
+            // Update progress
             const progress = document.getElementById('wizardProgress');
             const pythonOk = status.pythonInstalled ? 1 : 0;
             const pipOk = status.pipInstalled ? 1 : 0;
             const poetryOk = status.poetryInstalled ? 1 : 0;
-            const rapidkitOk = (status.npmInstalled && status.coreInstalled) ? 1 : 0;
-            const installedCount = pythonOk + pipOk + poetryOk + rapidkitOk;
+            const npmOk = status.npmInstalled ? 1 : 0;
+            const coreOk = status.coreInstalled ? 1 : 0;
+            const installedCount = pythonOk + pipOk + poetryOk + npmOk + coreOk;
             
-            if (installedCount === 4) {
+            if (installedCount === 5) {
                 progress.textContent = '✅ All dependencies ready';
                 document.getElementById('finishBtn').disabled = false;
-            } else if (installedCount >= 2) {
-                progress.textContent = \`⚡ \${installedCount}/4 installed\`;
+            } else if (installedCount >= 3) {
+                progress.textContent = \`⚡ \${installedCount}/5 installed\`;
                 document.getElementById('finishBtn').disabled = true;
             } else {
                 progress.textContent = '⚠ Dependencies missing';
@@ -1667,23 +2489,38 @@ export class WelcomePanel {
             setTimeout(checkInstallationStatus, 5000);
         }
 
-        function installRapidKit() {
-            vscode.postMessage({ command: 'installBoth' });
+        function installPipx() {
+            vscode.postMessage({ command: 'installPipx' });
             setTimeout(checkInstallationStatus, 5000);
         }
 
-        function upgradeRapidKit() {
-            vscode.postMessage({ command: 'upgradeBoth' });
+        function installNpmCLI() {
+            vscode.postMessage({ command: 'installNpmGlobal' });
+            setTimeout(checkInstallationStatus, 5000);
+        }
+
+        function upgradeNpm() {
+            vscode.postMessage({ command: 'upgradeNpmGlobal' });
+            setTimeout(checkInstallationStatus, 5000);
+        }
+
+        function installPythonCore() {
+            vscode.postMessage({ command: 'installPipCore' });
+            setTimeout(checkInstallationStatus, 5000);
+        }
+
+        function upgradeCore() {
+            vscode.postMessage({ command: 'upgradePipCore' });
             setTimeout(checkInstallationStatus, 5000);
         }
 
         function refreshWizard() {
             // Reset UI to loading
-            const statuses = ['pythonStatus', 'pipStatus', 'poetryStatus', 'rapidkitStatus'];
+            const statuses = ['pythonStatus', 'pipStatus', 'poetryStatus', 'npmStatus', 'coreStatus'];
             statuses.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
-                    el.textContent = '⏳';
+                    el.textContent = '';
                     el.classList.add('loading');
                 }
             });
@@ -1739,6 +2576,402 @@ export class WelcomePanel {
         }
         function showWelcome() {
             vscode.postMessage({ command: 'showWelcome' });
+        }
+
+        // Module Browser Functions
+        let currentCategory = 'all';
+        let hasWorkspace = false;
+        let currentWorkspace = { name: '', path: '' };
+
+        // Check if workspace is open on load (when DOM is ready)
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('[Module Browser] DOM loaded, checking workspace status...');
+            checkWorkspace();
+            
+            // Re-check periodically to detect workspace changes
+            setInterval(checkWorkspace, 3000);
+        });
+        
+        // Also check immediately (in case DOM is already loaded)
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            console.log('[Module Browser] Document already loaded, checking workspace...');
+            setTimeout(checkWorkspace, 100);
+        }
+
+        function checkWorkspace() {
+            vscode.postMessage({ command: 'checkWorkspace' });
+        }
+        
+        function refreshModules() {
+            console.log('[Module Browser] Manual refresh requested');
+            vscode.postMessage({ command: 'refreshModules' });
+        }
+        
+        // Compare versions (e.g., "0.1.7" vs "0.1.5")
+        function isNewerVersion(availableVersion, installedVersion) {
+            if (!installedVersion) return false;
+            
+            const available = availableVersion.split('.').map(Number);
+            const installed = installedVersion.split('.').map(Number);
+            
+            for (let i = 0; i < Math.max(available.length, installed.length); i++) {
+                const a = available[i] || 0;
+                const b = installed[i] || 0;
+                if (a > b) return true;
+                if (a < b) return false;
+            }
+            return false;
+        }
+
+        // Handle workspace status from backend
+        function updateWorkspaceStatus(workspace, installedModules) {
+            console.log('[Module Browser] ========== updateWorkspaceStatus START ==========');
+            console.log('[Module Browser] Received workspace:', workspace);
+            console.log('[Module Browser] Installed modules:', installedModules);
+            hasWorkspace = !!workspace;
+            const warningEl = document.getElementById('workspaceWarning');
+            const infoEl = document.getElementById('workspaceInfo');
+            const installBtns = document.querySelectorAll('.module-install-btn');
+            
+            console.log('[Module Browser] Elements found:', {
+                warningEl: !!warningEl,
+                infoEl: !!infoEl,
+                installBtnsCount: installBtns.length,
+                hasWorkspace: hasWorkspace
+            });
+            
+            if (hasWorkspace && workspace) {
+                currentWorkspace = workspace;
+                
+                console.log('[Module Browser] ✅ HAS WORKSPACE - Enabling buttons');
+                // Show workspace info
+                if (warningEl) warningEl.classList.add('hidden');
+                if (infoEl) infoEl.classList.remove('hidden');
+                if (document.getElementById('workspaceName')) {
+                    document.getElementById('workspaceName').textContent = workspace.name;
+                }
+                if (document.getElementById('workspacePath')) {
+                    document.getElementById('workspacePath').textContent = workspace.path;
+                }
+                
+                // Create a map of installed modules by slug
+                const installedMap = {};
+                console.log('[Module Browser] Raw installedModules:', installedModules);
+                console.log('[Module Browser] Is array?', Array.isArray(installedModules));
+                
+                if (installedModules && Array.isArray(installedModules)) {
+                    console.log('[Module Browser] Processing', installedModules.length, 'installed modules');
+                    installedModules.forEach(mod => {
+                        console.log('[Module Browser] Processing module:', mod);
+                        // Use slug as key directly (e.g., "free/auth/oauth")
+                        console.log('[Module Browser] Added slug "' + mod.slug + '" to installed map');
+                        installedMap[mod.slug] = mod;
+                    });
+                } else {
+                    console.log('[Module Browser] ❌ installedModules is not valid:', typeof installedModules);
+                }
+                console.log('[Module Browser] Final installed map:', installedMap);
+                console.log('[Module Browser] Map keys:', Object.keys(installedMap));
+                
+                // Update button states based on installation
+                console.log('[Module Browser] Updating', installBtns.length, 'buttons');
+                installBtns.forEach((btn, index) => {
+                    const moduleId = btn.getAttribute('data-module-id');
+                    const moduleSlug = btn.getAttribute('data-module-slug');
+                    const moduleCard = btn.closest('.module-card');
+                    const versionEl = moduleCard ? moduleCard.querySelector('.module-version') : null;
+                    const availableVersion = versionEl ? versionEl.textContent.replace('v', '').trim() : null;
+                    // Check by slug first (more reliable), fallback to moduleId
+                    const installed = installedMap[moduleSlug] || installedMap[moduleId];
+                    
+                    console.log('[Module Browser] Button #' + (index + 1) + ':', {
+                        moduleId: moduleId,
+                        moduleSlug: moduleSlug,
+                        availableVersion: availableVersion,
+                        installed: installed,
+                        hasMatch: !!installed
+                    });
+                    
+                    if (installed) {
+                        // Check if update is available
+                        const hasUpdate = availableVersion && isNewerVersion(availableVersion, installed.version);
+                        
+                        console.log('[Module Browser] Module installed:', moduleId, 'hasUpdate:', hasUpdate);
+                        
+                        if (hasUpdate) {
+                            // Update available - enable with update button
+                            btn.disabled = false;
+                            btn.innerHTML = '<span>⬆</span> Update';
+                            btn.style.background = 'linear-gradient(135deg, #FF9800, #F57C00)';
+                            btn.setAttribute('data-update-mode', 'true');
+                            btn.classList.add('update');
+                            btn.classList.remove('installed');
+                            console.log('[Module Browser] Button ' + (index + 1) + ' - Update available:', moduleId, 'from', installed.version, 'to', availableVersion);
+                        } else {
+                            // Module is installed and up-to-date
+                            btn.disabled = true;
+                            btn.innerHTML = '<span>✓</span> Installed v' + installed.version;
+                            btn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
+                            btn.removeAttribute('data-update-mode');
+                            btn.classList.add('installed');
+                            btn.classList.remove('update');
+                            console.log('[Module Browser] Button ' + (index + 1) + ' marked as installed:', moduleId, 'v' + installed.version);
+                        }
+                    } else {
+                        // Module not installed - enable
+                        btn.disabled = false;
+                        btn.innerHTML = '<span>⚡</span> Install';
+                        btn.style.background = 'linear-gradient(135deg, #00cfc1, #009688)';
+                        btn.removeAttribute('data-update-mode');
+                        btn.classList.remove('installed');
+                        btn.classList.remove('update');
+                        console.log('[Module Browser] Button ' + (index + 1) + ' enabled for install:', moduleId);
+                    }
+                });
+                
+                // Attach click handlers to enabled buttons
+                attachInstallButtonHandlers();
+            } else {
+                console.log('[Module Browser] ❌ NO WORKSPACE - Disabling buttons');
+                // Show warning
+                if (warningEl) warningEl.classList.remove('hidden');
+                if (infoEl) infoEl.classList.add('hidden');
+                
+                // Disable install buttons
+                console.log('[Module Browser] Disabling', installBtns.length, 'install buttons');
+                installBtns.forEach((btn, index) => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span>⚡</span> Install';
+                    btn.style.background = 'linear-gradient(135deg, #00cfc1, #009688)';
+                    console.log('[Module Browser] Button ' + (index + 1) + ' disabled:', btn.disabled);
+                });
+            }
+            console.log('[Module Browser] ========== updateWorkspaceStatus END ==========');
+        }
+
+        // Attach click event handlers to install buttons
+        function attachInstallButtonHandlers() {
+            const installBtns = document.querySelectorAll('.module-install-btn');
+            console.log('[Module Browser] Attaching handlers to', installBtns.length, 'buttons');
+            
+            installBtns.forEach((btn) => {
+                // Remove existing listener first (if any)
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+                
+                // Add new listener
+                newBtn.addEventListener('click', function() {
+                    if (this.disabled) {
+                        console.log('[Module Browser] Button is disabled, ignoring click');
+                        return;
+                    }
+                    
+                    const moduleId = this.getAttribute('data-module-id');
+                    const moduleName = this.getAttribute('data-module-name');
+                    console.log('[Module Browser] Button clicked for module:', moduleId, moduleName);
+                    
+                    if (moduleId && moduleName) {
+                        // Use VS Code command for installation (like sidebar)
+                        vscode.postMessage({ 
+                            command: 'installModuleFromWelcome',
+                            moduleId: moduleId,
+                            moduleName: moduleName
+                        });
+                    }
+                });
+            });
+        }
+
+        function filterByCategory(category) {
+            currentCategory = category;
+            
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            applyFilters();
+        }
+
+        function filterModules() {
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('moduleSearch').value.toLowerCase();
+            const cards = document.querySelectorAll('.module-card');
+            let visibleCount = 0;
+            
+            cards.forEach(card => {
+                const category = card.getAttribute('data-category');
+                const name = card.getAttribute('data-name').toLowerCase();
+                const desc = card.querySelector('.module-desc').textContent.toLowerCase();
+                
+                const matchesCategory = currentCategory === 'all' || category === currentCategory;
+                const matchesSearch = searchTerm === '' || name.includes(searchTerm) || desc.includes(searchTerm);
+                
+                if (matchesCategory && matchesSearch) {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            
+            // Update count
+            const countElement = document.getElementById('moduleCount');
+            const totalModules = ${getTotalModuleCount()};
+            if (searchTerm || currentCategory !== 'all') {
+                countElement.textContent = \`\${visibleCount} module\${visibleCount !== 1 ? 's' : ''}\`;
+            } else {
+                countElement.textContent = \`\${totalModules} modules\`;
+            }
+        }
+
+        function installModule(moduleName) {
+            console.log('[installModule] Called with:', moduleName);
+            console.log('[installModule] hasWorkspace:', hasWorkspace);
+            console.log('[installModule] currentWorkspace:', currentWorkspace);
+            
+            // Check if workspace is open
+            if (!hasWorkspace || !currentWorkspace || !currentWorkspace.path) {
+                alert('⚠️ Please open or create a RapidKit workspace first!\\n\\nUse "File > Open Folder" to open an existing RapidKit project,\\nor create a new workspace using the Quick Actions above.');
+                return;
+            }
+            
+            // Show confirmation with workspace path
+            const confirmed = confirm(
+                'Install module "' + moduleName + '" to:\\n\\n📁 ' + currentWorkspace.name + '\\n📍 ' + currentWorkspace.path + '\\n\\nThis will run: rapidkit add module ' + moduleName + '\\n\\nContinue?'
+            );
+            
+            if (!confirmed) {
+                console.log('[installModule] User cancelled');
+                return;
+            }
+            
+            console.log('[installModule] User confirmed - starting installation');
+            showProgressModal(moduleName);
+            simulateInstallation(moduleName);
+            
+            // Send actual install command to backend
+            vscode.postMessage({ 
+                command: 'installModule',
+                moduleName: moduleName,
+                workspacePath: currentWorkspace.path
+            });
+        }
+
+        function showProgressModal(moduleName) {
+            const modal = document.getElementById('progressModal');
+            const moduleNameEl = document.getElementById('progressModuleName');
+            modal.classList.remove('hidden');
+            moduleNameEl.textContent = moduleName;
+            
+            // Reset progress
+            updateProgress(0, 'Preparing installation...');
+            resetSteps();
+        }
+
+        function closeProgressModal() {
+            document.getElementById('progressModal').classList.add('hidden');
+        }
+
+        function resetSteps() {
+            for (let i = 1; i <= 4; i++) {
+                const step = document.getElementById(\`step\${i}\`);
+                const icon = step.querySelector('.step-icon');
+                step.classList.remove('active', 'completed');
+                icon.classList.remove('active', 'completed');
+                icon.classList.add('pending');
+                icon.textContent = '○';
+            }
+        }
+
+        function updateProgress(percentage, status) {
+            const bar = document.getElementById('progressBar');
+            const percentageEl = document.getElementById('progressPercentage');
+            const statusEl = document.getElementById('progressStatus');
+            
+            bar.style.width = percentage + '%';
+            percentageEl.textContent = percentage + '%';
+            statusEl.textContent = status;
+        }
+
+        function setStepActive(stepNumber) {
+            const step = document.getElementById(\`step\${stepNumber}\`);
+            const icon = step.querySelector('.step-icon');
+            
+            step.classList.add('active');
+            icon.classList.remove('pending');
+            icon.classList.add('active');
+            icon.textContent = '●';
+        }
+
+        function setStepCompleted(stepNumber) {
+            const step = document.getElementById(\`step\${stepNumber}\`);
+            const icon = step.querySelector('.step-icon');
+            
+            step.classList.remove('active');
+            step.classList.add('completed');
+            icon.classList.remove('active');
+            icon.classList.add('completed');
+            icon.textContent = '✓';
+        }
+
+        function simulateInstallation(moduleName) {
+            // Step 1: Downloading (0-25%)
+            setTimeout(() => {
+                setStepActive(1);
+                updateProgress(10, 'Downloading package...');
+            }, 500);
+            
+            setTimeout(() => {
+                updateProgress(25, 'Download complete');
+                setStepCompleted(1);
+            }, 1500);
+            
+            // Step 2: Installing dependencies (25-50%)
+            setTimeout(() => {
+                setStepActive(2);
+                updateProgress(30, 'Installing dependencies...');
+            }, 2000);
+            
+            setTimeout(() => {
+                updateProgress(50, 'Dependencies installed');
+                setStepCompleted(2);
+            }, 3500);
+            
+            // Step 3: Generating files (50-75%)
+            setTimeout(() => {
+                setStepActive(3);
+                updateProgress(60, 'Generating module files...');
+            }, 4000);
+            
+            setTimeout(() => {
+                updateProgress(75, 'Files generated');
+                setStepCompleted(3);
+            }, 5500);
+            
+            // Step 4: Verifying (75-100%)
+            setTimeout(() => {
+                setStepActive(4);
+                updateProgress(85, 'Verifying installation...');
+            }, 6000);
+            
+            setTimeout(() => {
+                updateProgress(100, 'Installation complete! ✓');
+                setStepCompleted(4);
+            }, 7000);
+            
+            // Close modal after success
+            setTimeout(() => {
+                closeProgressModal();
+                vscode.postMessage({ 
+                    command: 'showInfo',
+                    message: \`Module "\${moduleName}" installed successfully!\`
+                });
+            }, 8000);
         }
 
         // Command Reference Functions
@@ -1836,6 +3069,8 @@ export class WelcomePanel {
       pythonVersion: null as string | null,
       pipInstalled: false,
       pipVersion: null as string | null,
+      pipxInstalled: false,
+      pipxVersion: null as string | null,
       poetryInstalled: false,
       poetryVersion: null as string | null,
 
@@ -1923,6 +3158,23 @@ export class WelcomePanel {
         } catch {
           continue;
         }
+      }
+    }
+
+    // Check pipx (only if Python and pip are installed)
+    if (status.pythonInstalled && status.pipInstalled) {
+      try {
+        const result = await execa('pipx', ['--version'], {
+          shell: status.isWindows,
+          timeout: 2000,
+        });
+        status.pipxInstalled = true;
+        status.pipxVersion =
+          result.stdout.match(/pipx ([\d.]+)/)?.[1] ||
+          result.stdout.match(/([\d.]+)/)?.[1] ||
+          'unknown';
+      } catch {
+        status.pipxInstalled = false;
       }
     }
 

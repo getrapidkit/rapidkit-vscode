@@ -14,12 +14,197 @@ import { WorkspaceManager } from '../core/workspaceManager';
 import { isFirstTimeSetup, showFirstTimeSetupMessage } from '../utils/firstTimeSetup';
 import { updateWorkspaceMetadata } from '../utils/workspaceMarker';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
+import { isPoetryInstalled } from '../utils/poetryHelper';
+import { checkPythonEnvironment } from '../utils/pythonChecker';
 
 export async function createWorkspaceCommand() {
   const logger = Logger.getInstance();
   logger.info('Create Workspace command initiated');
 
   try {
+    // Check Python 3.10+ BEFORE Poetry (Python is more fundamental)
+    logger.info('Checking for Python 3.10+ installation...');
+    const pythonCheck = await checkPythonEnvironment();
+
+    if (!pythonCheck.available) {
+      logger.error('Python not installed');
+
+      const installAction = '🐍 Download Python';
+      const learnMore = '📚 Learn More';
+
+      const choice = await vscode.window.showErrorMessage(
+        '❌ Python Not Found\n\n' +
+          'Python 3.10 or higher is required to use RapidKit.\n\n' +
+          'Visit https://www.python.org/downloads/ to download.',
+        { modal: true },
+        installAction,
+        learnMore,
+        'Cancel'
+      );
+
+      if (choice === installAction) {
+        await vscode.env.openExternal(vscode.Uri.parse('https://www.python.org/downloads/'));
+        vscode.window.showInformationMessage(
+          '⏳ After installing Python:\n\n' +
+            '1. Make sure to ADD Python to PATH\n' +
+            '2. Restart VS Code\n' +
+            '3. Run "RapidKit: Create Workspace" again'
+        );
+      } else if (choice === learnMore) {
+        await vscode.env.openExternal(
+          vscode.Uri.parse('https://getrapidkit.com/docs/requirements/python')
+        );
+      }
+
+      logger.info('User cancelled - Python not installed');
+      return;
+    }
+
+    if (!pythonCheck.meetsMinimumVersion) {
+      logger.error('Python version too old:', pythonCheck.version);
+
+      const installAction = '🔄 Upgrade Python';
+      const learnMore = '📚 Learn More';
+
+      const choice = await vscode.window.showErrorMessage(
+        '❌ Python Version Too Old\n\n' +
+          `Found: ${pythonCheck.version}\n` +
+          'Required: Python 3.10 or higher\n\n' +
+          `${pythonCheck.recommendation}`,
+        { modal: true },
+        installAction,
+        learnMore,
+        'Cancel'
+      );
+
+      if (choice === installAction) {
+        await vscode.env.openExternal(vscode.Uri.parse('https://www.python.org/downloads/'));
+        vscode.window.showInformationMessage(
+          '⏳ After upgrading Python:\n\n' +
+            '1. Verify installation: python3 --version\n' +
+            '2. Restart VS Code\n' +
+            '3. Run "RapidKit: Create Workspace" again'
+        );
+      } else if (choice === learnMore) {
+        await vscode.env.openExternal(
+          vscode.Uri.parse('https://getrapidkit.com/docs/requirements/python')
+        );
+      }
+
+      logger.info('User cancelled - Python version too old');
+      return;
+    }
+
+    if (!pythonCheck.venvSupport) {
+      logger.error('Python venv support missing:', pythonCheck.error);
+
+      const installAction = '📦 Install Missing Package';
+      const learnMore = '📚 Learn More';
+
+      const choice = await vscode.window.showErrorMessage(
+        `❌ ${pythonCheck.error}\n\n` +
+          'This usually happens on Linux. Install the missing venv package:\n\n' +
+          `${pythonCheck.recommendation}`,
+        { modal: true },
+        installAction,
+        learnMore,
+        'Cancel'
+      );
+
+      if (choice === installAction) {
+        // Show installation command in terminal
+        const terminal = vscode.window.createTerminal('Install Python venv');
+        terminal.show();
+
+        // Detect platform and send appropriate command
+        if (process.platform === 'linux') {
+          const pythonVer = pythonCheck.versionNumber
+            ? `${pythonCheck.versionNumber.major}.${pythonCheck.versionNumber.minor}`
+            : '3.10';
+          terminal.sendText(
+            `sudo apt-get update && sudo apt-get install -y python${pythonVer}-venv`
+          );
+        } else if (process.platform === 'darwin') {
+          terminal.sendText(
+            '# On macOS with Homebrew: brew install python3\n# Or download from https://www.python.org/downloads/'
+          );
+        } else if (process.platform === 'win32') {
+          terminal.sendText(
+            '# On Windows: Reinstall Python and check "tcl/tk and IDLE" in the installer'
+          );
+        }
+
+        vscode.window.showInformationMessage(
+          '⏳ After installing:\n\n' +
+            '1. Restart VS Code\n' +
+            '2. Run "RapidKit: Create Workspace" again'
+        );
+      } else if (choice === learnMore) {
+        await vscode.env.openExternal(
+          vscode.Uri.parse('https://getrapidkit.com/docs/troubleshooting/python')
+        );
+      }
+
+      logger.info('User cancelled - venv support missing');
+      return;
+    }
+
+    logger.info(`Python ${pythonCheck.version} is available with venv support`);
+
+    // Check if Poetry is installed BEFORE proceeding
+    logger.info('Checking for Poetry installation...');
+    const hasPoetry = await isPoetryInstalled();
+
+    if (!hasPoetry) {
+      logger.warn('Poetry not installed - blocking workspace creation');
+
+      const installAction = '📦 Install Poetry';
+      const learnMore = '📚 Learn More';
+
+      const choice = await vscode.window.showWarningMessage(
+        '❌ Poetry Not Found\n\n' +
+          'Poetry is required to create RapidKit workspaces. ' +
+          'It manages Python dependencies and virtual environments.\n\n' +
+          'Install it now?',
+        { modal: true },
+        installAction,
+        learnMore,
+        'Cancel'
+      );
+
+      if (choice === installAction) {
+        // Open terminal with Poetry installation command
+        const terminal = vscode.window.createTerminal('Install Poetry');
+        terminal.show();
+
+        if (process.platform === 'win32') {
+          terminal.sendText(
+            '(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -'
+          );
+        } else {
+          terminal.sendText('curl -sSL https://install.python-poetry.org | python3 -');
+        }
+
+        vscode.window.showInformationMessage(
+          '⏳ Poetry is installing...\n\n' +
+            'After installation completes:\n' +
+            '1. Restart VS Code or reload the window\n' +
+            '2. Run "RapidKit: Create Workspace" again'
+        );
+        return;
+      } else if (choice === learnMore) {
+        await vscode.env.openExternal(
+          vscode.Uri.parse('https://python-poetry.org/docs/#installation')
+        );
+        return;
+      } else {
+        logger.info('User cancelled workspace creation - Poetry not installed');
+        return;
+      }
+    }
+
+    logger.info('Poetry is installed, proceeding with workspace creation');
+
     // Check if this is first-time setup and show guidance
     const isFirstTime = await isFirstTimeSetup();
     if (isFirstTime) {

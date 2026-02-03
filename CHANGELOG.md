@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-02-03
+
+### Added
+
+- 🎯 **Interactive Module Browser** - Complete module management system
+  - Browse 27+ modules with grid/list views
+  - Search and category filtering
+  - Real-time installation status (installed/update/not-installed)
+  - One-click install/update from extension
+  - Module details with descriptions and versions
+  - Sidebar explorer with module categories
+  - Auto-sync status with system environment
+
+- 🔧 **Intelligent Setup Wizard** - Pre-flight validation system
+  - Python 3.10+ version checking
+  - venv support validation
+  - RapidKit Core installation detection
+  - npm package verification
+  - Package manager (Poetry/pip/pipx) selection
+  - Auto-detecting installed environments
+  - Platform-specific error messages and guidance
+
+- 📦 **Package Manager Selection** - Multi-method installation
+  - Poetry (Recommended) - Automatic virtual environment + dependencies
+  - pip (Optional) - Standard Python package manager
+  - pipx (Optional) - Isolated tool installation
+  - Real-time status detection for each method
+  - One-click installation with progress feedback
+  - Beginner-friendly explanations for why each is needed
+
+- 📚 **Enhanced Documentation**
+  - Updated README with new feature screenshots
+  - Simplified setup wizard text for junior developers
+  - Visual "RECOMMENDED" badge on Poetry card
+  - Better error guidance with platform-specific fixes
+
+### Improved
+
+- Python environment detection now uses 8 different methods
+- Auto-closing progress notifications (800ms)
+- Module state synchronization across all UI components
+- Better error messages with actionable guidance
+- Workspace creation properly blocks on missing prerequisites
+- Installation method cards with visual feedback
+
 ## [0.5.2] - 2026-02-02
 
 ### Fixed

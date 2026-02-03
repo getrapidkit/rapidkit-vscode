@@ -16,6 +16,7 @@ import { RapidKitCLI } from '../core/rapidkitCLI';
 import { getSelectedProjectPath } from '../core/selectedProject';
 import { checkPythonEnvironment, getPythonErrorMessage } from '../utils/pythonChecker';
 import { findWorkspaceRoot } from '../utils/findWorkspace';
+import { refreshModuleExplorerStates } from '../extension';
 
 const NO_PROJECT_MESSAGE =
   '⚠️ No project selected!\n\n' +
@@ -48,7 +49,16 @@ export async function addModuleCommand(
 
     projectPath = await resolveProjectPath(projectPath);
     if (!projectPath) {
-      await vscode.window.showWarningMessage(NO_PROJECT_MESSAGE);
+      const action = await vscode.window.showWarningMessage(
+        NO_PROJECT_MESSAGE,
+        { modal: true },
+        '🔍 Open Projects Panel',
+        'Cancel'
+      );
+
+      if (action === '🔍 Open Projects Panel') {
+        await vscode.commands.executeCommand('rapidkitProjects.focus');
+      }
       return;
     }
 
@@ -115,7 +125,9 @@ export async function addModuleCommand(
             message: `Running rapidkit add module...`,
           });
 
-          const result = (await cli.addModule(projectPath!, module!.id)) as {
+          // Use slug if available (from module data), fallback to id
+          const moduleSlug = (module as any).slug || module!.id;
+          const result = (await cli.addModule(projectPath!, moduleSlug)) as {
             exitCode?: number;
             stdout?: string;
             stderr?: string;
@@ -182,6 +194,9 @@ export async function addModuleCommand(
 
           progress.report({ increment: 100, message: 'Done!' });
 
+          // Auto-close the progress notification after a brief delay
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
           const viewDocsAction = '📖 View Module Docs';
           const addMoreAction = '➕ Add Another Module';
           const projectName = path.basename(projectPath!);
@@ -193,7 +208,9 @@ export async function addModuleCommand(
             addMoreAction
           );
 
+          // Refresh all project views and module states
           await vscode.commands.executeCommand('rapidkit.refreshProjects');
+          await refreshModuleExplorerStates();
 
           if (selected === viewDocsAction) {
             await vscode.env.openExternal(

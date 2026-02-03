@@ -16,25 +16,17 @@ FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automatio
 
 ---
 
-## 📸 Screenshot
+## Features in Action
 
-![RapidKit VS Code Extension](media/screenshots/rapidki-vscode-screens.webp)
+### Welcome Page & Setup Status
+![RapidKit Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
 
----
+**Your first stop:** See at a glance what's installed and what you need. Set up your environment step-by-step with guided installation for Python, RapidKit Core, npm package, and installation methods (Poetry/pip/pipx).
 
-## 🎉 What's New in v0.5.2
+### Module Browser & Installation
+![RapidKit Module Browser](media/screenshots/rapidkit-screenshot-2.png)
 
-**Critical fixes + UX enhancements + Workspace improvements!**
-
-- 🔧 **NPM Caching Fix** - Resolved "Invalid project name" errors by always using latest CLI
-- 📦 **Standalone Mode** - Create projects without workspace (3-option dialog)
-- 🩺 **Accurate Doctor** - Shows real status instead of false positives
-- 📋 **Command Reference** - 14 ready-to-copy commands in Welcome Page
-- 📂 **Recent Workspaces** - Dynamic list with auto-refresh
-- ⚡ **Workspace Explorer** - Project count, smart time display, status icons
-- 💬 **Better Notifications** - All messages now have "OK" button
-
-[See full release notes →](releases/RELEASE_NOTES_v0.5.2.md)
+**Choose what you need:** Browse 27+ modules organized by category. See installation status, version info, and install directly from the extension. One-click dependency management.
 
 ---
 

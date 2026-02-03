@@ -33,6 +33,7 @@ import { RapidKitHoverProvider } from './providers/hoverProvider';
 import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceContextMenu';
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
+import { WelcomePanel } from './ui/panels/welcomePanel';
 
 let statusBar: RapidKitStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -173,6 +174,13 @@ export async function activate(context: vscode.ExtensionContext) {
         if (moduleExplorer) {
           moduleExplorer.refresh();
         }
+        // Also refresh Welcome Panel to sync module states
+        if (WelcomePanel.currentPanel) {
+          const selectedProject = projectExplorer?.getSelectedProject();
+          if (selectedProject) {
+            WelcomePanel.updateWithProject(selectedProject.path, selectedProject.name);
+          }
+        }
       }),
       vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
         logger.info('selectWorkspace command with path:', workspacePath);
@@ -233,6 +241,12 @@ export async function activate(context: vscode.ExtensionContext) {
         if (item && item.project && projectExplorer) {
           projectExplorer.setSelectedProject(item.project);
           logger.info('Project selected:', item.project.name);
+
+          // Update Welcome Panel with selected project
+          WelcomePanel.updateWithProject(item.project.path, item.project.name);
+
+          // Update Module Explorer to show installed modules for this project
+          moduleExplorer.setProjectPath(item.project.path);
         }
       }),
       vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item: any) => {
@@ -734,6 +748,8 @@ export async function activate(context: vscode.ExtensionContext) {
       const item = e.selection[0];
       if (item && item instanceof ProjectTreeItem && item.project?.path) {
         setSelectedProjectPath(item.project.path);
+        // Update Module Explorer to show installed modules for this project
+        moduleExplorer.setProjectPath(item.project.path);
       }
     });
     context.subscriptions.push(
@@ -850,6 +866,12 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showErrorMessage(
       `Failed to activate RapidKit extension: ${error instanceof Error ? error.message : String(error)}`
     );
+  }
+}
+
+export async function refreshModuleExplorerStates(): Promise<void> {
+  if (moduleExplorer) {
+    await moduleExplorer.reloadModuleStates();
   }
 }
 

@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {

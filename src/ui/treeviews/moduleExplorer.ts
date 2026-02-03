@@ -1,9 +1,20 @@
 /**
  * Module Explorer TreeView Provider
+ * Displays available RapidKit modules organized by category
+ * Shows installation state: Install, Update, or Installed
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import { MODULES, CATEGORY_INFO } from '../../data/modules';
 import { RapidKitModule } from '../../types';
+
+interface InstalledModule {
+  slug: string;
+  version: string;
+  display_name: string;
+}
 
 export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<ModuleTreeItem | undefined | null | void> =
@@ -11,10 +22,32 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   readonly onDidChangeTreeData: vscode.Event<ModuleTreeItem | undefined | null | void> =
     this._onDidChangeTreeData.event;
 
-  constructor() {}
+  private _currentProjectPath: string | null = null;
+  private _installedModules: Map<string, InstalledModule> = new Map();
+
+  // Static instance for external access
+  public static instance: ModuleExplorerProvider | null = null;
+
+  constructor() {
+    ModuleExplorerProvider.instance = this;
+  }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
+  }
+
+  async reloadModuleStates(): Promise<void> {
+    // Reload installed modules for the current project
+    if (this._currentProjectPath) {
+      await this._loadInstalledModules();
+      this.refresh();
+    }
+  }
+
+  setProjectPath(projectPath: string | null): void {
+    this._currentProjectPath = projectPath;
+    this._loadInstalledModules();
+    this.refresh();
   }
 
   getTreeItem(element: ModuleTreeItem): vscode.TreeItem {
@@ -23,6 +56,17 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
 
   async getChildren(element?: ModuleTreeItem): Promise<ModuleTreeItem[]> {
     if (!element) {
+      // If no project selected, show a placeholder message
+      if (!this._currentProjectPath) {
+        const item = new vscode.TreeItem('📌 Select a project to browse modules');
+        item.contextValue = 'placeholder';
+        item.description = 'Click on a project in the Projects panel';
+        item.tooltip = 'You need to select a project first to see available modules';
+        item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+        item.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.yellow'));
+        return [new ModuleTreeItem(item, 'placeholder')];
+      }
+
       // Root level - show module categories
       return this.getModuleCategories();
     } else if (element.contextValue === 'category') {
@@ -34,399 +78,182 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   private getModuleCategories(): ModuleTreeItem[] {
-    const categories = [
-      { name: 'AI', icon: 'sparkle' },
-      { name: 'Authentication', icon: 'shield' },
-      { name: 'Billing', icon: 'credit-card' },
-      { name: 'Business', icon: 'briefcase' },
-      { name: 'Cache', icon: 'zap' },
-      { name: 'Communication', icon: 'mail' },
-      { name: 'Database', icon: 'database' },
-      { name: 'Essentials', icon: 'tools' },
-      { name: 'Observability', icon: 'pulse' },
-      { name: 'Security', icon: 'lock' },
-      { name: 'Tasks', icon: 'checklist' },
-      { name: 'Users', icon: 'person' },
-    ];
+    const categories = Object.values(CATEGORY_INFO);
 
     return categories.map((cat) => {
       const item = new vscode.TreeItem(cat.name, vscode.TreeItemCollapsibleState.Collapsed);
       item.contextValue = 'category';
-      item.iconPath = new vscode.ThemeIcon(cat.icon);
+
+      // Map category names to icon names from CATEGORY_INFO
+      const iconMap: Record<string, string> = {
+        AI: 'sparkle',
+        Authentication: 'shield',
+        Billing: 'credit-card',
+        Business: 'briefcase',
+        Cache: 'zap',
+        Communication: 'mail',
+        Database: 'database',
+        Essentials: 'tools',
+        Observability: 'pulse',
+        Security: 'lock',
+        Tasks: 'checklist',
+        Users: 'person',
+      };
+
+      item.iconPath = new vscode.ThemeIcon(iconMap[cat.name] || 'folder');
       return new ModuleTreeItem(item, 'category');
     });
   }
 
   private getModulesInCategory(category: string): ModuleTreeItem[] {
-    // Stable module list aligned with rapidkit modules list (id = slug for rapidkit add module <slug>)
-    const stableModules: Record<string, RapidKitModule[]> = {
-      AI: [
-        {
-          id: 'ai_assistant',
-          name: 'ai_assistant',
-          displayName: 'Ai Assistant',
-          version: '0.1.7',
-          description: 'Provides AI assistant capabilities',
-          category: 'ai',
-          status: 'stable',
-          tags: ['ai'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Authentication: [
-        {
-          id: 'api_keys',
-          name: 'api_keys',
-          displayName: 'API Keys',
-          version: '0.1.0',
-          description: 'API key issuance, verification and auditing',
-          category: 'auth',
-          status: 'stable',
-          tags: ['auth'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'auth_core',
-          name: 'auth_core',
-          displayName: 'Authentication Core',
-          version: '0.1.0',
-          description: 'Password hashing, token signing, and runtime auth',
-          category: 'auth',
-          status: 'stable',
-          tags: ['auth'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'oauth',
-          name: 'oauth',
-          displayName: 'OAuth Providers',
-          version: '0.1.0',
-          description: 'OAuth 2.0 scaffold with provider registry',
-          category: 'auth',
-          status: 'stable',
-          tags: ['auth'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'passwordless',
-          name: 'passwordless',
-          displayName: 'Passwordless Authentication',
-          version: '0.1.0',
-          description: 'Magic link and one-time code authentication',
-          category: 'auth',
-          status: 'stable',
-          tags: ['auth'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'session',
-          name: 'session',
-          displayName: 'Session Management',
-          version: '0.1.0',
-          description: 'Session management with signed cookies',
-          category: 'auth',
-          status: 'stable',
-          tags: ['auth'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Billing: [
-        {
-          id: 'cart',
-          name: 'cart',
-          displayName: 'Cart',
-          version: '0.1.4',
-          description: 'Shopping cart service for checkout flows',
-          category: 'billing',
-          status: 'stable',
-          tags: ['billing'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'inventory',
-          name: 'inventory',
-          displayName: 'Inventory',
-          version: '0.1.4',
-          description: 'Inventory and pricing service for Cart + Stripe',
-          category: 'billing',
-          status: 'stable',
-          tags: ['billing'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'stripe_payment',
-          name: 'stripe_payment',
-          displayName: 'Stripe Payment',
-          version: '0.1.0',
-          description: 'Stripe payments and subscriptions',
-          category: 'billing',
-          status: 'stable',
-          tags: ['billing'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Business: [
-        {
-          id: 'storage',
-          name: 'storage',
-          displayName: 'Storage',
-          version: '0.1.0',
-          description: 'File storage and media management',
-          category: 'business',
-          status: 'stable',
-          tags: ['business'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Cache: [
-        {
-          id: 'redis',
-          name: 'redis',
-          displayName: 'Redis Cache',
-          version: '0.1.8',
-          description: 'Redis runtime with async and sync client',
-          category: 'cache',
-          status: 'stable',
-          tags: ['cache'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Communication: [
-        {
-          id: 'email',
-          name: 'email',
-          displayName: 'Email',
-          version: '0.1.10',
-          description: 'Email delivery',
-          category: 'communication',
-          status: 'stable',
-          tags: ['communication'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'notifications',
-          name: 'notifications',
-          displayName: 'Unified Notifications',
-          version: '0.1.17',
-          description: 'Email-first notifications with SMTP delivery',
-          category: 'communication',
-          status: 'stable',
-          tags: ['communication'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Database: [
-        {
-          id: 'db_mongo',
-          name: 'db_mongo',
-          displayName: 'Db Mongo',
-          version: '0.1.2',
-          description: 'MongoDB integration with async driver',
-          category: 'database',
-          status: 'stable',
-          tags: ['database'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'db_sqlite',
-          name: 'db_sqlite',
-          displayName: 'Db Sqlite',
-          version: '0.1.3',
-          description: 'SQLite for development and testing',
-          category: 'database',
-          status: 'stable',
-          tags: ['database'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'db_postgres',
-          name: 'db_postgres',
-          displayName: 'PostgreSQL',
-          version: '0.1.24',
-          description: 'SQLAlchemy async Postgres with DI and health checks',
-          category: 'database',
-          status: 'stable',
-          tags: ['database'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Essentials: [
-        {
-          id: 'settings',
-          name: 'settings',
-          displayName: 'Application Settings',
-          version: '0.1.32',
-          description: 'Centralized modular configuration with Pydantic',
-          category: 'essentials',
-          status: 'stable',
-          tags: ['essentials'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'deployment',
-          name: 'deployment',
-          displayName: 'Deployment Toolkit',
-          version: '0.1.3',
-          description: 'Docker, Compose, Makefile and CI assets for RapidKit',
-          category: 'essentials',
-          status: 'stable',
-          tags: ['essentials'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'middleware',
-          name: 'middleware',
-          displayName: 'Middleware',
-          version: '0.1.13',
-          description: 'HTTP middleware pipeline for FastAPI and NestJS',
-          category: 'essentials',
-          status: 'stable',
-          tags: ['essentials'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'logging',
-          name: 'logging',
-          displayName: 'Structured Logging & Observability',
-          version: '0.1.2',
-          description: 'Structured logging with correlation IDs and multi-sink',
-          category: 'essentials',
-          status: 'stable',
-          tags: ['essentials'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Observability: [
-        {
-          id: 'observability_core',
-          name: 'observability_core',
-          displayName: 'Observability Core',
-          version: '0.1.10',
-          description: 'Metrics, tracing, and structured logging foundation',
-          category: 'observability',
-          status: 'stable',
-          tags: ['observability'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Security: [
-        {
-          id: 'cors',
-          name: 'cors',
-          displayName: 'Cors',
-          version: '0.1.0',
-          description: 'Cross-Origin Resource Sharing security module',
-          category: 'security',
-          status: 'stable',
-          tags: ['security'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'rate_limiting',
-          name: 'rate_limiting',
-          displayName: 'Rate Limiting',
-          version: '0.1.0',
-          description: 'Request throttling with configurable rules',
-          category: 'security',
-          status: 'stable',
-          tags: ['security'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'security_headers',
-          name: 'security_headers',
-          displayName: 'Security Headers',
-          version: '0.1.0',
-          description: 'Harden HTTP responses with security headers',
-          category: 'security',
-          status: 'stable',
-          tags: ['security'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Tasks: [
-        {
-          id: 'celery',
-          name: 'celery',
-          displayName: 'Celery',
-          version: '0.1.1',
-          description: 'Celery task orchestration for async workflows',
-          category: 'tasks',
-          status: 'stable',
-          tags: ['tasks'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-      Users: [
-        {
-          id: 'users_core',
-          name: 'users_core',
-          displayName: 'Users Core',
-          version: '0.1.0',
-          description: 'User management backbone with immutable profile',
-          category: 'users',
-          status: 'stable',
-          tags: ['users'],
-          dependencies: [],
-          installed: false,
-        },
-        {
-          id: 'users_profiles',
-          name: 'users_profiles',
-          displayName: 'Users Profiles',
-          version: '0.1.0',
-          description: 'Extends Users Core with rich profile modelling',
-          category: 'users',
-          status: 'stable',
-          tags: ['users'],
-          dependencies: [],
-          installed: false,
-        },
-      ],
-    };
+    const categoryKey = this.getCategoryKey(category);
+    const modulesInCategory = MODULES.filter((m) => m.category === categoryKey);
 
-    const modules = stableModules[category] || [];
-    return modules.map((module) => {
-      const item = new vscode.TreeItem(module.displayName);
-      item.description = `v${module.version}`;
-      item.tooltip = `${module.description}\n\nClick to add to project`;
+    return modulesInCategory.map((moduleData) => {
+      // Check if installed by slug
+      const installed = this._installedModules.get(moduleData.slug);
+      const statusText = this.getModuleStatus(moduleData, installed);
+      const hasUpdate = installed && this.isNewerVersion(moduleData.version, installed.version);
+
+      const item = new vscode.TreeItem(moduleData.name);
+      item.description = statusText;
+
+      // Tooltip shows status or prompts for project selection
+      if (!this._currentProjectPath) {
+        item.tooltip = `${moduleData.description}\nv${moduleData.version}\n\n⚠️ Select a project first to install modules`;
+      } else {
+        item.tooltip = `${moduleData.description}\nv${moduleData.version}`;
+      }
+
       item.contextValue = 'module';
 
-      // Minimal plus/add icon for installing modules
-      item.iconPath = new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('charts.green'));
+      // Icon based on installation state
+      let iconTheme =
+        installed && !hasUpdate
+          ? new vscode.ThemeColor('charts.green')
+          : hasUpdate
+            ? new vscode.ThemeColor('charts.orange')
+            : new vscode.ThemeColor('charts.blue');
 
-      item.command = {
-        command: 'rapidkit.addModule',
-        title: 'Add Module',
-        arguments: [module],
+      // If no project selected, gray out the icon
+      if (!this._currentProjectPath) {
+        iconTheme = new vscode.ThemeColor('charts.gray');
+      }
+
+      item.iconPath = new vscode.ThemeIcon('package', iconTheme);
+
+      // Create full module object for command
+      const moduleObj: RapidKitModule = {
+        id: moduleData.id,
+        name: moduleData.name,
+        displayName: moduleData.name,
+        version: moduleData.version,
+        description: moduleData.description,
+        category: moduleData.category,
+        status: moduleData.status as 'stable' | 'beta' | 'experimental' | 'preview',
+        tags: moduleData.tags || [],
+        dependencies: moduleData.dependencies || [],
+        installed: !!installed,
       };
-      return new ModuleTreeItem(item, 'module', module);
+
+      // Add slug to module object (used by addModule command)
+      (moduleObj as any).slug = moduleData.slug;
+
+      // Only add command if project is selected AND (not installed or has update available)
+      if (this._currentProjectPath && (!installed || hasUpdate)) {
+        item.command = {
+          command: 'rapidkit.addModule',
+          title: installed && hasUpdate ? 'Update Module' : 'Install Module',
+          arguments: [moduleObj],
+        };
+      }
+
+      return new ModuleTreeItem(item, 'module', moduleObj);
     });
+  }
+
+  private getCategoryKey(categoryName: string): string {
+    const keyMap: Record<string, string> = {
+      AI: 'ai',
+      Authentication: 'auth',
+      Billing: 'billing',
+      Business: 'business',
+      Cache: 'cache',
+      Communication: 'communication',
+      Database: 'database',
+      Essentials: 'essentials',
+      Observability: 'observability',
+      Security: 'security',
+      Tasks: 'tasks',
+      Users: 'users',
+    };
+    return keyMap[categoryName] || categoryName.toLowerCase();
+  }
+
+  private getModuleStatus(
+    moduleData: { id: string; name: string; version: string },
+    installed?: InstalledModule
+  ): string {
+    if (!installed) {
+      return '↓ Install';
+    }
+
+    if (this.isNewerVersion(moduleData.version, installed.version)) {
+      return `⟳ Update (v${installed.version} → v${moduleData.version})`;
+    }
+
+    return `✓ Installed (v${installed.version})`;
+  }
+
+  private isNewerVersion(availableVersion: string, installedVersion: string): boolean {
+    if (!installedVersion) {
+      return false;
+    }
+
+    const available = availableVersion.split('.').map(Number);
+    const installed = installedVersion.split('.').map(Number);
+
+    for (let i = 0; i < Math.max(available.length, installed.length); i++) {
+      const a = available[i] || 0;
+      const b = installed[i] || 0;
+      if (a > b) {
+        return true;
+      }
+      if (a < b) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  private async _loadInstalledModules(): Promise<void> {
+    if (!this._currentProjectPath) {
+      this._installedModules.clear();
+      return;
+    }
+
+    try {
+      const primaryPath = path.join(this._currentProjectPath, 'registry.json');
+      const legacyPath = path.join(this._currentProjectPath, '.rapidkit', 'registry.json');
+
+      const primaryExists = await fs.pathExists(primaryPath);
+      const registryPath = primaryExists ? primaryPath : legacyPath;
+
+      if (await fs.pathExists(registryPath)) {
+        const registry = await fs.readJson(registryPath);
+        this._installedModules.clear();
+
+        if (registry.installed_modules && Array.isArray(registry.installed_modules)) {
+          registry.installed_modules.forEach((mod: InstalledModule) => {
+            // Use slug as key directly (no mapping needed)
+            this._installedModules.set(mod.slug, mod);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[ModuleExplorer] Failed to load installed modules:', error);
+      this._installedModules.clear();
+    }
   }
 }
 
