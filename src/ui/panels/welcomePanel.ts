@@ -67,28 +67,63 @@ export class WelcomePanel {
           case 'openPyPI':
             vscode.env.openExternal(vscode.Uri.parse('https://pypi.org/project/rapidkit-core/'));
             break;
+          case 'openSetup':
+            vscode.commands.executeCommand('rapidkit.openSetup');
+            break;
           case 'installNpmGlobal': {
             const terminal = vscode.window.createTerminal('Install RapidKit CLI');
             terminal.show();
             terminal.sendText('npm install -g rapidkit');
+            // Auto-refresh after 8 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 8000);
             break;
           }
           case 'upgradeNpmGlobal': {
             const terminal = vscode.window.createTerminal('Upgrade RapidKit CLI');
             terminal.show();
             terminal.sendText('npm install -g rapidkit@latest');
+            // Auto-refresh after 8 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 8000);
             break;
           }
           case 'installPipCore': {
             const terminalPip = vscode.window.createTerminal('Install RapidKit Core');
             terminalPip.show();
-            terminalPip.sendText('pip install rapidkit-core');
+            terminalPip.sendText('pipx install --force rapidkit-core');
+            // Auto-refresh after 10 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 10000);
             break;
           }
           case 'upgradePipCore': {
             const terminalPip = vscode.window.createTerminal('Upgrade RapidKit Core');
             terminalPip.show();
-            terminalPip.sendText('pip install --upgrade rapidkit-core');
+            terminalPip.sendText('pipx upgrade rapidkit-core');
+            // Auto-refresh after 10 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 10000);
             break;
           }
           case 'installPoetry': {
@@ -101,30 +136,120 @@ export class WelcomePanel {
             } else {
               terminalPoetry.sendText('curl -sSL https://install.python-poetry.org | python3 -');
             }
+            // Auto-refresh after 12 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 12000);
             break;
           }
           case 'installPipx': {
             const terminalPipx = vscode.window.createTerminal('Install pipx');
             terminalPipx.show();
             if (process.platform === 'win32') {
-              terminalPipx.sendText('python -m pip install --user pipx');
+              terminalPipx.sendText(
+                'python -m pip install --user pipx && python -m pipx ensurepath'
+              );
             } else {
-              terminalPipx.sendText('python3 -m pip install --user pipx');
+              terminalPipx.sendText(
+                'python3 -m pip install --user pipx && python3 -m pipx ensurepath'
+              );
+            }
+            vscode.window.showInformationMessage(
+              'pipx installed. Please restart your terminal or VS Code for PATH changes to take effect.'
+            );
+            // Auto-refresh after 8 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 8000);
+            break;
+          }
+          case 'installPipxThenCore': {
+            const terminal = vscode.window.createTerminal('Setup RapidKit Toolchain');
+            terminal.show();
+            if (process.platform === 'win32') {
+              terminal.sendText(
+                'python -m pip install --user pipx && python -m pipx ensurepath && pipx install --force rapidkit-core'
+              );
+            } else {
+              terminal.sendText(
+                'python3 -m pip install --user pipx && python3 -m pipx ensurepath && pipx install --force rapidkit-core'
+              );
+            }
+            vscode.window.showInformationMessage(
+              'Installing pipx and RapidKit Core. Please wait...'
+            );
+            // Auto-refresh after 15 seconds (longer chain command)
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 15000);
+            break;
+          }
+          case 'installCoreFallback': {
+            const answer = await vscode.window.showWarningMessage(
+              'pipx not found. Install RapidKit Core with pip --user instead? (fallback mode)',
+              'Install with pip',
+              'Cancel'
+            );
+            if (answer === 'Install with pip') {
+              const terminal = vscode.window.createTerminal('Install RapidKit Core (fallback)');
+              terminal.show();
+              if (process.platform === 'win32') {
+                terminal.sendText('python -m pip install --user rapidkit-core');
+              } else {
+                terminal.sendText('python3 -m pip install --user rapidkit-core');
+              }
+              vscode.window.showWarningMessage(
+                'RapidKit Core installed via pip. This may conflict with virtualenvs. Consider installing pipx later.'
+              );
+              // Auto-refresh after 10 seconds
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._panel.webview.postMessage({
+                  command: 'statusUpdate',
+                  status: newStatus,
+                });
+              }, 10000);
             }
             break;
           }
           case 'installBoth': {
             const terminalBoth = vscode.window.createTerminal('Install RapidKit');
             terminalBoth.show();
-            terminalBoth.sendText('npm install -g rapidkit && pip install rapidkit-core');
+            terminalBoth.sendText('npm install -g rapidkit && pipx install rapidkit-core');
+            // Auto-refresh after 15 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 15000);
             break;
           }
           case 'upgradeBoth': {
             const terminalBoth = vscode.window.createTerminal('Upgrade RapidKit');
             terminalBoth.show();
-            terminalBoth.sendText(
-              'npm install -g rapidkit@latest && pip install --upgrade rapidkit-core'
-            );
+            terminalBoth.sendText('npm install -g rapidkit@latest && pipx upgrade rapidkit-core');
+            // Auto-refresh after 15 seconds
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({
+                command: 'statusUpdate',
+                status: newStatus,
+              });
+            }, 15000);
             break;
           }
           case 'showInfo': {
@@ -578,9 +703,6 @@ export class WelcomePanel {
 
   private _getHtmlContent(context: vscode.ExtensionContext): string {
     // Get URIs for webview
-    const rapidkitIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
-    );
     const iconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
     );
@@ -592,18 +714,6 @@ export class WelcomePanel {
     );
     const nestjsIconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'nestjs.svg')
-    );
-    const npmIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'npm.svg')
-    );
-    const pythonIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'python.svg')
-    );
-    const pypiIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'pypi.svg')
-    );
-    const poetryIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'poetry.svg')
     );
 
     // Get version from package.json
@@ -1496,214 +1606,100 @@ export class WelcomePanel {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
-
-        /* Setup Wizard Styles */
-        .setup-wizard {
-            background: linear-gradient(135deg, rgba(0,207,193,0.05), rgba(0,150,136,0.05));
-            border: 2px solid var(--vscode-panel-border);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 24px;
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
-        .setup-wizard.hidden {
-            display: none;
-        }
-        .wizard-header {
+        /* Setup Card - Compact Minimal Professional Design */
+        .setup-card {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 16px;
-        }
-        .wizard-title {
-            font-size: 15px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .wizard-subtitle {
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-        }
-        .wizard-steps {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        .installation-methods-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-            margin-bottom: 12px;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-        .method-recommendation {
-            font-size: 11px;
-            color: #667eea;
-            font-weight: 500;
-        }
-        .rapidkit-packages {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .wizard-step {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
+            background: rgba(102,126,234,0.06);
+            border: 1px solid rgba(102,126,234,0.2);
             border-radius: 8px;
-            padding: 12px;
-            position: relative;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .step-recommended-badge {
-            position: absolute;
-            top: -10px;
-            left: 12px;
-            background: #667eea;
-            color: white;
-            font-size: 9px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+
+        .setup-card:hover {
+            background: rgba(102,126,234,0.1);
+            border-color: rgba(102,126,234,0.4);
+            transform: translateX(4px);
         }
-        .wizard-step.installed {
-            border-color: #4CAF50;
-            background: rgba(76, 175, 80, 0.05);
-        }
-        .wizard-step.not-installed {
-            border-color: #FF9800;
-            background: rgba(255, 152, 0, 0.05);
-        }
-        .step-header {
+
+        .setup-card-content {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .step-icon {
-            font-size: 20px;
-        }
-        .step-title {
-            font-size: 13px;
-            font-weight: 700;
+            gap: 12px;
             flex: 1;
         }
-        .step-status {
-            font-size: 16px;
+
+        .setup-card-icon {
+            font-size: 20px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 6px;
+            color: white;
+            flex-shrink: 0;
         }
-        .step-status.loading {
-            font-family: monospace;
-            letter-spacing: 2px;
+
+        .setup-card-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
-        .step-status.loading::after {
-            content: '●○○';
-            display: inline-block;
-            animation: spinnerDots 1.4s infinite;
-            font-size: 8px;
-            letter-spacing: 1px;
+
+        .setup-card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            line-height: 1.3;
         }
-        @keyframes spinnerDots {
-            0%, 20% { content: '●○○'; }
-            40% { content: '○●○'; }
-            60% { content: '○○●'; }
-            80%, 100% { content: '●○○'; }
-        }
-        .step-details {
+
+        .setup-card-subtitle {
             font-size: 11px;
             color: var(--vscode-descriptionForeground);
-            margin-bottom: 8px;
-            line-height: 1.4;
+            line-height: 1.3;
         }
-        .step-version {
-            font-weight: 600;
-            color: #4CAF50;
-            font-size: 12px;
-        }
-        .step-actions {
-            display: flex;
-            gap: 6px;
-        }
-        .step-btn {
-            flex: 1;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 10px;
-            border-radius: 4px;
-            font-size: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 600;
-        }
-        .step-btn:hover {
-            background: var(--vscode-button-hoverBackground);
-            transform: scale(1.02);
-        }
-        .step-btn.secondary {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        .step-btn.secondary:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
-        .wizard-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-top: 12px;
-            border-top: 1px solid var(--vscode-panel-border);
-        }
-        .wizard-progress {
-            font-size: 12px;
+
+        .setup-card-arrow {
+            font-size: 18px;
             color: var(--vscode-descriptionForeground);
+            transition: all 0.25s;
+            opacity: 0.6;
         }
-        .wizard-actions {
-            display: flex;
-            gap: 8px;
-        }
-        .wizard-btn {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: 1px solid var(--vscode-panel-border);
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-        .wizard-btn:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
-        .wizard-btn.primary {
-            background: linear-gradient(135deg, #00cfc1, #009688);
-            color: white;
-            border: none;
-        }
-        .wizard-btn.primary:hover {
-            opacity: 0.9;
-        }
-        .wizard-btn.primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+
+        .setup-card:hover .setup-card-arrow {
+            opacity: 1;
+            color: #667eea;
+            transform: translateX(4px);
         }
 
         @media (max-width: 900px) {
-            .wizard-steps { grid-template-columns: repeat(2, 1fr); }
-            .modules-grid { grid-template-columns: repeat(2, 1fr); }
+            .modules-grid { 
+                grid-template-columns: repeat(2, 1fr); 
+            }
         }
         @media (max-width: 600px) {
-            .actions { grid-template-columns: 1fr; }
-            .features { grid-template-columns: 1fr; }
-            .wizard-steps { grid-template-columns: 1fr; }
-            .modules-grid { grid-template-columns: 1fr; }
-            .progress-container { min-width: 90vw; }
+            .actions { 
+                grid-template-columns: 1fr; 
+            }
+            .features { 
+                grid-template-columns: 1fr; 
+            }
+            .modules-grid { 
+                grid-template-columns: 1fr; 
+            }
+            .progress-container { 
+                min-width: 90vw; 
+            }
         }
     </style>
 </head>
@@ -1717,137 +1713,19 @@ export class WelcomePanel {
             <span class="version" id="versionInfo">v${version}</span>
         </div>
 
-        <!-- Setup Wizard -->
-        <div class="setup-wizard" id="setupWizard">
-            <div class="wizard-header">
-                <div>
-                    <div class="wizard-title">🚀 Setup Status</div>
-                </div>
-                <button class="wizard-btn" onclick="hideWizard()" style="border: none; background: transparent; cursor: pointer; font-size: 16px;">✕</button>
-            </div>
-
-            <!-- Required Packages Section -->
-            <div class="rapidkit-packages">
-                <!-- Python Step -->
-                <div class="wizard-step" id="pythonStep">
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${pythonIconUri}" width="20" height="20" alt="Python" /></span>
-                        <span class="step-title">Python</span>
-                        <span class="step-status loading" id="pythonStatus"></span>
-                    </div>
-                    <div class="step-details" id="pythonDetails">Checking...</div>
-                    <div class="step-actions" id="pythonActions" style="display: none;">
-                      <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px;">📥 Download</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'https://www.python.org/downloads/')" style="font-size: 9px;">📋 Copy</button>
-                    </div>
-                    <div class="step-actions" id="pythonUpgrade" style="display: none;">
-                      <button class="step-btn" onclick="openPythonDownload()" style="font-size: 9px; background: linear-gradient(135deg, #FF5722, #FF7043); border: none;">⬆ Upgrade to 3.10+</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'https://www.python.org/downloads/')" style="font-size: 9px;">📋 Copy</button>
-                    </div>
-                </div>
-                <!-- Python Core Package -->
-                <div class="wizard-step" id="coreStep">
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${rapidkitIconUri}" width="20" height="20" alt="Python" /></span>
-                        <span class="step-title">RapidKit Core</span>
-                        <span class="step-status loading" id="coreStatus"></span>
-                    </div>
-                    <div class="step-details" id="coreDetails">Checking...</div>
-                    <div class="step-actions" id="coreActions" style="display: none;">
-                      <button class="step-btn" onclick="installPythonCore()" style="font-size: 9px;">⚡ Install</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'pip install rapidkit-core')" style="font-size: 9px;">📋 Copy</button>
-                      <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
-                    </div>
-                    <div class="step-actions" id="coreUpgrade" style="display: none;">
-                      <button class="step-btn" onclick="upgradeCore()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'pip install --upgrade rapidkit-core')" style="font-size: 9px;">📋 Copy</button>
-                      <button class="step-btn secondary" onclick="openPyPI()" style="font-size: 9px;">📄 PyPI</button>
-                    </div>
-                </div>
-                <!-- npm CLI Package -->
-                <div class="wizard-step" id="npmStep">
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${npmIconUri}" width="20" height="20" alt="npm" /></span>
-                        <span class="step-title">RapidKit CLI</span>
-                        <span class="step-status loading" id="npmStatus"></span>
-                    </div>
-                    <div class="step-details" id="npmDetails">Checking...</div>
-                    <div class="step-actions" id="npmActions" style="display: none;">
-                      <button class="step-btn" onclick="installNpmCLI()" style="font-size: 9px;">⚡ Install</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'npm install -g rapidkit')" style="font-size: 9px;">📋 Copy</button>
-                      <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
-                    </div>
-                    <div class="step-actions" id="npmUpgrade" style="display: none;">
-                      <button class="step-btn" onclick="upgradeNpm()" style="font-size: 9px; background: linear-gradient(135deg, #00BFA5, #00CFC1); border: none;">⬆ Upgrade</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, 'npm install -g rapidkit@latest')" style="font-size: 9px;">📋 Copy</button>
-                      <button class="step-btn secondary" onclick="openNpmPackage()" style="font-size: 9px;">📄 Docs</button>
-                    </div>
-                </div>
-
-
-            </div>
-            
-            <!-- Installation Methods Section Header -->
-            <div class="installation-methods-header">
-                <span>Choose one - each manages your Python packages & dependencies</span>
-            </div>
-            
-            <div class="wizard-steps">
-                <!-- Poetry Step -->
-                <div class="wizard-step" id="poetryStep">
-                    <div class="step-recommended-badge">Recommended</div>
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${poetryIconUri}" width="20" height="20" alt="Poetry" /></span>
-                        <span class="step-title">Poetry</span>
-                        <span class="step-status loading" id="poetryStatus"></span>
-                    </div>
-                    <div class="step-details" id="poetryDetails">Checking...</div>
-                    <div class="step-actions" id="poetryActions" style="display: none;">
-                      <button class="step-btn" onclick="installPoetry()" style="font-size: 9px;">⚡ Install</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, getPoetryInstallCommand())" style="font-size: 9px;">📋 Copy</button>
-                    </div>
-                </div>
-
-                <!-- pip Step -->
-                <div class="wizard-step" id="pipStep">
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${pypiIconUri}" width="20" height="20" alt="PyPI" /></span>
-                        <span class="step-title">pip</span>
-                        <span class="step-status loading" id="pipStatus"></span>
-                    </div>
-                    <div class="step-details" id="pipDetails">Checking...</div>
-                    <div class="step-actions" id="pipActions" style="display: none;">
-                        <button class="step-btn" onclick="showPipInstall()" style="font-size: 9px;">ℹ️ Info</button>
-                    </div>
-                </div>
-
-                <!-- pipx Step -->
-                <div class="wizard-step" id="pipxStep">
-                    <div class="step-header">
-                        <span class="step-icon"><img src="${pypiIconUri}" width="20" height="20" alt="pipx" /></span>
-                        <span class="step-title">pipx</span>
-                        <span class="step-status loading" id="pipxStatus"></span>
-                    </div>
-                    <div class="step-details" id="pipxDetails">Checking...</div>
-                    <div class="step-actions" id="pipxActions" style="display: none;">
-                      <button class="step-btn" onclick="installPipx()" style="font-size: 9px;">⚡ Install</button>
-                      <button class="step-btn secondary" onclick="copyCommand(this, getPipxInstallCommand())" style="font-size: 9px;">📋 Copy</button>
-                    </div>
+        <!-- Setup Card - Compact Minimal Design -->
+        <div class="setup-card" onclick="openSetup()">
+            <div class="setup-card-content">
+                <div class="setup-card-icon">⚙</div>
+                <div class="setup-card-info">
+                    <div class="setup-card-title">Setup & Installation</div>
+                    <div class="setup-card-subtitle">Configure toolchain & verify status</div>
                 </div>
             </div>
-
- 
-
-            <div class="wizard-footer">
-                <div class="wizard-progress" id="wizardProgress">Checking...</div>
-                <div class="wizard-actions">
-                    <button class="wizard-btn" onclick="refreshWizard()">↻</button>
-                    <button class="wizard-btn primary" onclick="finishSetup()" id="finishBtn" disabled>
-                        ✓ Run Doctor
-                    </button>
-                </div>
-            </div>
+            <div class="setup-card-arrow">→</div>
         </div>
+
+
         <div class="actions">
             <!-- Hero Action: Primary CTA -->
             <div class="hero-action" onclick="createWorkspace()">
@@ -1908,7 +1786,12 @@ export class WelcomePanel {
         <div class="section recent-workspaces" id="recentWorkspaces">
             <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
                 <span>📂 Recent Workspaces</span>
-                <button class="wizard-btn" onclick="refreshWorkspaces()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh workspaces">↻</button>
+                <button class="wizard-btn" onclick="refreshWorkspaces()" style="padding: 8px; border: none; background: transparent; color: var(--vscode-foreground);" title="Refresh workspaces">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 16px; height: 16px;">
+                        <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
             </div>
             <div class="workspace-list" id="workspaceList">
                 <!-- Will be populated by JavaScript -->
@@ -1923,7 +1806,12 @@ export class WelcomePanel {
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <span class="module-count" id="moduleCount">${getTotalModuleCount()} free modules</span>
-                    <button class="wizard-btn" onclick="refreshModules()" style="font-size: 14px; padding: 6px 12px; margin: 0;" title="Refresh module status">↻</button>
+                    <button class="wizard-btn" onclick="refreshModules()" style="padding: 8px; border: none; background: transparent; color: var(--vscode-foreground);" title="Refresh module status">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 16px; height: 16px;">
+                            <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
             
@@ -2221,6 +2109,10 @@ export class WelcomePanel {
                         pendingInstallStatus = null;
                     }
                 }, 500); // 500ms debounce
+            } else if (message.command === 'statusUpdate') {
+                // Auto-refresh after installation
+                console.log('[WelcomePanel] 🔄 Auto-refreshing status after installation');
+                updateWizardUI(message.status);
             } else if (message.command === 'workspacesUpdate') {
                 recentWorkspaces = message.data;
                 populateRecentWorkspaces();
@@ -2277,6 +2169,16 @@ export class WelcomePanel {
         }
 
         function refreshWorkspaces() {
+            const refreshBtn = event.target.closest('button');
+            if (refreshBtn) {
+                const svg = refreshBtn.querySelector('svg');
+                if (svg) {
+                    svg.style.animation = 'spin 1s linear infinite';
+                    setTimeout(() => {
+                        svg.style.animation = '';
+                    }, 2000);
+                }
+            }
             vscode.postMessage({ command: 'refreshWorkspaces' });
         }
 
@@ -2384,12 +2286,12 @@ export class WelcomePanel {
                 if (status.pythonNeedsUpgrade) {
                     pythonStatus.textContent = '⚠';
                     pythonStep.classList.add('needs-upgrade');
-                    pythonDisplay += \` <span style="color: #FF5722; margin-left: 8px; font-size: 10px;">⚠ Requires 3.10+</span>\`;
-                    pythonActions.style.display = 'none';
+                    pythonDisplay = \`<span style="color: #FF5722; font-weight: 600;">v\${status.pythonVersion}</span> <span style="color: #FF5722; margin-left: 8px; font-size: 10px;">⚠ Upgrade required</span>\`;
                     if (pythonUpgrade) pythonUpgrade.style.display = 'flex';
                 } else {
                     pythonStatus.textContent = '✓';
                     pythonStep.classList.remove('needs-upgrade');
+                    pythonDisplay += \` <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ System ready</span>\`;
                     pythonActions.style.display = 'none';
                     if (pythonUpgrade) pythonUpgrade.style.display = 'none';
                 }
@@ -2400,7 +2302,7 @@ export class WelcomePanel {
                 pythonStep.classList.add('not-installed');
                 pythonStatus.textContent = '⚠';
                 pythonStatus.classList.remove('loading');
-                pythonDetails.innerHTML = 'Not installed';
+                pythonDetails.innerHTML = '<span style="color: #FF5722;">Not installed - Required</span>';
                 pythonActions.style.display = 'flex';
                 if (pythonUpgrade) pythonUpgrade.style.display = 'none';
             }
@@ -2423,7 +2325,7 @@ export class WelcomePanel {
                 pipStep.classList.add('not-installed');
                 pipStatus.textContent = '⚠';
                 pipStatus.classList.remove('loading');
-                pipDetails.innerHTML = 'Optional installation method';
+                pipDetails.innerHTML = 'Optional (per-project dependencies)';
                 pipActions.style.display = 'flex';
             }
 
@@ -2445,7 +2347,7 @@ export class WelcomePanel {
                 poetryStep.classList.add('not-installed');
                 poetryStatus.textContent = '⚠';
                 poetryStatus.classList.remove('loading');
-                poetryDetails.innerHTML = 'Required for workspaces';
+                poetryDetails.innerHTML = 'Recommended for FastAPI projects';
                 poetryActions.style.display = 'flex';
             }
 
@@ -2460,14 +2362,14 @@ export class WelcomePanel {
                 pipxStep.classList.add('installed');
                 pipxStatus.textContent = '✓';
                 pipxStatus.classList.remove('loading');
-                pipxDetails.innerHTML = \`<span class="step-version">v\${status.pipxVersion}</span>\`;
+                pipxDetails.innerHTML = \`<span class="step-version">v\${status.pipxVersion}</span> <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ Ready for global tools</span>\`;
                 pipxActions.style.display = 'none';
             } else {
                 pipxStep.classList.remove('installed');
                 pipxStep.classList.add('not-installed');
                 pipxStatus.textContent = '⚠';
                 pipxStatus.classList.remove('loading');
-                pipxDetails.innerHTML = 'Optional installation method';
+                pipxDetails.innerHTML = '<span style="color: #FF9800; font-weight: 600;">Recommended</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Speeds up workspace creation</span>';
                 pipxActions.style.display = 'flex';
             }
 
@@ -2490,6 +2392,7 @@ export class WelcomePanel {
                     npmActions.style.display = 'none';
                     npmUpgrade.style.display = 'flex';
                 } else {
+                    npmDisplay += \` <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ Workspace manager ready</span>\`;
                     npmActions.style.display = 'none';
                     npmUpgrade.style.display = 'none';
                 }
@@ -2499,7 +2402,7 @@ export class WelcomePanel {
                 npmStep.classList.add('not-installed');
                 npmStatus.textContent = '⚠';
                 npmStatus.classList.remove('loading');
-                npmDetails.innerHTML = 'Not installed';
+                npmDetails.innerHTML = '<span style="color: #FF5722; font-weight: 600;">Not installed</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Workspace & project manager</span>';
                 npmActions.style.display = 'flex';
                 npmUpgrade.style.display = 'none';
             }
@@ -2510,51 +2413,95 @@ export class WelcomePanel {
             const coreDetails = document.getElementById('coreDetails');
             const coreActions = document.getElementById('coreActions');
             const coreUpgrade = document.getElementById('coreUpgrade');
-
+            const coreActionsNoPipx = document.getElementById('coreActionsNoPipx');
+            
             if (status.coreInstalled) {
                 coreStep.classList.remove('not-installed');
-                coreStep.classList.add('installed');
-                coreStatus.textContent = '✓';
-                coreStatus.classList.remove('loading');
                 
                 let coreDisplay = \`<span class="step-version">v\${status.coreVersion}</span>\`;
-                if (status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion)) {
-                    coreDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestCoreVersion}</span>\`;
-                    coreActions.style.display = 'none';
-                    coreUpgrade.style.display = 'flex';
+                
+                // Determine status based on install type
+                if (status.coreInstallType === 'global') {
+                    // Global install (pipx) - fully ready
+                    coreStep.classList.add('installed');
+                    coreStatus.textContent = '✓';
+                    coreStatus.classList.remove('loading');
+                    
+                    if (status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion)) {
+                        coreDisplay += \` <span style="color: #FF9800; margin-left: 8px;">→ v\${status.latestCoreVersion}</span>\`;
+                        coreActions.style.display = 'none';
+                        if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+                        coreUpgrade.style.display = 'flex';
+                    } else {
+                        coreDisplay += \` <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ Ready (Global)</span>\`;
+                        coreActions.style.display = 'none';
+                        if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+                        coreUpgrade.style.display = 'none';
+                    }
+                } else if (status.coreInstallType === 'workspace') {
+                    // Workspace-only install - works but recommend global for speed
+                    coreStep.classList.add('installed');
+                    coreStep.style.borderLeft = '3px solid #FF9800'; // Orange border
+                    coreStatus.textContent = '⚠️';
+                    coreStatus.classList.remove('loading');
+                    
+                    coreDisplay += \` <span style="color: #FF9800; margin-left: 8px; font-size: 10px;">⚠️ In workspace only</span>\`;
+                    coreDisplay += \`<div style="font-size: 9px; color: #999; margin-top: 4px; line-height: 1.4;">
+                        💡 Install globally with pipx for faster workspace creation<br/>
+                        <code style="font-size: 8px; background: rgba(255,255,255,0.05); padding: 2px 4px; border-radius: 2px;">pipx install rapidkit-core</code>
+                    </div>\`;
+                    
+                    // Show install button to upgrade to global
+                    coreActions.style.display = 'flex';
+                    if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+                    coreUpgrade.style.display = 'none';
                 } else {
+                    // Unknown install type - treat as installed but unclear
+                    coreStep.classList.add('installed');
+                    coreStatus.textContent = '✓';
+                    coreStatus.classList.remove('loading');
+                    coreDisplay += \` <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ Ready</span>\`;
                     coreActions.style.display = 'none';
+                    if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
                     coreUpgrade.style.display = 'none';
                 }
+                
                 coreDetails.innerHTML = coreDisplay;
             } else {
                 coreStep.classList.remove('installed');
                 coreStep.classList.add('not-installed');
+                coreStep.style.borderLeft = ''; // Reset border
                 coreStatus.textContent = '⚠';
                 coreStatus.classList.remove('loading');
-                coreDetails.innerHTML = 'Not installed';
-                coreActions.style.display = 'flex';
+                
+                // Check if pipx is available
+                if (status.pipxInstalled) {
+                    coreDetails.innerHTML = '<span style="color: #FF5722; font-weight: 600;">Not installed</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Python Framework (40+ commands)</span>';
+                    coreActions.style.display = 'flex';
+                    if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+                } else {
+                    coreDetails.innerHTML = '<span style="color: #FF5722; font-weight: 600;">pipx required</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Install pipx first, or use fallback</span>';
+                    coreActions.style.display = 'none';
+                    if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'flex';
+                }
                 coreUpgrade.style.display = 'none';
             }
 
             // Update progress
             const progress = document.getElementById('wizardProgress');
-            const pythonOk = status.pythonInstalled ? 1 : 0;
-            const pipOk = status.pipInstalled ? 1 : 0;
-            const poetryOk = status.poetryInstalled ? 1 : 0;
+            const pythonOk = status.pythonInstalled && !status.pythonNeedsUpgrade ? 1 : 0;
             const npmOk = status.npmInstalled ? 1 : 0;
+            const pipxOk = status.pipxInstalled ? 1 : 0;
             const coreOk = status.coreInstalled ? 1 : 0;
-            const installedCount = pythonOk + pipOk + poetryOk + npmOk + coreOk;
-            
-            if (installedCount === 5) {
-                progress.textContent = '✅ All dependencies ready';
-                document.getElementById('finishBtn').disabled = false;
-            } else if (installedCount >= 3) {
-                progress.textContent = \`⚡ \${installedCount}/5 installed\`;
-                document.getElementById('finishBtn').disabled = true;
+            const requiredInstalled = pythonOk + npmOk + pipxOk + coreOk;
+            const requiredTotal = 4;
+
+            if (requiredInstalled === requiredTotal) {
+              progress.textContent = '✅ Toolchain ready';
+              document.getElementById('finishBtn').disabled = false;
             } else {
-                progress.textContent = '⚠ Dependencies missing';
-                document.getElementById('finishBtn').disabled = true;
+              progress.textContent = \`⚠ \${requiredInstalled}/\${requiredTotal} required installed\`;
+              document.getElementById('finishBtn').disabled = true;
             }
         }
 
@@ -2573,7 +2520,17 @@ export class WelcomePanel {
 
         function installPipx() {
             vscode.postMessage({ command: 'installPipx' });
-            setTimeout(checkInstallationStatus, 5000);
+            setTimeout(checkInstallationStatus, 8000); // More time for PATH update
+        }
+
+        function installPipxThenCore() {
+            vscode.postMessage({ command: 'installPipxThenCore' });
+            setTimeout(checkInstallationStatus, 15000); // More time for both installations
+        }
+
+        function installCoreFallback() {
+            vscode.postMessage({ command: 'installCoreFallback' });
+            setTimeout(checkInstallationStatus, 8000);
         }
 
         function installNpmCLI() {
@@ -2638,6 +2595,9 @@ export class WelcomePanel {
         function openDocs() {
             vscode.postMessage({ command: 'openDocs' });
         }
+        function openSetup() {
+            vscode.postMessage({ command: 'openSetup' });
+        }
         function openGitHub() {
             vscode.postMessage({ command: 'openGitHub' });
         }
@@ -2701,6 +2661,16 @@ export class WelcomePanel {
         }
         
         function refreshModules() {
+            const refreshBtn = event.target.closest('button');
+            if (refreshBtn) {
+                const svg = refreshBtn.querySelector('svg');
+                if (svg) {
+                    svg.style.animation = 'spin 1s linear infinite';
+                    setTimeout(() => {
+                        svg.style.animation = '';
+                    }, 2000);
+                }
+            }
             console.log('[Module Browser] Manual refresh requested');
             vscode.postMessage({ command: 'refreshModules' });
         }
@@ -3176,6 +3146,7 @@ export class WelcomePanel {
       // RapidKit packages
       coreInstalled: false,
       coreVersion: null as string | null,
+      coreInstallType: null as 'global' | 'workspace' | null, // Track where Core is installed
       latestCoreVersion: null as string | null,
     };
 
@@ -3191,50 +3162,45 @@ export class WelcomePanel {
       // Node not found (very unlikely in VS Code context)
     }
 
-    // Check npm CLI package - must be globally installed and distinguish from pipx
+    // Check npm CLI package - use npx which is more reliable
     try {
-      // First check if rapidkit command exists
-      const versionResult = await execa('rapidkit', ['--version'], {
+      // Try npx first (most reliable for npm packages)
+      const npxResult = await execa('npx', ['rapidkit', '--version'], {
         shell: status.isWindows,
         timeout: 3000,
       });
-      const output = versionResult.stdout.trim();
+      const output = npxResult.stdout.trim();
 
-      // Distinguish npm CLI from pipx Python package by output format
-      // npm CLI: "0.16.4" or "rapidkit 0.16.4" (plain version)
-      // pipx/Python: "RapidKit Version v0.2.2rc1" (formatted with 'Version' keyword)
+      // npm CLI outputs plain version: "0.16.4"
+      // pipx/Python outputs: "RapidKit Version v0.2.2rc1"
       if (output.includes('RapidKit Version') || output.includes('rapidkit-core')) {
-        // This is the Python package via pipx, not npm CLI
         status.npmInstalled = false;
+      } else if (/^[\d.]+$/.test(output) || output.includes('rapidkit')) {
+        status.npmVersion = output.replace('rapidkit', '').trim();
+        status.npmInstalled = true;
+        status.npmLocation = 'npm global';
       } else {
-        // Verify it's from npm global by checking npm list
-        try {
-          const npmCheck = await execa('npm', ['list', '-g', 'rapidkit', '--depth=0'], {
-            shell: status.isWindows,
-            timeout: 3000,
-          });
-          if (npmCheck.stdout.includes('rapidkit')) {
-            status.npmVersion = output.replace('rapidkit', '').trim();
-            status.npmInstalled = true;
-            status.npmLocation = 'npm global';
-          } else {
-            // Command exists but not via npm - might be local or other package manager
-            status.npmInstalled = false;
-          }
-        } catch {
-          // npm check failed but command works - assume it's npm if output is plain version
+        status.npmInstalled = false;
+      }
+    } catch {
+      // Fallback: try direct rapidkit command
+      try {
+        const versionResult = await execa('rapidkit', ['--version'], {
+          shell: status.isWindows,
+          timeout: 3000,
+        });
+        const output = versionResult.stdout.trim();
+
+        if (!output.includes('RapidKit Version') && !output.includes('rapidkit-core')) {
           if (/^[\d.]+$/.test(output)) {
             status.npmVersion = output;
             status.npmInstalled = true;
             status.npmLocation = 'npm global';
-          } else {
-            status.npmInstalled = false;
           }
         }
+      } catch {
+        status.npmInstalled = false;
       }
-    } catch {
-      // rapidkit command not found at all
-      status.npmInstalled = false;
     }
 
     // Check Python - try multiple commands with proper priority
@@ -3335,9 +3301,9 @@ export class WelcomePanel {
       }
     }
 
-    // Comprehensive rapidkit-core detection
+    // Comprehensive rapidkit-core detection - MUST verify it's Python package, not npm CLI
     const detectionMethods = [
-      // Method 1: Try Python import
+      // Method 0: CRITICAL - Verify via direct Python import (most reliable)
       async () => {
         for (const cmd of pythonCommands) {
           try {
@@ -3347,9 +3313,14 @@ export class WelcomePanel {
               {
                 shell: status.isWindows,
                 timeout: 3000,
+                reject: true, // Must throw if import fails
               }
             );
-            return result.stdout.trim();
+            const version = result.stdout.trim();
+            // Verify it's a valid Python package version (not npm CLI)
+            if (version && !version.includes('command not found')) {
+              return version;
+            }
           } catch {
             continue;
           }
@@ -3425,27 +3396,143 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 5: pipx
+      // Method 5: pipx - check rapidkit-core package with rapidkit command
       async () => {
         try {
-          const result = await execa('pipx', ['list'], {
+          // First check if pipx has rapidkit-core installed
+          const listResult = await execa('pipx', ['list'], {
             shell: status.isWindows,
             timeout: 3000,
+            reject: false,
           });
-          if (result.stdout.includes('rapidkit-core')) {
-            const versionMatch = result.stdout.match(/rapidkit-core\s+(\S+)/);
+
+          const listOutput = listResult.stdout + listResult.stderr;
+
+          // pipx list shows: "package rapidkit-core 0.2.2rc1, installed using Python 3.10.19"
+          // with exposed command: "- rapidkit"
+          if (listOutput.includes('rapidkit-core')) {
+            // CRITICAL CHECK: Detect broken symlinks
+            // "symlink missing or pointing to unexpected location"
+            if (
+              listOutput.includes('symlink missing') ||
+              listOutput.includes('unexpected location')
+            ) {
+              // pipx package is installed but symlink is broken
+              // Return null to indicate broken installation
+              console.log('[RapidKit] pipx symlink broken - needs repair');
+              return null;
+            }
+
+            // Method 5a: Try the exposed rapidkit command
+            try {
+              const cmdResult = await execa('rapidkit', ['--version'], {
+                shell: status.isWindows,
+                timeout: 2000,
+                reject: false,
+              });
+              const cmdOutput = cmdResult.stdout.trim();
+
+              // Python Core outputs: "RapidKit Version v0.2.2rc1"
+              // npm CLI outputs: "0.16.4" (plain version number)
+              if (cmdOutput.includes('RapidKit') || cmdOutput.includes('Version')) {
+                // This is the Python Core package
+                const versionMatch = cmdOutput.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/);
+                if (versionMatch) {
+                  return versionMatch[1];
+                }
+                return 'installed';
+              }
+            } catch {
+              // Command failed - likely due to broken symlink
+              console.log('[RapidKit] rapidkit command failed - checking Python import');
+            }
+
+            // Method 5b: Verify via Python import
+            for (const cmd of pythonCommands) {
+              try {
+                const pyResult = await execa(
+                  cmd,
+                  ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+                  { shell: status.isWindows, timeout: 2000 }
+                );
+                const importedVersion = pyResult.stdout.trim();
+
+                // Package exists but command doesn't work - broken symlink
+                if (importedVersion) {
+                  console.log('[RapidKit] Package exists but command broken - marking as broken');
+                  // Return null to trigger reinstall
+                  return null;
+                }
+              } catch {
+                continue;
+              }
+            }
+
+            // Found in pipx but can't verify at all - broken installation
+            console.log('[RapidKit] pipx shows package but cannot verify - broken');
+            return null;
+          }
+        } catch {
+          // pipx not available, try direct command as fallback
+        }
+
+        // Fallback: Try rapidkit command even without pipx
+        try {
+          const cmdResult = await execa('rapidkit', ['--version'], {
+            shell: status.isWindows,
+            timeout: 2000,
+            reject: false,
+          });
+          const cmdOutput = cmdResult.stdout.trim();
+
+          if (cmdOutput.includes('RapidKit') || cmdOutput.includes('Version')) {
+            const versionMatch = cmdOutput.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/);
             if (versionMatch) {
               return versionMatch[1];
             }
             return 'installed';
           }
         } catch {
-          // pipx not available
+          // Command not available
+        }
+
+        return null;
+      },
+
+      // Method 6: Check pipx venv path directly (Linux/Mac)
+      async () => {
+        if (status.isWindows) {
+          return null;
+        }
+        try {
+          const fs = await import('fs-extra');
+          const path = await import('path');
+          const homedir = os.homedir();
+          const venvPath = path.join(homedir, '.local', 'share', 'pipx', 'venvs', 'rapidkit-core');
+
+          if (await fs.pathExists(venvPath)) {
+            // Venv exists, try to get version from Python
+            const pythonPath = path.join(venvPath, 'bin', 'python');
+            if (await fs.pathExists(pythonPath)) {
+              try {
+                const result = await execa(
+                  pythonPath,
+                  ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+                  { timeout: 2000 }
+                );
+                return result.stdout.trim();
+              } catch {
+                // Venv exists but broken
+              }
+            }
+          }
+        } catch {
+          // fs-extra not available or error
         }
         return null;
       },
 
-      // Method 6: poetry show
+      // Method 7: poetry show
       async () => {
         try {
           const result = await execa('poetry', ['show', 'rapidkit-core'], {
@@ -3466,7 +3553,36 @@ export class WelcomePanel {
         return null;
       },
 
-      // Method 7: conda
+      // Method 7: Check rapidkit CLI command (must distinguish from npm CLI)
+      async () => {
+        try {
+          // Try to run rapidkit command and check output format
+          const result = await execa('rapidkit', ['--version'], {
+            shell: status.isWindows,
+            timeout: 3000,
+          });
+          const output = result.stdout.trim();
+
+          // Python Core outputs: "RapidKit Version v0.2.2rc1" or similar formatted output
+          // npm CLI outputs: "0.16.4" (plain version number)
+
+          if (output.includes('RapidKit Version') || output.includes('rapidkit-core')) {
+            // This is Python Core
+            const versionMatch = output.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/i);
+            if (versionMatch) {
+              return versionMatch[1];
+            }
+          } else if (/^[\d.]+$/.test(output)) {
+            // This is npm CLI (plain version), not Python Core
+            return null;
+          }
+        } catch {
+          // Command failed
+        }
+        return null;
+      },
+
+      // Method 8: conda
       async () => {
         try {
           const result = await execa('conda', ['list', 'rapidkit-core'], {
@@ -3493,12 +3609,44 @@ export class WelcomePanel {
     ];
 
     // Try all methods until one succeeds
-    for (const method of detectionMethods) {
+    for (let i = 0; i < detectionMethods.length; i++) {
       try {
-        const version = await method();
+        const version = await detectionMethods[i]();
         if (version) {
+          // Got a version from one of the detection methods
           status.coreInstalled = true;
-          status.coreVersion = version;
+          status.coreVersion = version === 'installed' ? 'unknown' : version;
+
+          // Determine install type based on detection method
+          if (i === 4 || i === 5) {
+            // Method 4-5: pipx or pipx venv path = global install
+            status.coreInstallType = 'global';
+          } else if (i === 6) {
+            // Method 6: poetry show = workspace install
+            status.coreInstallType = 'workspace';
+          } else if (i === 0 || i === 1 || i === 2) {
+            // Method 0-2: Python import/pip show - need to check if it's global or workspace
+            // Try to determine by checking if pipx has it
+            try {
+              const pipxCheck = await execa('pipx', ['list'], {
+                shell: status.isWindows,
+                timeout: 2000,
+                reject: false,
+              });
+              if (pipxCheck.stdout.includes('rapidkit-core')) {
+                status.coreInstallType = 'global';
+              } else {
+                // Not in pipx, probably workspace or user install
+                status.coreInstallType = 'workspace';
+              }
+            } catch {
+              // Can't determine, assume workspace
+              status.coreInstallType = 'workspace';
+            }
+          } else {
+            // Other methods - assume global
+            status.coreInstallType = 'global';
+          }
           break;
         }
       } catch {
@@ -3506,7 +3654,7 @@ export class WelcomePanel {
       }
     }
 
-    // Helper function to fetch JSON from HTTPS URL (using Node.js https module for extension compatibility)
+    // Check npm CLI installation (separate from Core)
     const fetchJson = (url: string): Promise<any> => {
       return new Promise((resolve, reject) => {
         const https = require('https');
@@ -3616,6 +3764,7 @@ export class WelcomePanel {
         latestNpmVersion: status.latestNpmVersion,
         coreInstalled: status.coreInstalled,
         coreVersion: status.coreVersion,
+        coreInstallType: status.coreInstallType,
         latestCoreVersion: status.latestCoreVersion,
       })
     );

@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -122,6 +122,12 @@
         "icon": "$(copy)"
       },
       {
+        "command": "rapidkit.checkWorkspaceHealth",
+        "title": "Check Health (Doctor)",
+        "category": "RapidKit",
+        "icon": "$(pulse)"
+      },
+      {
         "command": "rapidkit.deleteProject",
         "title": "Delete Project",
         "category": "RapidKit",
@@ -180,6 +186,12 @@
         "title": "Show Welcome",
         "category": "RapidKit",
         "icon": "$(home)"
+      },
+      {
+        "command": "rapidkit.openSetup",
+        "title": "Open Setup & Installation",
+        "category": "RapidKit",
+        "icon": "$(tools)"
       },
       {
         "command": "rapidkit.showLogs",
@@ -383,6 +395,11 @@
           "command": "rapidkit.selectWorkspace",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@1"
+        },
+        {
+          "command": "rapidkit.checkWorkspaceHealth",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@2"
         },
         {
           "command": "rapidkit.openWorkspaceFolder",

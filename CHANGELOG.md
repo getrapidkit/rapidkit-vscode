@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-02-06
+
+### Added
+
+- 🏥 **Workspace Health Check** - Quick diagnostics for workspaces
+  - New inline button (pulse icon 🩺) next to each workspace in sidebar
+  - Runs `rapidkit doctor` command to check workspace health
+  - Shows comprehensive diagnostics in terminal
+  - Available via inline button or right-click context menu
+  - Progress notifications during health check
+
+- 🎯 **Standalone Setup Status Panel** - Dedicated setup verification
+  - Separate webview panel for setup status (accessible via "Setup" button)
+  - Real-time status checking for all RapidKit tools
+  - Three-tier hierarchy: Required → Recommended → Optional
+  - Clean minimal design with colored borders
+  - Install and Verify buttons for each tool
+  - Auto-refresh after installations
+  - Professional tooltips explaining each tool's purpose
+
+### Improved
+
+- 🎨 **Setup UI/UX** - Enhanced visual design
+  - Minimal button design with transparent backgrounds
+  - Colored borders for visual hierarchy (cyan for primary, blue for verify)
+  - Smooth hover effects and transitions
+  - Better status indicators (✓ for installed, ⏳ for checking, ⚠ for missing)
+  - Installation progress bars with time estimates
+
+- 🔧 **Welcome Panel** - Streamlined quick actions
+  - Added "Setup" button linking to new standalone setup panel
+  - Reorganized quick actions for better workflow
+  - Cleaner layout with improved spacing
+
+### Changed
+
+- 📋 **Setup Status Architecture** - Separated from Welcome panel
+  - Setup status now in dedicated panel for better focus
+  - Improved modularity and maintainability
+  - Better state management for real-time updates
+
+### Technical
+
+- Created new `SetupPanel` class for standalone setup management
+- Added `rapidkit.openSetup` command
+- Added `rapidkit.checkWorkspaceHealth` command
+- Enhanced workspace context menu with health check option
+- Improved terminal integration for diagnostic commands
 
 ## [0.6.1] - 2026-02-03
 

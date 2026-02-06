@@ -34,6 +34,7 @@ import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceCont
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
 import { WelcomePanel } from './ui/panels/welcomePanel';
+import { SetupPanel } from './ui/panels/setupPanel';
 
 let statusBar: RapidKitStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -162,6 +163,7 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
       vscode.commands.registerCommand('rapidkit.checkSystem', checkSystemCommand),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
+      vscode.commands.registerCommand('rapidkit.openSetup', () => SetupPanel.show(context)),
       vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
         if (workspaceExplorer) {
           workspaceExplorer.refresh();
@@ -260,6 +262,53 @@ export async function activate(context: vscode.ExtensionContext) {
         if (workspacePath && typeof workspacePath === 'string') {
           await copyWorkspacePath(workspacePath);
         }
+      }),
+      vscode.commands.registerCommand('rapidkit.checkWorkspaceHealth', async (item: any) => {
+        const workspace = item?.workspace;
+        if (!workspace?.path) {
+          vscode.window.showErrorMessage('No workspace selected');
+          return;
+        }
+
+        logger.info('Running doctor check for workspace:', workspace.name);
+
+        // Show progress notification
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `🩺 Checking health of workspace: ${workspace.name}`,
+            cancellable: false,
+          },
+          async (progress) => {
+            progress.report({ increment: 0, message: 'Starting health check...' });
+
+            try {
+              // Create terminal to run doctor command
+              const terminal = vscode.window.createTerminal({
+                name: `RapidKit Doctor - ${workspace.name}`,
+                cwd: workspace.path,
+              });
+
+              terminal.show();
+              progress.report({ increment: 50, message: 'Running diagnostics...' });
+
+              // Run the doctor command from npm CLI
+              terminal.sendText('npx rapidkit doctor --workspace');
+
+              progress.report({ increment: 100, message: 'Complete!' });
+
+              vscode.window.showInformationMessage(
+                `Health check running for "${workspace.name}". Check the terminal for results.`,
+                'OK'
+              );
+            } catch (error) {
+              logger.error('Error running doctor check:', error);
+              vscode.window.showErrorMessage(
+                `Failed to run health check: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
+          }
+        );
       }),
       vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item: any) => {
         const projectPath = item?.project?.path || item?.projectPath;

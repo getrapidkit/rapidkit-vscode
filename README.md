@@ -18,15 +18,27 @@ FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automatio
 
 ## Features in Action
 
-### Welcome Page & Setup Status
+### Welcome Page - Your Central Hub
 ![RapidKit Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
 
-**Your first stop:** See at a glance what's installed and what you need. Set up your environment step-by-step with guided installation for Python, RapidKit Core, npm package, and installation methods (Poetry/pip/pipx).
+**Your first stop:** Quick access to workspaces, module browser, and setup verification. Browse recent projects, check workspace health with one click, and explore 27+ available modules - all from your central hub.
 
-### Module Browser & Installation
-![RapidKit Module Browser](media/screenshots/rapidkit-screenshot-2.png)
+### Setup Status - Toolchain Verification
+![RapidKit Setup Panel](media/screenshots/rapidkit-screenshot-2.png)
 
-**Choose what you need:** Browse 27+ modules organized by category. See installation status, version info, and install directly from the extension. One-click dependency management.
+**Get ready fast:** Dedicated setup panel for verifying your development toolchain. Check Python, pipx, Poetry, RapidKit CLI, and Core installation status at a glance. Color-coded status indicators and one-click installation buttons guide you through the setup.
+
+### Module Browser - Pick Your Stack
+![RapidKit Module Browser](media/screenshots/rapidkit-screenshot-3.png)
+
+**Choose what you need:** Browse 27+ production-ready modules organized by category (Auth, Database, Cache, AI, and more). See installation status, version info, and install directly from the extension with dependency management included.
+
+### 🩺 New: Workspace Health Check
+Check the health of any workspace with one click! The pulse icon (🩺) next to each workspace in the sidebar runs comprehensive diagnostics:
+- ✅ Python version check
+- ✅ Package managers (pip, pipx, Poetry)
+- ✅ RapidKit Core installation
+- ✅ Workspace configuration integrity
 
 ---
 
@@ -86,37 +98,102 @@ RapidKit generates **production-ready backend projects** with **clean architectu
 
 ## 📂 Project Structure
 
+### Workspace Structure
+```
+my-workspace/                # Root workspace directory
+├── .rapidkit-workspace      # Workspace marker
+├── .venv/                   # Shared Python virtual environment
+├── .python-version          # Python version (e.g., 3.11.1)
+├── poetry.toml              # Poetry configuration
+├── pyproject.toml           # Workspace dependencies
+├── poetry.lock              # Locked dependencies
+├── rapidkit                 # CLI wrapper (Unix)
+├── rapidkit.cmd             # CLI wrapper (Windows)
+├── README.md                # Workspace documentation
+└── my-api/                  # FastAPI project
+    ├── .rapidkit/           # Project config (see below)
+    ├── .venv/               # Project virtual environment
+    ├── src/                 # Source code
+    ├── config/              # Configuration
+    ├── tests/               # Test suite
+    ├── pyproject.toml       # Project dependencies
+    └── README.md
+```
+
 ### FastAPI Project
 ```
 my-api/
-├── rapidkit              # CLI script
-├── .rapidkit/            # RapidKit config
-│   ├── cli.py            # CLI commands
-│   ├── project.json      # Project metadata
-│   └── activate          # Environment activation
-├── src/
-│   ├── main.py           # FastAPI app entry
-│   ├── routing/          # API routes
-│   │   └── health.py     # Health check endpoint
-│   └── modules/          # Feature modules
-├── tests/                # Test suite
-├── pyproject.toml        # Poetry config
-├── Makefile              # Make commands
+├── .rapidkit/               # RapidKit configuration
+│   ├── project.json         # Project metadata
+│   ├── context.json         # Project context & history
+│   ├── file-hashes.json     # File integrity tracking
+│   ├── cli.py               # Local CLI module
+│   ├── activate             # Environment activation script
+│   ├── rapidkit             # Project CLI wrapper
+│   ├── snippet_registry.json # Code snippet tracking
+│   ├── audit/               # Audit logs
+│   │   └── snippet_injections.jsonl
+│   ├── snapshots/           # File snapshots (rollback)
+│   └── vendor/              # Vendored modules
+│       ├── deployment/
+│       ├── logging/
+│       ├── middleware/
+│       └── settings/
+├── .venv/                   # Python virtual environment
+├── src/                     # Source code
+│   ├── main.py              # FastAPI entry point
+│   ├── routing/             # API routes
+│   │   └── health.py
+│   └── modules/             # Feature modules
+├── config/                  # Configuration
+├── tests/                   # Test suite
+├── .env.example             # Environment template
+├── .python-version          # Python version lock
+├── bootstrap.sh             # Setup script
+├── docker-compose.yml       # Docker Compose
+├── Dockerfile               # Docker config
+├── Makefile                 # Make commands
+├── poetry.lock              # Locked dependencies
+├── pyproject.toml           # Poetry config
 └── README.md
 ```
 
 ### NestJS Project
 ```
-my-api/
-├── rapidkit              # CLI script
-├── .rapidkit/            # RapidKit config
-├── src/
-│   ├── main.ts           # NestJS entry
-│   ├── app.module.ts     # Root module
-│   ├── config/           # Configuration
-│   └── examples/         # Example module
-├── test/                 # Test suite
-├── package.json          # npm config
+my-app/
+├── .rapidkit/               # RapidKit configuration
+│   ├── project.json         # Project metadata
+│   ├── context.json         # Project context & history
+│   ├── file-hashes.json     # File integrity tracking
+│   ├── cli.js               # Local CLI module (optional)
+│   ├── activate             # Environment activation script
+│   ├── rapidkit             # Project CLI wrapper
+│   ├── snippet_registry.json # Code snippet tracking
+│   ├── audit/               # Audit logs
+│   ├── snapshots/           # File snapshots (rollback)
+│   └── vendor/              # Vendored modules
+├── node_modules/            # Node.js dependencies
+├── src/                     # Source code
+│   ├── main.ts              # NestJS entry point
+│   ├── app.module.ts        # Root module
+│   ├── app.controller.ts    # Root controller
+│   ├── app.service.ts       # Root service
+│   ├── config/              # Configuration module
+│   ├── examples/            # Example CRUD module
+│   └── modules/             # Feature modules
+├── test/                    # Test suite
+├── .env.example             # Environment template
+├── .node-version            # Node version lock
+├── .nvmrc                   # NVM version file
+├── bootstrap.sh             # Setup script
+├── docker-compose.yml       # Docker Compose
+├── Dockerfile               # Docker config
+├── eslint.config.cjs        # ESLint config
+├── jest.config.ts           # Jest config
+├── nest-cli.json            # NestJS CLI config
+├── package.json             # npm dependencies
+├── yarn.lock / package-lock.json
+├── tsconfig.json            # TypeScript config
 └── README.md
 ```
 
