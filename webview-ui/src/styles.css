@@ -9,6 +9,14 @@
     padding: 0;
     box-sizing: border-box;
 }
+
+/* Tailwind-like utility classes that respect VS Code theme */
+.text-green-500 { color: var(--vscode-testing-iconPassed, #10B981); }
+.text-yellow-500 { color: var(--vscode-editorWarning-foreground, #F59E0B); }
+.text-orange-500 { color: var(--vscode-list-warningForeground, #FF9800); }
+.text-red-500 { color: var(--vscode-errorForeground, #EF4444); }
+.text-gray-500 { color: var(--vscode-descriptionForeground); }
+
 body {
     font-family: var(--vscode-font-family);
     color: var(--vscode-foreground);
@@ -59,7 +67,7 @@ h1 .kit {
 .version {
     display: inline-block;
     background: linear-gradient(135deg, #00cfc1, #009688);
-    color: white;
+    color: #ffffff;
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 12px;
@@ -123,7 +131,7 @@ h1 .kit {
 .hero-badge {
     display: inline-block;
     background: linear-gradient(135deg, #00cfc1, #009688);
-    color: white;
+    color: #ffffff;
     padding: 6px 16px;
     border-radius: 20px;
     font-size: 11px;
@@ -178,7 +186,7 @@ h1 .kit {
 .quick-link-badge {
     display: inline-block;
     background: var(--link-color, #00cfc1);
-    color: white;
+    color: #ffffff;
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 9px;
@@ -256,120 +264,116 @@ h1 .kit {
 .recent-workspaces {
     margin-bottom: 30px;
 }
+/* ── Workspace Cards ── */
 .workspace-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
-.workspace-item {
+.ws-card {
     background: var(--vscode-editor-inactiveSelectionBackground);
     border: 1px solid var(--vscode-panel-border);
-    border-radius: 8px;
-    padding: 14px 16px;
+    border-radius: 6px;
+    padding: 8px 12px 6px;
     cursor: pointer;
     transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 14px;
 }
-.workspace-item:hover {
+.ws-card:hover {
     border-color: #00cfc1;
     background: var(--vscode-list-hoverBackground);
-    transform: translateX(4px);
 }
-.workspace-icon {
-    font-size: 24px;
-    line-height: 1;
-    flex-shrink: 0;
+
+/* Top row: name + badges + time + status + close */
+.ws-row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
 }
-.workspace-info {
-    flex: 1;
-    min-width: 0;
-}
-.workspace-name {
+.ws-name {
     font-weight: 600;
     font-size: 13px;
-    margin-bottom: 4px;
     color: var(--vscode-foreground);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-shrink: 1;
+    min-width: 60px;
 }
-.workspace-version {
+.ws-tag {
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 16px;
+}
+.ws-tag--version {
     background: var(--vscode-badge-background);
     color: var(--vscode-badge-foreground);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 600;
-    flex-shrink: 0;
 }
-.workspace-projects-badge {
-    background: linear-gradient(135deg, #00cfc1, #009688);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 600;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+.ws-tag--fastapi {
+    background: rgba(0, 150, 136, 0.12);
+    color: #009688;
+    border: 1px solid rgba(0, 150, 136, 0.25);
 }
-.project-types {
-    margin-left: 2px;
+.ws-tag--nestjs {
+    background: rgba(224, 35, 78, 0.12);
+    color: #E0234E;
+    border: 1px solid rgba(224, 35, 78, 0.25);
 }
-.workspace-meta {
-    font-size: 11px;
+.ws-tag--empty {
+    background: transparent;
     color: var(--vscode-descriptionForeground);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 6px;
+    border: 1px solid var(--vscode-panel-border);
+    opacity: 0.6;
 }
-.workspace-meta-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+.ws-fill {
+    flex: 1;
 }
-.workspace-path {
-    overflow: hidden;
-    text-overflow: ellipsis;
+.ws-time {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
     white-space: nowrap;
-    opacity: 0.7;
-}
-.workspace-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     flex-shrink: 0;
+    opacity: 0.8;
 }
-.workspace-remove {
+.ws-close {
     background: transparent;
     border: none;
     color: var(--vscode-descriptionForeground);
     cursor: pointer;
-    padding: 4px;
+    padding: 2px;
     border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    opacity: 0;
+    transition: all 0.15s;
+    flex-shrink: 0;
 }
-.workspace-remove:hover {
+.ws-card:hover .ws-close {
+    opacity: 1;
+}
+.ws-close:hover {
     background: var(--vscode-list-hoverBackground);
     color: var(--vscode-errorForeground);
 }
-.workspace-badge {
-    background: var(--vscode-badge-background);
-    color: var(--vscode-badge-foreground);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 600;
+
+/* Bottom row: path */
+.ws-row-bottom {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    padding-left: 0;
+    line-height: 16px;
+    direction: rtl;
+    text-align: left;
 }
 .workspace-empty {
     text-align: center;
@@ -486,13 +490,13 @@ h1 .kit {
 }
 .command-copy:hover {
     background: #00cfc1;
-    color: white;
+    color: #ffffff;
     border-color: #00cfc1;
 }
 .command-copy.copied {
-    background: #4CAF50;
-    color: white;
-    border-color: #4CAF50;
+    background: var(--vscode-testing-iconPassed, #4CAF50);
+    color: #ffffff;
+    border-color: var(--vscode-testing-iconPassed, #4CAF50);
 }
 .command-desc {
     font-size: 12px;
@@ -585,8 +589,8 @@ h1 .kit {
     line-height: 1.4;
 }
 .warning-btn {
-    background: #FF9800;
-    color: white;
+    background: var(--vscode-editorWarning-foreground, #FF9800);
+    color: #ffffff;
     border: none;
     padding: 6px 12px;
     border-radius: 6px;
@@ -732,18 +736,18 @@ h1 .kit {
     letter-spacing: 0.3px;
     text-transform: uppercase;
 }
-.module-badge.ai { background: #9B59B6; color: white; }
-.module-badge.essentials { background: #2196F3; color: white; }
-.module-badge.database { background: #3775A9; color: white; }
-.module-badge.cache { background: #CB3837; color: white; }
-.module-badge.auth { background: #F59E0B; color: white; }
-.module-badge.observability { background: #10B981; color: white; }
-.module-badge.business { background: #FF6B6B; color: white; }
-.module-badge.billing { background: #E91E63; color: white; }
-.module-badge.communication { background: #4ECDC4; color: white; }
-.module-badge.security { background: #F59E0B; color: white; }
-.module-badge.tasks { background: #8E44AD; color: white; }
-.module-badge.users { background: #3498DB; color: white; }
+.module-badge.ai { background: #9B59B6; color: #ffffff; }
+.module-badge.essentials { background: #2196F3; color: #ffffff; }
+.module-badge.database { background: #3775A9; color: #ffffff; }
+.module-badge.cache { background: #CB3837; color: #ffffff; }
+.module-badge.auth { background: #F59E0B; color: #ffffff; }
+.module-badge.observability { background: #10B981; color: #ffffff; }
+.module-badge.business { background: #FF6B6B; color: #ffffff; }
+.module-badge.billing { background: #E91E63; color: #ffffff; }
+.module-badge.communication { background: #4ECDC4; color: #ffffff; }
+.module-badge.security { background: #F59E0B; color: #ffffff; }
+.module-badge.tasks { background: #8E44AD; color: #ffffff; }
+.module-badge.users { background: #3498DB; color: #ffffff; }
 .module-desc {
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
@@ -758,7 +762,7 @@ h1 .kit {
 .module-install-btn {
   flex: 1;
   background: linear-gradient(135deg, #00cfc1, #009688);
-  color: white;
+  color: #ffffff;
   border: none;
   padding: 8px 12px;
   border-radius: 6px;
@@ -786,13 +790,13 @@ h1 .kit {
 }
 .module-copy-btn:hover {
   background: #00cfc1;
-  color: white;
+  color: #ffffff;
   border-color: #00cfc1;
 }
 .module-copy-btn.copied {
-  background: #4CAF50;
-  color: white;
-  border-color: #4CAF50;
+  background: var(--vscode-testing-iconPassed, #4CAF50);
+  color: #ffffff;
+  border-color: var(--vscode-testing-iconPassed, #4CAF50);
 }
 .module-details-btn {
   background: var(--vscode-button-secondaryBackground);
@@ -818,13 +822,13 @@ h1 .kit {
     transform: scale(1.02);
 }
 .module-install-btn:disabled {
-    background: linear-gradient(135deg, #555, #666);
-    color: #BDBDBD;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-disabledForeground);
     cursor: not-allowed;
-    opacity: 0.7;
+    opacity: 0.6;
 }
 .module-install-btn.installed:disabled {
-    background: linear-gradient(135deg, #4CAF50, #45a049);
+    background: linear-gradient(135deg, var(--vscode-testing-iconPassed, #4CAF50), #45a049);
     color: #ffffff;
     cursor: default;
     opacity: 1;
@@ -840,7 +844,7 @@ h1 .kit {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.7);
+    background: var(--vscode-editorOverlayWidget-background, rgba(0,0,0,0.7));
     display: flex;
     align-items: center;
     justify-content: center;

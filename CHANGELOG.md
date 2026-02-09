@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-02-09
+
+### Added
+
+- 🔄 **Dynamic Version Display** - Welcome page now shows extension version dynamically
+  - Version is now fetched from `package.json` automatically
+  - No need to manually update version string in React app
+  - Ensures version consistency across extension and UI
+
+- 📊 **Project Statistics** - Enhanced workspace tracking with detailed project counts
+  - Replaced simple project type array with detailed statistics object
+  - Shows individual counts for FastAPI and NestJS projects
+  - Separate badges for each project type with counts
+  - Empty workspace indicator (0 projects badge)
+
+### Improved
+
+- 🎨 **Redesigned Workspace Cards** - Completely revamped workspace list UI
+  - Compact horizontal layout with improved information density
+  - Clean badge system for project types (⚡ FastAPI, 🐱 NestJS)
+  - Project count badges with individual framework counts
+  - Better visual hierarchy with color-coded tags
+  - Last modified time displayed inline
+  - Improved hover effects and status icons
+  - Close button only visible on hover
+  - Better path display with RTL direction for long paths
+
+- 🔍 **Enhanced Project Detection** - More accurate workspace scanning
+  - Projects now detected directly in workspace root (not `projects/` subfolder)
+  - Better RapidKit project marker detection (`.rapidkit/project.json`, `.rapidkit/context.json`)
+  - Fallback detection for FastAPI (pyproject.toml) and NestJS (package.json)
+  - Separate counters for each project type
+
+### Changed
+
+- 📐 **Workspace Data Structure** - Updated type definitions
+  - `projectTypes: string[]` → `projectStats: { fastapi?: number; nestjs?: number }`
+  - More granular and flexible project information
+  - Compatible with future project type additions
+
+### Technical
+
+- Refactored workspace card components with new class naming (`ws-*` prefix)
+- Added VS Code theme-aware color utility classes
+- Improved TypeScript type safety for workspace data
+- Code formatting improvements (consistent indentation)
+
 ## [0.7.0] - 2026-02-06
 
 ### Added

@@ -160,7 +160,7 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
         }
         
         .icon-btn .label {
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 700;
             color: var(--vscode-foreground);
             text-align: center;
@@ -270,10 +270,10 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
         
         .grid-3col .compact-btn .label {
             flex: 1;
-            font-size: 8px;
+            font-size: 10.5px;
             text-align: center;
             line-height: 1.1;
-            opacity: 0.7;
+            opacity: 0.85;
         }
         
         /* Colors */

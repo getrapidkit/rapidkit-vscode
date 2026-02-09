@@ -33,7 +33,10 @@ export interface Workspace {
   coreLocation?: 'workspace' | 'global' | 'pipx';
   lastModified?: number;
   projectCount?: number;
-  projectTypes?: ('fastapi' | 'nestjs')[];
+  projectStats?: {
+    fastapi?: number;
+    nestjs?: number;
+  };
 }
 
 export interface InstallStatus {

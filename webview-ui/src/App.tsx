@@ -13,7 +13,7 @@ import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { Footer } from '@/components/Footer';
 
 export function App() {
-    const [version] = useState('0.8.2');
+    const [version, setVersion] = useState('0.0.0');
     const [recentWorkspaces, setRecentWorkspaces] = useState<Workspace[]>([]);
     const [modulesCatalog, setModulesCatalog] = useState<ModuleData[]>([]);
     const [categoryInfo] = useState<CategoryInfo>({});
@@ -31,6 +31,10 @@ export function App() {
             console.log('[React Webview] Received message:', message.command, message.data);
 
             switch (message.command) {
+                case 'updateVersion':
+                    console.log('[React Webview] Updating version:', message.data);
+                    setVersion(message.data);
+                    break;
                 case 'updateWorkspaceStatus':
                     console.log('[React Webview] Updating workspace status:', message.data);
                     setWorkspaceStatus(message.data);

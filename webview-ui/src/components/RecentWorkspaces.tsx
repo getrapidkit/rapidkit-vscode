@@ -1,4 +1,4 @@
-import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle, Clock, Boxes } from 'lucide-react';
+import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle } from 'lucide-react';
 import { useState } from 'react';
 import type { Workspace } from '@/types';
 
@@ -12,15 +12,15 @@ interface RecentWorkspacesProps {
 const getStatusIcon = (status?: string) => {
     switch (status) {
         case 'ok':
-            return <CheckCircle2 className="w-4 h-4 text-green-500" title="RapidKit Core installed and up to date" />;
+            return <span title="RapidKit Core installed and up to date"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>;
         case 'update-available':
-            return <ArrowUpCircle className="w-4 h-4 text-yellow-500" title="Update available for RapidKit Core" />;
+            return <span title="Update available for RapidKit Core"><ArrowUpCircle className="w-4 h-4 text-yellow-500" /></span>;
         case 'outdated':
-            return <AlertCircle className="w-4 h-4 text-orange-500" title="RapidKit Core is outdated" />;
+            return <span title="RapidKit Core is outdated"><AlertCircle className="w-4 h-4 text-orange-500" /></span>;
         case 'not-installed':
-            return <XCircle className="w-4 h-4 text-red-500" title="RapidKit Core not installed" />;
+            return <span title="RapidKit Core not installed"><XCircle className="w-4 h-4 text-red-500" /></span>;
         case 'error':
-            return <AlertCircle className="w-4 h-4 text-gray-500" title="Error checking RapidKit Core status" />;
+            return <span title="Error checking RapidKit Core status"><AlertCircle className="w-4 h-4 text-gray-500" /></span>;
         default:
             return null;
     }
@@ -75,52 +75,51 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove }: 
                     workspaces.slice(0, 5).map((workspace, index) => (
                         <div
                             key={index}
-                            className="workspace-item"
+                            className="ws-card"
                             onClick={() => onSelect(workspace)}
                         >
-                            <Folder className="workspace-icon" size={20} />
-                            <div className="workspace-info">
-                                <div className="workspace-name">
-                                    {workspace.name}
-                                    {workspace.coreVersion && (
-                                        <span className="workspace-version" title={`RapidKit Core ${workspace.coreVersion} (${workspace.coreLocation || 'unknown'})`}>
-                                            v{workspace.coreVersion}
-                                        </span>
-                                    )}
-                                    {workspace.projectCount !== undefined && workspace.projectCount > 0 && (
-                                        <span className="workspace-projects-badge" title={`${workspace.projectCount} project${workspace.projectCount > 1 ? 's' : ''}`}>
-                                            <Boxes className="w-3 h-3" />
-                                            {workspace.projectCount}
-                                            {workspace.projectTypes && workspace.projectTypes.length > 0 && (
-                                                <span className="project-types">
-                                                    {workspace.projectTypes.map(type => getProjectTypeEmoji(type)).join('')}
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="workspace-path">{workspace.path}</div>
-                                <div className="workspace-meta">
-                                    {workspace.lastModified && (
-                                        <span className="workspace-meta-item" title={new Date(workspace.lastModified).toLocaleString()}>
-                                            <Clock className="w-3 h-3" />
-                                            {formatDate(workspace.lastModified)}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="workspace-actions">
+                            <div className="ws-row-top">
+                                <span className="ws-name">{workspace.name}</span>
+                                {workspace.coreVersion && (
+                                    <span className="ws-tag ws-tag--version" title={`RapidKit Core ${workspace.coreVersion} (${workspace.coreLocation || 'unknown'})`}>
+                                        Core v{workspace.coreVersion}
+                                    </span>
+                                )}
+                                {workspace.projectStats?.fastapi && (
+                                    <span className="ws-tag ws-tag--fastapi" title={`${workspace.projectStats.fastapi} FastAPI project${workspace.projectStats.fastapi > 1 ? 's' : ''}`}>
+                                        {workspace.projectStats.fastapi} FastAPI ⚡
+                                    </span>
+                                )}
+                                {workspace.projectStats?.nestjs && (
+                                    <span className="ws-tag ws-tag--nestjs" title={`${workspace.projectStats.nestjs} NestJS project${workspace.projectStats.nestjs > 1 ? 's' : ''}`}>
+                                        {workspace.projectStats.nestjs} NestJS 🐱
+                                    </span>
+                                )}
+                                {workspace.projectCount === 0 && (
+                                    <span className="ws-tag ws-tag--empty" title="No projects">
+                                        0 projects
+                                    </span>
+                                )}
+                                <span className="ws-fill" />
+                                {workspace.lastModified && (
+                                    <span className="ws-time" title={new Date(workspace.lastModified).toLocaleString()}>
+                                        {formatDate(workspace.lastModified)}
+                                    </span>
+                                )}
                                 {getStatusIcon(workspace.coreStatus)}
                                 <button
-                                    className="workspace-remove"
+                                    className="ws-close"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onRemove(workspace);
                                     }}
                                     title="Remove from list"
                                 >
-                                    <X size={14} />
+                                    <X size={12} />
                                 </button>
+                            </div>
+                            <div className="ws-row-bottom">
+                                {workspace.path}
                             </div>
                         </div>
                     ))

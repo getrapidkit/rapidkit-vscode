@@ -103,8 +103,11 @@ export class WelcomePanel {
     return [];
   }
 
+  private _context: vscode.ExtensionContext;
+
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this._panel = panel;
+    this._context = context;
 
     // Set webview content
     this._panel.webview.html = this._getHtmlContent(context);
@@ -236,9 +239,18 @@ export class WelcomePanel {
   }
 
   private _sendInitialData() {
+    this._sendVersion();
     this._sendRecentWorkspaces();
     this._sendModulesCatalog();
     this._sendWorkspaceStatus();
+  }
+
+  private _sendVersion() {
+    const version = this._context.extension.packageJSON.version || '0.0.0';
+    this._panel.webview.postMessage({
+      command: 'updateVersion',
+      data: version,
+    });
   }
 
   private async _sendRecentWorkspaces() {
@@ -325,7 +337,10 @@ export class WelcomePanel {
       coreLocation?: 'workspace' | 'global' | 'pipx';
       lastModified?: number;
       projectCount?: number;
-      projectTypes?: ('fastapi' | 'nestjs')[];
+      projectStats?: {
+        fastapi?: number;
+        nestjs?: number;
+      };
     }>
   > {
     try {
@@ -342,33 +357,63 @@ export class WelcomePanel {
             // Get last modified time and project info
             let lastModified: number | undefined;
             let projectCount: number | undefined;
-            let projectTypes: ('fastapi' | 'nestjs')[] | undefined;
+            let projectStats: { fastapi?: number; nestjs?: number } | undefined;
             try {
               const stats = await fs.stat(ws.path);
               lastModified = stats.mtimeMs;
 
-              // Count projects and detect their types
-              const projectsPath = path.join(ws.path, 'projects');
-              if (await fs.pathExists(projectsPath)) {
-                const projects = await fs.readdir(projectsPath);
-                const types = new Set<'fastapi' | 'nestjs'>();
+              // Detect projects in workspace root (not projects/ subfolder!)
+              const entries = await fs.readdir(ws.path, { withFileTypes: true });
+              const stats_counter = { fastapi: 0, nestjs: 0 };
+              let count = 0;
 
-                for (const project of projects) {
-                  const projectPath = path.join(projectsPath, project);
-                  const projectStat = await fs.stat(projectPath);
+              for (const entry of entries) {
+                if (entry.isDirectory() && !entry.name.startsWith('.')) {
+                  const projectPath = path.join(ws.path, entry.name);
 
-                  if (projectStat.isDirectory()) {
+                  // Check for RapidKit project markers
+                  const hasRapidKitMarker =
+                    (await fs.pathExists(path.join(projectPath, '.rapidkit', 'project.json'))) ||
+                    (await fs.pathExists(path.join(projectPath, '.rapidkit', 'context.json')));
+
+                  if (hasRapidKitMarker) {
+                    count++;
                     // Detect project type
                     const type = await this._detectProjectType(projectPath);
-                    if (type) {
-                      types.add(type);
+                    if (type === 'fastapi') {
+                      stats_counter.fastapi++;
+                    } else if (type === 'nestjs') {
+                      stats_counter.nestjs++;
+                    }
+                  }
+                  // Fallback: Check for FastAPI project
+                  else if (await fs.pathExists(path.join(projectPath, 'pyproject.toml'))) {
+                    count++;
+                    stats_counter.fastapi++;
+                  }
+                  // Fallback: Check for NestJS project
+                  else if (await fs.pathExists(path.join(projectPath, 'package.json'))) {
+                    try {
+                      const pkg = await fs.readJSON(path.join(projectPath, 'package.json'));
+                      if (pkg.dependencies?.['@nestjs/core']) {
+                        count++;
+                        stats_counter.nestjs++;
+                      }
+                    } catch {
+                      // Ignore invalid package.json
                     }
                   }
                 }
-
-                projectCount = projects.length;
-                projectTypes = Array.from(types);
               }
+
+              projectCount = count;
+              projectStats =
+                count > 0
+                  ? {
+                      fastapi: stats_counter.fastapi > 0 ? stats_counter.fastapi : undefined,
+                      nestjs: stats_counter.nestjs > 0 ? stats_counter.nestjs : undefined,
+                    }
+                  : undefined;
             } catch (err) {
               console.error(`Failed to get stats for ${ws.path}:`, err);
             }
@@ -380,7 +425,7 @@ export class WelcomePanel {
               coreLocation: versionInfo.location as 'workspace' | 'global' | 'pipx' | undefined,
               lastModified,
               projectCount,
-              projectTypes,
+              projectStats,
             };
           } catch (error) {
             console.error(`Failed to get version info for ${ws.path}:`, error);
