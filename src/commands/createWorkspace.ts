@@ -519,7 +519,7 @@ export async function createWorkspaceCommand() {
           // Refresh welcome page if it's open
           const context = (global as any).extensionContext;
           if (context) {
-            WelcomePanel.refresh(context);
+            WelcomePanel.refreshRecentWorkspaces();
           }
         } catch (error) {
           logger.error('Failed to create workspace', error);

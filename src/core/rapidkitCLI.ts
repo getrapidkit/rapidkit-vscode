@@ -10,6 +10,7 @@
 
 import { Logger } from '../utils/logger';
 import { run } from '../utils/exec';
+import * as path from 'path';
 
 type ExecaReturnValue = any;
 
@@ -204,7 +205,7 @@ export class RapidKitCLI {
       if (direct && typeof direct.stdout === 'string' && direct.stdout.trim()) {
         return true;
       }
-    } catch (_e) {
+    } catch {
       // ignore and try npx
     }
 
@@ -248,23 +249,44 @@ export class RapidKitCLI {
    */
   async run(args: string[], cwd?: string, useNpx = true): Promise<ExecaReturnValue> {
     this.logger.debug('Running rapidkit with args:', args);
+    const workingDir = cwd || process.cwd();
+
+    // Priority 1: Try workspace .venv/bin/rapidkit (if we're in a workspace)
+    const venvRapidkit = workingDir.includes('.venv')
+      ? path.join(workingDir, 'bin', 'rapidkit')
+      : path.join(workingDir, '.venv', 'bin', 'rapidkit');
+
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(venvRapidkit)) {
+        this.logger.debug('Using workspace rapidkit:', venvRapidkit);
+        return await run(venvRapidkit, args, {
+          cwd: workingDir,
+          stdio: 'pipe',
+        });
+      }
+    } catch (e) {
+      this.logger.debug('Workspace rapidkit not found or failed:', e);
+    }
+
+    // Priority 2: Try global rapidkit binary
     if (useNpx) {
-      // Try the direct binary first (global install). If it fails, fall back to npx.
       try {
         return await run('rapidkit', args, {
-          cwd: cwd || process.cwd(),
+          cwd: workingDir,
           stdio: 'pipe',
         });
       } catch (e) {
         this.logger.debug('Direct rapidkit binary failed, falling back to npx', e);
+        // Priority 3: Fall back to npx
         return await run('npx', ['--yes', 'rapidkit@latest', ...args], {
-          cwd: cwd || process.cwd(),
+          cwd: workingDir,
           stdio: 'pipe',
         });
       }
     } else {
       return await run('rapidkit', args, {
-        cwd: cwd || process.cwd(),
+        cwd: workingDir,
         stdio: 'pipe',
       });
     }

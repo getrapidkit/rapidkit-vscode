@@ -1,1 +1,5 @@
+if [ "${SYNC_MODULES-}" = "1" ]; then
+	npm run sync:modules
+	git add src/data/modules.ts
+fi
 npx lint-staged

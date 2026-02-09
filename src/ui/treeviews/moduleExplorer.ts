@@ -7,7 +7,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { MODULES, CATEGORY_INFO } from '../../data/modules';
+import { MODULES, CATEGORY_INFO, ModuleData } from '../../data/modules';
+import { ModulesCatalogService } from '../../core/modulesCatalogService';
 import { RapidKitModule } from '../../types';
 
 interface InstalledModule {
@@ -24,6 +25,8 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
 
   private _currentProjectPath: string | null = null;
   private _installedModules: Map<string, InstalledModule> = new Map();
+  private _modulesCatalog: ModuleData[] = MODULES;
+  private _catalogLoaded = false;
 
   // Static instance for external access
   public static instance: ModuleExplorerProvider | null = null;
@@ -46,6 +49,8 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
 
   setProjectPath(projectPath: string | null): void {
     this._currentProjectPath = projectPath;
+    // Reset catalog loaded flag so catalog is re-fetched for the new project/workspace
+    this._catalogLoaded = false;
     this._loadInstalledModules();
     this.refresh();
   }
@@ -55,6 +60,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   async getChildren(element?: ModuleTreeItem): Promise<ModuleTreeItem[]> {
+    await this._ensureCatalogLoaded();
     if (!element) {
       // If no project selected, show a placeholder message
       if (!this._currentProjectPath) {
@@ -78,9 +84,13 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   private getModuleCategories(): ModuleTreeItem[] {
-    const categories = Object.values(CATEGORY_INFO);
+    const categories = Array.from(new Set(this._modulesCatalog.map((m) => m.category)));
 
-    return categories.map((cat) => {
+    return categories.map((catKey) => {
+      const cat = CATEGORY_INFO[catKey as keyof typeof CATEGORY_INFO] || {
+        name: catKey,
+        icon: '📦',
+      };
       const item = new vscode.TreeItem(cat.name, vscode.TreeItemCollapsibleState.Collapsed);
       item.contextValue = 'category';
 
@@ -107,7 +117,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
 
   private getModulesInCategory(category: string): ModuleTreeItem[] {
     const categoryKey = this.getCategoryKey(category);
-    const modulesInCategory = MODULES.filter((m) => m.category === categoryKey);
+    const modulesInCategory = this._modulesCatalog.filter((m) => m.category === categoryKey);
 
     return modulesInCategory.map((moduleData) => {
       // Check if installed by slug
@@ -224,6 +234,36 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
       }
     }
     return false;
+  }
+
+  private async _ensureCatalogLoaded(): Promise<void> {
+    if (this._catalogLoaded) {
+      return;
+    }
+    await this._refreshModulesCatalog();
+  }
+
+  private async _refreshModulesCatalog(): Promise<void> {
+    try {
+      const service = ModulesCatalogService.getInstance();
+      // Pass workspace path to ensure correct version lookup for the selected project's workspace
+      let workspacePath: string | undefined;
+      if (this._currentProjectPath) {
+        // Workspace is the parent directory of the project
+        workspacePath = path.dirname(this._currentProjectPath);
+      }
+      const result = await service.getModulesCatalog(workspacePath);
+      if (result.modules.length) {
+        this._modulesCatalog = result.modules;
+      } else {
+        this._modulesCatalog = MODULES;
+      }
+      this._catalogLoaded = true;
+    } catch (error) {
+      console.error('[ModuleExplorer] Failed to load modules catalog:', error);
+      this._modulesCatalog = MODULES;
+      this._catalogLoaded = true;
+    }
   }
 
   private async _loadInstalledModules(): Promise<void> {

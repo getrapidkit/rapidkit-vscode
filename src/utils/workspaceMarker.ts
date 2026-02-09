@@ -90,7 +90,7 @@ export async function readWorkspaceMarker(workspacePath: string): Promise<Worksp
       const content = await fs.readJson(markerPath);
       return content as WorkspaceMarker;
     }
-  } catch (_error) {
+  } catch {
     // Invalid JSON or read error
     return null;
   }

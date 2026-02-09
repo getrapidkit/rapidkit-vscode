@@ -384,7 +384,7 @@ export async function createProjectCommand(
           // Refresh welcome page if it's open
           const context = (global as any).extensionContext;
           if (context) {
-            WelcomePanel.refresh(context);
+            WelcomePanel.refreshRecentWorkspaces();
           }
         } catch (error: any) {
           logger.error('Failed to create project:', {

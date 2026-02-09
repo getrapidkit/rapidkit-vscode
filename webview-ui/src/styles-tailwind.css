@@ -1,0 +1,871 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* RapidKit Brand Colors from Design System */
+  :root {
+    --rapidkit-primary: #00cfc1;
+    --rapidkit-primary-light: #68e3d7;
+    --rapidkit-primary-dark: #007a74;
+    --rapidkit-gradient: linear-gradient(135deg, #00cfc1, #009688);
+    
+    /* Theme-aware colors - use VS Code variables with fallbacks */
+    --background: var(--vscode-editor-background, #1e1e1e);
+    --foreground: var(--vscode-editor-foreground, #cccccc);
+    --card: var(--vscode-editorWidget-background, #252526);
+    --card-foreground: var(--vscode-editor-foreground, #cccccc);
+    --border: var(--vscode-panel-border, #3c3c3c);
+    --input: var(--vscode-input-background, #3c3c3c);
+    --muted-foreground: var(--vscode-descriptionForeground, #858585);
+    --radius: 0.5rem;
+  }
+
+  body {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: var(--vscode-font-size, 13px);
+  }
+}
+
+@layer components {
+  /* Container */
+  .container {
+    @apply max-w-6xl mx-auto py-4 px-6;
+  }
+
+  /* Float Animation */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Header */
+  .header {
+    @apply text-center mb-4;
+  }
+
+  .logo {
+    @apply w-12 h-12 mx-auto mb-2;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .header h1 {
+    font-family: 'MuseoModerno', var(--vscode-font-family);
+    @apply text-2xl font-bold mb-1;
+    letter-spacing: -0.5px;
+  }
+
+  .rapid {
+    background: linear-gradient(135deg, #00cfc1, #009688);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .kit {
+    @apply text-[var(--vscode-foreground)];
+  }
+
+  .tagline {
+    @apply text-sm mb-2;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.3;
+  }
+
+  .version {
+    @apply inline-block px-3 py-1 text-xs font-semibold rounded-full;
+    background: linear-gradient(135deg, #00cfc1, #009688);
+    color: white;
+  }
+
+  /* Setup Card */
+  .setup-card-container {
+    @apply mb-6;
+  }
+
+  .setup-card {
+    @apply flex items-center justify-between p-3.5 mb-4 rounded-xl cursor-pointer transition-all;
+    background: linear-gradient(135deg, rgba(155, 89, 182, 0.18), rgba(142, 68, 173, 0.12));
+    border: 1.5px solid rgba(155, 89, 182, 0.45);
+    box-shadow: 0 4px 12px rgba(155, 89, 182, 0.2), 0 0 0 1px rgba(155, 89, 182, 0.1);
+  }
+
+  .setup-card:hover {
+    background: linear-gradient(135deg, rgba(155, 89, 182, 0.25), rgba(142, 68, 173, 0.18));
+    border-color: #9B59B6;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(155, 89, 182, 0.35), 0 0 0 2px rgba(155, 89, 182, 0.2);
+  }
+
+  .setup-card-left {
+    @apply flex items-center gap-3;
+  }
+
+  .setup-card-icon {
+    @apply w-6 h-6;
+    color: #9B59B6;
+    filter: drop-shadow(0 0 8px rgba(155, 89, 182, 0.5));
+  }
+
+  .setup-card-title {
+    @apply text-sm font-semibold;
+  }
+
+  .setup-card-desc {
+    @apply text-xs;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .setup-card-arrow {
+    @apply text-lg;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  /* Hero Action - وسط چین */
+  .actions {
+    @apply mb-4;
+  }
+
+  .hero-action {
+    @apply relative p-4 mb-3 rounded-xl cursor-pointer transition-all overflow-hidden;
+    background: linear-gradient(135deg, rgba(0,207,193,0.08), rgba(0,150,136,0.08));
+    border: 1px solid var(--vscode-panel-border);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero-action::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #00cfc1, #009688);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .hero-action:hover {
+    border-color: #00cfc1;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,207,193,0.2);
+  }
+
+  .hero-action:hover::before {
+    opacity: 1;
+  }
+
+  .hero-icon {
+    @apply mb-2 inline-block;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .hero-title {
+    font-family: 'MuseoModerno', var(--vscode-font-family);
+    @apply text-base font-bold mb-1;
+  }
+
+  .hero-description {
+    @apply text-xs mb-3;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.3;
+  }
+
+  .hero-badge {
+    @apply inline-block px-4 py-1.5 text-xs font-bold rounded-full;
+    background: linear-gradient(135deg, #00cfc1, #009688);
+    color: white;
+    letter-spacing: 0.5px;
+  }
+
+  /* Quick Links */
+  .quick-links {
+    @apply grid gap-3;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 480px) {
+    .quick-links {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .quick-link {
+    @apply p-3 rounded-lg cursor-pointer transition-all text-center;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .quick-link:hover {
+    transform: translateY(-2px);
+    background: var(--vscode-list-hoverBackground);
+  }
+
+  .quick-link.fastapi:hover {
+    border-color: #009688;
+  }
+
+  .quick-link.nestjs:hover {
+    border-color: #E0234E;
+  }
+
+  .quick-link-icon {
+    @apply text-2xl mb-2 block;
+  }
+
+  .quick-link-icon img {
+    @apply w-6 h-6 mx-auto;
+  }
+
+  .quick-link-title {
+    @apply text-xs font-semibold mb-1;
+  }
+
+  .quick-link-subtitle {
+    @apply text-[0.625rem];
+    color: var(--vscode-descriptionForeground);
+  }
+
+  /* Sections */
+  .section {
+    @apply mb-5;
+  }
+
+  .section-title {
+    font-family: 'MuseoModerno', var(--vscode-font-family);
+    @apply text-base font-bold mb-3 flex items-center gap-1.5;
+  }
+
+  /* Key Features با hover effect */
+  .features {
+    @apply grid gap-3;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .feature {
+    @apply flex items-center gap-2 p-2.5 rounded-lg transition-all cursor-default;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid transparent;
+  }
+
+  .feature:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 207, 193, 0.15);
+  }
+
+  .feature-icon {
+    @apply flex-shrink-0;
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Feature specific colors */
+  .feature:nth-child(1) { border-color: rgba(255, 193, 7, 0.3); }
+  .feature:nth-child(1) .feature-icon { color: #FFC107; }
+  .feature:nth-child(1):hover { background: rgba(255, 193, 7, 0.08); border-color: #FFC107; }
+
+  .feature:nth-child(2) { border-color: rgba(76, 175, 80, 0.3); }
+  .feature:nth-child(2) .feature-icon { color: #4CAF50; }
+  .feature:nth-child(2):hover { background: rgba(76, 175, 80, 0.08); border-color: #4CAF50; }
+
+  .feature:nth-child(3) { border-color: rgba(0, 207, 193, 0.3); }
+  .feature:nth-child(3) .feature-icon { color: #00cfc1; }
+  .feature:nth-child(3):hover { background: rgba(0, 207, 193, 0.08); border-color: #00cfc1; }
+
+  .feature:nth-child(4) { border-color: rgba(33, 150, 243, 0.3); }
+  .feature:nth-child(4) .feature-icon { color: #2196F3; }
+  .feature:nth-child(4):hover { background: rgba(33, 150, 243, 0.08); border-color: #2196F3; }
+
+  .feature:nth-child(5) { border-color: rgba(156, 39, 176, 0.3); }
+  .feature:nth-child(5) .feature-icon { color: #9C27B0; }
+  .feature:nth-child(5):hover { background: rgba(156, 39, 176, 0.08); border-color: #9C27B0; }
+
+  .feature:nth-child(6) { border-color: rgba(255, 87, 34, 0.3); }
+  .feature:nth-child(6) .feature-icon { color: #FF5722; }
+  .feature:nth-child(6):hover { background: rgba(255, 87, 34, 0.08); border-color: #FF5722; }
+
+  .feature-text {
+    @apply text-xs;
+  }
+
+  /* Recent Workspaces */
+  .workspace-list {
+    @apply flex flex-col gap-2.5;
+  }
+
+  .workspace-item {
+    @apply flex items-center gap-3 p-3.5 rounded-lg cursor-pointer transition-all;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .workspace-item:hover {
+    border-color: #00cfc1;
+    box-shadow: 0 2px 8px rgba(0,207,193,0.15);
+  }
+
+  .workspace-icon {
+    @apply flex-shrink-0;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .workspace-info {
+    @apply flex-1 min-w-0;
+  }
+
+  .workspace-name {
+    @apply font-semibold truncate text-sm;
+  }
+
+  .workspace-path {
+    @apply text-[0.6875rem] truncate;
+    color: var(--vscode-descriptionForeground);
+    font-family: monospace;
+  }
+
+  .workspace-actions {
+    @apply flex gap-2;
+  }
+
+  .workspace-remove {
+    @apply px-2 py-1 text-xs rounded transition-all;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+  }
+
+  .workspace-remove:hover {
+    background: #E0234E;
+    color: white;
+  }
+
+  /* Module Browser */
+  .module-browser {
+    @apply mb-8;
+  }
+
+  .module-stats {
+    @apply flex gap-3 items-center mb-4;
+  }
+
+  .module-count {
+    @apply text-xs font-semibold px-3 py-1 rounded-xl;
+    background: rgba(0,207,193,0.1);
+    color: #00cfc1;
+  }
+
+  .workspace-warning {
+    @apply flex items-start gap-3.5 p-4 rounded-lg mb-4;
+    background: linear-gradient(135deg, rgba(255,152,0,0.1), rgba(251,140,0,0.1));
+    border: 2px solid #FF9800;
+  }
+
+  .warning-icon {
+    @apply text-3xl leading-none;
+  }
+
+  .warning-title {
+    @apply text-sm font-bold mb-1;
+    color: #FF9800;
+  }
+
+  .warning-desc {
+    @apply text-xs mb-2.5;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.4;
+  }
+
+  .warning-btn {
+    @apply px-3 py-1.5 text-xs font-semibold rounded-md cursor-pointer transition-all;
+    background: #FF9800;
+    color: white;
+    border: none;
+  }
+
+  .warning-btn:hover {
+    opacity: 0.85;
+  }
+
+  /* Module Controls */
+  .module-controls {
+    @apply flex flex-col gap-3 mb-4;
+  }
+
+  .module-search {
+    @apply w-full px-3.5 py-2.5 rounded-lg border transition-all text-sm;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border-color: var(--vscode-panel-border);
+  }
+
+  .module-search:focus {
+    outline: none;
+    border-color: #00cfc1;
+    box-shadow: 0 0 0 2px rgba(0,207,193,0.1);
+  }
+
+  .module-filters {
+    @apply flex gap-2 flex-wrap;
+  }
+
+  .filter-btn {
+    @apply px-3.5 py-1.5 text-xs rounded-2xl border cursor-pointer transition-all font-medium;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border-color: var(--vscode-panel-border);
+  }
+
+  .filter-btn:hover {
+    background: rgba(0,207,193,0.1);
+    border-color: #00cfc1;
+    color: #00cfc1;
+  }
+
+  .filter-btn.active {
+    background: #00cfc1;
+    color: white;
+    border-color: #00cfc1;
+  }
+
+  /* Modules Grid - responsive: max 3 cols on desktop, 2 on tablet, 1 on mobile */
+  .modules-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (max-width: 992px) {
+    .modules-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .modules-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Module Card */
+  .module-card {
+    @apply p-3 rounded-lg transition-all flex flex-col gap-2;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 2px solid var(--vscode-panel-border);
+  }
+
+  .module-card:hover {
+    border-color: #00cfc1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,207,193,0.15);
+  }
+
+  .module-header {
+    @apply flex items-start gap-2.5;
+  }
+
+  .module-icon {
+    @apply text-2xl leading-none;
+  }
+
+  /* Lucide icon wrapper for module cards */
+  .module-icon-wrapper {
+    @apply w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .module-icon-lucide {
+    color: #00cfc1;
+  }
+
+  .module-card:hover .module-icon-wrapper {
+    background: rgba(0, 207, 193, 0.1);
+    border-color: #00cfc1;
+  }
+
+  .module-info {
+    @apply flex-1;
+  }
+
+  .module-name {
+    @apply text-sm font-bold mb-0.5;
+  }
+
+  .module-version {
+    @apply text-[0.625rem];
+    color: var(--vscode-descriptionForeground);
+    font-family: monospace;
+  }
+
+  /* Module Badges */
+  .module-badge {
+    @apply text-[0.5625rem] px-2 py-0.5 rounded-lg font-bold uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .module-badge.ai { background: #9B59B6; color: white; }
+  .module-badge.essentials { background: #2196F3; color: white; }
+  .module-badge.database { background: #3775A9; color: white; }
+  .module-badge.cache { background: #CB3837; color: white; }
+  .module-badge.auth { background: #F59E0B; color: white; }
+  .module-badge.observability { background: #10B981; color: white; }
+  .module-badge.business { background: #FF6B6B; color: white; }
+  .module-badge.billing { background: #E91E63; color: white; }
+  .module-badge.communication { background: #4ECDC4; color: white; }
+  .module-badge.security { background: #F59E0B; color: white; }
+  .module-badge.tasks { background: #8E44AD; color: white; }
+  .module-badge.users { background: #3498DB; color: white; }
+
+  .module-desc {
+    @apply text-xs flex-1;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.4;
+  }
+
+  /* Module Actions */
+  .module-actions {
+    @apply flex gap-1.5 items-stretch;
+  }
+
+  .module-install-btn {
+    @apply flex-1 px-3 py-2 text-xs font-semibold rounded-md cursor-pointer transition-all flex items-center justify-center gap-1.5;
+    background: linear-gradient(135deg, #00cfc1, #009688);
+    color: white;
+    border: none;
+  }
+
+  .module-install-btn:hover:not(:disabled) {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+
+  .module-install-btn:disabled {
+    background: linear-gradient(135deg, #555, #666);
+    color: #BDBDBD;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .module-install-btn.installed:disabled {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    cursor: default;
+    opacity: 1;
+  }
+
+  .module-install-btn.update {
+    background: linear-gradient(135deg, #FF9800, #F57C00);
+    color: white;
+  }
+
+  .module-install-btn.update:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: scale(1.03);
+  }
+
+  .module-copy-btn {
+    @apply px-3 py-2 text-xs font-semibold rounded-md cursor-pointer transition-all whitespace-nowrap flex-shrink-0;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .module-copy-btn:hover {
+    background: #00cfc1;
+    color: white;
+    border-color: #00cfc1;
+  }
+
+  .module-copy-btn.copied {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+  }
+
+  .module-details-btn {
+    @apply px-2 py-2 min-w-[36px] text-base rounded-md cursor-pointer transition-all flex items-center justify-center;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .module-details-btn:hover {
+    background: var(--vscode-button-hoverBackground);
+    border-color: var(--vscode-focusBorder);
+    transform: translateY(-1px);
+  }
+
+  /* Minimal action buttons for details and copy */
+  .module-action-btn {
+    @apply px-2 py-1.5 text-sm rounded-md cursor-pointer transition-all flex items-center justify-center;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    border: 1px solid var(--vscode-panel-border);
+    min-width: 32px;
+  }
+
+  .module-action-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: #00cfc1;
+    border-color: #00cfc1;
+    transform: translateY(-1px);
+  }
+
+  .module-action-btn.copied {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+  }
+
+  .module-action-btn.loading {
+    background: var(--vscode-list-hoverBackground);
+    color: #00cfc1;
+    border-color: #00cfc1;
+    cursor: wait;
+  }
+
+  /* Empty State */
+  .empty-state {
+    @apply text-center py-8 px-8 text-sm;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .workspace-empty-icon {
+    @apply text-5xl mb-3 opacity-30;
+  }
+
+  /* Refresh Button in section headers */
+  .refresh-btn {
+    @apply ml-auto p-1.5 rounded-md cursor-pointer transition-all;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    border: 1px solid transparent;
+  }
+
+  .refresh-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: #00cfc1;
+    border-color: var(--vscode-panel-border);
+  }
+
+  /* Spinning animation for refresh button */
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .spinning {
+    animation: spin 1s linear infinite;
+  }
+
+  /* Workspace Info Box (when project selected in Module Browser) */
+  .workspace-info-box {
+    @apply flex items-center gap-3 p-3 rounded-lg mb-4;
+    background: rgba(0, 207, 193, 0.08);
+    border: 1px solid rgba(0, 207, 193, 0.25);
+  }
+
+  .workspace-info-icon {
+    @apply w-5 h-5 flex-shrink-0;
+    color: #00cfc1;
+  }
+
+  .workspace-details {
+    @apply flex-1 min-w-0;
+  }
+
+  .workspace-name-info {
+    @apply text-sm font-semibold truncate;
+  }
+
+  .workspace-path-info {
+    @apply text-xs truncate;
+    color: var(--vscode-descriptionForeground);
+    font-family: monospace;
+  }
+
+  /* Installed count badge */
+  .installed-count {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+  }
+
+  /* Installed module card */
+  .module-card.installed {
+    border-color: rgba(76, 175, 80, 0.3);
+  }
+
+  .module-card.installed:hover {
+    border-color: #4CAF50;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
+  }
+
+  /* Command Reference Styles */
+  .command-reference {
+    @apply mb-8;
+  }
+
+  .command-category {
+    @apply mb-3;
+  }
+
+  .category-header {
+    @apply flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .category-header:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-color: #00cfc1;
+  }
+
+  .category-header.expanded {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .category-title {
+    @apply flex items-center gap-2.5 text-sm font-semibold;
+  }
+
+  .category-icon-lucide {
+    color: #00cfc1;
+  }
+
+  .category-count {
+    @apply ml-2 px-2 py-0.5 text-xs rounded-full;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+  }
+
+  .category-toggle {
+    transition: transform 0.2s;
+  }
+
+  .category-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+    border-top: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
+
+  .category-content.expanded {
+    max-height: 2000px;
+    transition: max-height 0.5s ease-in;
+  }
+
+  .command-list {
+    @apply p-3 flex flex-col gap-2.5;
+  }
+
+  .command-item {
+    @apply p-3 rounded-lg;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .command-header {
+    @apply flex items-center justify-between gap-2 mb-2;
+  }
+
+  .command-code {
+    @apply flex-1 text-xs font-mono p-2 rounded;
+    background: var(--vscode-textCodeBlock-background);
+    color: #00cfc1;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .command-copy-btn {
+    @apply px-2.5 py-1.5 text-xs rounded cursor-pointer transition-all flex items-center gap-1 flex-shrink-0;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .command-copy-btn:hover {
+    background: #00cfc1;
+    color: white;
+    border-color: #00cfc1;
+  }
+
+  .command-copy-btn.copied {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+  }
+
+  .command-desc {
+    @apply text-xs;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.4;
+  }
+
+  /* Keyboard Shortcuts Styles */
+  .shortcuts {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shortcut {
+    @apply flex items-center gap-2 p-2.5 rounded-lg flex-1;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    min-width: 200px;
+  }
+
+  @media (max-width: 768px) {
+    .shortcut {
+      flex: 1 1 100%;
+    }
+  }
+
+  .kbd {
+    @apply px-2 py-1 text-xs rounded;
+    background: var(--vscode-button-secondaryBackground);
+    border: 1px solid var(--vscode-panel-border);
+    font-family: monospace;
+    font-weight: 600;
+  }
+
+  .shortcut-desc {
+    @apply text-sm;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  /* Footer Styles */
+  .footer {
+    @apply text-center mt-12 pt-6;
+    border-top: 1px solid var(--vscode-panel-border);
+  }
+
+  .footer-links {
+    @apply flex justify-center gap-6 mb-4;
+  }
+
+  .footer-link {
+    @apply flex items-center gap-2 text-sm cursor-pointer transition-opacity;
+    color: #00cfc1;
+    text-decoration: none;
+  }
+
+  .footer-link:hover {
+    opacity: 0.8;
+  }
+
+  .copyright {
+    @apply text-xs;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .copyright .heart {
+    color: #E0234E;
+  }
+}

@@ -5,6 +5,7 @@
 
 const esbuild = require('esbuild');
 const path = require('path');
+const fs = require('fs-extra');
 
 const production = process.argv.includes('--production') || process.env.NODE_ENV === 'production';
 const watch = process.argv.includes('--watch');
@@ -27,6 +28,8 @@ const esbuildProblemMatcherPlugin = {
     });
   },
 };
+
+
 
 async function main() {
   const ctx = await esbuild.context({

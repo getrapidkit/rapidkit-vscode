@@ -320,6 +320,11 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             <span class="label">Welcome</span>
         </button>
         
+        <button class="compact-btn" onclick="send('openWelcomeV2')" title="Test new template system" style="background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1)); border-color: rgba(102,126,234,0.3);">
+            <span class="icon">🧪</span>
+            <span class="label">V2 Test</span>
+        </button>
+        
         <button class="compact-btn doctor" onclick="send('doctor')" title="Run system checks">
             <span class="icon">${icons.doctor}</span>
             <span class="label">Check</span>

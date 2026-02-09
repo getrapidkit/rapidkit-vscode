@@ -13,6 +13,9 @@ node_modules/**
 !node_modules/*/package.json
 !node_modules/*/README.md
 
+# Exclude webview-ui source (only need dist/webview.js and dist/webview.css)
+webview-ui/**
+
 # Exclude build/test documentation (not needed in VSIX)
 BUILD_SUMMARY.md
 READY_TO_TEST.md
@@ -37,3 +40,12 @@ esbuild.js
 .git/**
 .github/**
 .gitattributes
+
+# Exclude development/testing artifacts
+.husky/**
+coverage/**
+releases/**
+scripts/**
+
+# Exclude documentation (available online)
+docs/**

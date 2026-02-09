@@ -13,10 +13,12 @@ import * as fs from 'fs-extra';
 import { Logger } from '../utils/logger';
 import { RapidKitModule } from '../types';
 import { RapidKitCLI } from '../core/rapidkitCLI';
+import { ModulesCatalogService } from '../core/modulesCatalogService';
 import { getSelectedProjectPath } from '../core/selectedProject';
 import { checkPythonEnvironment, getPythonErrorMessage } from '../utils/pythonChecker';
 import { findWorkspaceRoot } from '../utils/findWorkspace';
 import { refreshModuleExplorerStates } from '../extension';
+import { MODULES } from '../data/modules';
 
 const NO_PROJECT_MESSAGE =
   '⚠️ No project selected!\n\n' +
@@ -67,7 +69,8 @@ export async function addModuleCommand(
     logger.debug('Skipping Python pre-flight check - using workspace environment');
 
     if (!module) {
-      const selectedModule = await showModulePicker();
+      const workspacePath = path.dirname(projectPath);
+      const selectedModule = await showModulePicker(workspacePath);
       if (!selectedModule) {
         return;
       }
@@ -310,34 +313,29 @@ async function isRapidKitProject(dirPath: string): Promise<boolean> {
   return false;
 }
 
-async function showModulePicker(): Promise<RapidKitModule | undefined> {
-  // Short list for command-palette flow; full list is in Module Explorer tree (stable)
-  const modules: RapidKitModule[] = [
-    {
-      id: 'auth_core',
-      name: 'auth_core',
-      displayName: 'Authentication Core',
-      version: '0.1.0',
-      description: 'Password hashing, token signing, and runtime auth',
-      category: 'auth',
-      status: 'stable',
-      tags: [],
-      dependencies: [],
-      installed: false,
-    },
-    {
-      id: 'db_postgres',
-      name: 'db_postgres',
-      displayName: 'PostgreSQL',
-      version: '0.1.24',
-      description: 'SQLAlchemy async Postgres with DI and health checks',
-      category: 'database',
-      status: 'stable',
-      tags: [],
-      dependencies: [],
-      installed: false,
-    },
-  ];
+async function showModulePicker(workspacePath?: string): Promise<RapidKitModule | undefined> {
+  let moduleData = MODULES;
+  try {
+    const catalog = await ModulesCatalogService.getInstance().getModulesCatalog(workspacePath);
+    if (catalog.modules.length) {
+      moduleData = catalog.modules;
+    }
+  } catch {
+    // fall back to static list
+  }
+
+  const modules: RapidKitModule[] = moduleData.map((m) => ({
+    id: m.id,
+    name: m.id,
+    displayName: m.name,
+    version: m.version,
+    description: m.description,
+    category: m.category,
+    status: m.status as RapidKitModule['status'],
+    tags: m.tags || [],
+    dependencies: m.dependencies || [],
+    installed: false,
+  }));
 
   const selected = await vscode.window.showQuickPick(
     modules.map((m) => ({

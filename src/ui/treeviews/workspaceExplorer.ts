@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { RapidKitWorkspace } from '../../types';
 import { WorkspaceManager } from '../../core/workspaceManager';
+import { CoreVersionService, CoreVersionInfo } from '../../core/coreVersionService';
 
 export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<WorkspaceTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void> =
@@ -14,9 +15,11 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     this._onDidChangeTreeData.event;
 
   private workspaceManager = WorkspaceManager.getInstance();
+  private versionService = CoreVersionService.getInstance();
   private workspaces: RapidKitWorkspace[] = [];
   private selectedWorkspace: RapidKitWorkspace | null = null;
   private fileWatcher?: vscode.FileSystemWatcher;
+  private versionInfoCache: Map<string, CoreVersionInfo> = new Map();
 
   constructor() {
     this.loadWorkspaces();
@@ -55,10 +58,15 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       // Root level - only show workspaces (no action buttons)
       const items: WorkspaceTreeItem[] = [];
 
-      // Add workspaces
-      this.workspaces.forEach((ws) => {
+      // Add workspaces with version info
+      for (const ws of this.workspaces) {
         const isActive = this.selectedWorkspace?.path === ws.path;
-        const item = new WorkspaceTreeItem(ws, 'workspace', isActive);
+
+        // Fetch version info (async but cached)
+        const versionInfo = await this.versionService.getVersionInfo(ws.path);
+        this.versionInfoCache.set(ws.path, versionInfo);
+
+        const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
 
         // Show active status with icon or time since last opened
         if (isActive) {
@@ -72,7 +80,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
         }
 
         items.push(item);
-      });
+      }
 
       return items;
     }
@@ -209,6 +217,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     public readonly workspace: RapidKitWorkspace | null,
     public readonly contextValue: string,
     isActive: boolean = false,
+    versionInfo?: CoreVersionInfo,
     customLabel?: string
   ) {
     const projectCount = workspace?.projects?.length || 0;
@@ -219,7 +228,21 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
 
     if (contextValue === 'workspace' && workspace) {
       const projectText = projectCount === 1 ? '1 project' : `${projectCount} projects`;
-      this.tooltip = `${workspace.name}\n${workspace.path}\nMode: ${workspace.mode}\n${projectText}`;
+
+      // Enhanced tooltip with version info
+      let tooltipText = `${workspace.name}\n${workspace.path}\nMode: ${workspace.mode}\n${projectText}`;
+
+      if (versionInfo) {
+        const versionService = CoreVersionService.getInstance();
+        const statusMsg = versionService.getStatusMessage(versionInfo);
+        const locationText = versionInfo.location ? ` (${versionInfo.location})` : '';
+        tooltipText += `\n\n🩺 ${statusMsg}${locationText}`;
+        if (versionInfo.status === 'update-available') {
+          tooltipText += `\n\n💡 Click doctor icon to upgrade`;
+        }
+      }
+
+      this.tooltip = new vscode.MarkdownString(tooltipText.replace(/\n/g, '  \n'));
 
       // Icon based on active status
       this.iconPath = new vscode.ThemeIcon(

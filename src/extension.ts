@@ -34,7 +34,9 @@ import { openWorkspaceFolder, copyWorkspacePath } from './commands/workspaceCont
 import { openProjectFolder, copyProjectPath, deleteProject } from './commands/projectContextMenu';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
 import { WelcomePanel } from './ui/panels/welcomePanel';
+import { WelcomePanelLegacy } from './ui/panels/welcomePanelLegacy';
 import { SetupPanel } from './ui/panels/setupPanel';
+import { ModulesCatalogService } from './core/modulesCatalogService';
 
 let statusBar: RapidKitStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -183,6 +185,13 @@ export async function activate(context: vscode.ExtensionContext) {
             WelcomePanel.updateWithProject(selectedProject.path, selectedProject.name);
           }
         }
+        // Also refresh Legacy Welcome Panel
+        if (WelcomePanelLegacy.currentPanel) {
+          const selectedProject = projectExplorer?.getSelectedProject();
+          if (selectedProject) {
+            WelcomePanelLegacy.updateWithProject(selectedProject.path, selectedProject.name);
+          }
+        }
       }),
       vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
         logger.info('selectWorkspace command with path:', workspacePath);
@@ -213,6 +222,14 @@ export async function activate(context: vscode.ExtensionContext) {
           }
         }
 
+        // Invalidate modules catalog cache so fresh data is fetched for the new workspace
+        try {
+          const catalogService = ModulesCatalogService.getInstance();
+          await catalogService.invalidateCache(workspacePath);
+        } catch {
+          // service may not be initialized yet
+        }
+
         // Set context key to enable project buttons
         await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
         await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
@@ -223,12 +240,15 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }),
       vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item: any) => {
-        const workspacePath = item?.workspace?.path || item;
+        // Handle both formats: { path: string } from React panel and { workspace: { path: string } } from tree view
+        const workspacePath = item?.path || item?.workspace?.path || item;
         if (workspacePath && typeof workspacePath === 'string') {
           if (workspaceExplorer) {
             const workspace = workspaceExplorer.getWorkspaceByPath(workspacePath);
             if (workspace) {
               await workspaceExplorer.removeWorkspace(workspace);
+              // Refresh panel after removal
+              WelcomePanel.refreshRecentWorkspaces();
             }
           }
         }
@@ -246,6 +266,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
           // Update Welcome Panel with selected project
           WelcomePanel.updateWithProject(item.project.path, item.project.name);
+
+          // Update Legacy Welcome Panel with selected project
+          if (WelcomePanelLegacy.currentPanel) {
+            WelcomePanelLegacy.updateWithProject(item.project.path, item.project.name);
+          }
 
           // Update Module Explorer to show installed modules for this project
           moduleExplorer.setProjectPath(item.project.path);
@@ -272,43 +297,122 @@ export async function activate(context: vscode.ExtensionContext) {
 
         logger.info('Running doctor check for workspace:', workspace.name);
 
-        // Show progress notification
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: `🩺 Checking health of workspace: ${workspace.name}`,
-            cancellable: false,
-          },
-          async (progress) => {
-            progress.report({ increment: 0, message: 'Starting health check...' });
+        // Get version info first
+        const { CoreVersionService } = await import('./core/coreVersionService.js');
+        const versionService = CoreVersionService.getInstance();
+        const versionInfo = await versionService.getVersionInfo(workspace.path);
 
-            try {
-              // Create terminal to run doctor command
+        // Show quick actions menu
+        const actions = [
+          { label: '$(pulse) Check Health', action: 'check' },
+          { label: '$(info) Show Version Info', action: 'version' },
+        ];
+
+        if (versionInfo.status === 'update-available') {
+          actions.splice(1, 0, {
+            label: `$(arrow-up) Upgrade to v${versionInfo.latest}`,
+            action: 'upgrade',
+          });
+        }
+
+        const selection = await vscode.window.showQuickPick(actions, {
+          placeHolder: `RapidKit Health & Version - ${workspace.name}`,
+          title: versionService.getStatusMessage(versionInfo),
+        });
+
+        if (!selection) {
+          return;
+        }
+
+        switch (selection.action) {
+          case 'check':
+            // Run full health check in terminal
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `🩺 Checking health of workspace: ${workspace.name}`,
+                cancellable: false,
+              },
+              async (progress) => {
+                progress.report({ increment: 0, message: 'Starting health check...' });
+
+                try {
+                  const terminal = vscode.window.createTerminal({
+                    name: `RapidKit Doctor - ${workspace.name}`,
+                    cwd: workspace.path,
+                  });
+
+                  terminal.show();
+                  progress.report({ increment: 50, message: 'Running diagnostics...' });
+                  terminal.sendText('npx rapidkit doctor --workspace');
+                  progress.report({ increment: 100, message: 'Complete!' });
+
+                  vscode.window.showInformationMessage(
+                    `Health check running for "${workspace.name}". Check the terminal for results.`,
+                    'OK'
+                  );
+                } catch (error) {
+                  logger.error('Error running doctor check:', error);
+                  vscode.window.showErrorMessage(
+                    `Failed to run health check: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                }
+              }
+            );
+            break;
+
+          case 'version': {
+            // Show detailed version info
+            const locationText = versionInfo.location
+              ? `\n\n**Location:** ${versionInfo.location}`
+              : '';
+            const pathText = versionInfo.path ? `\n**Path:** ${versionInfo.path}` : '';
+            const updateText =
+              versionInfo.status === 'update-available'
+                ? `\n\n**💡 Update Available:** v${versionInfo.latest}`
+                : '';
+
+            await vscode.window.showInformationMessage(
+              `**RapidKit Core**\n\n**Installed:** v${versionInfo.installed || 'Not installed'}${locationText}${pathText}${updateText}`,
+              { modal: true },
+              'OK'
+            );
+            break;
+          }
+
+          case 'upgrade': {
+            // Upgrade Core
+            const confirmUpgrade = await vscode.window.showInformationMessage(
+              `Upgrade RapidKit Core from v${versionInfo.installed} to v${versionInfo.latest}?`,
+              'Upgrade',
+              'Cancel'
+            );
+
+            if (confirmUpgrade === 'Upgrade') {
               const terminal = vscode.window.createTerminal({
-                name: `RapidKit Doctor - ${workspace.name}`,
+                name: `RapidKit Upgrade - ${workspace.name}`,
                 cwd: workspace.path,
               });
 
               terminal.show();
-              progress.report({ increment: 50, message: 'Running diagnostics...' });
 
-              // Run the doctor command from npm CLI
-              terminal.sendText('npx rapidkit doctor --workspace');
-
-              progress.report({ increment: 100, message: 'Complete!' });
+              if (versionInfo.location === 'workspace') {
+                terminal.sendText('poetry update rapidkit-core');
+              } else {
+                terminal.sendText('pipx upgrade rapidkit-core');
+              }
 
               vscode.window.showInformationMessage(
-                `Health check running for "${workspace.name}". Check the terminal for results.`,
+                'Upgrading RapidKit Core... Check terminal for progress.',
                 'OK'
               );
-            } catch (error) {
-              logger.error('Error running doctor check:', error);
-              vscode.window.showErrorMessage(
-                `Failed to run health check: ${error instanceof Error ? error.message : String(error)}`
-              );
+
+              // Clear cache after upgrade
+              versionService.clearCache(workspace.path);
             }
+            break;
           }
-        );
+        }
       }),
       vscode.commands.registerCommand('rapidkit.openProjectFolder', async (item: any) => {
         const projectPath = item?.project?.path || item?.projectPath;
@@ -765,6 +869,9 @@ export async function activate(context: vscode.ExtensionContext) {
     logger.info('Step 3: Initializing workspace detector...');
     const workspaceDetector = WorkspaceDetector.getInstance();
     await workspaceDetector.detectRapidKitProjects();
+
+    // Initialize modules catalog service
+    ModulesCatalogService.initialize(context);
 
     // Ensure default workspace is registered
     logger.info('Step 3.5: Checking default workspace...');
