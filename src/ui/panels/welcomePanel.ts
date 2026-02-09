@@ -8,6 +8,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { WorkspaceManager } from '../../core/workspaceManager';
 import { ModulesCatalogService } from '../../core/modulesCatalogService';
+import { CoreVersionService } from '../../core/coreVersionService';
 import { MODULES, ModuleData } from '../../data/modules';
 
 export class WelcomePanel {
@@ -240,8 +241,8 @@ export class WelcomePanel {
     this._sendWorkspaceStatus();
   }
 
-  private _sendRecentWorkspaces() {
-    const workspaces = this._getRecentWorkspaces();
+  private async _sendRecentWorkspaces() {
+    const workspaces = await this._getRecentWorkspaces();
     this._panel.webview.postMessage({
       command: 'updateRecentWorkspaces',
       data: workspaces,
@@ -307,13 +308,122 @@ export class WelcomePanel {
     });
   }
 
-  private _getRecentWorkspaces(): Array<{ name: string; path: string; lastAccessed?: number }> {
+  private _getRecentWorkspaces(): Promise<
+    Array<{
+      name: string;
+      path: string;
+      lastAccessed?: number;
+      coreVersion?: string;
+      coreStatus?:
+        | 'ok'
+        | 'outdated'
+        | 'not-installed'
+        | 'update-available'
+        | 'up-to-date'
+        | 'error'
+        | 'deprecated';
+      coreLocation?: 'workspace' | 'global' | 'pipx';
+      lastModified?: number;
+      projectCount?: number;
+      projectTypes?: ('fastapi' | 'nestjs')[];
+    }>
+  > {
     try {
       const workspaceManager = WorkspaceManager.getInstance();
-      return workspaceManager.getWorkspaces();
+      const versionService = CoreVersionService.getInstance();
+      const workspaces = workspaceManager.getWorkspaces();
+
+      // Enrich workspaces with version info, last modified, and project info
+      const enrichedWorkspaces = Promise.all(
+        workspaces.map(async (ws) => {
+          try {
+            const versionInfo = await versionService.getVersionInfo(ws.path);
+
+            // Get last modified time and project info
+            let lastModified: number | undefined;
+            let projectCount: number | undefined;
+            let projectTypes: ('fastapi' | 'nestjs')[] | undefined;
+            try {
+              const stats = await fs.stat(ws.path);
+              lastModified = stats.mtimeMs;
+
+              // Count projects and detect their types
+              const projectsPath = path.join(ws.path, 'projects');
+              if (await fs.pathExists(projectsPath)) {
+                const projects = await fs.readdir(projectsPath);
+                const types = new Set<'fastapi' | 'nestjs'>();
+
+                for (const project of projects) {
+                  const projectPath = path.join(projectsPath, project);
+                  const projectStat = await fs.stat(projectPath);
+
+                  if (projectStat.isDirectory()) {
+                    // Detect project type
+                    const type = await this._detectProjectType(projectPath);
+                    if (type) {
+                      types.add(type);
+                    }
+                  }
+                }
+
+                projectCount = projects.length;
+                projectTypes = Array.from(types);
+              }
+            } catch (err) {
+              console.error(`Failed to get stats for ${ws.path}:`, err);
+            }
+
+            return {
+              ...ws,
+              coreVersion: versionInfo.installed,
+              coreStatus: versionInfo.status,
+              coreLocation: versionInfo.location as 'workspace' | 'global' | 'pipx' | undefined,
+              lastModified,
+              projectCount,
+              projectTypes,
+            };
+          } catch (error) {
+            console.error(`Failed to get version info for ${ws.path}:`, error);
+            return {
+              ...ws,
+              coreVersion: undefined,
+              coreStatus: 'error' as const,
+              coreLocation: undefined,
+            };
+          }
+        })
+      );
+
+      return enrichedWorkspaces;
     } catch (error) {
       console.error('Failed to get recent workspaces:', error);
-      return [];
+      return Promise.resolve([]);
+    }
+  }
+
+  private async _detectProjectType(projectPath: string): Promise<'fastapi' | 'nestjs' | null> {
+    try {
+      // Check for FastAPI indicators
+      const pyprojectPath = path.join(projectPath, 'pyproject.toml');
+      if (await fs.pathExists(pyprojectPath)) {
+        const content = await fs.readFile(pyprojectPath, 'utf8');
+        if (content.includes('fastapi') || content.includes('uvicorn')) {
+          return 'fastapi';
+        }
+      }
+
+      // Check for NestJS indicators
+      const packageJsonPath = path.join(projectPath, 'package.json');
+      if (await fs.pathExists(packageJsonPath)) {
+        const content = await fs.readFile(packageJsonPath, 'utf8');
+        if (content.includes('@nestjs/core') || content.includes('@nestjs/common')) {
+          return 'nestjs';
+        }
+      }
+
+      return null;
+    } catch {
+      return null;
     }
   }
 

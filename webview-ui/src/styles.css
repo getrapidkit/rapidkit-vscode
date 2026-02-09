@@ -294,6 +294,33 @@ h1 .kit {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.workspace-version {
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.workspace-projects-badge {
+    background: linear-gradient(135deg, #00cfc1, #009688);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.project-types {
+    margin-left: 2px;
 }
 .workspace-meta {
     font-size: 11px;
@@ -301,12 +328,40 @@ h1 .kit {
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-top: 6px;
+}
+.workspace-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .workspace-path {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     opacity: 0.7;
+}
+.workspace-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.workspace-remove {
+    background: transparent;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.workspace-remove:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-errorForeground);
 }
 .workspace-badge {
     background: var(--vscode-badge-background);

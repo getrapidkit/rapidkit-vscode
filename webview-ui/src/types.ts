@@ -28,6 +28,12 @@ export interface Workspace {
   name: string;
   path: string;
   lastAccessed?: number;
+  coreVersion?: string;
+  coreStatus?: 'ok' | 'outdated' | 'not-installed' | 'update-available' | 'error';
+  coreLocation?: 'workspace' | 'global' | 'pipx';
+  lastModified?: number;
+  projectCount?: number;
+  projectTypes?: ('fastapi' | 'nestjs')[];
 }
 
 export interface InstallStatus {
