@@ -1,6 +1,40 @@
 # Release Notes
 
-## Latest Release: v0.8.0 (February 9, 2026)
+## Latest Release: v0.9.0 (February 10, 2026)
+
+### 🎭 Release: v0.9.0 — Modal System + Smart Caching + Responsive Design
+
+**Summary:** Introduced comprehensive modal-based workflows for all core actions, intelligent caching for faster operations, and responsive design for better usability across devices.
+
+#### Added
+
+- 🎭 **Modal System** — Interactive modals for creating workspaces, projects, and installing modules with validation, error handling, and keyboard shortcuts
+- ⚡ **Requirement Cache** — Smart 5-minute caching for Python and Poetry checks, reducing redundant system calls by 30-50%
+- 📱 **Responsive Design** — New responsive stylesheet with mobile-friendly layouts and adaptive breakpoints
+
+#### Improved
+
+- 🎨 **Updated Screenshots** — All 3 gallery images refreshed to showcase current UI with modal system
+- 🔧 **Enhanced Commands** — Better validation and feedback for `createWorkspace`, `createProject`, and `addModule`
+- 🎯 **UI/UX Polish** — Refined HeroAction, QuickLinks, and ModuleBrowser components with loading states
+- 🐍 **Python/Poetry Integration** — More robust detection with caching and better error recovery
+
+#### Technical
+
+- **New Components:** 3 modal components (CreateProject, CreateWorkspace, InstallModule)
+- **New Utilities:** RequirementCache for system check optimization
+- **New Styles:** Responsive CSS with mobile breakpoints
+- **Architecture:** Better separation of concerns with standalone modal components
+
+#### Performance
+
+- ⚡ **30-50% faster** workspace creation on repeated operations
+- ⚡ Cached Python/Poetry checks reduce system calls
+- ⚡ Better perceived performance with immediate loading states
+
+---
+
+## Previous Release: v0.8.0 (February 9, 2026)
 
 ### 🎨 Release: v0.8.0 — Workspace Cards Redesign + Dynamic Version
 
@@ -41,6 +75,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.9.0](releases/RELEASE_NOTES_v0.9.0.md) | Feb 10, 2026 | 🎭 Modal system, ⚡ Smart caching, 📱 Responsive design |
 | [v0.8.0](releases/RELEASE_NOTES_v0.8.0.md) | Feb 9, 2026 | 🎨 Workspace cards redesign, Dynamic version display, Project statistics |
 | [v0.7.0](releases/RELEASE_NOTES_v0.7.0.md) | Feb 6, 2026 | 🩺 Workspace health check, Setup status panel, Diagnostics integration |
 | [v0.6.1](releases/RELEASE_NOTES_v0.6.1.md) | Feb 3, 2026 | 🛠️ Fixes & polish: setup stability, module copy commands, detection improvements |

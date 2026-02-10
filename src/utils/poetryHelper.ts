@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { Logger } from './logger';
+import { requirementCache } from './requirementCache';
 
 export interface VirtualenvInfo {
   type: 'venv' | 'poetry' | 'none';
@@ -131,4 +132,28 @@ export async function getPoetryVersion(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Cached version of isPoetryInstalled
+ * Uses cache to speed up repeated checks (TTL: 5 minutes)
+ */
+export async function isPoetryInstalledCached(): Promise<boolean> {
+  const logger = Logger.getInstance();
+
+  // Try to get from cache first
+  const cached = requirementCache.getCachedPoetryCheck();
+  if (cached !== null) {
+    logger.debug('Using cached Poetry check result');
+    return cached;
+  }
+
+  // Cache miss - perform actual check
+  logger.debug('Poetry cache miss - performing fresh check');
+  const result = await isPoetryInstalled();
+
+  // Cache the result
+  requirementCache.cachePoetryCheck(result);
+
+  return result;
 }

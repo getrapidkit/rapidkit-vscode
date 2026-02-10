@@ -7,21 +7,37 @@ import * as vscode from 'vscode';
 import { ProjectConfig } from '../../types';
 
 export class ProjectWizard {
-  async show(preselectedFramework?: 'fastapi' | 'nestjs'): Promise<ProjectConfig | undefined> {
-    // Step 1: Project name
-    const name = await vscode.window.showInputBox({
-      prompt: 'Enter project name',
-      placeHolder: 'my-api-project',
-      validateInput: (value) => {
-        if (!value) {
-          return 'Project name is required';
-        }
-        if (!/^[a-z][a-z0-9-_]*$/.test(value)) {
-          return 'Use lowercase letters, numbers, hyphens, and underscores only';
-        }
-        return null;
-      },
-    });
+  async show(
+    preselectedFramework?: 'fastapi' | 'nestjs',
+    prefilledName?: string
+  ): Promise<ProjectConfig | undefined> {
+    // Step 1: Project name (skip if provided)
+    let name: string | undefined;
+
+    if (prefilledName) {
+      name = prefilledName;
+      // Validate the provided name
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        vscode.window.showErrorMessage(
+          'Invalid project name. Use letters, numbers, hyphens, and underscores only.'
+        );
+        return undefined;
+      }
+    } else {
+      name = await vscode.window.showInputBox({
+        prompt: 'Enter project name',
+        placeHolder: 'my-api-project',
+        validateInput: (value) => {
+          if (!value) {
+            return 'Project name is required';
+          }
+          if (!/^[a-z][a-z0-9-_]*$/.test(value)) {
+            return 'Use lowercase letters, numbers, hyphens, and underscores only';
+          }
+          return null;
+        },
+      });
+    }
 
     if (!name) {
       return undefined;

@@ -121,13 +121,47 @@ export class WelcomePanel {
             this._sendInitialData();
             break;
           case 'createWorkspace':
-            await vscode.commands.executeCommand('rapidkit.createWorkspace');
+            // Send loading state to webview
+            this._panel.webview.postMessage({
+              command: 'setCreatingWorkspace',
+              data: { isLoading: true },
+            });
+            try {
+              // If workspace name provided from modal, pass it directly
+              if (message.data?.name) {
+                await vscode.commands.executeCommand('rapidkit.createWorkspace', message.data.name);
+              } else {
+                await vscode.commands.executeCommand('rapidkit.createWorkspace');
+              }
+            } finally {
+              // Reset loading state
+              this._panel.webview.postMessage({
+                command: 'setCreatingWorkspace',
+                data: { isLoading: false },
+              });
+            }
             break;
           case 'createFastAPIProject':
-            await vscode.commands.executeCommand('rapidkit.createFastAPIProject');
+            if (message.data?.name) {
+              // Modal provided name, pass to command
+              await vscode.commands.executeCommand(
+                'rapidkit.createFastAPIProject',
+                message.data.name
+              );
+            } else {
+              await vscode.commands.executeCommand('rapidkit.createFastAPIProject');
+            }
             break;
           case 'createNestJSProject':
-            await vscode.commands.executeCommand('rapidkit.createNestJSProject');
+            if (message.data?.name) {
+              // Modal provided name, pass to command
+              await vscode.commands.executeCommand(
+                'rapidkit.createNestJSProject',
+                message.data.name
+              );
+            } else {
+              await vscode.commands.executeCommand('rapidkit.createNestJSProject');
+            }
             break;
           case 'openSetup':
             await vscode.commands.executeCommand('rapidkit.openSetup');

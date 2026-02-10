@@ -5,6 +5,7 @@
 
 import { run } from './exec';
 import { Logger } from './logger';
+import { requirementCache } from './requirementCache';
 
 export interface PythonCheckResult {
   available: boolean;
@@ -353,4 +354,28 @@ export function getPythonErrorMessage(checkResult: PythonCheckResult): string {
   }
 
   return 'Python environment check failed. Please ensure Python 3.10+ is properly installed.';
+}
+
+/**
+ * Cached version of checkPythonEnvironment
+ * Uses cache to speed up repeated checks (TTL: 5 minutes)
+ */
+export async function checkPythonEnvironmentCached(): Promise<PythonCheckResult> {
+  const logger = Logger.getInstance();
+
+  // Try to get from cache first
+  const cached = requirementCache.getCachedPythonCheck();
+  if (cached) {
+    logger.debug('Using cached Python check result');
+    return cached;
+  }
+
+  // Cache miss - perform actual check
+  logger.debug('Python cache miss - performing fresh check');
+  const result = await checkPythonEnvironment();
+
+  // Cache the result
+  requirementCache.cachePythonCheck(result);
+
+  return result;
 }

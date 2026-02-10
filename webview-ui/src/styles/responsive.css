@@ -1,0 +1,505 @@
+/* ========================================
+   RESPONSIVE DESIGN & MEDIA QUERIES
+   Comprehensive breakpoints for all devices
+   ======================================== */
+
+/* Large Tablets & Small Desktops: 769px - 1024px */
+@media (max-width: 1024px) {
+    .container {
+        max-width: 100%;
+        padding: 0 20px;
+    }
+    
+    .modules-grid {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+    
+    .quick-links {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .features {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Tablets: 601px - 768px */
+@media (max-width: 768px) {
+    body {
+        padding: 16px 12px;
+    }
+    
+    .header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .tagline {
+        font-size: 0.8rem;
+    }
+    
+    .logo {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .hero-action {
+        padding: 16px 20px;
+    }
+    
+    .hero-title {
+        font-size: 14px;
+    }
+    
+    .section-title {
+        font-size: 0.95rem;
+        flex-wrap: wrap;
+    }
+    
+    .modules-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    
+    .module-card {
+        padding: 12px;
+    }
+    
+    .command-reference {
+        font-size: 12px;
+    }
+    
+    .footer-links {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    /* Workspace cards better spacing */
+    .ws-row-top {
+        gap: 6px;
+    }
+    
+    .ws-tag {
+        font-size: 9px;
+        padding: 1px 5px;
+    }
+}
+
+/* Mobile & Small Tablets: < 600px */
+@media (max-width: 600px) {
+    body {
+        padding: 12px;
+    }
+    
+    .container {
+        padding: 0 12px;
+    }
+    
+    .actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-links {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .quick-link {
+        padding: 12px;
+    }
+    
+    .features {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .feature {
+        padding: 8px;
+        font-size: 11px;
+    }
+    
+    /* Workspace cards mobile optimization */
+    .ws-card {
+        padding: 10px 12px;
+    }
+    
+    .ws-row-top {
+        flex-wrap: wrap;
+        height: auto;
+        gap: 4px;
+    }
+    
+    .ws-name {
+        flex-basis: 100%;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+    
+    .ws-time {
+        order: 10;
+    }
+    
+    .ws-close {
+        opacity: 1;
+        order: 11;
+    }
+    
+    /* Module browser mobile */
+    .module-filters {
+        gap: 6px;
+    }
+    
+    .filter-btn {
+        padding: 5px 10px;
+        font-size: 10px;
+    }
+    
+    .module-search {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    .modules-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .module-count {
+        font-size: 10px;
+        padding: 3px 8px;
+    }
+    
+    /* Modal responsive */
+    .progress-container {
+        min-width: 90vw;
+        max-width: 90vw;
+        padding: 20px 16px;
+    }
+    
+    /* Setup card mobile */
+    .setup-card {
+        padding: 10px 12px;
+    }
+    
+    .setup-card-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+    }
+    
+    .setup-card-title {
+        font-size: 12px;
+    }
+    
+    .setup-card-subtitle {
+        font-size: 10px;
+    }
+}
+
+/* Small Mobile: < 480px */
+@media (max-width: 480px) {
+    body {
+        padding: 10px 8px;
+    }
+    
+    .container {
+        padding: 0 8px;
+    }
+    
+    /* Header mobile */
+    .header h1 {
+        font-size: 1.1rem;
+    }
+    
+    .logo {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .version {
+        padding: 3px 10px;
+        font-size: 11px;
+    }
+    
+    /* Hero action mobile */
+    .hero-action {
+        padding: 14px 16px;
+    }
+    
+    .hero-icon {
+        font-size: 24px;
+    }
+    
+    .hero-badge {
+        padding: 5px 12px;
+        font-size: 10px;
+    }
+    
+    /* Section titles mobile */
+    .section-title {
+        font-size: 0.9rem;
+        gap: 4px;
+    }
+    
+    /* Workspace tags compact */
+    .ws-tag {
+        font-size: 8px;
+        padding: 1px 4px;
+    }
+    
+    .ws-time {
+        font-size: 9px;
+    }
+    
+    .ws-row-bottom {
+        font-size: 10px;
+    }
+    
+    /* Module actions stack vertically */
+    .module-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .module-install-btn,
+    .module-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Command reference mobile */
+    .command-code {
+        font-size: 10px;
+        padding: 6px 8px;
+    }
+    
+    .command-copy {
+        padding: 5px 10px;
+        font-size: 10px;
+    }
+    
+    /* Shortcuts stack */
+    .shortcuts {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .kbd {
+        font-size: 9px;
+        padding: 2px 5px;
+    }
+    
+    /* Footer mobile */
+    .footer {
+        margin-top: 30px;
+        padding-top: 16px;
+    }
+    
+    .footer-link {
+        font-size: 12px;
+    }
+    
+    .copyright {
+        font-size: 11px;
+    }
+}
+
+/* Extra Small Devices: < 360px */
+@media (max-width: 360px) {
+    body {
+        padding: 8px 6px;
+    }
+    
+    .container {
+        padding: 0 6px;
+    }
+    
+    /* Reduce border radius for compact feel */
+    .module-card,
+    .ws-card,
+    .feature,
+    .hero-action,
+    .quick-link {
+        border-radius: 6px;
+    }
+    
+    .section-title {
+        font-size: 0.85rem;
+    }
+    
+    .section {
+        margin-bottom: 20px;
+    }
+    
+    /* Ultra compact module cards */
+    .module-card {
+        padding: 10px;
+    }
+    
+    .module-header {
+        gap: 8px;
+    }
+    
+    .module-name {
+        font-size: 13px;
+    }
+    
+    .module-desc {
+        font-size: 11px;
+    }
+}
+
+/* ========================================
+   ACCESSIBILITY & FOCUS STATES
+   ======================================== */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+    outline: 2px solid #00cfc1;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+button:focus-visible,
+.quick-link:focus-visible,
+.ws-card:focus-visible,
+.module-card:focus-visible,
+.filter-btn:focus-visible,
+a:focus-visible {
+    outline: 2px solid #00cfc1;
+    outline-offset: 2px;
+}
+
+/* Remove default outline */
+button:focus,
+a:focus {
+    outline: none;
+}
+
+/* Ensure interactive elements have clear focus */
+.module-install-btn:focus-visible,
+.command-copy:focus-visible,
+.ws-close:focus-visible {
+    outline: 2px solid #00cfc1;
+    outline-offset: 1px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .logo {
+        animation: none !important;
+    }
+    
+    .hero-icon {
+        animation: none !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .hero-action,
+    .quick-link,
+    .module-card,
+    .ws-card,
+    .feature,
+    .command-item {
+        border-width: 2px;
+        border-style: solid;
+    }
+    
+    .module-badge,
+    .ws-tag,
+    .version {
+        border: 1px solid currentColor;
+    }
+    
+    /* Ensure text contrast */
+    .tagline,
+    .module-desc,
+    .ws-row-bottom {
+        color: var(--vscode-foreground);
+        opacity: 0.9;
+    }
+}
+
+/* Print styles */
+@media print {
+    .refresh-btn,
+    .ws-close,
+    .module-install-btn,
+    .command-copy,
+    .footer-links {
+        display: none !important;
+    }
+    
+    .ws-card,
+    .module-card {
+        page-break-inside: avoid;
+    }
+    
+    body {
+        background: white;
+        color: black;
+    }
+}
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+
+/* Hardware acceleration for animations */
+.logo,
+.hero-icon,
+.hero-action,
+.quick-link,
+.module-card,
+.ws-card {
+    will-change: transform;
+}
+
+.logo:hover,
+.hero-icon:hover,
+.hero-action:hover,
+.quick-link:hover,
+.module-card:hover,
+.ws-card:hover {
+    will-change: auto;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* ========================================
+   DARK MODE OPTIMIZATIONS
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+    /* Slightly reduce opacity of shadows in dark mode */
+    .hero-action:hover,
+    .module-card:hover {
+        box-shadow: 0 8px 24px rgba(0,207,193,0.15);
+    }
+    
+    /* Adjust gradient opacity for better dark mode */
+    .hero-action {
+        background: linear-gradient(135deg, rgba(0,207,193,0.06), rgba(0,150,136,0.06));
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    /* Stronger shadows in light mode */
+    .hero-action:hover,
+    .module-card:hover {
+        box-shadow: 0 8px 24px rgba(0,207,193,0.25);
+    }
+}

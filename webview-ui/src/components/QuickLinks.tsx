@@ -1,11 +1,13 @@
-import { vscode } from '@/vscode';
+interface QuickLinksProps {
+    onOpenProjectModal: (framework: 'fastapi' | 'nestjs') => void;
+}
 
-export function QuickLinks() {
+export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
     return (
         <div className="quick-links">
             <div
                 className="quick-link fastapi"
-                onClick={() => vscode.postMessage('createFastAPIProject')}
+                onClick={() => onOpenProjectModal('fastapi')}
             >
                 <span className="quick-link-icon">
                     <img src={(window as any).FASTAPI_ICON_URI} alt="FastAPI" />
@@ -16,7 +18,7 @@ export function QuickLinks() {
 
             <div
                 className="quick-link nestjs"
-                onClick={() => vscode.postMessage('createNestJSProject')}
+                onClick={() => onOpenProjectModal('nestjs')}
             >
                 <span className="quick-link-icon">
                     <img src={(window as any).NESTJS_ICON_URI} alt="NestJS" />

@@ -68,6 +68,9 @@ export async function addModuleCommand(
     // The workspace's .venv has rapidkit-core installed, system Python may not
     logger.debug('Skipping Python pre-flight check - using workspace environment');
 
+    // Track if module was provided upfront (from webview) or needs to be selected
+    const moduleProvidedUpfront = !!module;
+
     if (!module) {
       const workspacePath = path.dirname(projectPath);
       const selectedModule = await showModulePicker(workspacePath);
@@ -77,20 +80,26 @@ export async function addModuleCommand(
       module = selectedModule;
     }
 
-    const projectName = path.basename(projectPath);
-    const relativePath = vscode.workspace.asRelativePath(projectPath, false);
-    const displayPath = relativePath !== projectPath ? relativePath : projectPath;
+    // Only show confirmation if module was NOT provided upfront
+    // (i.e., from webview modal where user already confirmed)
+    if (!moduleProvidedUpfront) {
+      const projectName = path.basename(projectPath);
+      const relativePath = vscode.workspace.asRelativePath(projectPath, false);
+      const displayPath = relativePath !== projectPath ? relativePath : projectPath;
 
-    const choice = await vscode.window.showQuickPick(['Add', 'Cancel'], {
-      title: `Add module to project?`,
-      placeHolder: `Adding "${module!.displayName}" to "${projectName}" (${displayPath})`,
-      ignoreFocusOut: true,
-    });
-    if (choice !== 'Add') {
-      return;
+      const choice = await vscode.window.showQuickPick(['Add', 'Cancel'], {
+        title: `Add module to project?`,
+        placeHolder: `Adding "${module!.displayName}" to "${projectName}" (${displayPath})`,
+        ignoreFocusOut: true,
+      });
+      if (choice !== 'Add') {
+        return;
+      }
     }
 
-    if (module.dependencies.length > 0) {
+    // Only show dependency warning if module was NOT provided upfront
+    // (webview modal already shows dependencies)
+    if (!moduleProvidedUpfront && module.dependencies.length > 0) {
       const deps = module.dependencies.join(', ');
       const proceed = await vscode.window.showWarningMessage(
         `This module requires: ${deps}. Continue?`,

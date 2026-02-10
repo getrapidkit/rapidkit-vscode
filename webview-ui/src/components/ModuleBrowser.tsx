@@ -118,20 +118,21 @@ export function ModuleBrowser({
     return (
         <div className="section module-browser">
             <div className="section-title">
-                <Package className="w-4 h-4" />
-                Module Browser
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Package className="w-4 h-4" />
+                    Module Browser
+                    <span className="module-count" style={{ marginLeft: '4px' }}>
+                        {modules.length} free modules
+                    </span>
+                    {workspaceStatus.hasWorkspace && workspaceStatus.installedModules && (
+                        <span className="module-count installed-count">
+                            {workspaceStatus.installedModules.length} installed
+                        </span>
+                    )}
+                </div>
                 <button className="refresh-btn" onClick={handleRefresh} title="Refresh modules">
                     <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'spinning' : ''}`} />
                 </button>
-            </div>
-
-            <div className="module-stats">
-                <span className="module-count">{modules.length} free modules</span>
-                {workspaceStatus.hasWorkspace && workspaceStatus.installedModules && (
-                    <span className="module-count installed-count">
-                        {workspaceStatus.installedModules.length} installed
-                    </span>
-                )}
             </div>
 
             {!workspaceStatus.hasWorkspace ? (

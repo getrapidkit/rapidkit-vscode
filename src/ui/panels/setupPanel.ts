@@ -22,6 +22,21 @@ export class SetupPanel {
             this._panel.webview.postMessage({ command: 'statusUpdate', status });
             break;
           }
+          case 'clearRequirementCache': {
+            try {
+              const { requirementCache } = await import('../../utils/requirementCache.js');
+              requirementCache.invalidateAll();
+              vscode.window.showInformationMessage(
+                '✅ Cache Cleared\n\nPython and Poetry checks will be performed fresh on next use.'
+              );
+              // Refresh status to show it's cleared
+              const status = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({ command: 'statusUpdate', status });
+            } catch {
+              vscode.window.showErrorMessage('Failed to clear cache');
+            }
+            break;
+          }
           case 'doctor':
             vscode.commands.executeCommand('rapidkit.doctor');
             break;
@@ -85,6 +100,13 @@ export class SetupPanel {
               terminal.sendText('curl -sSL https://install.python-poetry.org | python3 -');
             }
             setTimeout(async () => {
+              // Invalidate Poetry cache after installation
+              try {
+                const { requirementCache } = await import('../../utils/requirementCache.js');
+                requirementCache.invalidatePoetry();
+              } catch {
+                // Ignore cache errors
+              }
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
             }, 12000);
@@ -188,6 +210,16 @@ export class SetupPanel {
             terminal.sendText('poetry --version');
             break;
           }
+          case 'getCacheStats': {
+            try {
+              const { requirementCache } = await import('../../utils/requirementCache.js');
+              const stats = requirementCache.getStats();
+              this._panel.webview.postMessage({ command: 'cacheStatsUpdate', stats });
+            } catch {
+              this._panel.webview.postMessage({ command: 'cacheStatsUpdate', stats: null });
+            }
+            break;
+          }
         }
       },
       null,
@@ -249,6 +281,7 @@ export class SetupPanel {
       npmInstalled: false,
       npmVersion: null as string | null,
       npmLocation: null as string | null,
+      npmAvailableViaNpx: false,
       latestNpmVersion: null as string | null,
 
       pythonInstalled: false,
@@ -265,6 +298,8 @@ export class SetupPanel {
       coreVersion: null as string | null,
       coreInstallType: null as 'global' | 'workspace' | null,
       latestCoreVersion: null as string | null,
+      latestCoreStable: null as string | null,
+      latestCorePrerelease: null as string | null,
     };
 
     try {
@@ -297,6 +332,28 @@ export class SetupPanel {
       }
     } catch {
       status.npmInstalled = false;
+    }
+
+    // Check if rapidkit is available via npx (even if not globally installed)
+    if (!status.npmInstalled) {
+      try {
+        const npxResult = await execa('npx', ['rapidkit', '--version'], {
+          shell: status.isWindows,
+          timeout: 5000,
+          reject: false,
+        });
+
+        if (npxResult.exitCode === 0 && npxResult.stdout) {
+          const match = npxResult.stdout.match(/([\d.]+)/);
+          if (match) {
+            status.npmVersion = match[1];
+            status.npmAvailableViaNpx = true;
+            status.npmLocation = 'npx (not global)';
+          }
+        }
+      } catch {
+        // npx not available or rapidkit package not found
+      }
     }
 
     const pythonCommands = status.isWindows
@@ -733,40 +790,54 @@ export class SetupPanel {
       try {
         const data = await fetchJson('https://pypi.org/pypi/rapidkit-core/json');
 
-        if (data.info && data.info.version) {
-          status.latestCoreVersion = data.info.version;
-        } else {
-          const releases = Object.keys(data.releases || {});
-          if (releases.length > 0) {
-            releases.sort((a, b) => {
-              const aParts = a.split('.').map((p) => {
-                const num = parseInt(p.match(/\d+/)?.[0] || '0');
-                const suffix = p.match(/[a-z]+/)?.[0] || '';
-                return { num, suffix };
-              });
-              const bParts = b.split('.').map((p) => {
-                const num = parseInt(p.match(/\d+/)?.[0] || '0');
-                const suffix = p.match(/[a-z]+/)?.[0] || '';
-                return { num, suffix };
-              });
+        const releases = Object.keys(data.releases || {});
+        if (releases.length > 0) {
+          const stableVersions: string[] = [];
+          const prereleaseVersions: string[] = [];
 
+          // Separate stable from pre-release
+          releases.forEach((ver) => {
+            if (ver.match(/\d+\.\d+\.\d+$/)) {
+              // Pure X.Y.Z = stable
+              stableVersions.push(ver);
+            } else if (ver.match(/rc|alpha|beta|a\d|b\d/i)) {
+              // Has RC/alpha/beta = prerelease
+              prereleaseVersions.push(ver);
+            }
+          });
+
+          // Sort helper
+          const sortVersions = (versions: string[]) => {
+            return versions.sort((a, b) => {
+              const aParts = a.split(/[.-]/).map((p) => parseInt(p) || 0);
+              const bParts = b.split(/[.-]/).map((p) => parseInt(p) || 0);
               for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-                const aPart = aParts[i] || { num: 0, suffix: '' };
-                const bPart = bParts[i] || { num: 0, suffix: '' };
-                if (aPart.num !== bPart.num) {
-                  return bPart.num - aPart.num;
-                }
-                const suffixOrder = { '': 3, rc: 2, alpha: 1, beta: 1 };
-                const aOrder = suffixOrder[aPart.suffix as keyof typeof suffixOrder] || 0;
-                const bOrder = suffixOrder[bPart.suffix as keyof typeof suffixOrder] || 0;
-                if (aOrder !== bOrder) {
-                  return bOrder - aOrder;
+                const diff = (bParts[i] || 0) - (aParts[i] || 0);
+                if (diff !== 0) {
+                  return diff;
                 }
               }
               return 0;
             });
-            status.latestCoreVersion = releases[0];
+          };
+
+          if (stableVersions.length > 0) {
+            status.latestCoreStable = sortVersions(stableVersions)[0];
           }
+          if (prereleaseVersions.length > 0) {
+            status.latestCorePrerelease = sortVersions(prereleaseVersions)[0];
+          }
+
+          // Fallback: use PyPI's reported latest
+          if (data.info && data.info.version) {
+            const reported = data.info.version;
+            if (reported.match(/\d+\.\d+\.\d+$/)) {
+              status.latestCoreStable = reported;
+            }
+          }
+
+          // Backwards compat: latestCoreVersion = stable or prerelease
+          status.latestCoreVersion = status.latestCoreStable || status.latestCorePrerelease;
         }
       } catch {
         // ignore
@@ -1219,6 +1290,14 @@ export class SetupPanel {
               <path d="M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+          <button class="wizard-btn" onclick="clearCache()" title="Clear Python & Poetry cache (force fresh check)">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 16px; height: 16px;">
+              <path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <button class="wizard-btn" onclick="refreshWizard()" title="Refresh">
             <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1342,8 +1421,8 @@ export class SetupPanel {
 
       <!-- OPTIONAL SECTION -->
       <div class="installation-methods-header" style="margin-top: 20px;">
-        <span>📦 Optional (Per-Project)</span>
-        <span class="method-recommendation">Installed per workspace/project as needed</span>
+        <span>📦 Required for Workspace Creation</span>
+        <span class="method-recommendation">Poetry needed for workspace setup (optional for CLI users with --install-method=venv)</span>
       </div>
 
       <div class="wizard-steps">
@@ -1351,7 +1430,7 @@ export class SetupPanel {
           <div class="step-recommended-badge" style="background: linear-gradient(135deg, #60A5FA, #3B82F6);">Recommended</div>
           <div class="step-header">
             <span class="step-icon tooltip"><img src="${poetryIconUri}" width="20" height="20" alt="Poetry" />
-              <span class="tooltiptext">Python dependency management and packaging. Recommended for FastAPI and modern Python projects.</span>
+              <span class="tooltiptext">Python dependency management and packaging. Required by VS Code Extension for workspace creation. Manages virtual environments and dependencies for FastAPI projects.</span>
             </span>
             <span class="step-title">Poetry</span>
             <span class="step-status loading" id="poetryStatus"></span>
@@ -1578,6 +1657,14 @@ export class SetupPanel {
           if (npmVerify) npmVerify.style.display = 'flex';
         }
         npmDetails.innerHTML = npmDisplay;
+      } else if (status.npmAvailableViaNpx) {
+        npmStep.classList.remove('installed');
+        npmStep.classList.add('needs-upgrade');
+        npmStatus.textContent = '⚠️';
+        npmStatus.classList.remove('loading');
+        npmDetails.innerHTML = '<span style="color: #FF9800; font-weight: 600;">v' + status.npmVersion + ' via npx</span> <span style="font-size: 10px; display: block; margin-top: 4px; color: #666;">💡 Install globally: npm install -g rapidkit</span>';
+        npmActions.style.display = 'flex';
+        npmUpgrade.style.display = 'none';
       } else {
         npmStep.classList.remove('installed');
         npmStep.classList.add('not-installed');
@@ -1605,20 +1692,51 @@ export class SetupPanel {
           coreStatus.textContent = '✓';
           coreStatus.classList.remove('loading');
 
-          if (status.latestCoreVersion && isNewerVersion(status.coreVersion, status.latestCoreVersion)) {
+          const installedIsRC = /rc|alpha|beta/i.test(status.coreVersion);
+          const stableAvailable = status.latestCoreStable;
+          const prereleaseAvailable = status.latestCorePrerelease;
+
+          // Logic: if stable newer than installed -> strong upgrade
+          if (stableAvailable && isNewerVersion(status.coreVersion, stableAvailable)) {
             coreStep.classList.add('needs-upgrade');
             coreStep.classList.remove('installed');
             coreStatus.textContent = '⬆';
-            coreDisplay += ' <span style="color: #FF9800; margin-left: 8px;">→ v' + status.latestCoreVersion + '</span>';
+            coreDisplay += ' <span style="color: #FF9800; margin-left: 8px;">→ v' + stableAvailable + '</span>';
             coreActions.style.display = 'none';
             if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
             if (coreVerify) coreVerify.style.display = 'none';
             coreUpgrade.style.display = 'flex';
-          } else {
+          }
+          // Installed is RC and stable exists for same/newer base -> suggest stable
+          else if (installedIsRC && stableAvailable && isNewerVersion(status.coreVersion, stableAvailable)) {
+            coreStep.classList.add('needs-upgrade');
+            coreStep.classList.remove('installed');
+            coreStatus.textContent = '⬆';
+            coreDisplay += ' <span style="color: #FF9800; margin-left: 8px;">→ v' + stableAvailable + ' (Stable)</span>';
+            coreActions.style.display = 'none';
+            if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+            if (coreVerify) coreVerify.style.display = 'none';
+            coreUpgrade.style.display = 'flex';
+          }
+          // Up to date stable, but RC available -> informational only
+          else if (!installedIsRC && prereleaseAvailable && isNewerVersion(status.coreVersion, prereleaseAvailable)) {
             coreStep.classList.remove('needs-upgrade');
             coreStep.classList.add('installed');
             coreStatus.textContent = '✓';
             coreDisplay += ' <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">✓ Ready (Global)</span>';
+            coreDisplay += ' <span style="color: #888; margin-left: 8px; font-size: 9px;">🧪 v' + prereleaseAvailable + ' available</span>';
+            coreActions.style.display = 'none';
+            if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
+            coreUpgrade.style.display = 'none';
+            if (coreVerify) coreVerify.style.display = 'flex';
+          }
+          // Up to date
+          else {
+            coreStep.classList.remove('needs-upgrade');
+            coreStep.classList.add('installed');
+            coreStatus.textContent = '✓';
+            const label = installedIsRC ? '✓ Ready (RC)' : '✓ Ready (Global)';
+            coreDisplay += ' <span style="color: #4CAF50; margin-left: 8px; font-size: 10px;">' + label + '</span>';
             coreActions.style.display = 'none';
             if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
             coreUpgrade.style.display = 'none';
@@ -1740,6 +1858,10 @@ export class SetupPanel {
 
     function goBackToWelcome() {
       vscode.postMessage({ command: 'showWelcome' });
+    }
+
+    function clearCache() {
+      vscode.postMessage({ command: 'clearRequirementCache' });
     }
 
     function refreshWizard() {

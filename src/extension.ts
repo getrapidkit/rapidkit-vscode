@@ -70,20 +70,26 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-      vscode.commands.registerCommand('rapidkit.createWorkspace', async () => {
-        try {
-          logger.info('Executing createWorkspace command');
-          await createWorkspaceCommand();
-          if (workspaceExplorer) {
-            workspaceExplorer.refresh();
+      vscode.commands.registerCommand(
+        'rapidkit.createWorkspace',
+        async (workspaceName?: string) => {
+          try {
+            logger.info(
+              'Executing createWorkspace command',
+              workspaceName ? `with name: ${workspaceName}` : ''
+            );
+            await createWorkspaceCommand(workspaceName);
+            if (workspaceExplorer) {
+              workspaceExplorer.refresh();
+            }
+          } catch (error) {
+            logger.error('Failed to create workspace', error);
+            vscode.window.showErrorMessage(
+              `Failed to create workspace: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
-        } catch (error) {
-          logger.error('Failed to create workspace', error);
-          vscode.window.showErrorMessage(
-            `Failed to create workspace: ${error instanceof Error ? error.message : String(error)}`
-          );
         }
-      }),
+      ),
       vscode.commands.registerCommand(
         'rapidkit.createProject',
         async (workspacePathOrUri?: string | vscode.Uri) => {
@@ -119,44 +125,50 @@ export async function activate(context: vscode.ExtensionContext) {
           }
         }
       ),
-      vscode.commands.registerCommand('rapidkit.createFastAPIProject', async () => {
-        try {
-          logger.info('Executing createFastAPIProject command');
-          if (!workspaceExplorer) {
-            vscode.window.showErrorMessage('Extension not fully initialized');
-            return;
+      vscode.commands.registerCommand(
+        'rapidkit.createFastAPIProject',
+        async (projectName?: string) => {
+          try {
+            logger.info('Executing createFastAPIProject command', { projectName });
+            if (!workspaceExplorer) {
+              vscode.window.showErrorMessage('Extension not fully initialized');
+              return;
+            }
+            const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+            await createProjectCommand(selectedWorkspace?.path, 'fastapi', projectName);
+            if (projectExplorer) {
+              projectExplorer.refresh();
+            }
+          } catch (error) {
+            logger.error('Failed to create FastAPI project', error);
+            vscode.window.showErrorMessage(
+              `Failed to create FastAPI project: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
-          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
-          await createProjectCommand(selectedWorkspace?.path, 'fastapi');
-          if (projectExplorer) {
-            projectExplorer.refresh();
-          }
-        } catch (error) {
-          logger.error('Failed to create FastAPI project', error);
-          vscode.window.showErrorMessage(
-            `Failed to create FastAPI project: ${error instanceof Error ? error.message : String(error)}`
-          );
         }
-      }),
-      vscode.commands.registerCommand('rapidkit.createNestJSProject', async () => {
-        try {
-          logger.info('Executing createNestJSProject command');
-          if (!workspaceExplorer) {
-            vscode.window.showErrorMessage('Extension not fully initialized');
-            return;
+      ),
+      vscode.commands.registerCommand(
+        'rapidkit.createNestJSProject',
+        async (projectName?: string) => {
+          try {
+            logger.info('Executing createNestJSProject command', { projectName });
+            if (!workspaceExplorer) {
+              vscode.window.showErrorMessage('Extension not fully initialized');
+              return;
+            }
+            const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+            await createProjectCommand(selectedWorkspace?.path, 'nestjs', projectName);
+            if (projectExplorer) {
+              projectExplorer.refresh();
+            }
+          } catch (error) {
+            logger.error('Failed to create NestJS project', error);
+            vscode.window.showErrorMessage(
+              `Failed to create NestJS project: ${error instanceof Error ? error.message : String(error)}`
+            );
           }
-          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
-          await createProjectCommand(selectedWorkspace?.path, 'nestjs');
-          if (projectExplorer) {
-            projectExplorer.refresh();
-          }
-        } catch (error) {
-          logger.error('Failed to create NestJS project', error);
-          vscode.window.showErrorMessage(
-            `Failed to create NestJS project: ${error instanceof Error ? error.message : String(error)}`
-          );
         }
-      }),
+      ),
       vscode.commands.registerCommand('rapidkit.openDocs', async () => {
         await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
       }),
@@ -164,6 +176,19 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
       vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
       vscode.commands.registerCommand('rapidkit.checkSystem', checkSystemCommand),
+      vscode.commands.registerCommand('rapidkit.clearRequirementCache', async () => {
+        try {
+          const { requirementCache } = await import('./utils/requirementCache.js');
+          requirementCache.invalidateAll();
+          logger.info('Requirement cache cleared (Python & Poetry)');
+          vscode.window.showInformationMessage(
+            '✅ Cache Cleared\n\nPython and Poetry checks will be performed fresh on next workspace creation.'
+          );
+        } catch (error) {
+          logger.error('Failed to clear cache', error);
+          vscode.window.showErrorMessage('Failed to clear cache');
+        }
+      }),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
       vscode.commands.registerCommand('rapidkit.openSetup', () => SetupPanel.show(context)),
       vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {

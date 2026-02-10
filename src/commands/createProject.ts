@@ -11,10 +11,11 @@ import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
-  preselectedFramework?: 'fastapi' | 'nestjs'
+  preselectedFramework?: 'fastapi' | 'nestjs',
+  projectName?: string
 ) {
   const logger = Logger.getInstance();
-  logger.info('Create Project command initiated', { preselectedFramework });
+  logger.info('Create Project command initiated', { preselectedFramework, projectName });
 
   try {
     const path = require('path');
@@ -227,7 +228,7 @@ export async function createProjectCommand(
 
     // Show wizard
     const wizard = new ProjectWizard();
-    const config = await wizard.show(preselectedFramework);
+    const config = await wizard.show(preselectedFramework, projectName);
 
     if (!config) {
       logger.info('Project creation cancelled by user');
