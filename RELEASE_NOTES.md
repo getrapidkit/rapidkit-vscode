@@ -1,73 +1,38 @@
 # Release Notes
 
-## Latest Release: v0.9.0 (February 10, 2026)
+## Latest Release: v0.10.0 (February 12, 2026)
 
-### 🎭 Release: v0.9.0 — Modal System + Smart Caching + Responsive Design
+### 🚀 Release: v0.10.0 — Smart Project Actions + Intelligent Browser + Port Detection
 
-**Summary:** Introduced comprehensive modal-based workflows for all core actions, intelligent caching for faster operations, and responsive design for better usability across devices.
+**Summary:** Introduced unified project actions panel in Welcome Page, smart browser button that activates only when server is running, workspace upgrade detection, and intelligent port tracking for running servers.
 
 #### Added
 
-- 🎭 **Modal System** — Interactive modals for creating workspaces, projects, and installing modules with validation, error handling, and keyboard shortcuts
-- ⚡ **Requirement Cache** — Smart 5-minute caching for Python and Poetry checks, reducing redundant system calls by 30-50%
-- 📱 **Responsive Design** — New responsive stylesheet with mobile-friendly layouts and adaptive breakpoints
+- 🚀 **Project Actions Panel** — Complete project lifecycle management in Welcome Page with 6 smart buttons (Terminal, Init, Dev/Stop toggle, Test, Browser, Build)
+- ⬆️ **Workspace Upgrade Button** — Automatic detection of rapidkit-core updates with one-click upgrade for venv/pipx installations
+- 🎯 **Smart Browser Button** — Context-aware browser opening that only enables when dev server is running with port detection
+- 📡 **Running Port Detection** — Automatic port extraction and display in sidebar, tooltips, and Welcome Page
 
 #### Improved
 
-- 🎨 **Updated Screenshots** — All 3 gallery images refreshed to showcase current UI with modal system
-- 🔧 **Enhanced Commands** — Better validation and feedback for `createWorkspace`, `createProject`, and `addModule`
-- 🎯 **UI/UX Polish** — Refined HeroAction, QuickLinks, and ModuleBrowser components with loading states
-- 🐍 **Python/Poetry Integration** — More robust detection with caching and better error recovery
+- 🎨 **Enhanced Sidebar Icons** — Browser icon only visible for running projects, port displayed next to project name
+- 🔄 **State Synchronization** — Real-time UI updates between terminal state, tree view, and webview panels
+- 💅 **Disabled Button Styling** — Professional disabled states with clear visual feedback
+- 🎯 **Better UX** — No more blind browser opens; button intelligently guides user workflow
 
 #### Technical
 
-- **New Components:** 3 modal components (CreateProject, CreateWorkspace, InstallModule)
-- **New Utilities:** RequirementCache for system check optimization
-- **New Styles:** Responsive CSS with mobile breakpoints
-- **Architecture:** Better separation of concerns with standalone modal components
+- **New Component:** `ProjectActions.tsx` with conditional rendering and smart toggles
+- **Type Enhancement:** `WorkspaceStatus` now includes `runningPort?: number`
+- **Integration:** Real-time server state tracking via `runningServers` Map
+- **Performance:** Minimal overhead with regex-based port extraction from terminal names
 
-#### Performance
+#### User Experience
 
-- ⚡ **30-50% faster** workspace creation on repeated operations
-- ⚡ Cached Python/Poetry checks reduce system calls
-- ⚡ Better perceived performance with immediate loading states
-
----
-
-## Previous Release: v0.8.0 (February 9, 2026)
-
-### 🎨 Release: v0.8.0 — Workspace Cards Redesign + Dynamic Version
-
-**Summary:** Completely redesigned workspace cards with detailed project statistics, improved UI/UX, and automatic version synchronization.
-
-#### Added
-
-- 🔄 **Dynamic Version Display** — Version is now automatically synced from `package.json` to the React welcome page, eliminating manual updates and ensuring consistency
-- 📊 **Project Statistics** — Enhanced workspace tracking with separate counters for FastAPI and NestJS projects, replacing simple type arrays with detailed stats
-
-#### Improved
-
-- 🎨 **Redesigned Workspace Cards** — Complete UI overhaul with compact horizontal layout, color-coded project badges, better visual hierarchy, and improved information density
-- 🔍 **Enhanced Project Detection** — More accurate scanning that detects projects directly in workspace root with RapidKit markers and framework-specific fallbacks
-
-#### Changed
-
-- 📐 **Workspace Data Structure** — Updated from `projectTypes: string[]` to `projectStats: { fastapi?: number, nestjs?: number }` for more granular tracking
-
-#### Visual Changes
-
-**Workspace Cards Before:**
-- Vertical layout with separate info sections
-- Simple project type indicators
-- Less information density
-
-**Workspace Cards After:**
-- Compact horizontal layout
-- Individual badges for each project type with counts (⚡ FastAPI, 🐱 NestJS)
-- Color-coded tags for better visual scanning
-- Inline time display
-- Hover-only close button
-- Better path truncation with RTL direction
+- ✨ **Workflow Clarity** — Clear visual states guide user: Dev → Browser (enabled) → Stop → Browser (disabled)
+- ✨ **Port Transparency** — Always know which port your server is running on
+- ✨ **One-Click Upgrades** — No more manual core updates; orange button appears when needed
+- ✨ **Centralized Actions** — All project operations accessible from welcome page
 
 ---
 

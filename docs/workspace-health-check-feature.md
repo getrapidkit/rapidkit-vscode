@@ -198,7 +198,7 @@ After automated workspace setup:
 
 ## 🔗 Related Features
 
-- **Doctor Command** (npm CLI): `/home/rapidx/Documents/WOSP/Rapid/Front/rapidkit-npm/docs/doctor-command.md`
+- **Doctor Command** (npm CLI): `../rapidkit-npm/docs/doctor-command.md`
 - **Workspace Explorer**: Shows all registered workspaces
 - **Project Explorer**: Shows projects within workspace
 - **Setup Wizard**: Initial installation and detection

@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-02-12
+
+### Added
+
+- 🚀 **Project Actions Panel** - Unified action panel in Welcome Page with 6 lifecycle buttons
+  - **Terminal** - Open terminal in project directory
+  - **Init** - Install dependencies (npm/poetry)
+  - **Dev/Stop** - Smart toggle button (green Play or red Stop based on server state)
+  - **Test** - Run project tests
+  - **Browser** - Open running server in browser (smart enabled/disabled based on server state)
+  - **Build** - Build project with npx rapidkit build
+  - All actions integrated with existing commands and terminal management
+
+- ⬆️ **Workspace Upgrade Button** - Smart upgrade detection for rapidkit-core
+  - Orange upgrade button appears next to workspace name when update available
+  - Detects workspace venv vs global/pipx installation
+  - Runs appropriate upgrade command (poetry update or pipx upgrade)
+  - Real-time version comparison with latest from npm registry
+
+- 🎯 **Smart Browser Button** - Context-aware browser opening
+  - Browser button only enabled when dev server is running
+  - Automatically detects and displays running port in tooltip
+  - Port extracted from terminal name and tracked in state
+  - Tooltip shows "Open in Browser (port 8001)" or "Start server first"
+
+- 📡 **Running Port Detection** - Intelligent port tracking
+  - Extracts port from terminal names (e.g., "🚀 project [:8001]")
+  - Stores `runningPort` in workspace status
+  - Displays port in sidebar project description (e.g., "FastAPI 🟢 :8001")
+  - Updates automatically when server starts/stops
+
+### Improved
+
+- 🎨 **Enhanced Sidebar Icons** - Better visual feedback for running projects
+  - Browser icon only shows for projects with running servers
+  - Port number displayed next to project name in sidebar
+  - Tooltip includes port information: "🚀 Server running on port 8001!"
+  - Updated `package.json` menus to show Browser only for `project-running` context
+
+- 🔄 **State Synchronization** - Real-time UI updates
+  - Welcome panel automatically refreshes when server starts/stops
+  - Browser button state syncs immediately with Dev/Stop actions
+  - Port detection works for all start scenarios (Dev, Init & Start, Start Anyway)
+  - Tree view and webview stay in sync with terminal state
+
+- 💅 **Disabled Button Styling** - Professional disabled state
+  - Semi-transparent disabled buttons (40% opacity)
+  - Not-allowed cursor for disabled actions
+  - No hover effects on disabled buttons
+  - Clear visual distinction between enabled/disabled states
+
+### Technical
+
+- **New Component:** `ProjectActions.tsx` - Unified action panel with conditional rendering
+- **Type Updates:** Added `runningPort?: number` to `WorkspaceStatus` interface
+- **Extension Integration:** Import `runningServers` Map in `welcomePanel.ts`
+- **Port Extraction:** Regex-based port detection from terminal names
+- **CSS Enhancements:** Disabled button states and hover effect improvements
+
 ## [0.9.0] - 2026-02-10
 
 ### Added

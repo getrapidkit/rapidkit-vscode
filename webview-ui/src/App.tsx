@@ -132,6 +132,7 @@ export function App() {
                 onRefresh={() => vscode.postMessage('refreshWorkspaces')}
                 onSelect={(workspace) => vscode.postMessage('openWorkspaceFolder', { path: workspace.path })}
                 onRemove={(workspace) => vscode.postMessage('removeWorkspace', { path: workspace.path })}
+                onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
             />
 
             <ModuleBrowser
@@ -141,6 +142,13 @@ export function App() {
                 onRefresh={() => vscode.postMessage('refreshModules')}
                 onInstall={handleOpenInstallModal}
                 onShowDetails={(moduleId) => vscode.postMessage('showModuleDetails', moduleId)}
+                onProjectTerminal={() => vscode.postMessage('projectTerminal')}
+                onProjectInit={() => vscode.postMessage('projectInit')}
+                onProjectDev={() => vscode.postMessage('projectDev')}
+                onProjectStop={() => vscode.postMessage('projectStop')}
+                onProjectTest={() => vscode.postMessage('projectTest')}
+                onProjectBrowser={() => vscode.postMessage('projectBrowser')}
+                onProjectBuild={() => vscode.postMessage('projectBuild')}
             />
 
 

@@ -4,7 +4,7 @@
 
 **Build production-ready APIs at warp speed**
 
-FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automation-first workflows
+FastAPI & NestJS scaffolding with clean architecture, 27+ free modules, and automation-first workflows
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)

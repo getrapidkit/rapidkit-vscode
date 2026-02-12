@@ -29,6 +29,7 @@ export interface Workspace {
   path: string;
   lastAccessed?: number;
   coreVersion?: string;
+  coreLatestVersion?: string;
   coreStatus?: 'ok' | 'outdated' | 'not-installed' | 'update-available' | 'error';
   coreLocation?: 'workspace' | 'global' | 'pipx';
   lastModified?: number;
@@ -50,5 +51,7 @@ export interface WorkspaceStatus {
   workspaceName?: string;
   workspacePath?: string;
   installedModules?: { slug: string; version: string; display_name: string }[];
+  isRunning?: boolean;
+  runningPort?: number;
   seq?: number;
 }

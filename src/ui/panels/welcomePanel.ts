@@ -10,6 +10,7 @@ import { WorkspaceManager } from '../../core/workspaceManager';
 import { ModulesCatalogService } from '../../core/modulesCatalogService';
 import { CoreVersionService } from '../../core/coreVersionService';
 import { MODULES, ModuleData } from '../../data/modules';
+import { runningServers } from '../../extension';
 
 export class WelcomePanel {
   public static currentPanel: WelcomePanel | undefined;
@@ -30,6 +31,20 @@ export class WelcomePanel {
       const installedModules = await WelcomePanel._readInstalledModules(projectPath);
       console.log('[WelcomePanel] Found', installedModules.length, 'installed modules');
 
+      // Check if server is running and extract port
+      let isRunning = false;
+      let runningPort: number | undefined;
+      const runningTerminal = runningServers.get(projectPath);
+      if (runningTerminal) {
+        isRunning = true;
+        // Extract port from terminal name like "🚀 project [:8001]"
+        const match = runningTerminal.name.match(/:([0-9]+)/);
+        if (match) {
+          runningPort = parseInt(match[1], 10);
+          console.log('[WelcomePanel] Server running on port:', runningPort);
+        }
+      }
+
       WelcomePanel.currentPanel._panel.webview.postMessage({
         command: 'updateWorkspaceStatus',
         data: {
@@ -37,6 +52,8 @@ export class WelcomePanel {
           workspaceName: projectName,
           workspacePath: projectPath,
           installedModules,
+          isRunning,
+          runningPort,
         },
       });
       console.log('[WelcomePanel] ✅ Workspace status sent to webview');
@@ -236,6 +253,88 @@ export class WelcomePanel {
                 'https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit'
               )
             );
+            break;
+          case 'upgradeCore':
+            if (message.data?.path) {
+              const workspacePath = message.data.path;
+              const targetVersion = message.data.version;
+              const terminal = vscode.window.createTerminal({
+                name: `Upgrade RapidKit Core`,
+                cwd: workspacePath,
+              });
+              terminal.show();
+
+              // Detect if workspace has venv
+              const venvPath = path.join(workspacePath, '.venv');
+              const hasVenv = await fs.pathExists(venvPath);
+
+              if (hasVenv) {
+                terminal.sendText('poetry update rapidkit-core');
+              } else {
+                terminal.sendText('pipx upgrade rapidkit-core');
+              }
+
+              vscode.window.showInformationMessage(
+                `Upgrading RapidKit Core${targetVersion ? ` to v${targetVersion}` : ''}...`,
+                'OK'
+              );
+            }
+            break;
+          case 'projectTerminal':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectTerminal', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectInit':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectInit', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectDev':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectDev', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectStop':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectStop', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectTest':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectTest', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectBrowser':
+            if (WelcomePanel._selectedProject) {
+              await vscode.commands.executeCommand('rapidkit.projectBrowser', {
+                projectPath: WelcomePanel._selectedProject.path,
+              });
+            }
+            break;
+          case 'projectBuild':
+            if (WelcomePanel._selectedProject) {
+              const terminal = vscode.window.createTerminal({
+                name: `Build ${WelcomePanel._selectedProject.name}`,
+                cwd: WelcomePanel._selectedProject.path,
+              });
+              terminal.show();
+              terminal.sendText('npx rapidkit build');
+              vscode.window.showInformationMessage(
+                `Building ${WelcomePanel._selectedProject.name}...`,
+                'OK'
+              );
+            }
             break;
         }
       },
@@ -455,6 +554,7 @@ export class WelcomePanel {
             return {
               ...ws,
               coreVersion: versionInfo.installed,
+              coreLatestVersion: versionInfo.latest,
               coreStatus: versionInfo.status,
               coreLocation: versionInfo.location as 'workspace' | 'global' | 'pipx' | undefined,
               lastModified,

@@ -174,7 +174,26 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
         const isRunning = runningServers.has(project.path);
         const isSelected = this.selectedProject?.path === project.path;
 
-        return new ProjectTreeItem(project, isRunning ? 'project-running' : 'project', isSelected);
+        // Extract port from terminal name if running
+        let runningPort: number | undefined;
+        if (isRunning) {
+          const terminal = runningServers.get(project.path);
+          if (terminal) {
+            const match = terminal.name.match(/:([0-9]+)/);
+            if (match) {
+              runningPort = parseInt(match[1], 10);
+            }
+          }
+        }
+
+        return new ProjectTreeItem(
+          project,
+          isRunning ? 'project-running' : 'project',
+          isSelected,
+          undefined,
+          undefined,
+          runningPort
+        );
       });
     }
 
@@ -304,7 +323,8 @@ export class ProjectTreeItem extends vscode.TreeItem {
     public readonly contextValue: string,
     public readonly isSelected: boolean = false,
     customLabel?: string,
-    filePath?: string
+    filePath?: string,
+    public readonly runningPort?: number
   ) {
     // Determine collapsible state
     const collapsibleState =
@@ -343,8 +363,9 @@ export class ProjectTreeItem extends vscode.TreeItem {
     }
     // === Project Item (running) ===
     else if (contextValue === 'project-running' && project) {
-      this.tooltip = `${project.path}\n\n🚀 Server running! Click Stop to terminate${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
-      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'} 🟢${isSelected ? ' ✓' : ''}`;
+      const portInfo = runningPort ? ` on port ${runningPort}` : '';
+      this.tooltip = `${project.path}\n\n🚀 Server running${portInfo}! Click Stop to terminate${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
+      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'} 🟢${isSelected ? ' ✓' : ''}${runningPort ? ` :${runningPort}` : ''}`;
 
       // Use custom framework icons with running indicator
       if (extensionPath) {

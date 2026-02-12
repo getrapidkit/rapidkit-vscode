@@ -558,6 +558,11 @@ export async function activate(context: vscode.ExtensionContext) {
               runningServers.set(projectPath, terminal);
               projectExplorer?.refresh();
 
+              // Update WelcomePanel with running state
+              if (WelcomePanel.currentPanel) {
+                WelcomePanel.updateWithProject(projectPath, projectName);
+              }
+
               vscode.window.showInformationMessage(`🔧 Initializing ${projectName}...`);
               logger.info(`Init + Dev for ${projectType} project: ${projectPath}`);
               return;
@@ -571,6 +576,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
               runningServers.set(projectPath, terminal);
               projectExplorer?.refresh();
+
+              // Update WelcomePanel with running state
+              if (WelcomePanel.currentPanel) {
+                WelcomePanel.updateWithProject(projectPath, projectName);
+              }
 
               logger.info(`Dev (global runtime) for project: ${projectPath}`);
               return;
@@ -632,6 +642,11 @@ export async function activate(context: vscode.ExtensionContext) {
           // Refresh to update icon
           projectExplorer?.refresh();
 
+          // Update WelcomePanel with running state
+          if (WelcomePanel.currentPanel) {
+            WelcomePanel.updateWithProject(projectPath, projectName);
+          }
+
           logger.info(
             `Running ${projectType} dev server for project: ${projectPath} on port ${port}`
           );
@@ -651,6 +666,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Refresh to update icon
             projectExplorer?.refresh();
+
+            // Update WelcomePanel with stopped state
+            if (WelcomePanel.currentPanel) {
+              WelcomePanel.updateWithProject(projectPath, projectName);
+            }
 
             logger.info(`Stopped dev server for: ${projectPath}`);
           }

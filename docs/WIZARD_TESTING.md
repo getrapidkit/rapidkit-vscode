@@ -69,7 +69,7 @@ Progress: ⏳ 0/2 components installed. Click install buttons above.
 **Expected Result After Refresh**:
 ```
 📦 npm Package          ✓
-v0.16.3 installed at /home/rapidx/.nvm/versions/node/v20.20.0/bin/rapidkit
+v0.16.3 installed at ~/.nvm/versions/node/v20.20.0/bin/rapidkit
 
 🐍 Python Core          ⚠
 Python X.X.X detected, but rapidkit-core not installed.
@@ -88,7 +88,7 @@ Progress: ⚡ 1/2 components installed. Install the missing one.
 **Expected Result After Second Refresh**:
 ```
 📦 npm Package          ✓
-v0.16.3 installed at /home/rapidx/.nvm/versions/node/v20.20.0/bin/rapidkit
+v0.16.3 installed at ~/.nvm/versions/node/v20.20.0/bin/rapidkit
 
 🐍 Python Core          ✓
 v0.2.1rc1 installed (Python 3.10.19)

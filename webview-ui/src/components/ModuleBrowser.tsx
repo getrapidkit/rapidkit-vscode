@@ -6,6 +6,7 @@ import {
     Download, CheckCircle, ArrowUp
 } from 'lucide-react';
 import type { ModuleData, CategoryInfo, WorkspaceStatus } from '@/types';
+import { ProjectActions } from './ProjectActions';
 
 // Icon mapping based on category
 const categoryIcons: Record<string, any> = {
@@ -30,6 +31,13 @@ interface ModuleBrowserProps {
     onRefresh: () => void;
     onInstall: (module: ModuleData) => void;
     onShowDetails: (moduleId: string) => void;
+    onProjectTerminal?: () => void;
+    onProjectInit?: () => void;
+    onProjectDev?: () => void;
+    onProjectStop?: () => void;
+    onProjectTest?: () => void;
+    onProjectBrowser?: () => void;
+    onProjectBuild?: () => void;
 }
 
 export function ModuleBrowser({
@@ -38,7 +46,14 @@ export function ModuleBrowser({
     categoryInfo,
     onRefresh,
     onInstall,
-    onShowDetails
+    onShowDetails,
+    onProjectTerminal,
+    onProjectInit,
+    onProjectDev,
+    onProjectStop,
+    onProjectTest,
+    onProjectBrowser,
+    onProjectBuild
 }: ModuleBrowserProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -154,6 +169,19 @@ export function ModuleBrowser({
                             <div className="workspace-path-info">{workspaceStatus.workspacePath}</div>
                         </div>
                     </div>
+
+                    {onProjectTerminal && onProjectInit && onProjectDev && onProjectStop && onProjectTest && onProjectBrowser && onProjectBuild && (
+                        <ProjectActions
+                            workspaceStatus={workspaceStatus}
+                            onTerminal={onProjectTerminal}
+                            onInit={onProjectInit}
+                            onDev={onProjectDev}
+                            onStop={onProjectStop}
+                            onTest={onProjectTest}
+                            onBrowser={onProjectBrowser}
+                            onBuild={onProjectBuild}
+                        />
+                    )}
                 </>
             )}
 

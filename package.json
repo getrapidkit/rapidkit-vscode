@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -468,7 +468,7 @@
         },
         {
           "command": "rapidkit.projectBrowser",
-          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "when": "view == rapidkitProjects && viewItem == project-running",
           "group": "inline@5"
         },
         {

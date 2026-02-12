@@ -7,6 +7,7 @@ interface RecentWorkspacesProps {
     onRefresh: () => void;
     onSelect: (workspace: Workspace) => void;
     onRemove: (workspace: Workspace) => void;
+    onUpgrade?: (workspace: Workspace) => void;
 }
 
 const getStatusIcon = (status?: string) => {
@@ -46,7 +47,7 @@ const getProjectTypeEmoji = (type: 'fastapi' | 'nestjs'): string => {
     return type === 'fastapi' ? '⚡' : '🐱';
 };
 
-export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove }: RecentWorkspacesProps) {
+export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, onUpgrade }: RecentWorkspacesProps) {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = () => {
@@ -107,6 +108,18 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove }: 
                                     </span>
                                 )}
                                 {getStatusIcon(workspace.coreStatus)}
+                                {workspace.coreStatus === 'update-available' && onUpgrade && workspace.coreLatestVersion && (
+                                    <button
+                                        className="ws-upgrade-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onUpgrade(workspace);
+                                        }}
+                                        title={`Upgrade to v${workspace.coreLatestVersion}`}
+                                    >
+                                        <ArrowUpCircle size={14} />
+                                    </button>
+                                )}
                                 <button
                                     className="ws-close"
                                     onClick={(e) => {

@@ -239,7 +239,7 @@ result.checks.push({
 
 ### Before:
 ```
-❌ Failed to create project: /home/user/.cache/rapidkit/npm-bridge/venv/bin/python: No module named rapidkit
+❌ Failed to create project: /path/to/user/.cache/rapidkit/npm-bridge/venv/bin/python: No module named rapidkit
 ```
 
 ### After (Python not found):
