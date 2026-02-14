@@ -1,23 +1,32 @@
 import { useState, useEffect } from 'react';
-import { X, Code, AlertCircle } from 'lucide-react';
+import { X, Code, AlertCircle, Package } from 'lucide-react';
+import type { Kit } from '@/types';
 
 interface CreateProjectModalProps {
     isOpen: boolean;
     framework: 'fastapi' | 'nestjs';
+    availableKits: Kit[];
     onClose: () => void;
-    onCreate: (name: string, framework: 'fastapi' | 'nestjs') => void;
+    onCreate: (name: string, framework: 'fastapi' | 'nestjs', kitName: string) => void;
 }
 
-export function CreateProjectModal({ isOpen, framework, onClose, onCreate }: CreateProjectModalProps) {
+export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate }: CreateProjectModalProps) {
     const [projectName, setProjectName] = useState('');
+    const [selectedKit, setSelectedKit] = useState('');
     const [error, setError] = useState('');
+
+    // Filter kits by framework
+    const frameworkKits = availableKits.filter(kit => kit.category === framework);
 
     useEffect(() => {
         if (isOpen) {
             setProjectName('');
             setError('');
+            // Auto-select first kit
+            const kits = availableKits.filter(kit => kit.category === framework);
+            setSelectedKit(kits.length > 0 ? kits[0].name : '');
         }
-    }, [isOpen]);
+    }, [isOpen, framework, availableKits]);
 
     const frameworkInfo = {
         fastapi: {
@@ -65,8 +74,8 @@ export function CreateProjectModal({ isOpen, framework, onClose, onCreate }: Cre
     };
 
     const handleCreate = () => {
-        if (validateName(projectName)) {
-            onCreate(projectName, framework);
+        if (validateName(projectName) && selectedKit) {
+            onCreate(projectName, framework, selectedKit);
             onClose();
         }
     };
@@ -267,6 +276,73 @@ export function CreateProjectModal({ isOpen, framework, onClose, onCreate }: Cre
                                 >
                                     <AlertCircle size={14} />
                                     <span>{error}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Kit Selection */}
+                        <div style={{ marginBottom: '20px' }}>
+                            <label
+                                htmlFor="kit-select"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: 500,
+                                    marginBottom: '8px',
+                                    color: 'var(--vscode-foreground)',
+                                }}
+                            >
+                                <Package size={14} />
+                                Kit Template
+                            </label>
+                            <select
+                                id="kit-select"
+                                value={selectedKit}
+                                onChange={(e) => setSelectedKit(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    fontSize: '14px',
+                                    backgroundColor: 'var(--vscode-input-background)',
+                                    color: 'var(--vscode-input-foreground)',
+                                    border: '1px solid var(--vscode-input-border)',
+                                    borderRadius: '6px',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    fontFamily: 'var(--vscode-font-family)',
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.borderColor = info.color;
+                                }}
+                                onBlur={(e) => {
+                                    e.target.style.borderColor = 'var(--vscode-input-border)';
+                                }}
+                            >
+                                {frameworkKits.length === 0 && (
+                                    <option value="">Loading kits...</option>
+                                )}
+                                {frameworkKits.map((kit) => (
+                                    <option key={kit.name} value={kit.name}>
+                                        {kit.display_name} {kit.tags && kit.tags.length > 0 && `— ${kit.tags.join(', ')}`}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedKit && frameworkKits.find(k => k.name === selectedKit) && (
+                                <div
+                                    style={{
+                                        marginTop: '8px',
+                                        padding: '8px 10px',
+                                        backgroundColor: `${info.color}08`,
+                                        border: `1px solid ${info.color}20`,
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        color: 'var(--vscode-descriptionForeground)',
+                                        lineHeight: '1.4',
+                                    }}
+                                >
+                                    {frameworkKits.find(k => k.name === selectedKit)?.description}
                                 </div>
                             )}
                         </div>

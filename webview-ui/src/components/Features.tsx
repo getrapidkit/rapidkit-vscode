@@ -14,7 +14,7 @@ export function Features() {
     return (
         <div className="section">
             <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Zap size={18} style={{ color: '#FFC107' }} />
+                <Zap className="w-6 h-6" style={{ color: '#FFC107' }} />
                 Key Features
             </div>
             <div className="features">

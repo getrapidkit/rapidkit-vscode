@@ -4,6 +4,9 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as os from 'os';
 import { RapidKitWorkspace } from '../../types';
 import { WorkspaceManager } from '../../core/workspaceManager';
 import { CoreVersionService, CoreVersionInfo } from '../../core/coreVersionService';
@@ -45,6 +48,8 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
   }
 
   async refresh(): Promise<void> {
+    this.versionService.clearCache();
+    this.versionInfoCache.clear();
     await this.loadWorkspaces();
     this._onDidChangeTreeData.fire();
   }
@@ -150,6 +155,198 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
   }
 
+  public async importWorkspace(): Promise<void> {
+    // Step 1: Ask user for import type
+    const importType = await vscode.window.showQuickPick(
+      [
+        {
+          label: '$(folder) Import Existing Workspace Folder',
+          description: 'Register an existing RapidKit workspace',
+          detail: 'Browse and select a folder containing a RapidKit workspace',
+          value: 'folder',
+        },
+        {
+          label: '$(archive) Import from Archive',
+          description: 'Extract and import from .rapidkit-archive.zip',
+          detail: 'Full workspace restore with all files',
+          value: 'archive',
+        },
+      ],
+      {
+        placeHolder: 'Choose import method',
+        title: 'Import Workspace',
+      }
+    );
+
+    if (!importType) {
+      return; // User cancelled
+    }
+
+    if (importType.value === 'folder') {
+      await this.importFromFolder();
+    } else {
+      await this.importFromArchive();
+    }
+  }
+
+  private async importFromFolder(): Promise<void> {
+    const result = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: 'Import Workspace',
+      title: 'Select RapidKit Workspace Folder',
+    });
+
+    if (!result || !result[0]) {
+      return;
+    }
+
+    const workspacePath = result[0].fsPath;
+
+    // Show progress while validating
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Validating RapidKit workspace...',
+        cancellable: false,
+      },
+      async (progress) => {
+        progress.report({ increment: 30 });
+
+        // Try to add workspace (includes validation)
+        const workspace = await this.workspaceManager.addWorkspace(workspacePath);
+
+        progress.report({ increment: 70 });
+
+        if (workspace) {
+          // Successfully imported
+          await this.refresh();
+          vscode.window.showInformationMessage(
+            `✅ Workspace "${workspace.name}" imported successfully!`,
+            'OK'
+          );
+        } else {
+          // Not a valid RapidKit workspace
+          vscode.window.showErrorMessage(
+            `❌ Invalid RapidKit workspace\n\nThe selected folder is not a valid RapidKit workspace.\n\nA valid workspace must have:\n• .rapidkit-workspace marker file, OR\n• pyproject.toml + .venv + rapidkit script, OR\n• .rapidkit/project.json or .rapidkit/context.json`,
+            'OK'
+          );
+        }
+      }
+    );
+  }
+
+  private async importFromArchive(): Promise<void> {
+    const result = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      openLabel: 'Import Archive',
+      title: 'Select RapidKit Archive',
+      filters: {
+        'RapidKit Archive': ['zip'],
+        'All Files': ['*'],
+      },
+    });
+
+    if (!result || !result[0]) {
+      return;
+    }
+
+    const archivePath = result[0].fsPath;
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Importing workspace from archive...',
+        cancellable: false,
+      },
+      async (progress) => {
+        try {
+          const AdmZip = require('adm-zip');
+
+          progress.report({ increment: 10, message: 'Reading archive...' });
+
+          // Read ZIP archive
+          const zip = new AdmZip(archivePath);
+
+          // Get workspace name from archive (assume root folder name or use filename)
+          const archiveName = path.basename(archivePath, '.rapidkit-archive.zip');
+
+          progress.report({ increment: 10, message: 'Selecting destination...' });
+
+          // Ask user where to extract
+          const destinationResult = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select Destination',
+            title: `Extract workspace "${archiveName}"`,
+          });
+
+          if (!destinationResult || !destinationResult[0]) {
+            return;
+          }
+
+          const extractPath = path.join(destinationResult[0].fsPath, archiveName);
+
+          // Check if already exists
+          if (await fs.pathExists(extractPath)) {
+            const overwrite = await vscode.window.showWarningMessage(
+              `Folder "${archiveName}" already exists. Overwrite?`,
+              'Overwrite',
+              'Cancel'
+            );
+            if (overwrite !== 'Overwrite') {
+              return;
+            }
+            await fs.remove(extractPath);
+          }
+
+          progress.report({ increment: 30, message: 'Extracting files...' });
+
+          // Extract archive
+          await fs.ensureDir(extractPath);
+          zip.extractAllTo(extractPath, true);
+
+          progress.report({ increment: 30, message: 'Validating workspace...' });
+
+          // Validate it's a valid RapidKit workspace
+          const markerPath = path.join(extractPath, '.rapidkit-workspace');
+          if (!(await fs.pathExists(markerPath))) {
+            throw new Error('Extracted archive is not a valid RapidKit workspace');
+          }
+
+          progress.report({ increment: 10, message: 'Registering workspace...' });
+
+          // Register workspace
+          const workspace = await this.workspaceManager.addWorkspace(extractPath);
+
+          progress.report({ increment: 10, message: 'Done!' });
+
+          if (workspace) {
+            await this.refresh();
+            const action = await vscode.window.showInformationMessage(
+              `✅ Workspace "${workspace.name}" imported successfully from archive!`,
+              'Open Workspace',
+              'OK'
+            );
+
+            if (action === 'Open Workspace') {
+              await vscode.commands.executeCommand(
+                'vscode.openFolder',
+                vscode.Uri.file(extractPath)
+              );
+            }
+          }
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to import archive: ${error}`);
+        }
+      }
+    );
+  }
+
   public async removeWorkspace(workspace: RapidKitWorkspace): Promise<void> {
     const answer = await vscode.window.showWarningMessage(
       `Remove workspace "${workspace.name}" from the list?\n(Files will not be deleted)`,
@@ -162,6 +359,121 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       await this.refresh();
       vscode.window.showInformationMessage(`Workspace "${workspace.name}" removed`, 'OK');
     }
+  }
+
+  public async exportWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+    try {
+      await this.exportFullWorkspace(workspace);
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to export workspace: ${error}`);
+    }
+  }
+
+  private async exportFullWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+    const archiver = require('archiver');
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Creating archive for "${workspace.name}"...`,
+        cancellable: false,
+      },
+      async (progress) => {
+        progress.report({ increment: 10, message: 'Preparing workspace archive...' });
+
+        // Prompt for save location first
+        const saveUri = await vscode.window.showSaveDialog({
+          defaultUri: vscode.Uri.file(
+            path.join(os.homedir(), 'Downloads', `${workspace.name}.rapidkit-archive.zip`)
+          ),
+          filters: {
+            'RapidKit Archive': ['zip'],
+            'All Files': ['*'],
+          },
+          title: 'Export Full Workspace',
+        });
+
+        if (!saveUri) {
+          return;
+        }
+
+        progress.report({ increment: 10, message: 'Creating ZIP archive...' });
+
+        // Create archive
+        const archive = archiver('zip', {
+          zlib: { level: 9 }, // Maximum compression
+        });
+
+        const output = fs.createWriteStream(saveUri.fsPath);
+
+        // Pipe archive to file
+        archive.pipe(output);
+
+        // Exclusion patterns (glob patterns)
+        const exclusions = [
+          '**/__pycache__/**',
+          '**/*.pyc',
+          '**/.venv/**',
+          '**/venv/**',
+          '**/node_modules/**',
+          '**/.git/**',
+          '**/dist/**',
+          '**/build/**',
+          '**/.pytest_cache/**',
+          '**/.mypy_cache/**',
+          '**/.ruff_cache/**',
+          '**/htmlcov/**',
+          '**/.coverage',
+          '**/*.log',
+          '**/.DS_Store',
+          '**/Thumbs.db',
+        ];
+
+        progress.report({ increment: 20, message: 'Adding workspace files...' });
+
+        // Add workspace directory with exclusions
+        archive.directory(workspace.path, false, (entry: any) => {
+          // Check if file matches any exclusion pattern
+          for (const pattern of exclusions) {
+            const globPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
+            const regex = new RegExp(globPattern);
+            if (regex.test(entry.name)) {
+              return false; // Exclude this file
+            }
+          }
+          return entry; // Include this file
+        });
+
+        progress.report({ increment: 30, message: 'Compressing files...' });
+
+        // Finalize archive
+        await archive.finalize();
+
+        // Wait for stream to finish
+        await new Promise<void>((resolve, reject) => {
+          output.on('close', () => resolve());
+          output.on('error', reject);
+        });
+
+        progress.report({ increment: 30, message: 'Done!' });
+
+        // Get archive stats
+        const stats = await fs.stat(saveUri.fsPath);
+        const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+
+        // Success message with actions
+        const action = await vscode.window.showInformationMessage(
+          `✅ Workspace "${workspace.name}" exported successfully! (${sizeMB} MB)`,
+          'Open Folder',
+          'OK'
+        );
+
+        if (action === 'Open Folder') {
+          const folderPath = path.dirname(saveUri.fsPath);
+          await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(folderPath));
+        }
+      }
+    );
   }
 
   public async autoDiscover(): Promise<void> {

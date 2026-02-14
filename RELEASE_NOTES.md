@@ -1,6 +1,37 @@
 # Release Notes
 
-## Latest Release: v0.10.0 (February 12, 2026)
+## Latest Release: v0.11.0 (February 14, 2026)
+
+### 🌐 Release: v0.11.0 — Dynamic Examples + Kit Selection + Workspace Export/Import
+
+**Summary:** Introduced dynamic example workspaces from GitHub, enhanced kit selection with dropdown in modal, complete workspace export/import with ZIP archives, and various UX improvements for better visual hierarchy.
+
+#### Added
+
+- 🌐 **Dynamic Example Workspaces** — Real-time loading from GitHub repository with clone tracking and update detection
+- 🎨 **Dynamic Kit Selection** — Kit dropdown in project modal with framework filtering and dynamic loading from CLI
+- 📦 **Full Workspace Export/Import** — Complete backup/restore with ZIP archives, smart exclusions, and progress tracking
+- 🆕 **New Services** — ExamplesService and KitsService for GitHub and CLI integration with caching
+
+#### Changed
+
+- ✨ **UX Improvements** — Larger section headers (24px icons), better spacing, Features moved to footer, Upload icon for export
+- 🎯 **Project Creation Flow** — Kit selection in modal, framework-based kit filtering, streamlined workflow
+- 📋 **Workspace Context Fix** — Proper workspace path passing to project creation
+
+#### Technical
+
+- **New Dependencies:** archiver, adm-zip for ZIP operations
+- **Code Stats:** 3,111 lines added, 701 removed across 20 files
+- **Services:** ExamplesService (GitHub API + cache), KitsService (CLI integration + fallback)
+
+#### Removed
+
+- ❌ **Config-Only Export** — Simplified to Full Archive workflow only
+
+---
+
+## Previous Release: v0.10.0 (February 12, 2026)
 
 ### 🚀 Release: v0.10.0 — Smart Project Actions + Intelligent Browser + Port Detection
 
@@ -40,6 +71,8 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.11.0](releases/RELEASE_NOTES_v0.11.0.md) | Feb 14, 2026 | 🌐 Dynamic Examples, 🎨 Kit Selection, 📦 Workspace Export/Import |
+| [v0.10.0](releases/RELEASE_NOTES_v0.10.0.md) | Feb 12, 2026 | 🚀 Project Actions, 🎯 Smart Browser, 📡 Port Detection |
 | [v0.9.0](releases/RELEASE_NOTES_v0.9.0.md) | Feb 10, 2026 | 🎭 Modal system, ⚡ Smart caching, 📱 Responsive design |
 | [v0.8.0](releases/RELEASE_NOTES_v0.8.0.md) | Feb 9, 2026 | 🎨 Workspace cards redesign, Dynamic version display, Project statistics |
 | [v0.7.0](releases/RELEASE_NOTES_v0.7.0.md) | Feb 6, 2026 | 🩺 Workspace health check, Setup status panel, Diagnostics integration |

@@ -55,3 +55,33 @@ export interface WorkspaceStatus {
   runningPort?: number;
   seq?: number;
 }
+
+export interface ExampleProject {
+  name: string;
+  type: 'fastapi' | 'nestjs';
+  description: string;
+}
+
+export interface ExampleWorkspace {
+  id?: string;
+  name: string;
+  title: string;
+  description: string;
+  repoUrl: string;
+  path?: string;
+  projects: ExampleProject[];
+  tags?: string[];
+  featured?: boolean;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  cloneStatus?: 'not-cloned' | 'cloned' | 'update-available';
+}
+
+export interface Kit {
+  name: string;
+  display_name: string;
+  category: 'fastapi' | 'nestjs' | string;
+  version: string;
+  tags?: string[];
+  modules?: string[];
+  description: string;
+}

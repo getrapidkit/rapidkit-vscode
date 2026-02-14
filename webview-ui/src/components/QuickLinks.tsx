@@ -1,5 +1,5 @@
 interface QuickLinksProps {
-    onOpenProjectModal: (framework: 'fastapi' | 'nestjs') => void;
+    onOpenProjectModal: (framework: 'fastapi' | 'nestjs', kitName?: string) => void;
 }
 
 export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {

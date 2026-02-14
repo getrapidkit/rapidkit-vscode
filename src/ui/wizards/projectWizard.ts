@@ -5,11 +5,13 @@
 
 import * as vscode from 'vscode';
 import { ProjectConfig } from '../../types';
+import { KitsService } from '../../core/kitsService';
 
 export class ProjectWizard {
   async show(
     preselectedFramework?: 'fastapi' | 'nestjs',
-    prefilledName?: string
+    prefilledName?: string,
+    preselectedKit?: string
   ): Promise<ProjectConfig | undefined> {
     // Step 1: Project name (skip if provided)
     let name: string | undefined;
@@ -76,12 +78,58 @@ export class ProjectWizard {
       framework = selectedFramework.framework;
     }
 
-    // Maps to kit slug: fastapi → fastapi.standard, nestjs → nestjs.standard (npx rapidkit create project <kit> <name> --output .)
-    // Always use npm as default package manager
+    // Step 3: Choose kit (dynamic from KitsService, skip if preselected)
+    let selectedKitName: string;
+
+    if (preselectedKit) {
+      // Kit already selected from modal
+      selectedKitName = preselectedKit;
+    } else {
+      // Load kits and show picker
+      const kitsService = KitsService.getInstance();
+      let availableKits;
+
+      try {
+        availableKits = await kitsService.getKitsByCategory(framework);
+      } catch (error) {
+        vscode.window.showErrorMessage('Failed to load kits. Please try again.');
+        return undefined;
+      }
+
+      if (availableKits.length === 0) {
+        vscode.window.showErrorMessage(`No kits available for ${framework}`);
+        return undefined;
+      }
+
+      if (availableKits.length === 1) {
+        // Only one kit available, use it automatically
+        selectedKitName = availableKits[0].name;
+      } else {
+        // Multiple kits available, show picker
+        const kitItems = availableKits.map((kit) => ({
+          label: `$(package) ${kit.display_name}`,
+          description: kit.tags?.join(', ') || '',
+          detail: kit.description,
+          kitName: kit.name,
+        }));
+
+        const selectedKit = await vscode.window.showQuickPick(kitItems, {
+          placeHolder: `Select ${framework} kit`,
+          ignoreFocusOut: true,
+        });
+
+        if (!selectedKit) {
+          return undefined;
+        }
+
+        selectedKitName = selectedKit.kitName;
+      }
+    }
 
     return {
       name,
       framework,
+      kit: selectedKitName,
       packageManager: 'npm', // Always use npm (default)
     };
   }

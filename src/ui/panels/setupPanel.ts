@@ -445,296 +445,260 @@ export class SetupPanel {
       }
     }
 
-    const detectionMethods = [
-      async () => {
-        for (const cmd of pythonCommands) {
-          try {
-            const result = await execa(
-              cmd,
-              ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
-              {
-                shell: status.isWindows,
-                timeout: 3000,
-                reject: true,
-              }
-            );
-            const version = result.stdout.trim();
-            if (version && !version.includes('command not found')) {
-              return version;
-            }
-          } catch {
-            continue;
-          }
+    type CoreDetectResult = {
+      version: string;
+      installType: 'global' | 'workspace';
+      source: string;
+    };
+
+    const extractVersion = (value: string): string | null => {
+      const match = value.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/i);
+      return match?.[1] || null;
+    };
+
+    const looksLikeCoreCliOutput = (output: string): boolean => {
+      const normalized = (output || '').toLowerCase();
+      return (
+        normalized.includes('rapidkit version') ||
+        normalized.includes('rapidkit core cli') ||
+        normalized.includes('global commands:') ||
+        normalized.includes('rapidkit-core')
+      );
+    };
+
+    const detectViaPipxList = async (): Promise<CoreDetectResult | null> => {
+      try {
+        const listResult = await execa('pipx', ['list'], {
+          shell: status.isWindows,
+          timeout: 4000,
+          reject: false,
+        });
+        const listOutput = listResult.stdout + listResult.stderr;
+        const packageMatch = listOutput.match(/package\s+rapidkit-core\s+([^,\s]+)/i);
+        if (packageMatch?.[1]) {
+          return {
+            version: packageMatch[1].trim(),
+            installType: 'global',
+            source: 'pipx-list',
+          };
         }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
+    const detectViaPipxVenv = async (): Promise<CoreDetectResult | null> => {
+      if (status.isWindows) {
         return null;
-      },
-      async () => {
-        for (const cmd of pythonCommands) {
-          try {
-            const result = await execa(cmd, ['-m', 'pip', 'show', 'rapidkit-core'], {
-              shell: status.isWindows,
-              timeout: 3000,
-            });
-            const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
-            if (versionMatch) {
-              return versionMatch[1];
-            }
-          } catch {
-            continue;
-          }
-        }
-        return null;
-      },
-      async () => {
-        const pipCommands = status.isWindows ? ['pip', 'pip3'] : ['pip3', 'pip'];
-        for (const cmd of pipCommands) {
-          try {
-            const result = await execa(cmd, ['show', 'rapidkit-core'], {
-              shell: status.isWindows,
-              timeout: 3000,
-            });
-            const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
-            if (versionMatch) {
-              return versionMatch[1];
-            }
-          } catch {
-            continue;
-          }
-        }
-        return null;
-      },
-      async () => {
-        if (status.isWindows) {
+      }
+
+      try {
+        const fs = await import('fs-extra');
+        const path = await import('path');
+        const venvPython = path.join(
+          os.homedir(),
+          '.local',
+          'share',
+          'pipx',
+          'venvs',
+          'rapidkit-core',
+          'bin',
+          'python'
+        );
+        if (!(await fs.pathExists(venvPython))) {
           return null;
         }
-        try {
-          const versionsResult = await execa('pyenv', ['versions', '--bare'], { timeout: 3000 });
-          const versions = versionsResult.stdout.split('\n').filter((v) => v.trim());
-
-          for (const version of versions) {
-            try {
-              const pyenvRoot = process.env.PYENV_ROOT || `${os.homedir()}/.pyenv`;
-              const pipPath = `${pyenvRoot}/versions/${version.trim()}/bin/pip`;
-
-              const result = await execa(pipPath, ['show', 'rapidkit-core'], { timeout: 2000 });
-              const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
-              if (versionMatch) {
-                return versionMatch[1];
-              }
-            } catch {
-              continue;
-            }
-          }
-        } catch {
-          // ignore
+        const result = await execa(
+          venvPython,
+          ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+          { timeout: 2500 }
+        );
+        const version = result.stdout.trim();
+        if (version) {
+          return { version, installType: 'global', source: 'pipx-venv' };
         }
-        return null;
-      },
-      async () => {
-        try {
-          const listResult = await execa('pipx', ['list'], {
-            shell: status.isWindows,
-            timeout: 3000,
-            reject: false,
-          });
+      } catch {
+        // ignore
+      }
+      return null;
+    };
 
-          const listOutput = listResult.stdout + listResult.stderr;
+    const detectViaRapidkitOnPath = async (): Promise<CoreDetectResult | null> => {
+      try {
+        const cmdResult = await execa('rapidkit', ['--version'], {
+          shell: status.isWindows,
+          timeout: 2500,
+          reject: false,
+        });
+        const rawOutput = (cmdResult.stdout || '').trim();
+        let looksLikeCore = looksLikeCoreCliOutput(rawOutput);
 
-          if (listOutput.includes('rapidkit-core')) {
-            if (
-              listOutput.includes('symlink missing') ||
-              listOutput.includes('unexpected location')
-            ) {
-              return null;
-            }
-
-            try {
-              const cmdResult = await execa('rapidkit', ['--version'], {
-                shell: status.isWindows,
-                timeout: 2000,
-                reject: false,
-              });
-              const cmdOutput = cmdResult.stdout.trim();
-
-              if (cmdOutput.includes('RapidKit') || cmdOutput.includes('Version')) {
-                const versionMatch = cmdOutput.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/);
-                if (versionMatch) {
-                  return versionMatch[1];
-                }
-                return 'installed';
-              }
-            } catch {
-              // ignore
-            }
-
-            for (const cmd of pythonCommands) {
-              try {
-                const pyResult = await execa(
-                  cmd,
-                  ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
-                  { shell: status.isWindows, timeout: 2000 }
-                );
-                const importedVersion = pyResult.stdout.trim();
-                if (importedVersion) {
-                  return null;
-                }
-              } catch {
-                continue;
-              }
-            }
-            return null;
+        // If --version is ambiguous (e.g., bare semver from npm CLI), validate via --help.
+        if (!looksLikeCore) {
+          try {
+            const helpResult = await execa('rapidkit', ['--help'], {
+              shell: status.isWindows,
+              timeout: 3000,
+              reject: false,
+            });
+            looksLikeCore = looksLikeCoreCliOutput(helpResult.stdout || '');
+          } catch {
+            looksLikeCore = false;
           }
-        } catch {
-          // ignore
         }
 
+        if (!looksLikeCore) {
+          return null;
+        }
+
+        const version = extractVersion(rawOutput);
+        if (!version) {
+          return null;
+        }
+
+        let resolvedPath = '';
         try {
-          const cmdResult = await execa('rapidkit', ['--version'], {
+          const whichCmd = status.isWindows ? 'where' : 'which';
+          const whichResult = await execa(whichCmd, ['rapidkit'], {
             shell: status.isWindows,
             timeout: 2000,
             reject: false,
           });
-          const cmdOutput = cmdResult.stdout.trim();
-
-          if (cmdOutput.includes('RapidKit') || cmdOutput.includes('Version')) {
-            const versionMatch = cmdOutput.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/);
-            if (versionMatch) {
-              return versionMatch[1];
-            }
-            return 'installed';
-          }
+          resolvedPath = (whichResult.stdout || '').split(/\r?\n/)[0]?.trim() || '';
         } catch {
           // ignore
         }
 
+        const lowerPath = resolvedPath.toLowerCase();
+        const likelyGlobal =
+          lowerPath.includes('/.local/bin/') ||
+          lowerPath.includes('\\.local\\bin\\') ||
+          lowerPath.includes('/pipx/') ||
+          lowerPath.includes('\\pipx\\') ||
+          lowerPath.includes('/pyenv/shims/') ||
+          lowerPath.includes('\\pyenv\\shims\\');
+
+        return {
+          version,
+          installType: likelyGlobal ? 'global' : 'workspace',
+          source: 'rapidkit-path',
+        };
+      } catch {
         return null;
-      },
-      async () => {
-        if (status.isWindows) {
+      }
+    };
+
+    const detectViaWorkspacePoetry = async (): Promise<CoreDetectResult | null> => {
+      try {
+        const result = await execa('poetry', ['show', 'rapidkit-core'], {
+          shell: status.isWindows,
+          reject: false,
+          timeout: 3000,
+        });
+        if (result.exitCode !== 0) {
           return null;
         }
-        try {
-          const fs = await import('fs-extra');
-          const path = await import('path');
-          const homedir = os.homedir();
-          const venvPath = path.join(homedir, '.local', 'share', 'pipx', 'venvs', 'rapidkit-core');
+        const match = result.stdout.match(/version\s+:\s+(\S+)/);
+        if (match?.[1]) {
+          return { version: match[1], installType: 'workspace', source: 'poetry-show' };
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
 
-          if (await fs.pathExists(venvPath)) {
-            const pythonPath = path.join(venvPath, 'bin', 'python');
-            if (await fs.pathExists(pythonPath)) {
-              try {
-                const result = await execa(
-                  pythonPath,
-                  ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
-                  { timeout: 2000 }
-                );
-                return result.stdout.trim();
-              } catch {
-                // ignore
-              }
+    const detectViaPythonImport = async (): Promise<CoreDetectResult | null> => {
+      for (const cmd of pythonCommands) {
+        try {
+          const result = await execa(
+            cmd,
+            ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
+            {
+              shell: status.isWindows,
+              timeout: 2500,
+              reject: true,
             }
+          );
+          const version = result.stdout.trim();
+          if (version && !version.includes('command not found')) {
+            return { version, installType: 'workspace', source: `python-import:${cmd}` };
           }
         } catch {
-          // ignore
+          continue;
         }
-        return null;
-      },
-      async () => {
-        try {
-          const result = await execa('poetry', ['show', 'rapidkit-core'], {
-            shell: status.isWindows,
-            reject: false,
-            timeout: 3000,
-          });
-          if (result.exitCode === 0) {
-            const versionMatch = result.stdout.match(/version\s+:\s+(\S+)/);
-            if (versionMatch) {
-              return versionMatch[1];
-            }
-            return 'installed';
-          }
-        } catch {
-          // ignore
-        }
-        return null;
-      },
-      async () => {
-        try {
-          const result = await execa('rapidkit', ['--version'], {
-            shell: status.isWindows,
-            timeout: 3000,
-          });
-          const output = result.stdout.trim();
+      }
+      return null;
+    };
 
-          if (output.includes('RapidKit Version') || output.includes('rapidkit-core')) {
-            const versionMatch = output.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/i);
-            if (versionMatch) {
-              return versionMatch[1];
-            }
-          } else if (/^[\d.]+$/.test(output)) {
-            return null;
-          }
-        } catch {
-          // ignore
-        }
-        return null;
-      },
-      async () => {
+    const detectViaPipShow = async (): Promise<CoreDetectResult | null> => {
+      const pipCommands = status.isWindows ? ['pip', 'pip3'] : ['pip3', 'pip'];
+      for (const cmd of pipCommands) {
         try {
-          const result = await execa('conda', ['list', 'rapidkit-core'], {
+          const result = await execa(cmd, ['show', 'rapidkit-core'], {
             shell: status.isWindows,
-            timeout: 3000,
+            timeout: 2500,
           });
-          if (result.stdout.includes('rapidkit-core')) {
-            const lines = result.stdout.split('\n');
-            for (const line of lines) {
-              if (line.includes('rapidkit-core')) {
-                const parts = line.split(/\s+/);
-                if (parts.length >= 2) {
-                  return parts[1];
-                }
-              }
-            }
-            return 'installed';
+          const versionMatch = result.stdout.match(/Version:\s*(\S+)/);
+          if (versionMatch?.[1]) {
+            return {
+              version: versionMatch[1],
+              installType: 'workspace',
+              source: `pip-show:${cmd}`,
+            };
           }
         } catch {
-          // ignore
+          continue;
         }
-        return null;
-      },
+      }
+      return null;
+    };
+
+    const detectViaConda = async (): Promise<CoreDetectResult | null> => {
+      try {
+        const result = await execa('conda', ['list', 'rapidkit-core'], {
+          shell: status.isWindows,
+          timeout: 3000,
+        });
+        if (!result.stdout.includes('rapidkit-core')) {
+          return null;
+        }
+        const lines = result.stdout.split('\n');
+        for (const line of lines) {
+          if (line.includes('rapidkit-core')) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 2) {
+              return { version: parts[1], installType: 'workspace', source: 'conda-list' };
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
+    const detectionMethods: Array<() => Promise<CoreDetectResult | null>> = [
+      detectViaPipxList,
+      detectViaPipxVenv,
+      detectViaRapidkitOnPath,
+      detectViaWorkspacePoetry,
+      detectViaPythonImport,
+      detectViaPipShow,
+      detectViaConda,
     ];
 
-    for (let i = 0; i < detectionMethods.length; i++) {
+    for (const detect of detectionMethods) {
       try {
-        const version = await detectionMethods[i]();
-        if (version) {
-          status.coreInstalled = true;
-          status.coreVersion = version === 'installed' ? 'unknown' : version;
-
-          if (i === 4 || i === 5) {
-            status.coreInstallType = 'global';
-          } else if (i === 6) {
-            status.coreInstallType = 'workspace';
-          } else if (i === 0 || i === 1 || i === 2) {
-            try {
-              const pipxCheck = await execa('pipx', ['list'], {
-                shell: status.isWindows,
-                timeout: 2000,
-                reject: false,
-              });
-              if (pipxCheck.stdout.includes('rapidkit-core')) {
-                status.coreInstallType = 'global';
-              } else {
-                status.coreInstallType = 'workspace';
-              }
-            } catch {
-              status.coreInstallType = 'workspace';
-            }
-          } else {
-            status.coreInstallType = 'global';
-          }
-          break;
+        const found = await detect();
+        if (!found) {
+          continue;
         }
+        status.coreInstalled = true;
+        status.coreVersion = found.version;
+        status.coreInstallType = found.installType;
+        break;
       } catch {
         continue;
       }
@@ -1842,7 +1806,7 @@ export class SetupPanel {
 
     function upgradeNpm() {
       vscode.postMessage({ command: 'upgradeNpmGlobal' });
-      setTimeout(checkInstallationStatus, 5000);
+      pollStatusAfterUpgrade(30000, 3000);
     }
 
     function installPythonCore() {
@@ -1853,7 +1817,7 @@ export class SetupPanel {
 
     function upgradeCore() {
       vscode.postMessage({ command: 'upgradePipCore' });
-      setTimeout(checkInstallationStatus, 5000);
+      pollStatusAfterUpgrade(35000, 3000);
     }
 
     function goBackToWelcome() {
@@ -1942,6 +1906,19 @@ export class SetupPanel {
         hideProgress('npmProgress', 'npmTime');
         hideProgress('poetryProgress', 'poetryTime');
       }, delay);
+    }
+
+    function pollStatusAfterUpgrade(totalMs = 30000, intervalMs = 3000) {
+      const startedAt = Date.now();
+
+      const runCheck = () => {
+        checkInstallationStatus();
+        if (Date.now() - startedAt < totalMs) {
+          setTimeout(runCheck, intervalMs);
+        }
+      };
+
+      setTimeout(runCheck, 1500);
     }
 
     function verifyPython() {

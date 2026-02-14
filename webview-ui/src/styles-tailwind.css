@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+
   /* RapidKit Brand Colors from Design System */
   :root {
     --rapidkit-primary: #00cfc1;
     --rapidkit-primary-light: #68e3d7;
     --rapidkit-primary-dark: #007a74;
     --rapidkit-gradient: linear-gradient(135deg, #00cfc1, #009688);
-    
+
     /* Theme-aware colors - use VS Code variables with fallbacks */
     --background: var(--vscode-editor-background, #1e1e1e);
     --foreground: var(--vscode-editor-foreground, #cccccc);
@@ -30,6 +31,7 @@
 }
 
 @layer components {
+
   /* Container */
   .container {
     @apply max-w-6xl mx-auto py-4 px-6;
@@ -37,8 +39,15 @@
 
   /* Float Animation */
   @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
   }
 
   /* Header */
@@ -130,7 +139,7 @@
 
   .hero-action {
     @apply relative p-4 mb-3 rounded-xl cursor-pointer transition-all overflow-hidden;
-    background: linear-gradient(135deg, rgba(0,207,193,0.08), rgba(0,150,136,0.08));
+    background: linear-gradient(135deg, rgba(0, 207, 193, 0.08), rgba(0, 150, 136, 0.08));
     border: 1px solid var(--vscode-panel-border);
     text-align: center;
     display: flex;
@@ -154,7 +163,7 @@
   .hero-action:hover {
     border-color: #00cfc1;
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,207,193,0.2);
+    box-shadow: 0 8px 24px rgba(0, 207, 193, 0.2);
   }
 
   .hero-action:hover::before {
@@ -266,29 +275,83 @@
   }
 
   /* Feature specific colors */
-  .feature:nth-child(1) { border-color: rgba(255, 193, 7, 0.3); }
-  .feature:nth-child(1) .feature-icon { color: #FFC107; }
-  .feature:nth-child(1):hover { background: rgba(255, 193, 7, 0.08); border-color: #FFC107; }
+  .feature:nth-child(1) {
+    border-color: rgba(255, 193, 7, 0.3);
+  }
 
-  .feature:nth-child(2) { border-color: rgba(76, 175, 80, 0.3); }
-  .feature:nth-child(2) .feature-icon { color: #4CAF50; }
-  .feature:nth-child(2):hover { background: rgba(76, 175, 80, 0.08); border-color: #4CAF50; }
+  .feature:nth-child(1) .feature-icon {
+    color: #FFC107;
+  }
 
-  .feature:nth-child(3) { border-color: rgba(0, 207, 193, 0.3); }
-  .feature:nth-child(3) .feature-icon { color: #00cfc1; }
-  .feature:nth-child(3):hover { background: rgba(0, 207, 193, 0.08); border-color: #00cfc1; }
+  .feature:nth-child(1):hover {
+    background: rgba(255, 193, 7, 0.08);
+    border-color: #FFC107;
+  }
 
-  .feature:nth-child(4) { border-color: rgba(33, 150, 243, 0.3); }
-  .feature:nth-child(4) .feature-icon { color: #2196F3; }
-  .feature:nth-child(4):hover { background: rgba(33, 150, 243, 0.08); border-color: #2196F3; }
+  .feature:nth-child(2) {
+    border-color: rgba(76, 175, 80, 0.3);
+  }
 
-  .feature:nth-child(5) { border-color: rgba(156, 39, 176, 0.3); }
-  .feature:nth-child(5) .feature-icon { color: #9C27B0; }
-  .feature:nth-child(5):hover { background: rgba(156, 39, 176, 0.08); border-color: #9C27B0; }
+  .feature:nth-child(2) .feature-icon {
+    color: #4CAF50;
+  }
 
-  .feature:nth-child(6) { border-color: rgba(255, 87, 34, 0.3); }
-  .feature:nth-child(6) .feature-icon { color: #FF5722; }
-  .feature:nth-child(6):hover { background: rgba(255, 87, 34, 0.08); border-color: #FF5722; }
+  .feature:nth-child(2):hover {
+    background: rgba(76, 175, 80, 0.08);
+    border-color: #4CAF50;
+  }
+
+  .feature:nth-child(3) {
+    border-color: rgba(0, 207, 193, 0.3);
+  }
+
+  .feature:nth-child(3) .feature-icon {
+    color: #00cfc1;
+  }
+
+  .feature:nth-child(3):hover {
+    background: rgba(0, 207, 193, 0.08);
+    border-color: #00cfc1;
+  }
+
+  .feature:nth-child(4) {
+    border-color: rgba(33, 150, 243, 0.3);
+  }
+
+  .feature:nth-child(4) .feature-icon {
+    color: #2196F3;
+  }
+
+  .feature:nth-child(4):hover {
+    background: rgba(33, 150, 243, 0.08);
+    border-color: #2196F3;
+  }
+
+  .feature:nth-child(5) {
+    border-color: rgba(156, 39, 176, 0.3);
+  }
+
+  .feature:nth-child(5) .feature-icon {
+    color: #9C27B0;
+  }
+
+  .feature:nth-child(5):hover {
+    background: rgba(156, 39, 176, 0.08);
+    border-color: #9C27B0;
+  }
+
+  .feature:nth-child(6) {
+    border-color: rgba(255, 87, 34, 0.3);
+  }
+
+  .feature:nth-child(6) .feature-icon {
+    color: #FF5722;
+  }
+
+  .feature:nth-child(6):hover {
+    background: rgba(255, 87, 34, 0.08);
+    border-color: #FF5722;
+  }
 
   .feature-text {
     @apply text-xs;
@@ -334,6 +397,13 @@
     color: var(--vscode-badge-foreground);
   }
 
+  .ws-tag--projects {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-foreground);
+    border: 1px solid var(--vscode-panel-border);
+    opacity: 0.9;
+  }
+
   .ws-tag--fastapi {
     background: rgba(0, 150, 136, 0.12);
     color: #009688;
@@ -360,13 +430,76 @@
   .ws-time {
     @apply text-[10px] whitespace-nowrap flex-shrink-0;
     color: var(--vscode-descriptionForeground);
-    opacity: 0.7;
+  }
+
+  /* Hover reveal elements */
+  .ws-hover-show {
+    opacity: 0 !important;
+    pointer-events: none;
+    transition: opacity 0.2s ease, pointer-events 0s 0.2s;
+  }
+
+  .ws-card:hover .ws-hover-show {
+    opacity: 1 !important;
+    pointer-events: auto;
+    transition: opacity 0.2s ease, pointer-events 0s;
   }
 
   .ws-close {
-    @apply flex items-center justify-center rounded flex-shrink-0 opacity-0 transition-all;
+    @apply flex items-center justify-center rounded flex-shrink-0 transition-all;
     background: transparent;
     border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 3px;
+  }
+
+  .ws-close:hover {
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+  }
+
+  /* Action buttons */
+  .ws-doctor-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: var(--vscode-charts-blue);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .ws-doctor-btn:hover {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-charts-green);
+  }
+
+  .ws-doctor-btn:active {
+    transform: scale(0.95);
+    transition: all 0.2s;
+    background: rgba(255, 165, 0, 0.15);
+    color: #FFA500;
+    font-size: 10px;
+    gap: 3px;
+    border: 1px solid rgba(255, 165, 0, 0.3);
+    cursor: pointer;
+    flex-shrink: 0inter;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .ws-export-btn:hover {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-charts-blue);
+  }
+
+  .ws-export-btn:active {
+    transform: scale(0.95);
     color: var(--vscode-descriptionForeground);
     cursor: pointer;
     padding: 3px;
@@ -431,13 +564,13 @@
 
   .module-count {
     @apply text-xs font-semibold px-3 py-1 rounded-xl;
-    background: rgba(0,207,193,0.1);
+    background: rgba(0, 207, 193, 0.1);
     color: #00cfc1;
   }
 
   .workspace-warning {
     @apply flex items-start gap-3.5 p-4 rounded-lg mb-4;
-    background: linear-gradient(135deg, rgba(255,152,0,0.1), rgba(251,140,0,0.1));
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(251, 140, 0, 0.1));
     border: 2px solid #FF9800;
   }
 
@@ -482,7 +615,7 @@
   .module-search:focus {
     outline: none;
     border-color: #00cfc1;
-    box-shadow: 0 0 0 2px rgba(0,207,193,0.1);
+    box-shadow: 0 0 0 2px rgba(0, 207, 193, 0.1);
   }
 
   .module-filters {
@@ -497,7 +630,7 @@
   }
 
   .filter-btn:hover {
-    background: rgba(0,207,193,0.1);
+    background: rgba(0, 207, 193, 0.1);
     border-color: #00cfc1;
     color: #00cfc1;
   }
@@ -536,7 +669,7 @@
   .module-card:hover {
     border-color: #00cfc1;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,207,193,0.15);
+    box-shadow: 0 4px 12px rgba(0, 207, 193, 0.15);
   }
 
   .module-header {
@@ -583,18 +716,65 @@
     letter-spacing: 0.3px;
   }
 
-  .module-badge.ai { background: #9B59B6; color: white; }
-  .module-badge.essentials { background: #2196F3; color: white; }
-  .module-badge.database { background: #3775A9; color: white; }
-  .module-badge.cache { background: #CB3837; color: white; }
-  .module-badge.auth { background: #F59E0B; color: white; }
-  .module-badge.observability { background: #10B981; color: white; }
-  .module-badge.business { background: #FF6B6B; color: white; }
-  .module-badge.billing { background: #E91E63; color: white; }
-  .module-badge.communication { background: #4ECDC4; color: white; }
-  .module-badge.security { background: #F59E0B; color: white; }
-  .module-badge.tasks { background: #8E44AD; color: white; }
-  .module-badge.users { background: #3498DB; color: white; }
+  .module-badge.ai {
+    background: #9B59B6;
+    color: white;
+  }
+
+  .module-badge.essentials {
+    background: #2196F3;
+    color: white;
+  }
+
+  .module-badge.database {
+    background: #3775A9;
+    color: white;
+  }
+
+  .module-badge.cache {
+    background: #CB3837;
+    color: white;
+  }
+
+  .module-badge.auth {
+    background: #F59E0B;
+    color: white;
+  }
+
+  .module-badge.observability {
+    background: #10B981;
+    color: white;
+  }
+
+  .module-badge.business {
+    background: #FF6B6B;
+    color: white;
+  }
+
+  .module-badge.billing {
+    background: #E91E63;
+    color: white;
+  }
+
+  .module-badge.communication {
+    background: #4ECDC4;
+    color: white;
+  }
+
+  .module-badge.security {
+    background: #F59E0B;
+    color: white;
+  }
+
+  .module-badge.tasks {
+    background: #8E44AD;
+    color: white;
+  }
+
+  .module-badge.users {
+    background: #3498DB;
+    color: white;
+  }
 
   .module-desc {
     @apply text-xs flex-1;
@@ -730,8 +910,13 @@
 
   /* Spinning animation for refresh button */
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .spinning {
@@ -1040,5 +1225,156 @@
     background: var(--vscode-button-secondaryBackground);
     border-color: transparent;
     transform: none;
+  }
+
+  /* Example Workspaces */
+  .example-card {
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+    @apply rounded-md p-3 mb-2.5 transition-all duration-200;
+  }
+
+  .example-card:hover {
+    border-color: #00cfc1;
+    background: var(--vscode-list-hoverBackground);
+  }
+
+  .example-header {
+    @apply flex justify-between items-start gap-3 mb-2;
+  }
+
+  .example-info {
+    @apply flex-1 min-w-0;
+  }
+
+  .example-title {
+    @apply font-semibold text-[13px] mb-1 flex items-center gap-2 flex-wrap;
+    color: var(--vscode-foreground);
+  }
+
+  .example-description {
+    @apply text-[11px] leading-snug;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .example-tags {
+    @apply flex gap-1 flex-wrap;
+  }
+
+  .example-tag {
+    @apply px-1.5 py-0.5 rounded-lg text-[9px] font-semibold;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+  }
+
+  .example-actions {
+    @apply flex gap-1.5 flex-shrink-0;
+  }
+
+  .example-btn {
+    @apply px-3 py-1.5 rounded text-[11px] font-medium cursor-pointer border-none flex items-center gap-1.5 transition-all duration-150 whitespace-nowrap;
+  }
+
+  .example-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .example-btn--primary {
+    background: #00cfc1;
+    color: #1a1a1a;
+  }
+
+  .example-btn--primary:hover:not(:disabled) {
+    background: #00e6d6;
+  }
+
+  .example-btn--secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+  }
+
+  .example-btn--secondary:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+  }
+
+  .example-projects {
+    @apply mt-2 border-t pt-2;
+    border-color: var(--vscode-panel-border);
+  }
+
+  .example-projects-toggle {
+    @apply bg-transparent border-none cursor-pointer flex items-center justify-between w-full py-1 text-[11px] transition-all duration-150;
+    color: var(--vscode-foreground);
+  }
+
+  .example-projects-toggle:hover {
+    color: #00cfc1;
+  }
+
+  .example-projects-count {
+    @apply font-medium;
+  }
+
+  .example-chevron {
+    @apply text-[8px] transition-transform duration-200 inline-block;
+  }
+
+  .example-chevron.expanded {
+    @apply rotate-180;
+  }
+
+  .example-projects-list {
+    @apply flex flex-col gap-1.5 mt-1.5;
+  }
+
+  .example-project {
+    @apply flex items-center gap-2 px-2 py-1.5 rounded text-[11px];
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+  }
+
+  .example-project-emoji {
+    @apply text-base flex-shrink-0;
+  }
+
+  .example-project-info {
+    @apply flex-1 min-w-0;
+  }
+
+  .example-project-name {
+    @apply font-semibold;
+    color: var(--vscode-foreground);
+  }
+
+  .example-project-desc {
+    @apply text-[10px] mt-0.5;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .example-project-type {
+    @apply px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase flex-shrink-0;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+  }
+
+  .example-footer {
+    @apply mt-2 px-3 py-2 rounded text-[11px] leading-snug;
+    background: var(--vscode-textBlockQuote-background);
+    border-left: 3px solid #00cfc1;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .spinning {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
   }
 }

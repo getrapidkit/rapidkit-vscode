@@ -9,8 +9,11 @@ import * as path from 'path';
 import { WorkspaceManager } from '../../core/workspaceManager';
 import { ModulesCatalogService } from '../../core/modulesCatalogService';
 import { CoreVersionService } from '../../core/coreVersionService';
+import { ExamplesService } from '../../core/examplesService';
+import { KitsService } from '../../core/kitsService';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
+import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
 
 export class WelcomePanel {
   public static currentPanel: WelcomePanel | undefined;
@@ -18,6 +21,14 @@ export class WelcomePanel {
   private _disposables: vscode.Disposable[] = [];
   private static _selectedProject: { name: string; path: string } | null = null;
   private _modulesCatalog: ModuleData[] = MODULES;
+  private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
+
+  /**
+   * Set workspace explorer reference (called from extension.ts)
+   */
+  public static setWorkspaceExplorer(explorer: WorkspaceExplorerProvider) {
+    WelcomePanel._workspaceExplorer = explorer;
+  }
 
   /**
    * Called from extension.ts when user selects a project in the sidebar tree view
@@ -180,11 +191,44 @@ export class WelcomePanel {
               await vscode.commands.executeCommand('rapidkit.createNestJSProject');
             }
             break;
+          case 'createProjectWithKit':
+            // New handler for kit-aware project creation from modal
+            if (message.data?.name && message.data?.framework && message.data?.kit) {
+              console.log('[WelcomePanel] Creating project with kit:', message.data);
+
+              // Get selected workspace path
+              let workspacePath: string | undefined;
+              if (WelcomePanel._workspaceExplorer) {
+                const selectedWorkspace = WelcomePanel._workspaceExplorer.getSelectedWorkspace();
+                workspacePath = selectedWorkspace?.path;
+              }
+
+              // Import createProjectCommand
+              const { createProjectCommand } = await import('../../commands/createProject.js');
+              await createProjectCommand(
+                workspacePath, // Use selected workspace path
+                message.data.framework, // preselectedFramework
+                message.data.name, // projectName
+                message.data.kit // kitName
+              );
+            }
+            break;
           case 'openSetup':
             await vscode.commands.executeCommand('rapidkit.openSetup');
             break;
           case 'refreshWorkspaces':
+            CoreVersionService.getInstance().clearCache();
             this._sendRecentWorkspaces();
+            break;
+          case 'cloneExample':
+            if (message.data) {
+              await this._cloneExample(message.data);
+            }
+            break;
+          case 'updateExample':
+            if (message.data) {
+              await this._updateExample(message.data);
+            }
             break;
           case 'openWorkspaceFolder':
             if (message.data?.path) {
@@ -278,6 +322,24 @@ export class WelcomePanel {
                 `Upgrading RapidKit Core${targetVersion ? ` to v${targetVersion}` : ''}...`,
                 'OK'
               );
+            }
+            break;
+
+          case 'checkWorkspaceHealth':
+            console.log('[WelcomePanel] Check Workspace Health requested for:', message.data?.path);
+            if (message.data?.path) {
+              vscode.commands.executeCommand('rapidkit.checkWorkspaceHealth', {
+                path: message.data.path,
+              });
+            }
+            break;
+
+          case 'exportWorkspace':
+            console.log('[WelcomePanel] Export Workspace requested for:', message.data?.path);
+            if (message.data?.path) {
+              vscode.commands.executeCommand('rapidkit.exportWorkspace', {
+                path: message.data.path,
+              });
             }
             break;
           case 'projectTerminal':
@@ -374,6 +436,8 @@ export class WelcomePanel {
   private _sendInitialData() {
     this._sendVersion();
     this._sendRecentWorkspaces();
+    this._sendExampleWorkspaces();
+    this._sendAvailableKits();
     this._sendModulesCatalog();
     this._sendWorkspaceStatus();
   }
@@ -392,6 +456,311 @@ export class WelcomePanel {
       command: 'updateRecentWorkspaces',
       data: workspaces,
     });
+  }
+
+  private async _sendExampleWorkspaces() {
+    try {
+      const examplesService = ExamplesService.getInstance();
+      const examples = await examplesService.getExamples();
+
+      // Enrich each example with clone status
+      const enrichedExamples = await Promise.all(
+        examples.map(async (example) => {
+          const isCloned = await examplesService.isExampleCloned(example.id);
+          let cloneStatus: 'not-cloned' | 'cloned' | 'update-available' = 'not-cloned';
+
+          if (isCloned) {
+            cloneStatus = 'cloned';
+
+            // Check for updates
+            const updateInfo = await examplesService.checkForUpdates(example.id);
+            if (updateInfo.hasUpdate) {
+              cloneStatus = 'update-available';
+            }
+          }
+
+          return {
+            ...example,
+            // Send repo URL for the entire examples repository
+            repoUrl: 'https://github.com/getrapidkit/rapidkit-examples',
+            cloneStatus,
+          };
+        })
+      );
+
+      this._panel.webview.postMessage({
+        command: 'updateExampleWorkspaces',
+        data: enrichedExamples,
+      });
+    } catch (error) {
+      console.error('[WelcomePanel] Failed to send example workspaces:', error);
+    }
+  }
+
+  private async _sendAvailableKits() {
+    try {
+      const kitsService = KitsService.getInstance();
+      const kits = await kitsService.getKits();
+
+      this._panel.webview.postMessage({
+        command: 'updateAvailableKits',
+        data: kits,
+      });
+
+      console.log('[WelcomePanel] ✅ Available kits sent to webview:', kits.length);
+    } catch (error) {
+      console.error('[WelcomePanel] Failed to send available kits:', error);
+      // Send empty array on error
+      this._panel.webview.postMessage({
+        command: 'updateAvailableKits',
+        data: [],
+      });
+    }
+  }
+
+  private async _cloneExample(example: any) {
+    try {
+      // Notify webview we're cloning
+      this._panel.webview.postMessage({
+        command: 'setCloning',
+        data: { exampleName: example.name },
+      });
+
+      // Ask user where to clone
+      const result = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Select Clone Location',
+        title: `Clone ${example.title}`,
+      });
+
+      if (!result || result.length === 0) {
+        // User cancelled
+        this._panel.webview.postMessage({
+          command: 'setCloning',
+          data: { exampleName: null },
+        });
+        return;
+      }
+
+      const parentFolder = result[0].fsPath;
+      const targetPath = path.join(parentFolder, example.name);
+
+      // Check if already exists
+      if (await fs.pathExists(targetPath)) {
+        const overwrite = await vscode.window.showWarningMessage(
+          `Folder "${example.name}" already exists at this location.`,
+          'Cancel',
+          'Open Existing'
+        );
+
+        if (overwrite === 'Open Existing') {
+          // Import existing workspace
+          const workspaceManager = WorkspaceManager.getInstance();
+          await workspaceManager.addWorkspace(targetPath);
+          await this._sendRecentWorkspaces();
+          vscode.window.showInformationMessage(`✅ Imported existing workspace: ${example.name}`);
+        }
+
+        this._panel.webview.postMessage({
+          command: 'setCloning',
+          data: { exampleName: null },
+        });
+        return;
+      }
+
+      // Clone the repository
+      vscode.window.showInformationMessage(`🔄 Cloning ${example.title}...`);
+
+      const terminal = vscode.window.createTerminal({
+        name: `Clone ${example.name}`,
+        cwd: parentFolder,
+        isTransient: false,
+      });
+
+      terminal.show();
+
+      // Clone the entire repository
+      terminal.sendText(`git clone ${example.repoUrl} rapidkit-examples-temp`);
+
+      // Wait for clone to complete
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+
+      // Move the specific workspace out
+      const tempRepoPath = path.join(parentFolder, 'rapidkit-examples-temp');
+      const sourceWorkspacePath = path.join(tempRepoPath, example.name);
+
+      // Check if workspace exists in cloned repo
+      if (await fs.pathExists(sourceWorkspacePath)) {
+        // Move workspace to target location
+        await fs.move(sourceWorkspacePath, targetPath);
+
+        // Clean up temp repo
+        await fs.remove(tempRepoPath);
+
+        // Get commit hash for tracking
+        const examplesService = ExamplesService.getInstance();
+        const commitHash = await examplesService.getRepoCommitHash(targetPath);
+
+        // Track the cloned example
+        await examplesService.trackClonedExample(
+          example.id || example.name,
+          example.name,
+          targetPath,
+          commitHash || undefined
+        );
+
+        // Import to workspace list
+        const workspaceManager = WorkspaceManager.getInstance();
+        await workspaceManager.addWorkspace(targetPath);
+        await this._sendRecentWorkspaces();
+
+        // Refresh examples list to show new clone status
+        await this._sendExampleWorkspaces();
+
+        vscode.window
+          .showInformationMessage(
+            `✅ Successfully cloned and imported: ${example.name}`,
+            'Open Workspace'
+          )
+          .then((selection) => {
+            if (selection === 'Open Workspace') {
+              const uri = vscode.Uri.file(targetPath);
+              vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+            }
+          });
+
+        terminal.dispose();
+      } else {
+        // Cleanup on failure
+        if (await fs.pathExists(tempRepoPath)) {
+          await fs.remove(tempRepoPath);
+        }
+        vscode.window.showWarningMessage(
+          `Clone completed but workspace "${example.name}" not found in repository. Check the terminal for details.`,
+          'OK'
+        );
+      }
+    } catch (error: any) {
+      console.error('[WelcomePanel] Error cloning example:', error);
+      vscode.window.showErrorMessage(`Failed to clone example: ${error.message}`);
+    } finally {
+      // Reset cloning state
+      this._panel.webview.postMessage({
+        command: 'setCloning',
+        data: { exampleName: null },
+      });
+    }
+  }
+
+  private async _updateExample(example: any) {
+    try {
+      const examplesService = ExamplesService.getInstance();
+      const info = await examplesService.getClonedExampleInfo(example.id || example.name);
+
+      if (!info || !info.clonedPath) {
+        vscode.window.showWarningMessage('Example is not cloned yet.');
+        return;
+      }
+
+      // Check if path exists
+      if (!(await fs.pathExists(info.clonedPath))) {
+        vscode.window
+          .showWarningMessage(`Cloned example not found at: ${info.clonedPath}`, 'Untrack')
+          .then(async (action) => {
+            if (action === 'Untrack') {
+              await examplesService.untrackExample(example.id || example.name);
+              await this._sendExampleWorkspaces();
+            }
+          });
+        return;
+      }
+
+      // Notify user
+      this._panel.webview.postMessage({
+        command: 'setUpdating',
+        data: { exampleName: example.name },
+      });
+
+      // Check if workspace has uncommitted changes
+      const hasChanges = await this._checkGitStatus(info.clonedPath);
+
+      if (hasChanges) {
+        const action = await vscode.window.showWarningMessage(
+          `The workspace "${example.name}" has uncommitted changes. Updating may cause conflicts.`,
+          'Continue Anyway',
+          'Cancel'
+        );
+
+        if (action !== 'Continue Anyway') {
+          this._panel.webview.postMessage({
+            command: 'setUpdating',
+            data: { exampleName: null },
+          });
+          return;
+        }
+      }
+
+      // Create terminal and run git pull
+      const terminal = vscode.window.createTerminal({
+        name: `Update ${example.name}`,
+        cwd: info.clonedPath,
+      });
+
+      terminal.show();
+      terminal.sendText('git fetch origin main && git pull origin main');
+
+      vscode.window.showInformationMessage(
+        `🔄 Updating ${example.name}... Check terminal for details.`,
+        'OK'
+      );
+
+      // Wait for update to complete
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Update tracking with new commit hash
+      const newCommitHash = await examplesService.getRepoCommitHash(info.clonedPath);
+      if (newCommitHash) {
+        await examplesService.trackClonedExample(
+          example.id || example.name,
+          example.name,
+          info.clonedPath,
+          newCommitHash
+        );
+      }
+
+      // Refresh examples list
+      await this._sendExampleWorkspaces();
+
+      vscode.window.showInformationMessage(`✅ ${example.name} updated successfully!`);
+    } catch (error: any) {
+      console.error('[WelcomePanel] Error updating example:', error);
+      vscode.window.showErrorMessage(`Failed to update example: ${error.message}`);
+    } finally {
+      this._panel.webview.postMessage({
+        command: 'setUpdating',
+        data: { exampleName: null },
+      });
+    }
+  }
+
+  private async _checkGitStatus(repoPath: string): Promise<boolean> {
+    try {
+      // Check if git status is clean
+      const { exec } = require('child_process');
+      return new Promise((resolve) => {
+        exec('git status --porcelain', { cwd: repoPath }, (error: any, stdout: string) => {
+          if (error) {
+            resolve(false); // Assume clean if git command fails
+          } else {
+            resolve(stdout.trim().length > 0); // Has changes if output is not empty
+          }
+        });
+      });
+    } catch (error) {
+      return false;
+    }
   }
 
   private async _sendModulesCatalog() {

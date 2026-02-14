@@ -37,6 +37,9 @@ import { WelcomePanel } from './ui/panels/welcomePanel';
 import { WelcomePanelLegacy } from './ui/panels/welcomePanelLegacy';
 import { SetupPanel } from './ui/panels/setupPanel';
 import { ModulesCatalogService } from './core/modulesCatalogService';
+import { ExamplesService } from './core/examplesService';
+import { KitsService } from './core/kitsService';
+import path from 'path';
 
 let statusBar: RapidKitStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -264,6 +267,11 @@ export async function activate(context: vscode.ExtensionContext) {
           await workspaceExplorer.addWorkspace();
         }
       }),
+      vscode.commands.registerCommand('rapidkit.importWorkspace', async () => {
+        if (workspaceExplorer) {
+          await workspaceExplorer.importWorkspace();
+        }
+      }),
       vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item: any) => {
         // Handle both formats: { path: string } from React panel and { workspace: { path: string } } from tree view
         const workspacePath = item?.path || item?.workspace?.path || item;
@@ -276,6 +284,19 @@ export async function activate(context: vscode.ExtensionContext) {
               WelcomePanel.refreshRecentWorkspaces();
             }
           }
+        }
+      }),
+      vscode.commands.registerCommand('rapidkit.exportWorkspace', async (item: any) => {
+        // Handle both formats: { path: string } from React panel and { workspace: { path: string } } from tree view
+        let workspace = item?.workspace;
+
+        if (!workspace && item?.path && workspaceExplorer) {
+          // From welcome page - get workspace by path
+          workspace = workspaceExplorer.getWorkspaceByPath(item.path);
+        }
+
+        if (workspace && workspaceExplorer) {
+          await workspaceExplorer.exportWorkspace(workspace);
         }
       }),
       vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
@@ -314,18 +335,37 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }),
       vscode.commands.registerCommand('rapidkit.checkWorkspaceHealth', async (item: any) => {
-        const workspace = item?.workspace;
-        if (!workspace?.path) {
+        // Handle both formats:
+        // 1. From sidebar tree: { workspace: RapidKitWorkspace }
+        // 2. From welcome page: { path: string }
+        let workspacePath: string | undefined;
+        let workspaceName: string | undefined;
+
+        if (item?.workspace) {
+          // From sidebar tree
+          workspacePath = item.workspace.path;
+          workspaceName = item.workspace.name;
+        } else if (item?.path) {
+          // From welcome page - use path directly
+          workspacePath = item.path;
+        }
+
+        if (!workspacePath) {
           vscode.window.showErrorMessage('No workspace selected');
           return;
         }
 
-        logger.info('Running doctor check for workspace:', workspace.name);
+        // Set workspace name if not already set
+        if (!workspaceName) {
+          workspaceName = path.basename(workspacePath);
+        }
+
+        logger.info('Running doctor check for workspace:', workspaceName);
 
         // Get version info first
         const { CoreVersionService } = await import('./core/coreVersionService.js');
         const versionService = CoreVersionService.getInstance();
-        const versionInfo = await versionService.getVersionInfo(workspace.path);
+        const versionInfo = await versionService.getVersionInfo(workspacePath);
 
         // Show quick actions menu
         const actions = [
@@ -341,7 +381,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         const selection = await vscode.window.showQuickPick(actions, {
-          placeHolder: `RapidKit Health & Version - ${workspace.name}`,
+          placeHolder: `RapidKit Health & Version - ${workspaceName}`,
           title: versionService.getStatusMessage(versionInfo),
         });
 
@@ -355,7 +395,7 @@ export async function activate(context: vscode.ExtensionContext) {
             await vscode.window.withProgress(
               {
                 location: vscode.ProgressLocation.Notification,
-                title: `🩺 Checking health of workspace: ${workspace.name}`,
+                title: `🩺 Checking health of workspace: ${workspaceName}`,
                 cancellable: false,
               },
               async (progress) => {
@@ -363,8 +403,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 try {
                   const terminal = vscode.window.createTerminal({
-                    name: `RapidKit Doctor - ${workspace.name}`,
-                    cwd: workspace.path,
+                    name: `RapidKit Doctor - ${workspaceName}`,
+                    cwd: workspacePath,
                   });
 
                   terminal.show();
@@ -373,7 +413,7 @@ export async function activate(context: vscode.ExtensionContext) {
                   progress.report({ increment: 100, message: 'Complete!' });
 
                   vscode.window.showInformationMessage(
-                    `Health check running for "${workspace.name}". Check the terminal for results.`,
+                    `Health check running for "${workspaceName}". Check the terminal for results.`,
                     'OK'
                   );
                 } catch (error) {
@@ -415,8 +455,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             if (confirmUpgrade === 'Upgrade') {
               const terminal = vscode.window.createTerminal({
-                name: `RapidKit Upgrade - ${workspace.name}`,
-                cwd: workspace.path,
+                name: `RapidKit Upgrade - ${workspaceName}`,
+                cwd: workspacePath,
               });
 
               terminal.show();
@@ -433,7 +473,7 @@ export async function activate(context: vscode.ExtensionContext) {
               );
 
               // Clear cache after upgrade
-              versionService.clearCache(workspace.path);
+              versionService.clearCache(workspacePath);
             }
             break;
           }
@@ -918,6 +958,12 @@ export async function activate(context: vscode.ExtensionContext) {
     // Initialize modules catalog service
     ModulesCatalogService.initialize(context);
 
+    // Initialize examples service
+    ExamplesService.initialize(context);
+
+    // Initialize kits service
+    KitsService.initialize(context);
+
     // Ensure default workspace is registered
     logger.info('Step 3.5: Checking default workspace...');
     // NOTE: Do not auto-create default workspace - user should create workspace manually via command
@@ -934,6 +980,9 @@ export async function activate(context: vscode.ExtensionContext) {
     workspaceExplorer = new WorkspaceExplorerProvider();
     projectExplorer = new ProjectExplorerProvider();
     moduleExplorer = new ModuleExplorerProvider();
+
+    // Set workspace explorer reference for WelcomePanel
+    WelcomePanel.setWorkspaceExplorer(workspaceExplorer);
 
     // Register tree views
     logger.info('Step 6: Registering tree views...');

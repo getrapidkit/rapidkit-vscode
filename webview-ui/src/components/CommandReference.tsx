@@ -39,11 +39,15 @@ export function CommandReference() {
             id: 'project',
             title: 'Project Commands',
             icon: Rocket,
-            count: 4,
+            count: 5,
             commands: [
                 {
                     code: 'npx rapidkit create project fastapi.standard my-api --output .',
-                    description: 'Create FastAPI project in current workspace'
+                    description: 'Create FastAPI Standard project in current workspace'
+                },
+                {
+                    code: 'npx rapidkit create project fastapi.ddd my-ddd-api --output .',
+                    description: 'Create FastAPI DDD project with clean architecture'
                 },
                 {
                     code: 'npx rapidkit create project nestjs.standard my-service --output .',

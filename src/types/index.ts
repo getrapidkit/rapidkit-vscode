@@ -54,6 +54,7 @@ export interface WorkspaceConfig {
 export interface ProjectConfig {
   name: string;
   framework: 'fastapi' | 'nestjs';
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
   packageManager?: string; // For NestJS: npm, yarn, pnpm
 }
 

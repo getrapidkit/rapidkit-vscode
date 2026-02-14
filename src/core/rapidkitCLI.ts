@@ -23,7 +23,7 @@ export interface CreateWorkspaceOptions {
 
 export interface CreateProjectOptions {
   name: string;
-  template: 'fastapi' | 'nestjs';
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
   parentPath: string;
   skipGit?: boolean;
   skipInstall?: boolean;
@@ -32,14 +32,10 @@ export interface CreateProjectOptions {
 
 export interface CreateProjectInWorkspaceOptions {
   name: string;
-  template: 'fastapi' | 'nestjs';
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
   workspacePath: string;
   skipGit?: boolean;
   skipInstall?: boolean;
-}
-
-function templateToKit(template: 'fastapi' | 'nestjs'): string {
-  return template === 'nestjs' ? 'nestjs.standard' : 'fastapi.standard';
 }
 
 export class RapidKitCLI {
@@ -82,13 +78,12 @@ export class RapidKitCLI {
    * Uses core: npx rapidkit create project <kit> <project-name> --output <dir> [--skip-git] [--skip-install]
    */
   async createProject(options: CreateProjectOptions): Promise<ExecaReturnValue> {
-    const kit = templateToKit(options.template);
     const args = [
       '--yes',
       'rapidkit@latest',
       'create',
       'project',
-      kit,
+      options.kit,
       options.name,
       '--output',
       options.parentPath,
@@ -136,13 +131,12 @@ export class RapidKitCLI {
   async createProjectInWorkspace(
     options: CreateProjectInWorkspaceOptions
   ): Promise<ExecaReturnValue> {
-    const kit = templateToKit(options.template);
     const args = [
       '--yes',
       'rapidkit@latest',
       'create',
       'project',
-      kit,
+      options.kit,
       options.name,
       '--output',
       '.',

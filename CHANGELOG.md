@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-02-14
+
+### Added
+
+- 🌐 **Dynamic Example Workspaces** - Load example workspaces from GitHub repository
+  - Real-time fetching from `getrapidkit/rapidkit-examples` repository
+  - Clone tracking with local state management (`~/.rapidkit/cloned-examples.json`)
+  - Update detection for already-cloned examples
+  - 1-hour cache with TTL for optimal performance
+  - Smart caching strategy (5-minute stale-while-revalidate)
+  - Example metadata with icons, descriptions, and framework tags
+  - Interactive clone and update buttons with loading states
+
+- 🎨 **Dynamic Kit Selection** - Enhanced project creation with kit dropdown
+  - Kit selection dropdown in CreateProjectModal
+  - Dynamic kit loading from `rapidkit list --json` via KitsService
+  - 24-hour cache for kit catalog
+  - Fallback to hardcoded kits when Python Core unavailable
+  - Kit descriptions and tags displayed in UI
+  - Framework-based filtering (FastAPI/NestJS)
+  - Auto-select first available kit per framework
+
+- 📦 **Full Workspace Export/Import** - Complete backup and restore functionality
+  - Export workspace as ZIP archive with all files (~MB sized)
+  - Smart exclusion patterns (node_modules, __pycache__, .venv, .git, etc.)
+  - Import from ZIP archive with extraction and validation
+  - Import existing workspace folder (register only)
+  - Progress tracking with detailed status messages
+  - File size display after export
+  - Overwrite protection with user confirmation
+  - "Open Folder" and "Open Workspace" actions after import
+  - Archive using `archiver` library with maximum compression
+  - ZIP extraction using `adm-zip` library
+
+- 🆕 **New Services** - Core infrastructure services added
+  - **ExamplesService**: GitHub API integration with caching and clone state
+  - **KitsService**: Dynamic kit catalog from CLI with fallback support
+  - Cache management with configurable TTL
+  - State persistence in `~/.rapidkit/` directory
+
+### Changed
+
+- ✨ **UX Improvements** - Better visual hierarchy and usability
+  - Section headers enlarged (font-size: 1rem → 1.1rem)
+  - Icons increased (16px → 24px) for better visibility
+  - Added subtle border-bottom to section titles
+  - Features section moved to page footer
+  - Export icon changed from Download (↓) to Upload (↑)
+
+- 🎯 **Project Creation Flow** - Streamlined workflow
+  - Kit selection moved to modal (no more separate QuickPick)
+  - Framework cards now open modal with pre-filtered kits
+  - Skip kit selection in wizard if pre-selected
+  - Pass kit_name to generateDemoKit for npm fallback
+
+- 📋 **Workspace Context** - Fixed workspace selection bug
+  - Added WorkspaceExplorerProvider reference to WelcomePanel
+  - Fixed undefined workspace path in createProjectWithKit
+  - Workspace selection now properly maintained across panels
+
+### Technical
+
+- **New Dependencies**:
+  - `archiver@^7.0.1` - ZIP archive creation
+  - `@types/archiver@^7.0.0` - TypeScript types
+  - `adm-zip@^0.5.16` - ZIP extraction
+  - `@types/adm-zip@^0.5.5` - TypeScript types
+
+- **Package Updates**:
+  - Various transitive dependencies updated via package-lock.json
+
+- **Code Changes**:
+  - 3,111 lines added, 701 lines removed
+  - 20 files modified
+  - 2 new service files added
+
+### Removed
+
+- ❌ **Config-Only Export/Import** - Simplified to Full Archive only
+  - Removed exportConfigOnly() and importFromConfig() methods
+  - Removed JSON-only export option from QuickPick
+  - Focus on practical Full Archive export/import workflow
+
 ## [0.10.0] - 2026-02-12
 
 ### Added

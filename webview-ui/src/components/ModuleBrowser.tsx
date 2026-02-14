@@ -134,7 +134,7 @@ export function ModuleBrowser({
         <div className="section module-browser">
             <div className="section-title">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Package className="w-4 h-4" />
+                    <Package className="w-6 h-6" />
                     Module Browser
                     <span className="module-count" style={{ marginLeft: '4px' }}>
                         {modules.length} free modules

@@ -1,0 +1,363 @@
+/**
+ * Examples Service
+ * Fetches and caches example workspaces metadata from GitHub
+ */
+
+import * as vscode from 'vscode';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import axios from 'axios';
+
+export interface ExampleProject {
+  id: string;
+  name: string;
+  type: 'fastapi' | 'nestjs';
+  displayName: string;
+  description: string;
+  path: string;
+  features?: string[];
+  endpoints?: string[];
+  defaultPort?: number;
+}
+
+export interface ExampleWorkspace {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  path: string;
+  tags?: string[];
+  featured?: boolean;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  tutorialLinks?: Array<{
+    title: string;
+    url: string;
+    platform: string;
+  }>;
+  projects: ExampleProject[];
+  requirements?: {
+    python?: string;
+    node?: string;
+    rapidkit?: string;
+  };
+  quickStart?: {
+    fastapi?: string[];
+    nestjs?: string[];
+  };
+}
+
+export interface ExamplesMetadata {
+  version: string;
+  lastUpdated: string;
+  repository: string;
+  workspaces: ExampleWorkspace[];
+}
+
+export interface ClonedExampleInfo {
+  exampleId: string;
+  exampleName: string;
+  clonedAt: string;
+  clonedPath: string;
+  commitHash?: string;
+  lastCheckedForUpdate?: string;
+}
+
+interface ExamplesCache {
+  metadata: ExamplesMetadata;
+  timestamp: number;
+}
+
+export class ExamplesService {
+  private static instance: ExamplesService | null = null;
+  private readonly storagePath: string;
+  private readonly cacheFilePath: string;
+  private readonly trackingFilePath: string;
+  private readonly ttlMs: number = 60 * 60 * 1000; // 1 hour
+  private readonly metadataUrl =
+    'https://raw.githubusercontent.com/getrapidkit/rapidkit-examples/main/examples.json';
+
+  private constructor(context: vscode.ExtensionContext) {
+    this.storagePath = context.globalStorageUri.fsPath;
+    this.cacheFilePath = path.join(this.storagePath, 'examples-cache.json');
+
+    // Use ~/.rapidkit for tracking cloned examples (shared across all vscode instances)
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const rapidkitDir = path.join(homeDir, '.rapidkit');
+    this.trackingFilePath = path.join(rapidkitDir, 'cloned-examples.json');
+  }
+
+  static initialize(context: vscode.ExtensionContext): ExamplesService {
+    if (!ExamplesService.instance) {
+      ExamplesService.instance = new ExamplesService(context);
+    }
+    return ExamplesService.instance;
+  }
+
+  static getInstance(): ExamplesService {
+    if (!ExamplesService.instance) {
+      throw new Error('ExamplesService not initialized');
+    }
+    return ExamplesService.instance;
+  }
+
+  /**
+   * Get examples metadata (with caching)
+   */
+  async getExamples(): Promise<ExampleWorkspace[]> {
+    try {
+      // Check cache first
+      const cached = await this._loadCache();
+      if (cached && Date.now() - cached.timestamp < this.ttlMs) {
+        console.log('[ExamplesService] Using cached metadata');
+        return cached.metadata.workspaces;
+      }
+
+      // Fetch from GitHub
+      console.log('[ExamplesService] Fetching metadata from GitHub...');
+      const response = await axios.get<ExamplesMetadata>(this.metadataUrl, {
+        timeout: 10000,
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      const metadata = response.data;
+
+      // Save to cache
+      await this._saveCache({ metadata, timestamp: Date.now() });
+      console.log('[ExamplesService] Metadata fetched and cached');
+
+      return metadata.workspaces;
+    } catch (error: any) {
+      console.error('[ExamplesService] Failed to fetch metadata:', error.message);
+
+      // Try to use stale cache
+      const cached = await this._loadCache();
+      if (cached) {
+        console.log('[ExamplesService] Using stale cache as fallback');
+        return cached.metadata.workspaces;
+      }
+
+      // Ultimate fallback: return hardcoded example
+      return this._getFallbackExamples();
+    }
+  }
+
+  /**
+   * Invalidate cache to force refresh
+   */
+  async invalidateCache(): Promise<void> {
+    try {
+      if (await fs.pathExists(this.cacheFilePath)) {
+        await fs.remove(this.cacheFilePath);
+        console.log('[ExamplesService] Cache invalidated');
+      }
+    } catch (error) {
+      console.error('[ExamplesService] Failed to invalidate cache:', error);
+    }
+  }
+
+  /**
+   * Track a cloned example
+   */
+  async trackClonedExample(
+    exampleId: string,
+    exampleName: string,
+    clonedPath: string,
+    commitHash?: string
+  ): Promise<void> {
+    try {
+      await fs.ensureDir(path.dirname(this.trackingFilePath));
+
+      const tracking = await this._loadTracking();
+
+      tracking[exampleId] = {
+        exampleId,
+        exampleName,
+        clonedAt: new Date().toISOString(),
+        clonedPath,
+        commitHash,
+      };
+
+      await fs.writeJson(this.trackingFilePath, tracking, { spaces: 2 });
+      console.log('[ExamplesService] Tracked cloned example:', exampleId);
+    } catch (error) {
+      console.error('[ExamplesService] Failed to track cloned example:', error);
+    }
+  }
+
+  /**
+   * Get cloned example info
+   */
+  async getClonedExampleInfo(exampleId: string): Promise<ClonedExampleInfo | null> {
+    const tracking = await this._loadTracking();
+    return tracking[exampleId] || null;
+  }
+
+  /**
+   * Check if example is cloned
+   */
+  async isExampleCloned(exampleId: string): Promise<boolean> {
+    const info = await this.getClonedExampleInfo(exampleId);
+    if (!info) {
+      return false;
+    }
+
+    // Verify the path still exists
+    return await fs.pathExists(info.clonedPath);
+  }
+
+  /**
+   * Get commit hash from a cloned repository
+   */
+  async getRepoCommitHash(repoPath: string): Promise<string | null> {
+    try {
+      const gitHeadPath = path.join(repoPath, '.git', 'HEAD');
+      if (!(await fs.pathExists(gitHeadPath))) {
+        return null;
+      }
+
+      const headContent = await fs.readFile(gitHeadPath, 'utf-8');
+      const match = headContent.trim().match(/^ref: (.+)$/);
+
+      if (match) {
+        const refPath = path.join(repoPath, '.git', match[1]);
+        if (await fs.pathExists(refPath)) {
+          const hash = await fs.readFile(refPath, 'utf-8');
+          return hash.trim();
+        }
+      }
+
+      // If HEAD contains hash directly
+      if (/^[0-9a-f]{40}$/i.test(headContent.trim())) {
+        return headContent.trim();
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[ExamplesService] Failed to get commit hash:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if an example has updates available
+   */
+  async checkForUpdates(exampleId: string): Promise<{
+    hasUpdate: boolean;
+    currentHash?: string;
+    latestHash?: string;
+  }> {
+    try {
+      const info = await this.getClonedExampleInfo(exampleId);
+      if (!info || !info.clonedPath) {
+        return { hasUpdate: false };
+      }
+
+      // Get current local commit hash
+      const currentHash = await this.getRepoCommitHash(info.clonedPath);
+      if (!currentHash) {
+        return { hasUpdate: false };
+      }
+
+      // Get latest commit hash from GitHub API
+      const apiUrl = `https://api.github.com/repos/getrapidkit/rapidkit-examples/commits/main`;
+      const response = await axios.get(apiUrl, {
+        timeout: 10000,
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+        },
+      });
+
+      const latestHash = response.data.sha;
+
+      return {
+        hasUpdate: currentHash !== latestHash,
+        currentHash,
+        latestHash,
+      };
+    } catch (error) {
+      console.error('[ExamplesService] Failed to check for updates:', error);
+      return { hasUpdate: false };
+    }
+  }
+
+  /**
+   * Remove tracked example
+   */
+  async untrackExample(exampleId: string): Promise<void> {
+    try {
+      const tracking = await this._loadTracking();
+      delete tracking[exampleId];
+      await fs.writeJson(this.trackingFilePath, tracking, { spaces: 2 });
+      console.log('[ExamplesService] Untracked example:', exampleId);
+    } catch (error) {
+      console.error('[ExamplesService] Failed to untrack example:', error);
+    }
+  }
+
+  private async _loadCache(): Promise<ExamplesCache | null> {
+    try {
+      if (await fs.pathExists(this.cacheFilePath)) {
+        return await fs.readJson(this.cacheFilePath);
+      }
+    } catch (error) {
+      console.error('[ExamplesService] Failed to load cache:', error);
+    }
+    return null;
+  }
+
+  private async _saveCache(cache: ExamplesCache): Promise<void> {
+    try {
+      await fs.ensureDir(path.dirname(this.cacheFilePath));
+      await fs.writeJson(this.cacheFilePath, cache, { spaces: 2 });
+    } catch (error) {
+      console.error('[ExamplesService] Failed to save cache:', error);
+    }
+  }
+
+  private async _loadTracking(): Promise<Record<string, ClonedExampleInfo>> {
+    try {
+      if (await fs.pathExists(this.trackingFilePath)) {
+        return await fs.readJson(this.trackingFilePath);
+      }
+    } catch (error) {
+      console.error('[ExamplesService] Failed to load tracking:', error);
+    }
+    return {};
+  }
+
+  private _getFallbackExamples(): ExampleWorkspace[] {
+    // Hardcoded fallback in case GitHub is unreachable
+    return [
+      {
+        id: 'my-ai-workspace',
+        name: 'my-ai-workspace',
+        title: 'AI Agent Workspace',
+        description:
+          'Multi-provider AI assistant with FastAPI and NestJS implementations featuring streaming, caching, health checks, and support ticket endpoints.',
+        path: 'my-ai-workspace',
+        tags: ['AI', 'Streaming', 'Multi-Provider'],
+        featured: true,
+        projects: [
+          {
+            id: 'ai-agent',
+            name: 'ai-agent',
+            type: 'fastapi' as const,
+            displayName: 'AI Agent (FastAPI)',
+            description: 'FastAPI implementation with echo/template/OpenAI-ready endpoints',
+            path: 'my-ai-workspace/ai-agent',
+          },
+          {
+            id: 'ai-agent-nest',
+            name: 'ai-agent-nest',
+            type: 'nestjs' as const,
+            displayName: 'AI Agent (NestJS)',
+            description: 'NestJS parity implementation with ai_assistant + support/ticket',
+            path: 'my-ai-workspace/ai-agent-nest',
+          },
+        ],
+      },
+    ];
+  }
+}

@@ -12,10 +12,11 @@ import { WelcomePanel } from '../ui/panels/welcomePanel';
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
   preselectedFramework?: 'fastapi' | 'nestjs',
-  projectName?: string
+  projectName?: string,
+  kitName?: string
 ) {
   const logger = Logger.getInstance();
-  logger.info('Create Project command initiated', { preselectedFramework, projectName });
+  logger.info('Create Project command initiated', { preselectedFramework, projectName, kitName });
 
   try {
     const path = require('path');
@@ -228,7 +229,7 @@ export async function createProjectCommand(
 
     // Show wizard
     const wizard = new ProjectWizard();
-    const config = await wizard.show(preselectedFramework, projectName);
+    const config = await wizard.show(preselectedFramework, projectName, kitName);
 
     if (!config) {
       logger.info('Project creation cancelled by user');
@@ -236,9 +237,6 @@ export async function createProjectCommand(
     }
 
     logger.info('Project config from wizard:', JSON.stringify(config));
-
-    // Map framework to template
-    const template = config.framework === 'fastapi' ? 'fastapi' : 'nestjs';
 
     // Execute with progress
     await vscode.window.withProgress(
@@ -270,7 +268,7 @@ export async function createProjectCommand(
 
             result = await cli.createProject({
               name: config.name,
-              template: template as 'fastapi' | 'nestjs',
+              kit: config.kit,
               parentPath: workspacePathAbs,
               skipInstall: false,
             });
@@ -282,7 +280,7 @@ export async function createProjectCommand(
 
             result = await cli.createProjectInWorkspace({
               name: config.name,
-              template: template as 'fastapi' | 'nestjs',
+              kit: config.kit,
               workspacePath: workspacePathAbs,
               skipInstall: false,
             });

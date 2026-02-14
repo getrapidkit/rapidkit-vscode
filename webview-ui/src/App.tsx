@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { vscode } from '@/vscode';
-import type { ModuleData, CategoryInfo, Workspace, WorkspaceStatus, InstallStatus } from '@/types';
+import type { ModuleData, CategoryInfo, Workspace, WorkspaceStatus, InstallStatus, ExampleWorkspace, Kit } from '@/types';
 import { Header } from '@/components/Header';
 import { SetupCard } from '@/components/SetupCard';
 import { HeroAction } from '@/components/HeroAction';
 import { QuickLinks } from '@/components/QuickLinks';
 import { Features } from '@/components/Features';
 import { RecentWorkspaces } from '@/components/RecentWorkspaces';
+import { ExampleWorkspaces } from '@/components/ExampleWorkspaces';
 import { ModuleBrowser } from '@/components/ModuleBrowser';
 import { CommandReference } from '@/components/CommandReference';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
@@ -24,6 +25,10 @@ export function App() {
     const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs'>('fastapi');
     const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
     const [recentWorkspaces, setRecentWorkspaces] = useState<Workspace[]>([]);
+    const [exampleWorkspaces, setExampleWorkspaces] = useState<ExampleWorkspace[]>([]);
+    const [availableKits, setAvailableKits] = useState<Kit[]>([]);
+    const [cloningExample, setCloningExample] = useState<string | null>(null);
+    const [updatingExample, setUpdatingExample] = useState<string | null>(null);
     const [modulesCatalog, setModulesCatalog] = useState<ModuleData[]>([]);
     const [categoryInfo] = useState<CategoryInfo>({});
     const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus>({ hasWorkspace: false });
@@ -51,6 +56,22 @@ export function App() {
                 case 'updateRecentWorkspaces':
                     console.log('[React Webview] Updating workspaces:', message.data);
                     setRecentWorkspaces(message.data);
+                    break;
+                case 'updateExampleWorkspaces':
+                    console.log('[React Webview] Updating examples:', message.data);
+                    setExampleWorkspaces(message.data);
+                    break;
+                case 'updateAvailableKits':
+                    console.log('[React Webview] Updating available kits:', message.data);
+                    setAvailableKits(message.data);
+                    break;
+                case 'setCloning':
+                    console.log('[React Webview] Setting cloning state:', message.data);
+                    setCloningExample(message.data.exampleName);
+                    break;
+                case 'setUpdating':
+                    console.log('[React Webview] Setting updating state:', message.data);
+                    setUpdatingExample(message.data.exampleName);
                     break;
                 case 'updateModulesCatalog':
                     console.log('[React Webview] Updating modules catalog:', message.data?.length || 0, 'modules');
@@ -87,14 +108,16 @@ export function App() {
         vscode.postMessage('createWorkspace', { name: workspaceName });
     };
 
-    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs') => {
+    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs', kitName?: string) => {
         setSelectedFramework(framework);
+        // If kitName is provided, we can pass it to the modal or directly create project
+        // For now, just open modal and let wizard handle kit selection
         setShowProjectModal(true);
     };
 
-    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs') => {
-        console.log('[React Webview] Creating project:', projectName, framework);
-        vscode.postMessage(framework === 'fastapi' ? 'createFastAPIProject' : 'createNestJSProject', { name: projectName });
+    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs', kitName: string) => {
+        console.log('[React Webview] Creating project:', projectName, framework, kitName);
+        vscode.postMessage('createProjectWithKit', { name: projectName, framework, kit: kitName });
     };
 
     const handleOpenInstallModal = (module: ModuleData) => {
@@ -125,14 +148,22 @@ export function App() {
                 <QuickLinks onOpenProjectModal={handleOpenProjectModal} />
             </div>
 
-            <Features />
-
             <RecentWorkspaces
                 workspaces={recentWorkspaces}
                 onRefresh={() => vscode.postMessage('refreshWorkspaces')}
                 onSelect={(workspace) => vscode.postMessage('openWorkspaceFolder', { path: workspace.path })}
                 onRemove={(workspace) => vscode.postMessage('removeWorkspace', { path: workspace.path })}
                 onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
+                onCheckHealth={(workspace) => vscode.postMessage('checkWorkspaceHealth', { path: workspace.path })}
+                onExport={(workspace) => vscode.postMessage('exportWorkspace', { path: workspace.path })}
+            />
+
+            <ExampleWorkspaces
+                examples={exampleWorkspaces}
+                onClone={(example) => vscode.postMessage('cloneExample', example)}
+                onUpdate={(example) => vscode.postMessage('updateExample', example)}
+                cloningExample={cloningExample}
+                updatingExample={updatingExample}
             />
 
             <ModuleBrowser
@@ -151,6 +182,7 @@ export function App() {
                 onProjectBuild={() => vscode.postMessage('projectBuild')}
             />
 
+            <Features />
 
             <CreateWorkspaceModal
                 isOpen={showCreateModal}
@@ -160,6 +192,7 @@ export function App() {
             <CreateProjectModal
                 isOpen={showProjectModal}
                 framework={selectedFramework}
+                availableKits={availableKits}
                 onClose={() => setShowProjectModal(false)}
                 onCreate={handleCreateProject}
             />
