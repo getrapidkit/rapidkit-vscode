@@ -224,6 +224,10 @@ export async function addModuleCommand(
           await vscode.commands.executeCommand('rapidkit.refreshProjects');
           await refreshModuleExplorerStates();
 
+          // Refresh Welcome Panel to update installed modules list
+          const { WelcomePanel } = await import('../ui/panels/welcomePanel.js');
+          await WelcomePanel.refreshWorkspaceStatus();
+
           if (selected === viewDocsAction) {
             await vscode.env.openExternal(
               vscode.Uri.parse(`https://getrapidkit.com/docs/modules/${module!.id}`)

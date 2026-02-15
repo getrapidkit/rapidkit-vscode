@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-02-15
+
+### Added
+
+- 🪟 **In-App Module Details Modal**
+  - Added `ModuleDetailsModal` with tabbed sections (overview, dependencies, configuration, profiles, features, docs)
+  - Extended `ModuleData` typing for richer metadata rendering (runtime deps, profiles, docs, compatibility, support, changelog)
+  - Wired module details flow to React modal in Welcome webview instead of spawning a separate HTML panel
+
+- 🔄 **Post-Install Workspace Status Refresh**
+  - Added `WelcomePanel.refreshWorkspaceStatus()`
+  - Auto-refreshes installed modules and module catalog immediately after `rapidkit add module`
+
+### Changed
+
+- 🧭 **CLI Binary Resolution Reliability**
+  - Improved `rapidkit` command resolution to search `.venv/bin/rapidkit` by walking up directories from project path
+  - Better behavior for nested project paths inside workspaces
+  - Added explicit warning when falling back to `npx rapidkit`
+
+- 📡 **Module Details Data Source**
+  - Switched module info retrieval to `rapidkit modules info <module> --json`
+  - Merges fresh CLI metadata with catalog data for accurate details and versions
+
+- 🎨 **Webview UI Polish**
+  - Updated styles and component integration for modal-based details flow
+  - Minor UX cleanup in example workspace cards and shared styles
+
 ## [0.11.0] - 2026-02-14
 
 ### Added
@@ -1289,7 +1317,8 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.12.0
 [0.6.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.6.1
 [0.4.5]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.5
 [0.4.4]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.4

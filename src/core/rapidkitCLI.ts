@@ -245,22 +245,44 @@ export class RapidKitCLI {
     this.logger.debug('Running rapidkit with args:', args);
     const workingDir = cwd || process.cwd();
 
-    // Priority 1: Try workspace .venv/bin/rapidkit (if we're in a workspace)
-    const venvRapidkit = workingDir.includes('.venv')
-      ? path.join(workingDir, 'bin', 'rapidkit')
-      : path.join(workingDir, '.venv', 'bin', 'rapidkit');
+    // Priority 1: Try to find workspace .venv/bin/rapidkit (walk up from project to workspace root)
+    let currentDir = workingDir;
+    let venvRapidkit: string | null = null;
 
-    try {
-      const fs = require('fs');
-      if (fs.existsSync(venvRapidkit)) {
-        this.logger.debug('Using workspace rapidkit:', venvRapidkit);
+    // Walk up to 3 levels to find .venv (handles project inside workspace)
+    for (let i = 0; i < 3; i++) {
+      const testPath = path.join(currentDir, '.venv', 'bin', 'rapidkit');
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(testPath)) {
+          venvRapidkit = testPath;
+          this.logger.debug('Found workspace rapidkit:', venvRapidkit);
+          break;
+        }
+      } catch (e) {
+        // Continue searching
+      }
+
+      const parentDir = path.dirname(currentDir);
+      if (parentDir === currentDir) {
+        break;
+      } // Reached root
+      currentDir = parentDir;
+    }
+
+    // If found workspace venv rapidkit, use it
+    if (venvRapidkit) {
+      try {
         return await run(venvRapidkit, args, {
           cwd: workingDir,
           stdio: 'pipe',
         });
+      } catch (e) {
+        this.logger.error('Workspace rapidkit execution failed:', e);
+        // Continue to fallback options
       }
-    } catch (e) {
-      this.logger.debug('Workspace rapidkit not found or failed:', e);
+    } else {
+      this.logger.debug('Workspace .venv/bin/rapidkit not found, trying global rapidkit');
     }
 
     // Priority 2: Try global rapidkit binary
@@ -272,8 +294,9 @@ export class RapidKitCLI {
         });
       } catch (e) {
         this.logger.debug('Direct rapidkit binary failed, falling back to npx', e);
-        // Priority 3: Fall back to npx
-        return await run('npx', ['--yes', 'rapidkit@latest', ...args], {
+        // Priority 3: Fall back to npx (but use workspace's rapidkit if available)
+        this.logger.warn('⚠️ Falling back to npx - may use different rapidkit version!');
+        return await run('npx', ['--yes', 'rapidkit', ...args], {
           cwd: workingDir,
           stdio: 'pipe',
         });

@@ -15,6 +15,7 @@ import { Footer } from '@/components/Footer';
 import { CreateWorkspaceModal } from '@/components/CreateWorkspaceModal';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { InstallModuleModal } from '@/components/InstallModuleModal';
+import { ModuleDetailsModal } from '@/components/ModuleDetailsModal';
 
 export function App() {
     const [version, setVersion] = useState('0.0.0');
@@ -22,8 +23,10 @@ export function App() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showInstallModal, setShowInstallModal] = useState(false);
+    const [showModuleDetailsModal, setShowModuleDetailsModal] = useState(false);
     const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs'>('fastapi');
     const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
+    const [moduleDetails, setModuleDetails] = useState<ModuleData | null>(null);
     const [recentWorkspaces, setRecentWorkspaces] = useState<Workspace[]>([]);
     const [exampleWorkspaces, setExampleWorkspaces] = useState<ExampleWorkspace[]>([]);
     const [availableKits, setAvailableKits] = useState<Kit[]>([]);
@@ -91,6 +94,11 @@ export function App() {
                         // Reset modal when workspace creation completes
                         setShowCreateModal(false);
                     }
+                    break;
+                case 'showModuleDetailsModal':
+                    console.log('[React Webview] Showing module details modal:', message.data);
+                    setModuleDetails(message.data);
+                    setShowModuleDetailsModal(true);
                     break;
             }
         };
@@ -206,6 +214,15 @@ export function App() {
                 }}
                 onConfirm={handleConfirmInstall}
             />
+            {showModuleDetailsModal && (
+                <ModuleDetailsModal
+                    module={moduleDetails}
+                    onClose={() => {
+                        setShowModuleDetailsModal(false);
+                        setModuleDetails(null);
+                    }}
+                />
+            )}
             <CommandReference />
 
             <KeyboardShortcuts />

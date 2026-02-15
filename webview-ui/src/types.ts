@@ -15,6 +15,75 @@ export interface ModuleData {
   status?: 'stable' | 'beta' | 'experimental';
   dependencies?: string[];
   tags?: string[];
+  tier?: string;
+  capabilities?: string[];
+  module_dependencies?: string[];
+  runtime_dependencies?: Record<
+    string,
+    Array<{
+      name: string;
+      source: string;
+      tool: string;
+      version: string;
+    }>
+  >;
+  config_sources?: string[];
+  defaults?: Record<string, any>;
+  variables?: Array<{
+    key: string;
+    type: string;
+    default: any;
+    description: string;
+  }>;
+  profiles?: Record<
+    string,
+    {
+      description: string;
+      inherits?: string;
+    }
+  >;
+  features?:
+    | string[]
+    | Record<
+        string,
+        {
+          status: string;
+          enabled: boolean;
+          description: string;
+          files?: Array<{
+            path: string;
+            description: string;
+          }>;
+        }
+      >;
+  documentation?: {
+    changelog?: string;
+    readme?: string;
+    overview?: string;
+    usage?: string;
+    advanced?: string;
+    migration?: string;
+    troubleshooting?: string;
+    api_docs?: string;
+    quick_guide?: string;
+    links?: Record<string, string>;
+  };
+  compatibility?: {
+    python?: string;
+    node?: string;
+    frameworks?: string[];
+    os?: string[];
+  };
+  changelog?: Array<{
+    version: string;
+    date: string;
+    notes: string;
+  }>;
+  support?: {
+    issues?: string;
+    discussions?: string;
+    documentation?: string;
+  };
 }
 
 export interface CategoryInfo {

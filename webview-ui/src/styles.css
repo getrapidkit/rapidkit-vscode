@@ -1378,13 +1378,37 @@ h1 .kit {
 }
 
 /* Example Workspaces */
+/* Grid layout for example cards - responsive */
+.example-workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+/* Tablet: 2 columns */
+@media (max-width: 1199px) {
+    .example-workspace-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile: 1 column */
+@media (max-width: 767px) {
+    .example-workspace-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
+
 .example-card {
     background: var(--vscode-editor-inactiveSelectionBackground);
     border: 1px solid var(--vscode-panel-border);
     border-radius: 6px;
     padding: 12px 14px;
-    margin-bottom: 10px;
     transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .example-card:hover {
@@ -1398,6 +1422,7 @@ h1 .kit {
     align-items: flex-start;
     gap: 12px;
     margin-bottom: 8px;
+    flex: 0 0 auto;
 }
 
 .example-info {
@@ -1409,7 +1434,7 @@ h1 .kit {
     font-weight: 600;
     font-size: 13px;
     color: var(--vscode-foreground);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1419,13 +1444,15 @@ h1 .kit {
 .example-description {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
-    line-height: 1.4;
+    line-height: 1.5;
+    margin-bottom: 8px;
 }
 
 .example-tags {
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
+    margin-top: 6px;
 }
 
 .example-tag {
@@ -1441,6 +1468,7 @@ h1 .kit {
     display: flex;
     gap: 6px;
     flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .example-btn {
@@ -1526,9 +1554,10 @@ h1 .kit {
 }
 
 .example-projects {
-    margin-top: 8px;
+    margin-top: auto;
     border-top: 1px solid var(--vscode-panel-border);
     padding-top: 8px;
+    flex: 0 0 auto;
 }
 
 .example-projects-toggle {

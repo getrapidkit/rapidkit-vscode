@@ -105,6 +105,17 @@ export class WelcomePanel {
   }
 
   /**
+   * Refresh workspace status (installed modules) after module installation
+   */
+  public static async refreshWorkspaceStatus() {
+    if (WelcomePanel.currentPanel) {
+      await WelcomePanel.currentPanel._sendWorkspaceStatus();
+      // Also refresh modules catalog to get latest versions
+      await WelcomePanel.currentPanel._refreshModulesCatalog();
+    }
+  }
+
+  /**
    * Read installed modules from registry.json
    */
   private static async _readInstalledModules(
@@ -1074,635 +1085,58 @@ export class WelcomePanel {
 
       console.log('[WelcomePanel] Fetching module info for:', candidates);
 
-      const moduleInfo: any = { ...moduleData };
+      let moduleInfo: any = null;
       let foundMatch = false;
 
       for (const candidate of candidates) {
         try {
-          const result = await run(command, ['modules', 'info', candidate], {
+          // Try to get JSON output first
+          const jsonResult = await run(command, ['modules', 'info', candidate, '--json'], {
             cwd: workspacePath,
             shell: true,
           });
-          if (result.exitCode === 0 && result.stdout) {
-            const match = result.stdout.match(/Module Information[\s\S]*/);
-            if (match) {
-              moduleInfo.detailedInfo = match[0];
+          if (jsonResult.exitCode === 0 && jsonResult.stdout) {
+            try {
+              const parsed = JSON.parse(jsonResult.stdout);
+              // Merge with moduleData but prefer fresh CLI data
+              moduleInfo = { ...moduleData, ...parsed };
               foundMatch = true;
-              console.log('[WelcomePanel] Found module info for:', candidate);
+              console.log(
+                '[WelcomePanel] Found module info (JSON) for:',
+                candidate,
+                'version:',
+                parsed.version
+              );
+              console.log('[WelcomePanel] moduleInfo after merge:', {
+                name: moduleInfo.display_name,
+                version: moduleInfo.version,
+                slug: moduleInfo.slug,
+              });
               break;
+            } catch (parseError) {
+              console.log('[WelcomePanel] Failed to parse JSON for:', candidate);
             }
           }
         } catch {
-          console.log('[WelcomePanel] Failed to fetch info for:', candidate);
+          console.log('[WelcomePanel] Failed to fetch JSON info for:', candidate);
         }
       }
 
-      if (!foundMatch) {
-        console.log('[WelcomePanel] Could not fetch module info from CLI');
+      if (!foundMatch || !moduleInfo) {
+        console.log('[WelcomePanel] Could not fetch module info from CLI, using card data');
+        moduleInfo = { ...moduleData };
       }
 
-      const panel = vscode.window.createWebviewPanel(
-        'moduleDetails',
-        `${moduleData.display_name || moduleData.name}`,
-        vscode.ViewColumn.Beside,
-        { enableScripts: true }
-      );
-
-      panel.webview.html = this._getModuleDetailsHtml(moduleInfo);
+      // Send module details to React webview for modal display
+      console.log('[WelcomePanel] Sending showModuleDetailsModal message:', moduleInfo);
+      WelcomePanel.currentPanel?._panel.webview.postMessage({
+        command: 'showModuleDetailsModal',
+        data: moduleInfo,
+      });
     } catch (error) {
       console.error('[WelcomePanel] Error showing module details:', error);
       vscode.window.showErrorMessage('Failed to load module details');
     }
-  }
-
-  private _getModuleDetailsHtml(moduleInfo: any): string {
-    const name = moduleInfo.display_name || moduleInfo.name;
-    const version = moduleInfo.version || 'N/A';
-    const category = moduleInfo.category || 'unknown';
-    const description = moduleInfo.description || 'No description available';
-    const status = moduleInfo.status || 'stable';
-    const dependencies = moduleInfo.dependencies || [];
-    const tags = moduleInfo.tags || [];
-    const slug = moduleInfo.slug || moduleInfo.id;
-    const detailedInfo = moduleInfo.detailedInfo || '';
-
-    // Category icon mapping (same as React ModuleBrowser)
-    const categoryIconSvgs: Record<string, string> = {
-      ai: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M6 21a3 3 0 0 0 3-3v-1a3 3 0 0 0-6 0v1a3 3 0 0 0 3 3Z"></path><path d="M18 21a3 3 0 0 0 3-3v-1a3 3 0 0 0-6 0v1a3 3 0 0 0 3 3Z"></path>',
-      database:
-        '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>',
-      cache: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
-      auth: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
-      observability:
-        '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
-      security: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>',
-      essentials:
-        '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline>',
-      billing:
-        '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
-      communication:
-        '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>',
-      users:
-        '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
-      tasks:
-        '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>',
-      business:
-        '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>',
-    };
-
-    const iconSvgPath = categoryIconSvgs[category] || categoryIconSvgs['business'];
-    const iconSvg = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00cfc1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvgPath}</svg>`;
-
-    // Parse detailed CLI info if available
-    const parsedDetails: any = {};
-    if (detailedInfo) {
-      // Extract sections from CLI output
-      parsedDetails.profiles = this._extractSection(detailedInfo, '🎯 Profiles');
-      parsedDetails.features = this._extractSection(detailedInfo, '✨ Features');
-      parsedDetails.capabilities = this._extractSection(detailedInfo, '⚡ Capabilities');
-      parsedDetails.runtimeDeps = this._extractSection(detailedInfo, '📦 Runtime Dependencies');
-      parsedDetails.configuration = this._extractSection(
-        detailedInfo,
-        '⚙️ Configuration Variables'
-      );
-      parsedDetails.compatibility = this._extractSection(detailedInfo, '🔄 Compatibility');
-      parsedDetails.documentation = this._extractSection(detailedInfo, '📚 Documentation');
-      parsedDetails.support = this._extractSection(detailedInfo, '💬 Support');
-      parsedDetails.changelog = this._extractSection(detailedInfo, '📝 Changelog');
-    }
-
-    return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-            padding: 0;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-        .header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--vscode-editor-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            padding: 20px;
-        }
-        .header-content {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        .icon { font-size: 48px; }
-        .header-info { flex: 1; }
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-        .meta {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .version {
-            color: var(--vscode-descriptionForeground);
-            font-size: 14px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .badge.stable { background: #4CAF50; color: white; }
-        .badge.beta { background: #FF9800; color: white; }
-        .badge.experimental { background: #F44336; color: white; }
-        .badge.category {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        
-        .tabs {
-            display: flex;
-            gap: 4px;
-            padding: 0 20px;
-            background: var(--vscode-editor-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            overflow-x: auto;
-            position: sticky;
-            top: 89px;
-            z-index: 99;
-        }
-        .tab {
-            padding: 12px 20px;
-            cursor: pointer;
-            border: none;
-            background: transparent;
-            color: var(--vscode-descriptionForeground);
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.2s;
-            border-bottom: 2px solid transparent;
-            white-space: nowrap;
-        }
-        .tab:hover {
-            color: var(--vscode-foreground);
-            background: var(--vscode-list-hoverBackground);
-        }
-        .tab.active {
-            color: #00cfc1;
-            border-bottom-color: #00cfc1;
-        }
-        
-        .content {
-            padding: 20px;
-        }
-        .tab-panel {
-            display: none;
-            animation: fadeIn 0.3s;
-        }
-        .tab-panel.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .section {
-            margin-bottom: 24px;
-        }
-        .section-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: #00cfc1;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .description {
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 16px;
-        }
-        
-        .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .tag {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        
-        .list-item {
-            padding: 12px;
-            margin-bottom: 8px;
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        .list-item-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        .list-item-desc {
-            color: var(--vscode-descriptionForeground);
-            font-size: 12px;
-        }
-        
-        .install-command {
-            background: var(--vscode-textCodeBlock-background);
-            border: 1px solid var(--vscode-panel-border);
-            padding: 16px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .copy-btn {
-            background: #00cfc1;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .copy-btn:hover { opacity: 0.85; }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 12px;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--vscode-descriptionForeground);
-            font-size: 14px;
-        }
-        
-        pre {
-            background: var(--vscode-textCodeBlock-background);
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            border: 1px solid var(--vscode-panel-border);
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="header-content">
-            <div class="icon">${iconSvg}</div>
-            <div class="header-info">
-                <div class="title">${name}</div>
-                <div class="meta">
-                    <span class="version">v${version}</span>
-                    <span class="badge ${status}">${status}</span>
-                    <span class="badge category">${category}</span>
-                    <span class="badge category">${slug}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="tabs">
-        <button class="tab active" onclick="switchTab(event, 'overview')">Overview</button>
-        <button class="tab" onclick="switchTab(event, 'dependencies')">Dependencies</button>
-        <button class="tab" onclick="switchTab(event, 'configuration')">Configuration</button>
-        <button class="tab" onclick="switchTab(event, 'profiles')">Profiles</button>
-        <button class="tab" onclick="switchTab(event, 'features')">Features</button>
-        <button class="tab" onclick="switchTab(event, 'docs')">Documentation</button>
-    </div>
-    
-    <div class="content">
-        <!-- Overview Tab -->
-        <div id="overview" class="tab-panel active">
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                    </svg>
-                    Description
-                </div>
-                <div class="description">${description}</div>
-            </div>
-            
-            ${
-              tags.length > 0
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                    </svg>
-                    Tags
-                </div>
-                <div class="tags">
-                    ${tags.map((tag: string) => `<span class="tag">${tag}</span>`).join('')}
-                </div>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              parsedDetails.capabilities
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                    Capabilities
-                </div>
-                <pre>${parsedDetails.capabilities}</pre>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              parsedDetails.compatibility
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <polyline points="23 4 23 10 17 10"></polyline>
-                        <polyline points="1 20 1 14 7 14"></polyline>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                    </svg>
-                    Compatibility
-                </div>
-                <pre>${parsedDetails.compatibility}</pre>
-            </div>
-            `
-                : ''
-            }
-            
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Installation
-                </div>
-                <div class="install-command">
-                    <code>rapidkit add module ${slug}</code>
-                    <button class="copy-btn" onclick="copyCommand()">Copy</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Dependencies Tab -->
-        <div id="dependencies" class="tab-panel">
-            ${
-              dependencies.length > 0
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                    </svg>
-                    Module Dependencies
-                </div>
-                <div class="tags">
-                    ${dependencies.map((dep: string) => `<span class="tag">${dep}</span>`).join('')}
-                </div>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              parsedDetails.runtimeDeps
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line>
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                    Runtime Dependencies
-                </div>
-                <pre>${parsedDetails.runtimeDeps}</pre>
-            </div>
-            `
-                : `<div class="empty-state">No dependencies information available</div>`
-            }
-        </div>
-        
-        <!-- Configuration Tab -->
-        <div id="configuration" class="tab-panel">
-            ${
-              parsedDetails.configuration
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M12 1v6m0 6v6m5.196-11.196l-4.242 4.242m-4.242 0L4.804 4.804M1 12h6m6 0h6m-11.196 5.196l4.242-4.242m4.242 0l4.242 4.242"></path>
-                    </svg>
-                    Environment Variables
-                </div>
-                <pre>${parsedDetails.configuration}</pre>
-            </div>
-            `
-                : `<div class="empty-state">No configuration variables available</div>`
-            }
-        </div>
-        
-        <!-- Profiles Tab -->
-        <div id="profiles" class="tab-panel">
-            ${
-              parsedDetails.profiles
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <circle cx="12" cy="12" r="6"></circle>
-                        <circle cx="12" cy="12" r="2"></circle>
-                    </svg>
-                    Installation Profiles
-                </div>
-                <pre>${parsedDetails.profiles}</pre>
-            </div>
-            `
-                : `<div class="empty-state">No profiles information available</div>`
-            }
-        </div>
-        
-        <!-- Features Tab -->
-        <div id="features" class="tab-panel">
-            ${
-              parsedDetails.features
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
-                        <path d="M5 3v4"></path>
-                        <path d="M19 17v4"></path>
-                        <path d="M3 5h4"></path>
-                        <path d="M17 19h4"></path>
-                    </svg>
-                    Module Features
-                </div>
-                <pre>${parsedDetails.features}</pre>
-            </div>
-            `
-                : `<div class="empty-state">No features information available</div>`
-            }
-        </div>
-        
-        <!-- Documentation Tab -->
-        <div id="docs" class="tab-panel">
-            ${
-              parsedDetails.documentation
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                    </svg>
-                    Documentation
-                </div>
-                <pre>${parsedDetails.documentation}</pre>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              parsedDetails.support
-                ? `
-            <div class="section">
-                <div class="section-title">💬 Support</div>
-                <pre>${parsedDetails.support}</pre>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              parsedDetails.changelog
-                ? `
-            <div class="section">
-                <div class="section-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:6px;">
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                    Changelog
-                </div>
-                <pre>${parsedDetails.changelog}</pre>
-            </div>
-            `
-                : ''
-            }
-            
-            ${
-              !parsedDetails.documentation && !parsedDetails.support && !parsedDetails.changelog
-                ? `<div class="empty-state">No documentation available</div>`
-                : ''
-            }
-        </div>
-    </div>
-    
-    <script>
-        function switchTab(event, tabId) {
-            // Hide all panels
-            document.querySelectorAll('.tab-panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
-            
-            // Deactivate all tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected panel
-            document.getElementById(tabId).classList.add('active');
-            
-            // Activate clicked tab
-            event.target.classList.add('active');
-        }
-        
-        function copyCommand() {
-            const command = 'rapidkit add module ${slug}';
-            navigator.clipboard.writeText(command).then(() => {
-                const btn = event.target;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy', 2000);
-            });
-        }
-    </script>
-</body>
-</html>`;
-  }
-
-  private _extractSection(text: string, sectionHeader: string): string {
-    const lines = text.split('\n');
-    const startIndex = lines.findIndex((line) => line.includes(sectionHeader));
-    if (startIndex === -1) {
-      return '';
-    }
-
-    // Check if line starts with emoji followed by space
-    const nextSectionIndex = lines.findIndex((line, idx) => {
-      if (idx <= startIndex) {
-        return false;
-      }
-      // Check if line starts with emoji marker (common Unicode ranges for emoji)
-      const trimmed = line.trimStart();
-      return trimmed.length > 0 && /^[\p{Emoji}\p{Emoji_Component}]\s/u.test(trimmed);
-    });
-
-    const endIndex = nextSectionIndex === -1 ? lines.length : nextSectionIndex;
-    return lines
-      .slice(startIndex + 1, endIndex)
-      .join('\n')
-      .trim();
   }
 
   public dispose() {

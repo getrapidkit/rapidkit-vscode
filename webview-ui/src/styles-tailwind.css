@@ -1228,10 +1228,90 @@
   }
 
   /* Example Workspaces */
+  /* Smart Grid layout - adapts to number of cards */
+  .example-workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* When we have exactly 1 card: full width */
+  .example-workspace-grid:has(.example-card:nth-child(1):last-child) {
+    grid-template-columns: 1fr;
+  }
+
+  /* When we have exactly 2 cards: 2 columns (50% each) */
+  .example-workspace-grid:has(.example-card:nth-child(2):last-child) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* When we have exactly 4 cards: 3 in first row, 1 full-width in second row */
+  .example-workspace-grid:has(.example-card:nth-child(4):last-child) .example-card:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  /* When we have exactly 5 cards: 3 in first row, 2 in second row */
+  .example-workspace-grid:has(.example-card:nth-child(5):last-child) .example-card:nth-child(4) {
+    grid-column: auto;
+  }
+
+  /* When we have exactly 7 cards: 3+3+1 */
+  .example-workspace-grid:has(.example-card:nth-child(7):last-child) .example-card:nth-child(7) {
+    grid-column: 1 / -1;
+  }
+
+  /* When we have exactly 8 cards: 3+3+2 */
+  .example-workspace-grid:has(.example-card:nth-child(8):last-child) .example-card:nth-child(7) {
+    grid-column: auto;
+  }
+
+  /* Tablet: 2 columns max (between mobile and desktop) */
+  @media (min-width: 961px) and (max-width: 1400px) {
+    .example-workspace-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Reset special layouts on tablet */
+    .example-workspace-grid .example-card {
+      grid-column: auto !important;
+    }
+
+    /* When we have exactly 1 card on tablet: full width */
+    .example-workspace-grid:has(.example-card:nth-child(1):last-child) {
+      grid-template-columns: 1fr;
+    }
+
+    /* When we have exactly 3 cards on tablet: 2+1 */
+    .example-workspace-grid:has(.example-card:nth-child(3):last-child) .example-card:nth-child(3) {
+      grid-column: 1 / -1 !important;
+    }
+
+    /* When we have exactly 5 cards on tablet: 2+2+1 */
+    .example-workspace-grid:has(.example-card:nth-child(5):last-child) .example-card:nth-child(5) {
+      grid-column: 1 / -1 !important;
+    }
+  }
+
+  /* Mobile: 1 column always (applies to smaller screens and narrow windows) */
+  @media (max-width: 960px) {
+    .example-workspace-grid {
+      grid-template-columns: 1fr !important;
+      gap: 10px;
+    }
+
+    /* Reset all special layouts on mobile */
+    .example-workspace-grid .example-card {
+      grid-column: auto !important;
+    }
+  }
+
   .example-card {
     background: var(--vscode-editor-inactiveSelectionBackground);
     border: 1px solid var(--vscode-panel-border);
-    @apply rounded-md p-3 mb-2.5 transition-all duration-200;
+    @apply rounded-md p-3 transition-all duration-200;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .example-card:hover {
@@ -1241,6 +1321,7 @@
 
   .example-header {
     @apply flex justify-between items-start gap-3 mb-2;
+    flex: 0 0 auto;
   }
 
   .example-info {
@@ -1248,17 +1329,18 @@
   }
 
   .example-title {
-    @apply font-semibold text-[13px] mb-1 flex items-center gap-2 flex-wrap;
+    @apply font-semibold text-[13px] mb-1.5 flex items-center gap-2 flex-wrap;
     color: var(--vscode-foreground);
   }
 
   .example-description {
-    @apply text-[11px] leading-snug;
+    @apply text-[11px] mb-2;
+    line-height: 1.5;
     color: var(--vscode-descriptionForeground);
   }
 
   .example-tags {
-    @apply flex gap-1 flex-wrap;
+    @apply flex gap-1 flex-wrap mt-1.5;
   }
 
   .example-tag {
@@ -1268,7 +1350,7 @@
   }
 
   .example-actions {
-    @apply flex gap-1.5 flex-shrink-0;
+    @apply flex gap-1.5 flex-shrink-0 flex-wrap;
   }
 
   .example-btn {
@@ -1298,8 +1380,10 @@
   }
 
   .example-projects {
-    @apply mt-2 border-t pt-2;
+    @apply border-t pt-2;
     border-color: var(--vscode-panel-border);
+    margin-top: auto;
+    flex: 0 0 auto;
   }
 
   .example-projects-toggle {

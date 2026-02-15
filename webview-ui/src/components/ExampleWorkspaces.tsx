@@ -55,7 +55,7 @@ export function ExampleWorkspaces({ examples, onClone, onUpdate, cloningExample,
                 Example Workspaces
             </div>
 
-            <div className="workspace-list">
+            <div className="example-workspace-grid">
                 {examples.map((example) => {
                     const isCloning = cloningExample === example.name;
                     const isUpdating = updatingExample === example.name;

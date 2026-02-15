@@ -1,33 +1,28 @@
 # Release Notes
 
-## Latest Release: v0.11.0 (February 14, 2026)
+## Latest Release: v0.12.0 (February 15, 2026)
 
-### 🌐 Release: v0.11.0 — Dynamic Examples + Kit Selection + Workspace Export/Import
+### 🪟 Release: v0.12.0 — Module Details Modal + Workspace-First CLI Resolution
 
-**Summary:** Introduced dynamic example workspaces from GitHub, enhanced kit selection with dropdown in modal, complete workspace export/import with ZIP archives, and various UX improvements for better visual hierarchy.
+**Summary:** Introduced an in-app module details modal in the Welcome webview, improved workspace-first CLI binary resolution for nested projects, and added automatic workspace/module refresh after module install.
 
 #### Added
 
-- 🌐 **Dynamic Example Workspaces** — Real-time loading from GitHub repository with clone tracking and update detection
-- 🎨 **Dynamic Kit Selection** — Kit dropdown in project modal with framework filtering and dynamic loading from CLI
-- 📦 **Full Workspace Export/Import** — Complete backup/restore with ZIP archives, smart exclusions, and progress tracking
-- 🆕 **New Services** — ExamplesService and KitsService for GitHub and CLI integration with caching
+- 🪟 **Module Details Modal** — Rich tabbed module details UI (overview, dependencies, configuration, profiles, features, docs)
+- 🧩 **Expanded ModuleData Typing** — Support for runtime dependencies, profiles, documentation, compatibility, support, and changelog metadata
+- 🔄 **Workspace Status Refresh Hook** — Refreshes installed modules and catalog after successful module installation
 
 #### Changed
 
-- ✨ **UX Improvements** — Larger section headers (24px icons), better spacing, Features moved to footer, Upload icon for export
-- 🎯 **Project Creation Flow** — Kit selection in modal, framework-based kit filtering, streamlined workflow
-- 📋 **Workspace Context Fix** — Proper workspace path passing to project creation
+- 🧭 **CLI Resolution Strategy** — Searches for workspace `.venv/bin/rapidkit` by walking parent directories before global fallback
+- 📡 **Module Info Fetching** — Uses `rapidkit modules info <module> --json` and merges with catalog data
+- 🎨 **Webview UX** — Module details now open in modal instead of separate HTML panel
 
 #### Technical
 
-- **New Dependencies:** archiver, adm-zip for ZIP operations
-- **Code Stats:** 3,111 lines added, 701 removed across 20 files
-- **Services:** ExamplesService (GitHub API + cache), KitsService (CLI integration + fallback)
-
-#### Removed
-
-- ❌ **Config-Only Export** — Simplified to Full Archive workflow only
+- **UI Architecture:** Replaced standalone HTML module details page with React modal workflow
+- **CLI Reliability:** Better `.venv` discovery in nested workspace/project layouts
+- **State Sync:** Installed-modules list now refreshes immediately after add-module success
 
 ---
 
@@ -71,6 +66,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.12.0](releases/RELEASE_NOTES_v0.12.0.md) | Feb 15, 2026 | 🪟 Module details modal, 🧭 workspace-first CLI resolution, 🔄 post-install refresh |
 | [v0.11.0](releases/RELEASE_NOTES_v0.11.0.md) | Feb 14, 2026 | 🌐 Dynamic Examples, 🎨 Kit Selection, 📦 Workspace Export/Import |
 | [v0.10.0](releases/RELEASE_NOTES_v0.10.0.md) | Feb 12, 2026 | 🚀 Project Actions, 🎯 Smart Browser, 📡 Port Detection |
 | [v0.9.0](releases/RELEASE_NOTES_v0.9.0.md) | Feb 10, 2026 | 🎭 Modal system, ⚡ Smart caching, 📱 Responsive design |
