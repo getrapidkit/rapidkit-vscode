@@ -180,18 +180,21 @@ h1 .kit {
 /* Quick Links Grid */
 .quick-links {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
 }
 
 .quick-link {
     background: var(--vscode-editor-inactiveSelectionBackground);
     border: 1px solid var(--vscode-panel-border);
     border-radius: 8px;
-    padding: 16px 12px;
+    padding: 12px 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
+    min-width: 0;
+    /* allow items to shrink below content size */
+    overflow: hidden;
 }
 
 .quick-link:hover {
@@ -211,6 +214,10 @@ h1 .kit {
 
 .quick-link.nestjs {
     --link-color: #E0234E;
+}
+
+.quick-link.go {
+    --link-color: #00ADD8;
 }
 
 .quick-link.modules {

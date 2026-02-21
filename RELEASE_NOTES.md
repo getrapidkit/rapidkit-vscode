@@ -1,6 +1,41 @@
 # Release Notes
 
-## Latest Release: v0.12.0 (February 15, 2026)
+## Latest Release: v0.13.0 (February 21, 2026)
+
+### 🐹 Release: v0.13.0 — Go Framework Support + Sidebar Quick Actions Redesign
+
+**Summary:** Full Go framework support (Go/Fiber, Go/Gin) in sidebar Quick Actions and Welcome Page, workspace creation routed through Welcome Panel modal, smart init detection for Go projects, and modules disabled for Go projects.
+
+#### Added
+
+- 🐹 **Go Framework Quick Actions** — FastAPI / NestJS / Go buttons now sit in a compact 3-column row in the sidebar Quick Actions panel
+- 🪟 **Workspace Button → Welcome Modal** — Clicking Workspace in sidebar opens Welcome Panel and triggers the Create Workspace modal instead of an inline VS Code input box
+- 🚫 **Modules Disabled for Go Projects** — Both the sidebar AVAILABLE MODULES panel and the Welcome Page Module Browser show a clear "not available" banner when a Go project is selected; search and filters are hidden
+- 🐹 **Go Project Type Detection** — `_detectProjectType` now returns `'go'` via `go.mod` check; `projectType` is propagated through `WorkspaceStatus` to the webview
+
+#### Fixed
+
+- 🔧 **`@latest` Removed from All npx Calls** — All 12 npx invocations across 6 files now use `npx rapidkit` (no version tag), preventing the npm registry version (0.21.2) from overriding the local version (0.22.0) and breaking `create workspace` / `create project` commands
+- 🔧 **Go Project Init Check** — `rapidkit.projectDev` command now checks for `go.sum` instead of `node_modules` to determine whether a Go project is initialized
+- 🔧 **Go Dev Server Port & Command** — Default port for Go projects set to `3000`; dev command is `npx rapidkit dev` (not `npm run start:dev`)
+- 🔧 **openWorkspaceModal Fix** — Sidebar Workspace button was triggering loading state on HeroAction card; now correctly calls `setShowCreateModal(true)`
+
+#### Changed
+
+- 🎨 **Framework Button Size** — Framework buttons in Quick Actions redesigned: smaller icons (16px), reduced padding and min-height (44px), tighter gap — all three fit cleanly in one row
+- 🧭 **Module Explorer setProjectPath** — Now accepts optional `projectType` argument forwarded from both tree-selection handlers
+
+#### Technical
+
+- **`WorkspaceStatus` type** — Added `projectType?: 'fastapi' | 'nestjs' | 'go'` field
+- **`ModuleBrowser` component** — Added `modulesDisabled` prop; hides search/filters and renders Go banner
+- **`WelcomePanel._detectProjectTypeStatic()`** — New static helper reused by both instance method and `updateWithProject`
+- **`WelcomePanel.openWorkspaceModal()`** — New static method using `__workspace__` pending modal token
+- **`rapidkit.openWorkspaceModal` command** — Registered in `extension.ts`
+
+---
+
+## Previous Release: v0.12.0 (February 15, 2026)
 
 ### 🪟 Release: v0.12.0 — Module Details Modal + Workspace-First CLI Resolution
 
@@ -66,6 +101,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.13.0](releases/RELEASE_NOTES_v0.13.0.md) | Feb 21, 2026 | 🐹 Go framework support, 🪟 Workspace modal routing, 🔧 @latest fix, 🚫 Modules disabled for Go |
 | [v0.12.0](releases/RELEASE_NOTES_v0.12.0.md) | Feb 15, 2026 | 🪟 Module details modal, 🧭 workspace-first CLI resolution, 🔄 post-install refresh |
 | [v0.11.0](releases/RELEASE_NOTES_v0.11.0.md) | Feb 14, 2026 | 🌐 Dynamic Examples, 🎨 Kit Selection, 📦 Workspace Export/Import |
 | [v0.10.0](releases/RELEASE_NOTES_v0.10.0.md) | Feb 12, 2026 | 🚀 Project Actions, 🎯 Smart Browser, 📡 Port Detection |

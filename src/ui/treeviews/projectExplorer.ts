@@ -68,6 +68,19 @@ function shouldHide(name: string, projectType?: string): boolean {
   return false;
 }
 
+function frameworkLabel(type: string): string {
+  if (type === 'fastapi') {
+    return 'FastAPI';
+  }
+  if (type === 'nestjs') {
+    return 'NestJS';
+  }
+  if (type === 'go') {
+    return 'Go';
+  }
+  return type;
+}
+
 export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<ProjectTreeItem | undefined | null | void> =
     new vscode.EventEmitter<ProjectTreeItem | undefined | null | void>();
@@ -307,6 +320,22 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
               // Invalid package.json, skip
             }
           }
+          // Check for Go project (go.mod)
+          else {
+            const goModPath = path.join(projectPath, 'go.mod');
+            if (await fs.pathExists(goModPath)) {
+              const project: RapidKitProject = {
+                name: entry.name,
+                path: projectPath,
+                type: 'go',
+                kit: 'standard',
+                modules: [],
+                isValid: true,
+                workspacePath: wsPath,
+              };
+              this.projects.push(project);
+            }
+          }
         }
       }
     } catch (error) {
@@ -339,19 +368,32 @@ export class ProjectTreeItem extends vscode.TreeItem {
     // === Project Item (not running) ===
     if (contextValue === 'project' && project) {
       this.tooltip = `${project.path}\n\n▶️ Click Play to start dev server${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
-      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'}${isSelected ? ' ✓' : ''}`;
+      this.description = `${frameworkLabel(project.type)}${isSelected ? ' ✓' : ''}`;
 
       // Use custom framework icons
       if (extensionPath) {
-        const iconName = project.type === 'fastapi' ? 'fastapi.svg' : 'nestjs.svg';
+        const iconName =
+          project.type === 'fastapi'
+            ? 'fastapi.svg'
+            : project.type === 'nestjs'
+              ? 'nestjs.svg'
+              : 'go.svg';
         this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
       } else {
-        this.iconPath = new vscode.ThemeIcon(
-          project.type === 'fastapi' ? 'symbol-method' : 'symbol-class',
-          new vscode.ThemeColor(
-            isSelected ? 'charts.blue' : project.type === 'fastapi' ? 'charts.green' : 'charts.red'
-          )
-        );
+        const iconId =
+          project.type === 'fastapi'
+            ? 'symbol-method'
+            : project.type === 'nestjs'
+              ? 'symbol-class'
+              : 'symbol-namespace';
+        const colorId = isSelected
+          ? 'charts.blue'
+          : project.type === 'fastapi'
+            ? 'charts.green'
+            : project.type === 'nestjs'
+              ? 'charts.red'
+              : 'charts.blue';
+        this.iconPath = new vscode.ThemeIcon(iconId, new vscode.ThemeColor(colorId));
       }
 
       // Add click command to select project
@@ -365,11 +407,16 @@ export class ProjectTreeItem extends vscode.TreeItem {
     else if (contextValue === 'project-running' && project) {
       const portInfo = runningPort ? ` on port ${runningPort}` : '';
       this.tooltip = `${project.path}\n\n🚀 Server running${portInfo}! Click Stop to terminate${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
-      this.description = `${project.type === 'fastapi' ? 'FastAPI' : 'NestJS'} 🟢${isSelected ? ' ✓' : ''}${runningPort ? ` :${runningPort}` : ''}`;
+      this.description = `${frameworkLabel(project.type)} 🟢${isSelected ? ' ✓' : ''}${runningPort ? ` :${runningPort}` : ''}`;
 
       // Use custom framework icons with running indicator
       if (extensionPath) {
-        const iconName = project.type === 'fastapi' ? 'fastapi.svg' : 'nestjs.svg';
+        const iconName =
+          project.type === 'fastapi'
+            ? 'fastapi.svg'
+            : project.type === 'nestjs'
+              ? 'nestjs.svg'
+              : 'go.svg';
         this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
       } else {
         this.iconPath = new vscode.ThemeIcon(

@@ -196,10 +196,16 @@
   /* Quick Links */
   .quick-links {
     @apply grid gap-3;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   @media (max-width: 480px) {
+    .quick-links {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 320px) {
     .quick-links {
       grid-template-columns: 1fr;
     }
@@ -222,6 +228,10 @@
 
   .quick-link.nestjs:hover {
     border-color: #E0234E;
+  }
+
+  .quick-link.go:hover {
+    border-color: #00ADD8;
   }
 
   .quick-link-icon {

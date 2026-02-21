@@ -15,7 +15,7 @@ export async function isFirstTimeSetup(): Promise<boolean> {
 
   // Check if rapidkit npm is available (cached by npx)
   try {
-    const result = await run('npx', ['--yes', 'rapidkit@latest', '--version'], {
+    const result = await run('npx', ['rapidkit', '--version'], {
       timeout: 3000,
       stdio: 'pipe',
     });

@@ -69,12 +69,12 @@ export class KitsService {
       const cached = await this._loadCache();
       if (cached && Date.now() - cached.timestamp < this.ttlMs) {
         console.log('[KitsService] Using cached kits');
-        return cached.kits;
+        return this._mergeWithFallback(cached.kits);
       }
 
       // Fetch from CLI
       console.log('[KitsService] Fetching kits from CLI...');
-      const result = await run('npx', ['--yes', 'rapidkit@latest', 'list', '--json'], {
+      const result = await run('npx', ['rapidkit', 'list', '--json'], {
         timeout: 15000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -94,7 +94,7 @@ export class KitsService {
         throw new Error('Invalid response from rapidkit list --json');
       }
 
-      const kits = parsed.kits;
+      const kits = this._mergeWithFallback(parsed.kits);
 
       // Save to cache
       await this._saveCache({ kits, timestamp: Date.now() });
@@ -108,7 +108,7 @@ export class KitsService {
       const cached = await this._loadCache();
       if (cached && cached.kits.length > 0) {
         console.log('[KitsService] Using stale cache as fallback');
-        return cached.kits;
+        return this._mergeWithFallback(cached.kits);
       }
 
       // Ultimate fallback: return hardcoded kits
@@ -117,9 +117,24 @@ export class KitsService {
   }
 
   /**
+   * Merge kits with fallback list – ensures new categories (e.g. Go) are always
+   * present even when the live cache was built before they were added.
+   */
+  private _mergeWithFallback(kits: Kit[]): Kit[] {
+    const fallback = this._getFallbackKits();
+    const merged = [...kits];
+    for (const fallbackKit of fallback) {
+      if (!merged.some((k) => k.name === fallbackKit.name)) {
+        merged.push(fallbackKit);
+      }
+    }
+    return merged;
+  }
+
+  /**
    * Get kits by category
    */
-  async getKitsByCategory(category: 'fastapi' | 'nestjs'): Promise<Kit[]> {
+  async getKitsByCategory(category: 'fastapi' | 'nestjs' | 'go'): Promise<Kit[]> {
     const allKits = await this.getKits();
     return allKits.filter((kit) => kit.category === category);
   }
@@ -185,6 +200,22 @@ export class KitsService {
         tags: ['javascript', 'modular', 'nestjs', 'scalable', 'standard', 'typescript'],
         description:
           'Production-ready NestJS starter kit with modular RapidKit integration and TypeScript best practices.',
+      },
+      {
+        name: 'gofiber.standard',
+        display_name: 'Go/Fiber Standard Kit',
+        category: 'go',
+        version: '0.1.0',
+        tags: ['go', 'fiber', 'high-performance', 'modular', 'standard'],
+        description: 'High-performance Go web service built with the Fiber framework.',
+      },
+      {
+        name: 'gogin.standard',
+        display_name: 'Go/Gin Standard Kit',
+        category: 'go',
+        version: '0.1.0',
+        tags: ['go', 'gin', 'high-performance', 'modular', 'standard'],
+        description: 'Lightweight Go web service built with the Gin framework.',
       },
     ];
   }

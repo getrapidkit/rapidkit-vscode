@@ -15,7 +15,7 @@ export interface RapidKitWorkspace {
 export interface RapidKitProject {
   name: string;
   path: string;
-  type: 'fastapi' | 'nestjs';
+  type: 'fastapi' | 'nestjs' | 'go';
   kit: string;
   modules: string[];
   isValid: boolean;
@@ -40,7 +40,7 @@ export interface RapidKitTemplate {
   name: string;
   displayName: string;
   description: string;
-  framework: 'fastapi' | 'nestjs';
+  framework: 'fastapi' | 'nestjs' | 'go';
   category: string;
   files: string[];
 }
@@ -53,8 +53,8 @@ export interface WorkspaceConfig {
 
 export interface ProjectConfig {
   name: string;
-  framework: 'fastapi' | 'nestjs';
-  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
+  framework: 'fastapi' | 'nestjs' | 'go';
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard', 'gofiber.standard', 'gogin.standard')
   packageManager?: string; // For NestJS: npm, yarn, pnpm
 }
 

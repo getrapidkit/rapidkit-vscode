@@ -193,6 +193,15 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }),
       vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
+      vscode.commands.registerCommand(
+        'rapidkit.openProjectModal',
+        (framework: 'fastapi' | 'nestjs' | 'go') => {
+          WelcomePanel.openProjectModal(context, framework);
+        }
+      ),
+      vscode.commands.registerCommand('rapidkit.openWorkspaceModal', () => {
+        WelcomePanel.openWorkspaceModal(context);
+      }),
       vscode.commands.registerCommand('rapidkit.openSetup', () => SetupPanel.show(context)),
       vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
         if (workspaceExplorer) {
@@ -319,7 +328,7 @@ export async function activate(context: vscode.ExtensionContext) {
           }
 
           // Update Module Explorer to show installed modules for this project
-          moduleExplorer.setProjectPath(item.project.path);
+          moduleExplorer.setProjectPath(item.project.path, item.project.type);
         }
       }),
       vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item: any) => {
@@ -554,6 +563,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
           // Check if project is initialized based on framework
           const isFastAPI = projectType === 'fastapi';
+          const isGoProject = projectType === 'go';
 
           let isInitialized = false;
           let missingText = '';
@@ -563,6 +573,12 @@ export async function activate(context: vscode.ExtensionContext) {
             const venvInfo = await detectPythonVirtualenv(projectPath);
             isInitialized = venvInfo.exists;
             missingText = venvInfo.exists ? '' : 'virtualenv (.venv or Poetry cache)';
+          } else if (isGoProject) {
+            // Go: dependencies are managed globally (go install), project is ready
+            // if go.sum exists (means go mod tidy has been run)
+            const goSumPath = path.join(projectPath, 'go.sum');
+            isInitialized = fs.existsSync(goSumPath);
+            missingText = 'go.sum (run go mod tidy)';
           } else {
             // NestJS: check node_modules
             const checkPath = path.join(projectPath, 'node_modules');
@@ -631,7 +647,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
           // START the server - find available port
           const net = await import('net');
-          const defaultPort = 8000; // Both FastAPI and NestJS use 8000
+          // Go uses 3000, FastAPI & NestJS use 8000
+          const defaultPort = isGoProject ? 3000 : 8000;
           let port = defaultPort;
 
           const findAvailablePort = (startPort: number): Promise<number> => {
@@ -662,6 +679,17 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
               terminal.sendText('npx rapidkit dev');
               vscode.window.showInformationMessage(`▶️ Started FastAPI server on port ${port}`);
+            }
+          } else if (isGoProject) {
+            // Go: rapidkit dev handles port via env or flag
+            if (port !== defaultPort) {
+              terminal.sendText(`PORT=${port} npx rapidkit dev`);
+              vscode.window.showInformationMessage(
+                `▶️ Started on port ${port} (${defaultPort} was busy)`
+              );
+            } else {
+              terminal.sendText('npx rapidkit dev');
+              vscode.window.showInformationMessage(`▶️ Started Go server on port ${port}`);
             }
           } else {
             // NestJS
@@ -999,7 +1027,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (item && item instanceof ProjectTreeItem && item.project?.path) {
         setSelectedProjectPath(item.project.path);
         // Update Module Explorer to show installed modules for this project
-        moduleExplorer.setProjectPath(item.project.path);
+        moduleExplorer.setProjectPath(item.project.path, item.project.type);
       }
     });
     context.subscriptions.push(

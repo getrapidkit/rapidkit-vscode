@@ -4,10 +4,10 @@ import type { Kit } from '@/types';
 
 interface CreateProjectModalProps {
     isOpen: boolean;
-    framework: 'fastapi' | 'nestjs';
+    framework: 'fastapi' | 'nestjs' | 'go';
     availableKits: Kit[];
     onClose: () => void;
-    onCreate: (name: string, framework: 'fastapi' | 'nestjs', kitName: string) => void;
+    onCreate: (name: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => void;
 }
 
 export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate }: CreateProjectModalProps) {
@@ -42,6 +42,13 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
             subtitle: 'TypeScript + DI',
             color: '#E0234E',
             description: 'Progressive Node.js framework for building scalable applications'
+        },
+        go: {
+            iconUrl: (window as any).GO_ICON_URI,
+            title: 'Go Project',
+            subtitle: 'Go + High Performance',
+            color: '#00ADD8',
+            description: 'High-performance Go web service using Fiber or Gin'
         }
     };
 
@@ -238,7 +245,7 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                                     validateName(e.target.value);
                                 }}
                                 onKeyDown={handleKeyPress}
-                                placeholder={framework === 'fastapi' ? 'my-fastapi-api' : 'my-nestjs-app'}
+                                placeholder={framework === 'fastapi' ? 'my-fastapi-api' : framework === 'nestjs' ? 'my-nestjs-app' : 'my-go-service'}
                                 autoFocus
                                 style={{
                                     width: '100%',
@@ -363,7 +370,7 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                             </div>
                             <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
                                 <li>Use lowercase letters, numbers, hyphens, or underscores</li>
-                                <li>Examples: {framework === 'fastapi' ? 'my-api, backend-service, api_v2' : 'my-app, admin-panel, service_core'}</li>
+                                <li>Examples: {framework === 'fastapi' ? 'my-api, backend-service, api_v2' : framework === 'nestjs' ? 'my-app, admin-panel, service_core' : 'my-service, go-api, fiber_app'}</li>
                                 <li>Project will be created in the current workspace</li>
                             </ul>
                         </div>

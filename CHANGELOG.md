@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-02-21
+
+### Added
+
+- 🐹 **Go Framework Support in Sidebar Quick Actions**
+  - FastAPI / NestJS / Go buttons in a compact 3-column row (smaller icons, reduced padding)
+  - Go project detection via `go.mod` in project explorer and type system
+  - Go icon (`go.svg`) in sidebar and Welcome Page Quick Links
+
+- 🪟 **Workspace Button Opens Welcome Modal**
+  - Sidebar Workspace button now navigates to Welcome Panel and opens Create Workspace modal
+  - `WelcomePanel.openWorkspaceModal()` static method with `__workspace__` pending-modal token
+  - `rapidkit.openWorkspaceModal` command registered in extension
+
+- 🚫 **Modules Disabled for Go Projects**
+  - Sidebar AVAILABLE MODULES shows info banner instead of module list when Go project selected
+  - Welcome Page ModuleBrowser renders Go-specific banner; search/filters hidden
+  - `ModuleExplorerProvider.setProjectPath(path, type?)` accepts optional project type
+  - `ModuleBrowser` accepts `modulesDisabled` prop
+
+### Fixed
+
+- 🔧 **Removed `@latest` from All npx Calls**
+  - Fixed in `rapidkitCLI.ts`, `kitsService.ts`, `firstTimeSetup.ts`, `updateChecker.ts`, `doctor.ts`, `checkSystem.ts`
+  - Prevents npm registry version (stale) from overriding local version and breaking `create workspace` / `create project`
+
+- 🔧 **Go Project Init Detection**
+  - `rapidkit.projectDev` now checks `go.sum` (not `node_modules`) for Go projects
+  - Default port for Go projects set to `3000`; uses `npx rapidkit dev` instead of `npm run start:dev`
+
+- 🔧 **openWorkspaceModal Wrong State**
+  - Was calling `setIsCreatingWorkspace(true)` (loading card) instead of `setShowCreateModal(true)` (modal open)
+
+### Changed
+
+- 🎨 **Framework Button Sizing** — Icons reduced to 16px, min-height 44px, padding 5px 2px, label font 9.5px
+- 🧭 **WorkspaceStatus Type** — Added `projectType?: 'fastapi' | 'nestjs' | 'go'`
+- 🧭 **Project Type Propagation** — `updateWithProject` sends `projectType`; `_detectProjectTypeStatic` shared static helper
+
 ## [0.12.0] - 2026-02-15
 
 ### Added

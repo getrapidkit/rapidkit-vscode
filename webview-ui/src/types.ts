@@ -119,6 +119,7 @@ export interface WorkspaceStatus {
   hasWorkspace: boolean;
   workspaceName?: string;
   workspacePath?: string;
+  projectType?: 'fastapi' | 'nestjs' | 'go';
   installedModules?: { slug: string; version: string; display_name: string }[];
   isRunning?: boolean;
   runningPort?: number;

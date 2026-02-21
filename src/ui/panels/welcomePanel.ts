@@ -22,6 +22,48 @@ export class WelcomePanel {
   private static _selectedProject: { name: string; path: string } | null = null;
   private _modulesCatalog: ModuleData[] = MODULES;
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
+  /** Framework name queued to open as a modal after the webview becomes ready */
+  private static _pendingModal: string | null = null;
+
+  /**
+   * Open the welcome panel and immediately trigger the Create Project modal
+   * for the given framework. Safe to call whether the panel is open or not.
+   */
+  public static openProjectModal(
+    context: vscode.ExtensionContext,
+    framework: 'fastapi' | 'nestjs' | 'go'
+  ): void {
+    WelcomePanel._pendingModal = framework;
+    WelcomePanel.createOrShow(context);
+    // If the panel was already visible the 'ready' event won't fire again,
+    // so also try posting directly after a short delay.
+    setTimeout(() => {
+      if (WelcomePanel._pendingModal && WelcomePanel.currentPanel) {
+        WelcomePanel._pendingModal = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openProjectModal',
+          data: { framework },
+        });
+      }
+    }, 350);
+  }
+
+  /**
+   * Open the welcome panel and immediately trigger the Create Workspace modal.
+   * Safe to call whether the panel is open or not.
+   */
+  public static openWorkspaceModal(context: vscode.ExtensionContext): void {
+    WelcomePanel._pendingModal = '__workspace__';
+    WelcomePanel.createOrShow(context);
+    setTimeout(() => {
+      if (WelcomePanel._pendingModal === '__workspace__' && WelcomePanel.currentPanel) {
+        WelcomePanel._pendingModal = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openWorkspaceModal',
+        });
+      }
+    }, 350);
+  }
 
   /**
    * Set workspace explorer reference (called from extension.ts)
@@ -56,12 +98,16 @@ export class WelcomePanel {
         }
       }
 
+      // Detect project type for UI adaptation (e.g., hide modules for Go)
+      const projectType = await WelcomePanel._detectProjectTypeStatic(projectPath);
+
       WelcomePanel.currentPanel._panel.webview.postMessage({
         command: 'updateWorkspaceStatus',
         data: {
           hasWorkspace: true,
           workspaceName: projectName,
           workspacePath: projectPath,
+          projectType: projectType ?? undefined,
           installedModules,
           isRunning,
           runningPort,
@@ -158,6 +204,21 @@ export class WelcomePanel {
           case 'ready':
             // Send initial data to webview
             this._sendInitialData();
+            // If a modal was queued (e.g. triggered from sidebar), open it now
+            if (WelcomePanel._pendingModal) {
+              const pending = WelcomePanel._pendingModal;
+              WelcomePanel._pendingModal = null;
+              setTimeout(() => {
+                if (pending === '__workspace__') {
+                  this._panel.webview.postMessage({ command: 'openWorkspaceModal' });
+                } else {
+                  this._panel.webview.postMessage({
+                    command: 'openProjectModal',
+                    data: { framework: pending },
+                  });
+                }
+              }, 300);
+            }
             break;
           case 'createWorkspace':
             // Send loading state to webview
@@ -960,8 +1021,22 @@ export class WelcomePanel {
     }
   }
 
-  private async _detectProjectType(projectPath: string): Promise<'fastapi' | 'nestjs' | null> {
+  private async _detectProjectType(
+    projectPath: string
+  ): Promise<'fastapi' | 'nestjs' | 'go' | null> {
+    return WelcomePanel._detectProjectTypeStatic(projectPath);
+  }
+
+  static async _detectProjectTypeStatic(
+    projectPath: string
+  ): Promise<'fastapi' | 'nestjs' | 'go' | null> {
     try {
+      // Check for Go indicators
+      const goModPath = path.join(projectPath, 'go.mod');
+      if (await fs.pathExists(goModPath)) {
+        return 'go';
+      }
+
       // Check for FastAPI indicators
       const pyprojectPath = path.join(projectPath, 'pyproject.toml');
       if (await fs.pathExists(pyprojectPath)) {
@@ -1006,6 +1081,9 @@ export class WelcomePanel {
     const nestjsIconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'nestjs.svg')
     );
+    const goIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'go.svg')
+    );
 
     // Generate nonce for CSP
     const nonce = this._getNonce();
@@ -1031,6 +1109,7 @@ export class WelcomePanel {
             --icon-uri: url('${iconUri}');
             --fastapi-icon-uri: url('${fastapiIconUri}');
             --nestjs-icon-uri: url('${nestjsIconUri}');
+            --go-icon-uri: url('${goIconUri}');
         }
     </style>
 </head>
@@ -1041,6 +1120,7 @@ export class WelcomePanel {
         window.ICON_URI = '${iconUri}';
         window.FASTAPI_ICON_URI = '${fastapiIconUri}';
         window.NESTJS_ICON_URI = '${nestjsIconUri}';
+        window.GO_ICON_URI = '${goIconUri}';
     </script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

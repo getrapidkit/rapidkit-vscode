@@ -269,7 +269,7 @@ async function runSystemChecks(
     }
 
     // Get version from npx
-    const rapidkitResult = await execa('npx', ['--yes', 'rapidkit@latest', '--version'], {
+    const rapidkitResult = await execa('npx', ['rapidkit', '--version'], {
       timeout: 10000,
     });
     const version = rapidkitResult.stdout.trim();

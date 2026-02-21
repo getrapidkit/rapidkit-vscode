@@ -24,7 +24,7 @@ export function App() {
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showInstallModal, setShowInstallModal] = useState(false);
     const [showModuleDetailsModal, setShowModuleDetailsModal] = useState(false);
-    const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs'>('fastapi');
+    const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs' | 'go'>('fastapi');
     const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
     const [moduleDetails, setModuleDetails] = useState<ModuleData | null>(null);
     const [recentWorkspaces, setRecentWorkspaces] = useState<Workspace[]>([]);
@@ -100,6 +100,19 @@ export function App() {
                     setModuleDetails(message.data);
                     setShowModuleDetailsModal(true);
                     break;
+                case 'openProjectModal':
+                    // Triggered from sidebar or external command
+                    console.log('[React Webview] openProjectModal:', message.data?.framework);
+                    if (message.data?.framework) {
+                        setSelectedFramework(message.data.framework);
+                        setShowProjectModal(true);
+                    }
+                    break;
+                case 'openWorkspaceModal':
+                    // Triggered from sidebar Workspace button
+                    console.log('[React Webview] openWorkspaceModal');
+                    setShowCreateModal(true);
+                    break;
             }
         };
 
@@ -116,14 +129,14 @@ export function App() {
         vscode.postMessage('createWorkspace', { name: workspaceName });
     };
 
-    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs', kitName?: string) => {
+    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => {
         setSelectedFramework(framework);
         // If kitName is provided, we can pass it to the modal or directly create project
         // For now, just open modal and let wizard handle kit selection
         setShowProjectModal(true);
     };
 
-    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs', kitName: string) => {
+    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => {
         console.log('[React Webview] Creating project:', projectName, framework, kitName);
         vscode.postMessage('createProjectWithKit', { name: projectName, framework, kit: kitName });
     };
@@ -188,6 +201,7 @@ export function App() {
                 onProjectTest={() => vscode.postMessage('projectTest')}
                 onProjectBrowser={() => vscode.postMessage('projectBrowser')}
                 onProjectBuild={() => vscode.postMessage('projectBuild')}
+                modulesDisabled={workspaceStatus.projectType === 'go'}
             />
 
             <Features />

@@ -28,14 +28,17 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     // Handle messages from webview
     webviewView.webview.onDidReceiveMessage((message) => {
       switch (message.command) {
-        case 'createWorkspace':
-          vscode.commands.executeCommand('rapidkit.createWorkspace');
+        case 'openWorkspaceModal':
+          vscode.commands.executeCommand('rapidkit.openWorkspaceModal');
           break;
         case 'createFastAPIProject':
-          vscode.commands.executeCommand('rapidkit.createFastAPIProject');
+          vscode.commands.executeCommand('rapidkit.openProjectModal', 'fastapi');
           break;
         case 'createNestJSProject':
-          vscode.commands.executeCommand('rapidkit.createNestJSProject');
+          vscode.commands.executeCommand('rapidkit.openProjectModal', 'nestjs');
+          break;
+        case 'createGoProject':
+          vscode.commands.executeCommand('rapidkit.openProjectModal', 'go');
           break;
         case 'browseModules':
           vscode.commands.executeCommand('rapidkitModules.focus');
@@ -68,6 +71,9 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     );
     const nestjsIconUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'nestjs.svg')
+    );
+    const goIconUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'go.svg')
     );
 
     // SVG icons (inline since codicons don't work in webviews)
@@ -103,7 +109,15 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+        }
+        
+        /* Framework Row */
+        .framework-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 8px;
         }
         
         /* Icon Button */
@@ -257,6 +271,35 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             height: 18px;
         }
         
+        /* Framework compact button */
+        .framework-row .compact-btn {
+            flex-direction: column;
+            gap: 3px;
+            padding: 5px 2px;
+            min-height: 44px;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .framework-row .compact-btn .icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+        }
+        
+        .framework-row .compact-btn .icon img {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .framework-row .compact-btn .label {
+            flex: none;
+            font-size: 9.5px;
+            text-align: center;
+            line-height: 1.1;
+            opacity: 0.85;
+        }
+        
         .compact-btn:hover .icon svg {
             fill: var(--c);
         }
@@ -280,6 +323,7 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
         .workspace { --c: #00cfc1; }
         .fastapi { --c: #009688; }
         .nestjs { --c: #E0234E; }
+        .go { --c: #00ADD8; }
         .modules { --c: #9C27B0; }
         .doctor { --c: #FF9800; }
         .welcome { --c: #00cfc1; }
@@ -287,9 +331,9 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     </style>
 </head>
 <body>
-    <!-- Primary Actions: 2x2 Grid -->
+    <!-- Primary Actions: Workspace + Modules -->
     <div class="grid">
-        <button class="icon-btn workspace" onclick="send('createWorkspace')">
+        <button class="icon-btn workspace" onclick="send('openWorkspaceModal')">
             <span class="icon">${icons.workspace}</span>
             <span class="label">Workspace</span>
         </button>
@@ -299,15 +343,23 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             <span class="label">Modules</span>
             <span class="badge">27</span>
         </button>
-        
-        <button class="icon-btn fastapi" onclick="send('createFastAPIProject')">
+    </div>
+    
+    <!-- Framework Row: FastAPI | NestJS | Go -->
+    <div class="framework-row">
+        <button class="compact-btn fastapi" onclick="send('createFastAPIProject')" title="New FastAPI project">
             <span class="icon"><img src="${fastapiIconUri}" alt=""></span>
             <span class="label">FastAPI</span>
         </button>
         
-        <button class="icon-btn nestjs" onclick="send('createNestJSProject')">
+        <button class="compact-btn nestjs" onclick="send('createNestJSProject')" title="New NestJS project">
             <span class="icon"><img src="${nestjsIconUri}" alt=""></span>
             <span class="label">NestJS</span>
+        </button>
+        
+        <button class="compact-btn go" onclick="send('createGoProject')" title="New Go project">
+            <span class="icon"><img src="${goIconUri}" alt=""></span>
+            <span class="label">Go</span>
         </button>
     </div>
     

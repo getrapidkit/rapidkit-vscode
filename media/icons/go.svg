@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Go language logo inspired badge -->
+  <rect width="100" height="100" rx="14" fill="#00ADD8"/>
+  <!-- "Go" text in white, official Go style -->
+  <text
+    x="50"
+    y="66"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="48"
+    font-weight="bold"
+    fill="white"
+    text-anchor="middle"
+    letter-spacing="-2">Go</text>
+</svg>

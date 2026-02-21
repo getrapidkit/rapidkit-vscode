@@ -24,7 +24,7 @@ export async function getCurrentVersion(): Promise<string | null> {
 
   try {
     const { execa } = await import('execa');
-    const result = await execa('npx', ['--yes', 'rapidkit@latest', '--version'], {
+    const result = await execa('npx', ['rapidkit', '--version'], {
       timeout: 10000,
       reject: false,
     });

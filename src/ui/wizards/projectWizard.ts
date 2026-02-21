@@ -9,7 +9,7 @@ import { KitsService } from '../../core/kitsService';
 
 export class ProjectWizard {
   async show(
-    preselectedFramework?: 'fastapi' | 'nestjs',
+    preselectedFramework?: 'fastapi' | 'nestjs' | 'go',
     prefilledName?: string,
     preselectedKit?: string
   ): Promise<ProjectConfig | undefined> {
@@ -46,7 +46,7 @@ export class ProjectWizard {
     }
 
     // Step 2: Choose framework (skip if preselected)
-    let framework: 'fastapi' | 'nestjs';
+    let framework: 'fastapi' | 'nestjs' | 'go';
 
     if (preselectedFramework) {
       framework = preselectedFramework;
@@ -63,6 +63,12 @@ export class ProjectWizard {
           description: 'Progressive Node.js framework',
           detail: 'TypeScript-first, modular architecture',
           framework: 'nestjs' as const,
+        },
+        {
+          label: '$(symbol-namespace) Go',
+          description: 'High-performance Go web service',
+          detail: 'Fiber or Gin framework, fast compile times',
+          framework: 'go' as const,
         },
       ];
 

@@ -1,5 +1,5 @@
 interface QuickLinksProps {
-    onOpenProjectModal: (framework: 'fastapi' | 'nestjs', kitName?: string) => void;
+    onOpenProjectModal: (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => void;
 }
 
 export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
@@ -25,6 +25,17 @@ export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
                 </span>
                 <div className="quick-link-title">NestJS</div>
                 <div className="quick-link-subtitle">TypeScript + DI</div>
+            </div>
+
+            <div
+                className="quick-link go"
+                onClick={() => onOpenProjectModal('go')}
+            >
+                <span className="quick-link-icon">
+                    <img src={(window as any).GO_ICON_URI} alt="Go" />
+                </span>
+                <div className="quick-link-title">Go</div>
+                <div className="quick-link-subtitle">Go + High Perf</div>
             </div>
         </div>
     );

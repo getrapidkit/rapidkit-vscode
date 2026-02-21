@@ -126,7 +126,7 @@ async function checkRapidKitCore(): Promise<PackageInfo> {
 
 async function checkRapidKitNpm(): Promise<PackageInfo> {
   try {
-    // Try npm list -g
+    // Try npm list -g (global install)
     const { stdout } = await execAsync('npm list -g rapidkit 2>/dev/null || echo ""');
 
     // Look for version in output like "rapidkit@0.16.3"
@@ -141,6 +141,23 @@ async function checkRapidKitNpm(): Promise<PackageInfo> {
         version,
         latestVersion,
       };
+    }
+
+    // Fallback: try npx rapidkit --version (detects npx / local installs)
+    try {
+      const { stdout: npxOut } = await execAsync('npx rapidkit --version 2>/dev/null || echo ""');
+      const npxMatch = npxOut.match(/(\d+\.\d+\.\d+)/);
+      if (npxMatch) {
+        const version = npxMatch[1];
+        const latestVersion = await getLatestNpmVersion('rapidkit');
+        return {
+          installed: true,
+          version,
+          latestVersion,
+        };
+      }
+    } catch {
+      // npx also not available
     }
 
     // Not installed - try to get latest version

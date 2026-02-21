@@ -9,15 +9,15 @@
         max-width: 100%;
         padding: 0 20px;
     }
-    
+
     .modules-grid {
         grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     }
-    
+
     .quick-links {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
     }
-    
+
     .features {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -28,56 +28,56 @@
     body {
         padding: 16px 12px;
     }
-    
+
     .header h1 {
         font-size: 1.2rem;
     }
-    
+
     .tagline {
         font-size: 0.8rem;
     }
-    
+
     .logo {
         width: 40px;
         height: 40px;
     }
-    
+
     .hero-action {
         padding: 16px 20px;
     }
-    
+
     .hero-title {
         font-size: 14px;
     }
-    
+
     .section-title {
         font-size: 0.95rem;
         flex-wrap: wrap;
     }
-    
+
     .modules-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 12px;
     }
-    
+
     .module-card {
         padding: 12px;
     }
-    
+
     .command-reference {
         font-size: 12px;
     }
-    
+
     .footer-links {
         flex-direction: column;
         gap: 12px;
     }
-    
+
     /* Workspace cards better spacing */
     .ws-row-top {
         gap: 6px;
     }
-    
+
     .ws-tag {
         font-size: 9px;
         padding: 1px 5px;
@@ -89,106 +89,106 @@
     body {
         padding: 12px;
     }
-    
+
     .container {
         padding: 0 12px;
     }
-    
+
     .actions {
         grid-template-columns: 1fr;
     }
-    
+
     .quick-links {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
     }
-    
+
     .quick-link {
         padding: 12px;
     }
-    
+
     .features {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .feature {
         padding: 8px;
         font-size: 11px;
     }
-    
+
     /* Workspace cards mobile optimization */
     .ws-card {
         padding: 10px 12px;
     }
-    
+
     .ws-row-top {
         flex-wrap: wrap;
         height: auto;
         gap: 4px;
     }
-    
+
     .ws-name {
         flex-basis: 100%;
         margin-bottom: 6px;
         font-size: 12px;
     }
-    
+
     .ws-time {
         order: 10;
     }
-    
+
     .ws-close {
         opacity: 1;
         order: 11;
     }
-    
+
     /* Module browser mobile */
     .module-filters {
         gap: 6px;
     }
-    
+
     .filter-btn {
         padding: 5px 10px;
         font-size: 10px;
     }
-    
+
     .module-search {
         padding: 8px 12px;
         font-size: 12px;
     }
-    
+
     .modules-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .module-count {
         font-size: 10px;
         padding: 3px 8px;
     }
-    
+
     /* Modal responsive */
     .progress-container {
         min-width: 90vw;
         max-width: 90vw;
         padding: 20px 16px;
     }
-    
+
     /* Setup card mobile */
     .setup-card {
         padding: 10px 12px;
     }
-    
+
     .setup-card-icon {
         width: 32px;
         height: 32px;
         font-size: 18px;
     }
-    
+
     .setup-card-title {
         font-size: 12px;
     }
-    
+
     .setup-card-subtitle {
         font-size: 10px;
     }
@@ -199,105 +199,105 @@
     body {
         padding: 10px 8px;
     }
-    
+
     .container {
         padding: 0 8px;
     }
-    
+
     /* Header mobile */
     .header h1 {
         font-size: 1.1rem;
     }
-    
+
     .logo {
         width: 36px;
         height: 36px;
     }
-    
+
     .version {
         padding: 3px 10px;
         font-size: 11px;
     }
-    
+
     /* Hero action mobile */
     .hero-action {
         padding: 14px 16px;
     }
-    
+
     .hero-icon {
         font-size: 24px;
     }
-    
+
     .hero-badge {
         padding: 5px 12px;
         font-size: 10px;
     }
-    
+
     /* Section titles mobile */
     .section-title {
         font-size: 0.9rem;
         gap: 4px;
     }
-    
+
     /* Workspace tags compact */
     .ws-tag {
         font-size: 8px;
         padding: 1px 4px;
     }
-    
+
     .ws-time {
         font-size: 9px;
     }
-    
+
     .ws-row-bottom {
         font-size: 10px;
     }
-    
+
     /* Module actions stack vertically */
     .module-actions {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     .module-install-btn,
     .module-action-btn {
         width: 100%;
         justify-content: center;
     }
-    
+
     /* Command reference mobile */
     .command-code {
         font-size: 10px;
         padding: 6px 8px;
     }
-    
+
     .command-copy {
         padding: 5px 10px;
         font-size: 10px;
     }
-    
+
     /* Shortcuts stack */
     .shortcuts {
         flex-direction: column;
         gap: 12px;
         align-items: flex-start;
     }
-    
+
     .kbd {
         font-size: 9px;
         padding: 2px 5px;
     }
-    
+
     /* Footer mobile */
     .footer {
         margin-top: 30px;
         padding-top: 16px;
     }
-    
+
     .footer-link {
         font-size: 12px;
     }
-    
+
     .copyright {
         font-size: 11px;
     }
@@ -308,11 +308,11 @@
     body {
         padding: 8px 6px;
     }
-    
+
     .container {
         padding: 0 6px;
     }
-    
+
     /* Reduce border radius for compact feel */
     .module-card,
     .ws-card,
@@ -321,28 +321,28 @@
     .quick-link {
         border-radius: 6px;
     }
-    
+
     .section-title {
         font-size: 0.85rem;
     }
-    
+
     .section {
         margin-bottom: 20px;
     }
-    
+
     /* Ultra compact module cards */
     .module-card {
         padding: 10px;
     }
-    
+
     .module-header {
         gap: 8px;
     }
-    
+
     .module-name {
         font-size: 13px;
     }
-    
+
     .module-desc {
         font-size: 11px;
     }
@@ -385,6 +385,7 @@ a:focus {
 
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -393,11 +394,11 @@ a:focus {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
-    
+
     .logo {
         animation: none !important;
     }
-    
+
     .hero-icon {
         animation: none !important;
     }
@@ -405,6 +406,7 @@ a:focus {
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
+
     .hero-action,
     .quick-link,
     .module-card,
@@ -414,13 +416,13 @@ a:focus {
         border-width: 2px;
         border-style: solid;
     }
-    
+
     .module-badge,
     .ws-tag,
     .version {
         border: 1px solid currentColor;
     }
-    
+
     /* Ensure text contrast */
     .tagline,
     .module-desc,
@@ -432,6 +434,7 @@ a:focus {
 
 /* Print styles */
 @media print {
+
     .refresh-btn,
     .ws-close,
     .module-install-btn,
@@ -439,12 +442,12 @@ a:focus {
     .footer-links {
         display: none !important;
     }
-    
+
     .ws-card,
     .module-card {
         page-break-inside: avoid;
     }
-    
+
     body {
         background: white;
         color: black;
@@ -484,22 +487,24 @@ html {
    ======================================== */
 
 @media (prefers-color-scheme: dark) {
+
     /* Slightly reduce opacity of shadows in dark mode */
     .hero-action:hover,
     .module-card:hover {
-        box-shadow: 0 8px 24px rgba(0,207,193,0.15);
+        box-shadow: 0 8px 24px rgba(0, 207, 193, 0.15);
     }
-    
+
     /* Adjust gradient opacity for better dark mode */
     .hero-action {
-        background: linear-gradient(135deg, rgba(0,207,193,0.06), rgba(0,150,136,0.06));
+        background: linear-gradient(135deg, rgba(0, 207, 193, 0.06), rgba(0, 150, 136, 0.06));
     }
 }
 
 @media (prefers-color-scheme: light) {
+
     /* Stronger shadows in light mode */
     .hero-action:hover,
     .module-card:hover {
-        box-shadow: 0 8px 24px rgba(0,207,193,0.25);
+        box-shadow: 0 8px 24px rgba(0, 207, 193, 0.25);
     }
 }

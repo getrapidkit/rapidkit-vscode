@@ -24,6 +24,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
     this._onDidChangeTreeData.event;
 
   private _currentProjectPath: string | null = null;
+  private _currentProjectType: string | null = null;
   private _installedModules: Map<string, InstalledModule> = new Map();
   private _modulesCatalog: ModuleData[] = MODULES;
   private _catalogLoaded = false;
@@ -47,8 +48,9 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
     }
   }
 
-  setProjectPath(projectPath: string | null): void {
+  setProjectPath(projectPath: string | null, projectType?: string): void {
     this._currentProjectPath = projectPath;
+    this._currentProjectType = projectType ?? null;
     // Reset catalog loaded flag so catalog is re-fetched for the new project/workspace
     this._catalogLoaded = false;
     this._loadInstalledModules();
@@ -70,6 +72,18 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
         item.tooltip = 'You need to select a project first to see available modules';
         item.collapsibleState = vscode.TreeItemCollapsibleState.None;
         item.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.yellow'));
+        return [new ModuleTreeItem(item, 'placeholder')];
+      }
+
+      // Modules not supported for Go projects
+      if (this._currentProjectType === 'go') {
+        const item = new vscode.TreeItem('Modules not available for Go projects');
+        item.contextValue = 'placeholder';
+        item.description = 'Go kits manage dependencies via go mod';
+        item.tooltip =
+          'RapidKit modules are currently available for FastAPI and NestJS projects only';
+        item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+        item.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.gray'));
         return [new ModuleTreeItem(item, 'placeholder')];
       }
 

@@ -11,7 +11,7 @@ import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
-  preselectedFramework?: 'fastapi' | 'nestjs',
+  preselectedFramework?: 'fastapi' | 'nestjs' | 'go',
   projectName?: string,
   kitName?: string
 ) {

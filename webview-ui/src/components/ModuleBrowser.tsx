@@ -38,6 +38,7 @@ interface ModuleBrowserProps {
     onProjectTest?: () => void;
     onProjectBrowser?: () => void;
     onProjectBuild?: () => void;
+    modulesDisabled?: boolean;
 }
 
 export function ModuleBrowser({
@@ -53,7 +54,8 @@ export function ModuleBrowser({
     onProjectStop,
     onProjectTest,
     onProjectBrowser,
-    onProjectBuild
+    onProjectBuild,
+    modulesDisabled = false
 }: ModuleBrowserProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -186,7 +188,7 @@ export function ModuleBrowser({
             )}
 
             {/* Always show search and filters when modules exist */}
-            {modules.length > 0 && (
+            {modules.length > 0 && !modulesDisabled && (
                 <div className="module-controls">
                     <input
                         type="text"
@@ -209,7 +211,13 @@ export function ModuleBrowser({
                 </div>
             )}
 
-            {filteredModules.length === 0 && modules.length > 0 ? (
+            {modulesDisabled ? (
+                <div className="empty-state" style={{ opacity: 0.7 }}>
+                    <div className="workspace-empty-icon">🐹</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Modules not available for Go projects</div>
+                    <div style={{ fontSize: '12px', opacity: 0.75 }}>RapidKit modules support FastAPI and NestJS only.<br />Go kits manage dependencies via <code>go mod</code>.</div>
+                </div>
+            ) : filteredModules.length === 0 && modules.length > 0 ? (
                 <div className="empty-state">
                     <div className="workspace-empty-icon">🔍</div>
                     No modules found matching your search.
