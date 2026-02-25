@@ -23,6 +23,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
   private selectedWorkspace: RapidKitWorkspace | null = null;
   private fileWatcher?: vscode.FileSystemWatcher;
   private versionInfoCache: Map<string, CoreVersionInfo> = new Map();
+  private profileCache: Map<string, string | undefined> = new Map();
 
   constructor() {
     this.loadWorkspaces();
@@ -50,6 +51,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
   async refresh(): Promise<void> {
     this.versionService.clearCache();
     this.versionInfoCache.clear();
+    this.profileCache.clear();
     await this.loadWorkspaces();
     this._onDidChangeTreeData.fire();
   }
@@ -70,18 +72,28 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
         // Fetch version info (async but cached)
         const versionInfo = await this.versionService.getVersionInfo(ws.path);
         this.versionInfoCache.set(ws.path, versionInfo);
+        const profile = await this.getBootstrapProfile(ws.path);
 
         const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
 
+        const descParts: string[] = [];
+        if (profile) {
+          descParts.push(`[${profile}]`);
+        }
+
         // Show active status with icon or time since last opened
         if (isActive) {
-          item.description = '🟢 Active';
+          descParts.push('🟢 Active');
         } else {
           // Calculate time since last opened
           const lastOpened = this.getLastOpenedTime(ws);
           if (lastOpened) {
-            item.description = lastOpened;
+            descParts.push(lastOpened);
           }
+        }
+
+        if (descParts.length > 0) {
+          item.description = descParts.join(' • ');
         }
 
         items.push(item);
@@ -91,6 +103,28 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
 
     return [];
+  }
+
+  private async getBootstrapProfile(workspacePath: string): Promise<string | undefined> {
+    if (this.profileCache.has(workspacePath)) {
+      return this.profileCache.get(workspacePath);
+    }
+
+    let profile: string | undefined;
+    try {
+      const manifestPath = path.join(workspacePath, '.rapidkit', 'workspace.json');
+      if (await fs.pathExists(manifestPath)) {
+        const manifest = await fs.readJSON(manifestPath).catch(() => null);
+        if (manifest?.profile && typeof manifest.profile === 'string') {
+          profile = manifest.profile;
+        }
+      }
+    } catch {
+      profile = undefined;
+    }
+
+    this.profileCache.set(workspacePath, profile);
+    return profile;
   }
 
   private getLastOpenedTime(workspace: RapidKitWorkspace): string | undefined {

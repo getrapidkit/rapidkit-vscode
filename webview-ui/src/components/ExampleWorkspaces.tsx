@@ -1,6 +1,7 @@
 import { GitBranch, Download, ExternalLink, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import type { ExampleWorkspace } from '@/types';
+import { vscode } from '@/vscode';
 
 export interface ExampleProject {
     name: string;
@@ -88,7 +89,7 @@ export function ExampleWorkspaces({ examples, onClone, onUpdate, cloningExample,
                                         className="example-btn example-btn--secondary"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            window.open(example.repoUrl, '_blank');
+                                            vscode.postMessage('openUrl', { url: example.repoUrl });
                                         }}
                                         title="View on GitHub"
                                         disabled={isCloning || isUpdating}

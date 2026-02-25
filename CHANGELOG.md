@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-02-25
+
+### Added
+
+- 🧭 **Workspace-profile aware command reference in Welcome page**
+  - Command list now adapts to the active workspace profile
+  - Clear no-workspace guidance tied to sidebar `WORKSPACES` selection
+
+- 👁️ **Persistent Setup Status visibility control**
+  - Added user hide/show control for Setup Status card
+  - Visibility preference persists across panel reopen and VS Code restarts
+
+- 🏷️ **Workspace profile tags across UI surfaces**
+  - Profile tag shown in Welcome `Recent Workspaces`
+  - Profile marker shown in sidebar `WORKSPACES` entries
+
+### Changed
+
+- 🎨 **Quick Actions theme adaptation**
+  - Sidebar and Welcome quick actions aligned to VS Code theme tokens
+  - Improved contrast and focus states for dark/light themes
+
+- 🌐 **Example workspaces behavior**
+  - External links are opened via extension host (not direct webview popups)
+  - Browsing and cloning URLs are separated (`repoUrl` vs `cloneUrl`)
+
+- 🧠 **Workspace vs project state handling in modules UI**
+  - Module cards/install actions now require selected **project** (not just workspace)
+  - Module install/update gating aligned with project selection semantics
+
+### Fixed
+
+- 🐛 **Example cards link/clone regressions**
+  - Fixed broken external open behavior from webview
+  - Fixed clone failures caused by non-root repository URLs
+
+- 🐛 **Incorrect state source for profile-based UX**
+  - Profile context is derived from sidebar `WORKSPACES` selection (not recent-workspace clicks)
+
+- 🧪 **Drift protection enhancements**
+  - Added/extended drift guard checks for command/profile contract consistency
+  - Added repository guard to prevent unintended Persian/Arabic text drift
+
 ## [0.13.0] - 2026-02-21
 
 ### Added
@@ -644,7 +687,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- 📖 Translated all Persian documentation to English
   - PYTHON_DETECTION_METHODS.md now fully English
   - Improved clarity for international users
   - Better maintainability

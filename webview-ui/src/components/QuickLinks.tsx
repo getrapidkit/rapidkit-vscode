@@ -3,40 +3,57 @@ interface QuickLinksProps {
 }
 
 export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
+    const links: Array<{
+        framework: 'fastapi' | 'nestjs' | 'go';
+        className: string;
+        title: string;
+        subtitle: string;
+        icon: string;
+        alt: string;
+    }> = [
+            {
+                framework: 'fastapi',
+                className: 'fastapi',
+                title: 'FastAPI',
+                subtitle: 'Python + Async',
+                icon: (window as any).FASTAPI_ICON_URI,
+                alt: 'FastAPI'
+            },
+            {
+                framework: 'nestjs',
+                className: 'nestjs',
+                title: 'NestJS',
+                subtitle: 'TypeScript + DI',
+                icon: (window as any).NESTJS_ICON_URI,
+                alt: 'NestJS'
+            },
+            {
+                framework: 'go',
+                className: 'go',
+                title: 'Go',
+                subtitle: 'Go + High Perf',
+                icon: (window as any).GO_ICON_URI,
+                alt: 'Go'
+            }
+        ];
+
     return (
         <div className="quick-links">
-            <div
-                className="quick-link fastapi"
-                onClick={() => onOpenProjectModal('fastapi')}
-            >
-                <span className="quick-link-icon">
-                    <img src={(window as any).FASTAPI_ICON_URI} alt="FastAPI" />
-                </span>
-                <div className="quick-link-title">FastAPI</div>
-                <div className="quick-link-subtitle">Python + Async</div>
-            </div>
-
-            <div
-                className="quick-link nestjs"
-                onClick={() => onOpenProjectModal('nestjs')}
-            >
-                <span className="quick-link-icon">
-                    <img src={(window as any).NESTJS_ICON_URI} alt="NestJS" />
-                </span>
-                <div className="quick-link-title">NestJS</div>
-                <div className="quick-link-subtitle">TypeScript + DI</div>
-            </div>
-
-            <div
-                className="quick-link go"
-                onClick={() => onOpenProjectModal('go')}
-            >
-                <span className="quick-link-icon">
-                    <img src={(window as any).GO_ICON_URI} alt="Go" />
-                </span>
-                <div className="quick-link-title">Go</div>
-                <div className="quick-link-subtitle">Go + High Perf</div>
-            </div>
+            {links.map((link) => (
+                <button
+                    key={link.framework}
+                    type="button"
+                    className={`quick-link ${link.className}`}
+                    onClick={() => onOpenProjectModal(link.framework)}
+                    aria-label={`Create ${link.title} project`}
+                >
+                    <span className="quick-link-icon" aria-hidden="true">
+                        <img src={link.icon} alt={link.alt} />
+                    </span>
+                    <div className="quick-link-title">{link.title}</div>
+                    <div className="quick-link-subtitle">{link.subtitle}</div>
+                </button>
+            ))}
         </div>
     );
 }

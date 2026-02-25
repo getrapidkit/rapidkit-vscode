@@ -3,7 +3,10 @@
   "title": "RapidKit Workspace Configuration",
   "description": "Configuration file for RapidKit workspace",
   "type": "object",
-  "required": ["name", "framework"],
+  "required": [
+    "name",
+    "framework"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -13,7 +16,10 @@
     "framework": {
       "type": "string",
       "description": "Backend framework",
-      "enum": ["fastapi", "nestjs"]
+      "enum": [
+        "fastapi",
+        "nestjs"
+      ]
     },
     "pythonVersion": {
       "type": "string",
@@ -43,7 +49,9 @@
   "definitions": {
     "project": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -53,14 +61,24 @@
         "mode": {
           "type": "string",
           "description": "Project mode",
-          "enum": ["demo", "full"],
+          "enum": [
+            "demo",
+            "full"
+          ],
           "default": "full"
         },
         "profile": {
           "type": "string",
           "description": "Project profile",
-          "enum": ["minimal", "standard", "enterprise"],
-          "default": "standard"
+          "enum": [
+            "minimal",
+            "python-only",
+            "node-only",
+            "go-only",
+            "polyglot",
+            "enterprise"
+          ],
+          "default": "minimal"
         },
         "modules": {
           "type": "array",

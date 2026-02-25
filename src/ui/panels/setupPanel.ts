@@ -62,7 +62,7 @@ export class SetupPanel {
           case 'upgradeNpmGlobal': {
             const terminal = vscode.window.createTerminal('Upgrade RapidKit CLI');
             terminal.show();
-            terminal.sendText('npm install -g rapidkit@latest');
+            terminal.sendText('npm install -g rapidkit');
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });

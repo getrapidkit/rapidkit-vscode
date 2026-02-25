@@ -16,6 +16,7 @@ import { runningServers } from '../../extension';
 import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
 
 export class WelcomePanel {
+  private static readonly UI_PREFS_KEY = 'rapidkit.welcome.uiPreferences';
   public static currentPanel: WelcomePanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
@@ -105,6 +106,7 @@ export class WelcomePanel {
         command: 'updateWorkspaceStatus',
         data: {
           hasWorkspace: true,
+          hasProjectSelected: true,
           workspaceName: projectName,
           workspacePath: projectPath,
           projectType: projectType ?? undefined,
@@ -131,10 +133,14 @@ export class WelcomePanel {
     WelcomePanel._selectedProject = null;
 
     if (WelcomePanel.currentPanel) {
+      const selectedWorkspace = WelcomePanel._workspaceExplorer?.getSelectedWorkspace();
       WelcomePanel.currentPanel._panel.webview.postMessage({
         command: 'updateWorkspaceStatus',
         data: {
-          hasWorkspace: false,
+          hasWorkspace: Boolean(selectedWorkspace),
+          hasProjectSelected: false,
+          workspaceName: selectedWorkspace?.name,
+          workspacePath: selectedWorkspace?.path,
           installedModules: [],
         },
       });
@@ -159,6 +165,14 @@ export class WelcomePanel {
       // Also refresh modules catalog to get latest versions
       await WelcomePanel.currentPanel._refreshModulesCatalog();
     }
+  }
+
+  private _getSelectedWorkspaceInfo(): { name: string; path: string } | null {
+    const ws = WelcomePanel._workspaceExplorer?.getSelectedWorkspace();
+    if (!ws) {
+      return null;
+    }
+    return { name: ws.name, path: ws.path };
   }
 
   /**
@@ -227,9 +241,9 @@ export class WelcomePanel {
               data: { isLoading: true },
             });
             try {
-              // If workspace name provided from modal, pass it directly
+              // Pass full config from modal; fall back to no-arg (launches wizard)
               if (message.data?.name) {
-                await vscode.commands.executeCommand('rapidkit.createWorkspace', message.data.name);
+                await vscode.commands.executeCommand('rapidkit.createWorkspace', message.data);
               } else {
                 await vscode.commands.executeCommand('rapidkit.createWorkspace');
               }
@@ -292,6 +306,14 @@ export class WelcomePanel {
             CoreVersionService.getInstance().clearCache();
             this._sendRecentWorkspaces();
             break;
+          case 'getUiPreferences':
+            this._sendUiPreferences();
+            break;
+          case 'setUiPreference':
+            if (message.data?.key) {
+              await this._setUiPreference(String(message.data.key), message.data.value);
+            }
+            break;
           case 'cloneExample':
             if (message.data) {
               await this._cloneExample(message.data);
@@ -304,19 +326,48 @@ export class WelcomePanel {
             break;
           case 'openWorkspaceFolder':
             if (message.data?.path) {
-              // Open folder in new window (workspace selection, not project activation)
-              const uri = vscode.Uri.file(message.data.path);
-              await vscode.commands.executeCommand('vscode.openFolder', uri, {
-                forceNewWindow: true,
-              });
+              const wsBaseName = path.basename(message.data.path);
+              type OpenPick = vscode.QuickPickItem & { value: string };
+              const openPick = await vscode.window.showQuickPick<OpenPick>(
+                [
+                  {
+                    label: '$(folder-active) Select in Current Window',
+                    description: 'Activate workspace here (updates sidebar + Projects tree)',
+                    detail:
+                      'Selects the workspace in the sidebar. Projects and modules update immediately.',
+                    value: 'select',
+                  },
+                  {
+                    label: '$(empty-window) Open in New Window',
+                    description: 'Open workspace folder in a separate VS Code window',
+                    detail: 'Current window stays unchanged.',
+                    value: 'new',
+                  },
+                ],
+                {
+                  placeHolder: `What would you like to do with \u201c${wsBaseName}\u201d?`,
+                  title: 'Open Workspace',
+                  ignoreFocusOut: true,
+                }
+              );
+              if (!openPick) {
+                break;
+              }
+              if (openPick.value === 'select') {
+                await vscode.commands.executeCommand('rapidkit.selectWorkspace', message.data.path);
+              } else {
+                const uri = vscode.Uri.file(message.data.path);
+                await vscode.commands.executeCommand('vscode.openFolder', uri, {
+                  forceNewWindow: true,
+                });
+              }
             }
             break;
           case 'selectWorkspace':
             if (message.data) {
-              WelcomePanel._selectedProject = message.data;
               await vscode.commands.executeCommand('rapidkit.selectWorkspace', message.data);
               // Send updated workspace status
-              this._sendWorkspaceStatus();
+              await this._sendWorkspaceStatus();
             }
             break;
           case 'removeWorkspace':
@@ -369,6 +420,11 @@ export class WelcomePanel {
                 'https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit'
               )
             );
+            break;
+          case 'openUrl':
+            if (message.data?.url) {
+              await vscode.env.openExternal(vscode.Uri.parse(message.data.url));
+            }
             break;
           case 'upgradeCore':
             if (message.data?.path) {
@@ -512,6 +568,37 @@ export class WelcomePanel {
     this._sendAvailableKits();
     this._sendModulesCatalog();
     this._sendWorkspaceStatus();
+    this._sendUiPreferences();
+  }
+
+  private _getUiPreferences(): { setupStatusCardHidden: boolean } {
+    const prefs = this._context.globalState.get<Record<string, unknown>>(
+      WelcomePanel.UI_PREFS_KEY,
+      {}
+    );
+    return {
+      setupStatusCardHidden: prefs?.setupStatusCardHidden === true,
+    };
+  }
+
+  private _sendUiPreferences() {
+    this._panel.webview.postMessage({
+      command: 'uiPreferences',
+      data: this._getUiPreferences(),
+    });
+  }
+
+  private async _setUiPreference(key: string, value: unknown) {
+    const current = this._context.globalState.get<Record<string, unknown>>(
+      WelcomePanel.UI_PREFS_KEY,
+      {}
+    );
+    const next = {
+      ...current,
+      [key]: value,
+    };
+    await this._context.globalState.update(WelcomePanel.UI_PREFS_KEY, next);
+    this._sendUiPreferences();
   }
 
   private _sendVersion() {
@@ -551,10 +638,17 @@ export class WelcomePanel {
             }
           }
 
+          // repoUrl: URL used by the UI "Open on GitHub" button (workspace subfolder when available).
+          // cloneUrl: URL used by `git clone` and must always be repository root.
+          const repoUrl = example.path
+            ? `https://github.com/getrapidkit/rapidkit-examples/tree/main/${example.path}`
+            : 'https://github.com/getrapidkit/rapidkit-examples';
+          const cloneUrl = 'https://github.com/getrapidkit/rapidkit-examples';
+
           return {
             ...example,
-            // Send repo URL for the entire examples repository
-            repoUrl: 'https://github.com/getrapidkit/rapidkit-examples',
+            repoUrl,
+            cloneUrl,
             cloneStatus,
           };
         })
@@ -653,8 +747,9 @@ export class WelcomePanel {
 
       terminal.show();
 
-      // Clone the entire repository
-      terminal.sendText(`git clone ${example.repoUrl} rapidkit-examples-temp`);
+      // Clone the entire repository (never use /tree/main/... URLs for git clone)
+      const cloneSource = example.cloneUrl || 'https://github.com/getrapidkit/rapidkit-examples';
+      terminal.sendText(`git clone ${cloneSource} rapidkit-examples-temp`);
 
       // Wait for clone to complete
       await new Promise((resolve) => setTimeout(resolve, 8000));
@@ -830,7 +925,7 @@ export class WelcomePanel {
           }
         });
       });
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -874,21 +969,44 @@ export class WelcomePanel {
   }
 
   private async _sendWorkspaceStatus() {
-    const hasWorkspace = WelcomePanel._selectedProject !== null;
+    const selectedWorkspace = this._getSelectedWorkspaceInfo();
+    const hasWorkspace = selectedWorkspace !== null;
+    let hasProjectSelected = false;
     let installedModules: { slug: string; version: string; display_name: string }[] = [];
+    let projectType: 'fastapi' | 'nestjs' | 'go' | undefined;
 
-    if (hasWorkspace && WelcomePanel._selectedProject) {
+    // Keep project-scoped details only when selected project belongs to selected workspace.
+    if (
+      WelcomePanel._selectedProject &&
+      selectedWorkspace &&
+      WelcomePanel._selectedProject.path.startsWith(`${selectedWorkspace.path}${path.sep}`)
+    ) {
+      hasProjectSelected = true;
       installedModules = await WelcomePanel._readInstalledModules(
         WelcomePanel._selectedProject.path
       );
+      projectType =
+        (await WelcomePanel._detectProjectTypeStatic(WelcomePanel._selectedProject.path)) ??
+        undefined;
+    }
+
+    // If project selection is stale (from another workspace), clear project-scoped state.
+    if (
+      WelcomePanel._selectedProject &&
+      selectedWorkspace &&
+      !WelcomePanel._selectedProject.path.startsWith(`${selectedWorkspace.path}${path.sep}`)
+    ) {
+      WelcomePanel._selectedProject = null;
     }
 
     this._panel.webview.postMessage({
       command: 'updateWorkspaceStatus',
       data: {
         hasWorkspace,
-        workspaceName: WelcomePanel._selectedProject?.name,
-        workspacePath: WelcomePanel._selectedProject?.path,
+        hasProjectSelected,
+        workspaceName: selectedWorkspace?.name,
+        workspacePath: selectedWorkspace?.path,
+        projectType,
         installedModules,
       },
     });
@@ -915,6 +1033,17 @@ export class WelcomePanel {
         fastapi?: number;
         nestjs?: number;
       };
+      bootstrapProfile?:
+        | 'minimal'
+        | 'python-only'
+        | 'node-only'
+        | 'go-only'
+        | 'polyglot'
+        | 'enterprise';
+      dependencySharingMode?: 'isolated' | 'shared-runtime-caches' | 'shared-node-deps';
+      policyMode?: 'warn' | 'strict';
+      complianceStatus?: 'passing' | 'failing' | 'unknown';
+      mirrorStatus?: 'synced' | 'stale' | 'not-configured';
     }>
   > {
     try {
@@ -992,6 +1121,88 @@ export class WelcomePanel {
               console.error(`Failed to get stats for ${ws.path}:`, err);
             }
 
+            // --- Phase 4 enrichment ---
+            let bootstrapProfile:
+              | 'minimal'
+              | 'python-only'
+              | 'node-only'
+              | 'go-only'
+              | 'polyglot'
+              | 'enterprise'
+              | undefined;
+            let dependencySharingMode:
+              | 'isolated'
+              | 'shared-runtime-caches'
+              | 'shared-node-deps'
+              | undefined;
+            let policyMode: 'warn' | 'strict' | undefined;
+            let complianceStatus: 'passing' | 'failing' | 'unknown' | undefined;
+            let mirrorStatus: 'synced' | 'stale' | 'not-configured' | undefined;
+            try {
+              const manifestPath = path.join(ws.path, '.rapidkit', 'workspace.json');
+              if (await fs.pathExists(manifestPath)) {
+                const manifest = await fs.readJSON(manifestPath).catch(() => null);
+                if (manifest) {
+                  bootstrapProfile = manifest.profile;
+                }
+              }
+
+              const policiesPath = path.join(ws.path, '.rapidkit', 'policies.yml');
+              if (await fs.pathExists(policiesPath)) {
+                const policyContent = await fs.readFile(policiesPath, 'utf-8');
+
+                const modeMatch = policyContent.match(/^\s*mode:\s*(warn|strict)\s*$/m);
+                if (modeMatch && (modeMatch[1] === 'warn' || modeMatch[1] === 'strict')) {
+                  policyMode = modeMatch[1];
+                }
+
+                const depModeMatch = policyContent.match(
+                  /^\s*dependency_sharing_mode:\s*(isolated|shared-runtime-caches|shared-node-deps)\s*$/m
+                );
+                if (
+                  depModeMatch &&
+                  (depModeMatch[1] === 'isolated' ||
+                    depModeMatch[1] === 'shared-runtime-caches' ||
+                    depModeMatch[1] === 'shared-node-deps')
+                ) {
+                  dependencySharingMode = depModeMatch[1];
+                }
+              }
+
+              const reportsDir = path.join(ws.path, '.rapidkit', 'reports');
+              if (await fs.pathExists(reportsDir)) {
+                const reportFiles = await fs.readdir(reportsDir);
+                const latestCompliance = reportFiles
+                  .filter((f) => f.startsWith('bootstrap-compliance'))
+                  .sort()
+                  .reverse()[0];
+                if (latestCompliance) {
+                  const report = await fs
+                    .readJSON(path.join(reportsDir, latestCompliance))
+                    .catch(() => null);
+                  // result field: 'ok' | 'ok_with_warnings' | 'failed'
+                  const rawResult = report?.result || report?.status;
+                  complianceStatus =
+                    rawResult === 'ok' || rawResult === 'ok_with_warnings'
+                      ? 'passing'
+                      : rawResult === 'failed'
+                        ? 'failing'
+                        : 'unknown';
+                }
+                const latestMirror = reportFiles
+                  .filter((f) => f.startsWith('mirror-ops'))
+                  .sort()
+                  .reverse()[0];
+                mirrorStatus = latestMirror
+                  ? ((await fs.readJSON(path.join(reportsDir, latestMirror)).catch(() => null))
+                      ?.status ?? 'not-configured')
+                  : 'not-configured';
+              }
+            } catch {
+              // Phase 4 data unavailable — leave as undefined
+            }
+            // --- End Phase 4 enrichment ---
+
             return {
               ...ws,
               coreVersion: versionInfo.installed,
@@ -1001,6 +1212,11 @@ export class WelcomePanel {
               lastModified,
               projectCount,
               projectStats,
+              bootstrapProfile,
+              dependencySharingMode,
+              policyMode,
+              complianceStatus,
+              mirrorStatus,
             };
           } catch (error) {
             console.error(`Failed to get version info for ${ws.path}:`, error);
@@ -1009,6 +1225,11 @@ export class WelcomePanel {
               coreVersion: undefined,
               coreStatus: 'error' as const,
               coreLocation: undefined,
+              bootstrapProfile: undefined,
+              dependencySharingMode: undefined,
+              policyMode: undefined,
+              complianceStatus: undefined,
+              mirrorStatus: undefined,
             };
           }
         })
@@ -1193,7 +1414,7 @@ export class WelcomePanel {
                 slug: moduleInfo.slug,
               });
               break;
-            } catch (parseError) {
+            } catch {
               console.log('[WelcomePanel] Failed to parse JSON for:', candidate);
             }
           }

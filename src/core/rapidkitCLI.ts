@@ -19,6 +19,10 @@ export interface CreateWorkspaceOptions {
   parentPath: string;
   skipGit?: boolean;
   dryRun?: boolean;
+  /** Preferred install backend. Passed as --install-method to npm CLI. */
+  installMethod?: 'poetry' | 'venv' | 'pipx';
+  /** Bootstrap profile written into .rapidkit/workspace.json. Passed as --profile to npm CLI. */
+  profile?: 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
 }
 
 export interface CreateProjectOptions {
@@ -53,6 +57,14 @@ export class RapidKitCLI {
   async createWorkspace(options: CreateWorkspaceOptions): Promise<ExecaReturnValue> {
     // Use: npx rapidkit create workspace <name> --yes  (skip interactive prompts)
     const args = ['rapidkit', 'create', 'workspace', options.name, '--yes'];
+
+    if (options.installMethod) {
+      args.push('--install-method', options.installMethod);
+    }
+
+    if (options.profile) {
+      args.push('--profile', options.profile);
+    }
 
     if (options.skipGit) {
       args.push('--skip-git');
@@ -258,7 +270,7 @@ export class RapidKitCLI {
           this.logger.debug('Found workspace rapidkit:', venvRapidkit);
           break;
         }
-      } catch (e) {
+      } catch {
         // Continue searching
       }
 

@@ -8,6 +8,8 @@ import { Logger } from '../utils/logger';
 import { SystemCheckResult } from '../types';
 import { getPoetryVersion } from '../utils/poetryHelper';
 import { checkPythonEnvironment } from '../utils/pythonChecker';
+import { run } from '../utils/exec';
+import { RapidKitCLI } from '../core/rapidkitCLI';
 
 // Helper function to fetch JSON from HTTPS URL (version checking)
 const fetchJson = (url: string): Promise<any> => {
@@ -108,6 +110,8 @@ const isNewerVersion = (current: string, latest: string): boolean => {
 async function runSystemChecks(
   progress: vscode.Progress<{ message?: string; increment?: number }>
 ) {
+  const rapidkitCli = new RapidKitCLI();
+
   progress.report({ increment: 0, message: 'Checking Python...' });
 
   const result: SystemCheckResult = {
@@ -147,11 +151,12 @@ async function runSystemChecks(
 
       // Try to get version from rapidkit-core
       try {
-        const { execa } = await import('execa');
-        const coreVerResult = await execa(
-          'python3',
+        const pythonCmd =
+          pythonEnv.command || (process.platform === 'win32' ? 'python' : 'python3');
+        const coreVerResult = await run(
+          pythonCmd,
           ['-c', 'import rapidkit_core; print(rapidkit_core.__version__)'],
-          { timeout: 5000 }
+          { timeout: 5000, stdio: 'pipe' }
         );
         const coreVersion = coreVerResult.stdout.trim();
 
@@ -201,8 +206,7 @@ async function runSystemChecks(
 
   // Check Node.js
   try {
-    const { execa } = await import('execa');
-    const nodeResult = await execa('node', ['--version']);
+    const nodeResult = await run('node', ['--version'], { stdio: 'pipe', timeout: 5000 });
     result.checks.push({
       name: 'Node.js',
       status: 'pass',
@@ -238,8 +242,7 @@ async function runSystemChecks(
 
   // Check Git
   try {
-    const { execa } = await import('execa');
-    const gitResult = await execa('git', ['--version']);
+    const gitResult = await run('git', ['--version'], { stdio: 'pipe', timeout: 5000 });
     result.checks.push({
       name: 'Git',
       status: 'pass',
@@ -257,22 +260,24 @@ async function runSystemChecks(
 
   // Check RapidKit npm package - distinguish global vs npx cache
   try {
-    const { execa } = await import('execa');
-
-    // Check global installation first
     let isGlobal = false;
+    let version: string | null = null;
+
     try {
-      await execa('which', ['rapidkit']);
-      isGlobal = true;
+      const direct = await run('rapidkit', ['--version'], { stdio: 'pipe', timeout: 5000 });
+      version = direct.stdout.trim();
+      isGlobal = !!version;
     } catch {
-      // Not in PATH, might be in npx cache
+      // Not globally available from extension host PATH.
     }
 
-    // Get version from npx
-    const rapidkitResult = await execa('npx', ['rapidkit', '--version'], {
-      timeout: 10000,
-    });
-    const version = rapidkitResult.stdout.trim();
+    if (!version) {
+      version = await rapidkitCli.getVersion();
+    }
+
+    if (!version) {
+      throw new Error('RapidKit npm not found');
+    }
 
     let npmMessage = `v${version}`;
     if (isGlobal) {
@@ -302,7 +307,7 @@ async function runSystemChecks(
     result.checks.push({
       name: 'RapidKit npm',
       status: 'fail',
-      message: 'Not installed - run: npm install -g rapidkit',
+      message: 'Not found - install globally or ensure npx can resolve rapidkit',
     });
   }
 

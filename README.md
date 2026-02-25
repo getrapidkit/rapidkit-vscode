@@ -4,7 +4,7 @@
 
 **Build production-ready APIs at warp speed**
 
-FastAPI & NestJS scaffolding with clean architecture, 27+ free modules, and automation-first workflows
+FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free modules, and automation-first workflows
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
@@ -22,6 +22,8 @@ FastAPI & NestJS scaffolding with clean architecture, 27+ free modules, and auto
 ![RapidKit Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
 
 **Your first stop:** Quick access to workspaces, module browser, and setup verification. Browse recent projects, check workspace health with one click, and explore 27+ available modules - all from your central hub.
+
+Quick Actions cards in the sidebar are theme-adaptive and automatically follow VS Code color tokens (light, dark, and high-contrast themes).
 
 ### Setup Status - Toolchain Verification
 ![RapidKit Setup Panel](media/screenshots/rapidkit-screenshot-2.png)
@@ -45,9 +47,9 @@ Check the health of any workspace with one click! The pulse icon (🩺) next to 
 ## ⚡ Quick Start
 
 ```
-1. Ctrl+Shift+P → "RapidKit: Create Project"
-2. Choose: FastAPI or NestJS
-3. Enter project name
+1. Ctrl+Shift+P → "RapidKit: Create Workspace"
+2. Open your workspace and run "RapidKit: Check Health (Doctor)"
+3. Create project: FastAPI, NestJS, Go/Fiber, or Go/Gin
 4. Done! 🎉
 ```
 
@@ -67,6 +69,8 @@ RapidKit generates **production-ready backend projects** with **clean architectu
 |-----------|----------|----------|
 | **FastAPI** | Python | Async, auto-docs, type hints, Poetry |
 | **NestJS** | TypeScript | Modular, decorators, DI, npm/yarn/pnpm |
+| **Go/Fiber** | Go | High-performance HTTP, middleware, Swagger docs |
+| **Go/Gin** | Go | Minimal HTTP framework, routing, Swagger docs |
 
 **Plus 27+ production-ready modules:** Auth, Database, Cache, Logging, and more!
 
@@ -102,13 +106,12 @@ RapidKit generates **production-ready backend projects** with **clean architectu
 ```
 my-workspace/                # Root workspace directory
 ├── .rapidkit-workspace      # Workspace marker
-├── .venv/                   # Shared Python virtual environment
-├── .python-version          # Python version (e.g., 3.11.1)
-├── poetry.toml              # Poetry configuration
-├── pyproject.toml           # Workspace dependencies
-├── poetry.lock              # Locked dependencies
-├── rapidkit                 # CLI wrapper (Unix)
-├── rapidkit.cmd             # CLI wrapper (Windows)
+├── pyproject.toml           # Workspace Python config (stub; rapidkit-core declared)
+├── poetry.toml              # Poetry config (virtualenvs.in-project = true)
+├── poetry.lock              # Created on first `rapidkit init` (not go-only)
+├── .venv/                   # Shared Python venv — created on first `rapidkit init` (not go-only)
+├── rapidkit                 # CLI launcher (Unix) — created on first `rapidkit init`
+├── rapidkit.cmd             # CLI launcher (Windows) — created on first `rapidkit init`
 ├── README.md                # Workspace documentation
 └── my-api/                  # FastAPI project
     ├── .rapidkit/           # Project config (see below)
@@ -119,6 +122,8 @@ my-workspace/                # Root workspace directory
     ├── pyproject.toml       # Project dependencies
     └── README.md
 ```
+
+> **`go-only` workspaces** never have `.venv/`, `poetry.lock`, or launcher scripts — Go kits run entirely through npm without a Python engine.
 
 ### FastAPI Project
 ```
@@ -223,10 +228,12 @@ npx rapidkit format    # Format code
 
 | Command | Description |
 |---------|-------------|
-| `RapidKit: Create Workspace` | Create a new workspace for multiple projects |
-| `RapidKit: Create Project` | Generate a FastAPI or NestJS project |
+| `RapidKit: Create Workspace` | Create a new workspace (interactive profile picker) |
+| `RapidKit: Create Project` | Generate a FastAPI, NestJS, Go/Fiber, or Go/Gin project |
 | `RapidKit: Create FastAPI Project` | Quick FastAPI project creation |
 | `RapidKit: Create NestJS Project` | Quick NestJS project creation |
+| `RapidKit: Create Go/Fiber Project` | Quick Go Fiber project creation |
+| `RapidKit: Create Go/Gin Project` | Quick Go Gin project creation |
 | `RapidKit: System Doctor` | Check system requirements |
 | `RapidKit: Open Documentation` | Open RapidKit docs |
 
@@ -251,8 +258,9 @@ npx rapidkit format    # Format code
 |------|---------|--------------|
 | VS Code | 1.100+ | Extension |
 | Node.js | 18+ | CLI & NestJS |
-| Python | 3.10+ | FastAPI & RapidKit Core |
+| Python | 3.10+ | FastAPI, ML & RapidKit Core |
 | Poetry | Latest | FastAPI dependencies (auto-installed) |
+| Go | 1.21+ | Go/Fiber & Go/Gin projects |
 | Git | Latest | Version control |
 
 **Check requirements:** Run `RapidKit: System Doctor` from Command Palette.

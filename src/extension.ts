@@ -75,13 +75,13 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand(
         'rapidkit.createWorkspace',
-        async (workspaceName?: string) => {
+        async (workspaceInput?: string | Record<string, unknown>) => {
           try {
             logger.info(
               'Executing createWorkspace command',
-              workspaceName ? `with name: ${workspaceName}` : ''
+              workspaceInput ? `with input: ${JSON.stringify(workspaceInput)}` : ''
             );
-            await createWorkspaceCommand(workspaceName);
+            await createWorkspaceCommand(workspaceInput as any);
             if (workspaceExplorer) {
               workspaceExplorer.refresh();
             }
@@ -270,6 +270,12 @@ export async function activate(context: vscode.ExtensionContext) {
         // Set context key to enable project buttons
         await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
         await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
+
+        // Keep Welcome Panel in sync with WORKSPACES selection (profile-based UI depends on this).
+        if (WelcomePanel.currentPanel) {
+          await WelcomePanel.refreshWorkspaceStatus();
+          WelcomePanel.refreshRecentWorkspaces();
+        }
       }),
       vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
         if (workspaceExplorer) {
@@ -313,6 +319,285 @@ export async function activate(context: vscode.ExtensionContext) {
           await workspaceExplorer.autoDiscover();
         }
       }),
+
+      // ── Phase 4: Workspace Operations (bootstrap / setup / cache / mirror) ───
+      vscode.commands.registerCommand('rapidkit.workspaceBootstrap', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage(
+            'No workspace selected. Select a workspace in the sidebar first.'
+          );
+          return;
+        }
+        const wsName = path.basename(workspacePath);
+        const profile = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(zap) minimal',
+              description: 'Foundation artifacts only (fastest)',
+              value: 'minimal',
+            },
+            {
+              label: '$(symbol-namespace) python-only',
+              description: 'Python + Poetry bootstrap',
+              value: 'python-only',
+            },
+            {
+              label: '$(symbol-event) node-only',
+              description: 'Node.js runtime bootstrap (no Python needed)',
+              value: 'node-only',
+            },
+            {
+              label: '$(go) go-only',
+              description: 'Go runtime bootstrap (no Python needed)',
+              value: 'go-only',
+            },
+            {
+              label: '$(layers) polyglot',
+              description: 'Python + Node + Go — multi-runtime workspace',
+              value: 'polyglot',
+            },
+            {
+              label: '$(shield) enterprise',
+              description: 'Polyglot + governance + Sigstore verification',
+              value: 'enterprise',
+            },
+          ],
+          {
+            placeHolder: 'Select a bootstrap profile',
+            title: `Bootstrap Workspace: ${wsName}`,
+            ignoreFocusOut: true,
+          }
+        );
+        if (!profile) {
+          return;
+        }
+        // Update workspace.json profile field before running bootstrap
+        const manifestPath = path.join(workspacePath, '.rapidkit', 'workspace.json');
+        try {
+          const fsBootstrap = await import('fs-extra');
+          if (await fsBootstrap.default.pathExists(manifestPath)) {
+            const manifest = await fsBootstrap.default.readJSON(manifestPath);
+            manifest.profile = (profile as any).value;
+            await fsBootstrap.default.writeJSON(manifestPath, manifest, { spaces: 2 });
+          }
+        } catch {
+          // Non-fatal — workspace.json sync is best-effort
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Bootstrap — ${wsName}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText(`npx rapidkit bootstrap --profile ${(profile as any).value}`);
+      }),
+
+      vscode.commands.registerCommand('rapidkit.workspaceSetup', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage(
+            'No workspace selected. Select a workspace in the sidebar first.'
+          );
+          return;
+        }
+        const wsName = path.basename(workspacePath);
+        const runtime = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(symbol-namespace) python',
+              description: 'Check Python prerequisites (version + venv)',
+              value: 'python',
+            },
+            {
+              label: '$(package) node',
+              description: 'Check Node.js / npm prerequisites',
+              value: 'node',
+            },
+            {
+              label: '$(go) go',
+              description: 'Check Go runtime prerequisites',
+              value: 'go',
+            },
+          ],
+          {
+            placeHolder: 'Select runtime to verify',
+            title: `Setup Runtime — ${wsName}`,
+            ignoreFocusOut: true,
+          }
+        );
+        if (!runtime) {
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Setup — ${wsName}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText(
+          `RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1 npx rapidkit setup ${(runtime as any).value}`
+        );
+      }),
+
+      vscode.commands.registerCommand('rapidkit.workspaceInit', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage(
+            'No workspace selected. Select a workspace in the sidebar first.'
+          );
+          return;
+        }
+        const wsName = path.basename(workspacePath);
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Init — ${wsName}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit init');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.cacheStatus', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit cache status');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.cacheClear', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const confirm = await vscode.window.showWarningMessage(
+          `Clear all caches for "${path.basename(workspacePath)}"? This cannot be undone.`,
+          { modal: true },
+          'Clear Cache',
+          'Cancel'
+        );
+        if (confirm !== 'Clear Cache') {
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit cache clear');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.cachePrune', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit cache prune');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.cacheRepair', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit cache repair');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.mirrorStatus', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit mirror status');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.mirrorSync', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit mirror sync');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.mirrorVerify', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit mirror verify');
+      }),
+
+      vscode.commands.registerCommand('rapidkit.mirrorRotate', async (item?: any) => {
+        const workspacePath =
+          item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace()?.path;
+        if (!workspacePath) {
+          vscode.window.showErrorMessage('No workspace selected.');
+          return;
+        }
+        const wsName = path.basename(workspacePath);
+        const confirm = await vscode.window.showWarningMessage(
+          `Rotate signing keys for mirror in "${wsName}"?\n\nThis re-signs all pinned artifacts. Existing rotation snapshots will be archived.`,
+          { modal: true },
+          'Rotate Keys',
+          'Cancel'
+        );
+        if (confirm !== 'Rotate Keys') {
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: `RapidKit Mirror — ${wsName}`,
+          cwd: workspacePath,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit mirror rotate');
+      }),
+      // ── End Phase 4 Workspace Operations ─────────────────────────────────────
+
       vscode.commands.registerCommand('rapidkit.selectProject', async (item: ProjectTreeItem) => {
         // Select project when user clicks on it in the tree
         if (item && item.project && projectExplorer) {
@@ -379,6 +664,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // Show quick actions menu
         const actions = [
           { label: '$(pulse) Check Health', action: 'check' },
+          { label: '$(tools) Check & Auto-fix', action: 'fix' },
+          { label: '$(shield) View Compliance Reports', action: 'compliance' },
           { label: '$(info) Show Version Info', action: 'version' },
         ];
 
@@ -418,7 +705,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                   terminal.show();
                   progress.report({ increment: 50, message: 'Running diagnostics...' });
-                  terminal.sendText('npx rapidkit doctor --workspace');
+                  terminal.sendText('npx rapidkit doctor workspace');
                   progress.report({ increment: 100, message: 'Complete!' });
 
                   vscode.window.showInformationMessage(
@@ -434,6 +721,167 @@ export async function activate(context: vscode.ExtensionContext) {
               }
             );
             break;
+
+          case 'fix':
+            await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: `🛠️ Checking and fixing workspace: ${workspaceName}`,
+                cancellable: false,
+              },
+              async (progress) => {
+                progress.report({ increment: 0, message: 'Starting doctor --fix...' });
+
+                try {
+                  const terminal = vscode.window.createTerminal({
+                    name: `RapidKit Doctor Fix - ${workspaceName}`,
+                    cwd: workspacePath,
+                  });
+
+                  terminal.show();
+                  progress.report({ increment: 50, message: 'Applying safe fixes...' });
+                  terminal.sendText('npx rapidkit doctor workspace --fix');
+                  progress.report({ increment: 100, message: 'Complete!' });
+
+                  vscode.window.showInformationMessage(
+                    `Doctor fix is running for "${workspaceName}". Check the terminal for details.`,
+                    'OK'
+                  );
+                } catch (error) {
+                  logger.error('Error running doctor fix:', error);
+                  vscode.window.showErrorMessage(
+                    `Failed to run doctor fix: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                }
+              }
+            );
+            break;
+
+          case 'compliance': {
+            // Read and surface .rapidkit/reports/bootstrap-compliance*.json
+            const fsCompat = await import('fs-extra');
+            const reportsDir = path.join(workspacePath, '.rapidkit', 'reports');
+            try {
+              const dirExists = await fsCompat.default.pathExists(reportsDir);
+              if (!dirExists) {
+                const choice = await vscode.window.showInformationMessage(
+                  `No compliance reports found for "${workspaceName}".\n\nRun Bootstrap Workspace to generate reports.`,
+                  'Bootstrap Now'
+                );
+                if (choice === 'Bootstrap Now') {
+                  vscode.commands.executeCommand('rapidkit.workspaceBootstrap', {
+                    workspace: { path: workspacePath },
+                  });
+                }
+                break;
+              }
+
+              const files: string[] = await fsCompat.default.readdir(reportsDir);
+              const complianceFiles = files
+                .filter((f: string) => f.startsWith('bootstrap-compliance'))
+                .sort()
+                .reverse();
+              const mirrorFiles = files
+                .filter((f: string) => f.startsWith('mirror-ops'))
+                .sort()
+                .reverse();
+
+              if (complianceFiles.length === 0) {
+                vscode.window.showInformationMessage(
+                  `No bootstrap-compliance reports found.\n\nRun "Bootstrap Workspace" to generate one.`
+                );
+                break;
+              }
+
+              const reportPath = path.join(reportsDir, complianceFiles[0]);
+              const reportData = await fsCompat.default.readJSON(reportPath).catch(() => null);
+
+              const output = vscode.window.createOutputChannel(
+                `RapidKit Compliance — ${workspaceName}`
+              );
+              output.clear();
+              output.appendLine(`=== Bootstrap Compliance Report: ${workspaceName} ===`);
+              output.appendLine(`File: ${reportPath}`);
+              output.appendLine('');
+
+              if (reportData) {
+                // Map result field → human status
+                // Schema: result = 'ok' | 'ok_with_warnings' | 'failed'
+                const rawResult =
+                  reportData.result || reportData.status || reportData.overall_status || 'unknown';
+                const statusLabel =
+                  rawResult === 'ok'
+                    ? 'PASSING'
+                    : rawResult === 'ok_with_warnings'
+                      ? 'PASSING (with warnings)'
+                      : rawResult === 'failed'
+                        ? 'FAILING'
+                        : rawResult.toUpperCase();
+                const statusIcon =
+                  rawResult === 'ok' || rawResult === 'ok_with_warnings' ? '✅' : '❌';
+
+                const profile = reportData.profile || reportData.bootstrap_profile || 'unknown';
+                const timestamp = reportData.generated_at || reportData.timestamp || '';
+
+                output.appendLine(`Status:   ${statusIcon} ${statusLabel}`);
+                output.appendLine(`Profile:  ${profile}`);
+                if (timestamp) {
+                  output.appendLine(`Generated: ${timestamp}`);
+                }
+
+                const checks = reportData.checks || reportData.rules;
+                if (checks) {
+                  output.appendLine('');
+                  output.appendLine('--- Rule Results ---');
+                  if (Array.isArray(checks)) {
+                    // Standard array schema: [{ id, status, message }]
+                    for (const check of checks) {
+                      const icon =
+                        check.status === 'passed' ? '✅' : check.status === 'skipped' ? '⏭' : '❌';
+                      output.appendLine(`  ${icon} [${check.status}] ${check.id}`);
+                      if (check.message) {
+                        output.appendLine(`       ${check.message}`);
+                      }
+                    }
+                  } else if (typeof checks === 'object') {
+                    // Legacy object schema: { ruleName: true/false/{ status } }
+                    for (const [rule, result] of Object.entries(checks as Record<string, any>)) {
+                      const pass =
+                        result === true || result?.status === 'pass' || result?.passed === true;
+                      output.appendLine(`  ${pass ? '✅' : '❌'} ${rule}`);
+                    }
+                  }
+                }
+
+                if (mirrorFiles.length > 0) {
+                  output.appendLine('');
+                  output.appendLine(
+                    `--- Mirror Reports (${mirrorFiles.length} found, latest: ${mirrorFiles[0]}) ---`
+                  );
+                  const latestMirror = await fsCompat.default
+                    .readJSON(path.join(reportsDir, mirrorFiles[0]))
+                    .catch(() => null);
+                  if (latestMirror) {
+                    const mirrorStatus =
+                      latestMirror.status || latestMirror.overall_status || 'unknown';
+                    output.appendLine(`  Mirror status: ${mirrorStatus}`);
+                  }
+                }
+              } else {
+                output.appendLine('(Could not parse report JSON — file may be malformed)');
+              }
+
+              output.appendLine('');
+              output.appendLine(`All reports: ${reportsDir}`);
+              output.show();
+            } catch (error) {
+              logger.error('Error reading compliance reports:', error);
+              vscode.window.showErrorMessage(
+                `Failed to read compliance reports: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
+            break;
+          }
 
           case 'version': {
             // Show detailed version info

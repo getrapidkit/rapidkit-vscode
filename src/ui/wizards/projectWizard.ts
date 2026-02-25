@@ -97,7 +97,7 @@ export class ProjectWizard {
 
       try {
         availableKits = await kitsService.getKitsByCategory(framework);
-      } catch (error) {
+      } catch {
         vscode.window.showErrorMessage('Failed to load kits. Please try again.');
         return undefined;
       }

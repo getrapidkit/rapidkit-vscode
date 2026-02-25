@@ -49,6 +49,14 @@ export interface WorkspaceConfig {
   name: string;
   path: string;
   initGit: boolean;
+  /** Bootstrap profile written into .rapidkit/workspace.json at creation time. */
+  profile?: 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+  /** Python install backend. 'auto' = let CLI probe; explicit value overrides CLI detection. */
+  installMethod?: 'auto' | 'poetry' | 'venv' | 'pipx';
+  /** Policy enforcement mode written to .rapidkit/policies.yml after creation. */
+  policyMode?: 'strict' | 'warn' | 'disabled';
+  /** Dependency sharing written to .rapidkit/workspace.json after creation. */
+  dependencySharing?: 'isolated' | 'shared';
 }
 
 export interface ProjectConfig {

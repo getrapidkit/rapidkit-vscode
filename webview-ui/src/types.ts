@@ -96,6 +96,7 @@ export interface CategoryInfo {
 export interface Workspace {
   name: string;
   path: string;
+  /** Timestamp of last time workspace was opened/accessed */
   lastAccessed?: number;
   coreVersion?: string;
   coreLatestVersion?: string;
@@ -103,6 +104,22 @@ export interface Workspace {
   coreLocation?: 'workspace' | 'global' | 'pipx';
   lastModified?: number;
   projectCount?: number;
+  /** Phase 4: bootstrap profile written to .rapidkit/workspace.json */
+  bootstrapProfile?:
+    | 'minimal'
+    | 'python-only'
+    | 'node-only'
+    | 'go-only'
+    | 'polyglot'
+    | 'enterprise';
+  /** Phase 4: dependency sharing mode from .rapidkit/policies.yml */
+  dependencySharingMode?: 'isolated' | 'shared-runtime-caches' | 'shared-node-deps';
+  /** Phase 4: policy enforcement mode */
+  policyMode?: 'warn' | 'strict';
+  /** Phase 4: latest bootstrap-compliance report status */
+  complianceStatus?: 'passing' | 'failing' | 'unknown';
+  /** Phase 4: mirror operations status */
+  mirrorStatus?: 'synced' | 'stale' | 'not-configured';
   projectStats?: {
     fastapi?: number;
     nestjs?: number;
@@ -117,6 +134,7 @@ export interface InstallStatus {
 
 export interface WorkspaceStatus {
   hasWorkspace: boolean;
+  hasProjectSelected?: boolean;
   workspaceName?: string;
   workspacePath?: string;
   projectType?: 'fastapi' | 'nestjs' | 'go';
@@ -138,6 +156,7 @@ export interface ExampleWorkspace {
   title: string;
   description: string;
   repoUrl: string;
+  cloneUrl?: string;
   path?: string;
   projects: ExampleProject[];
   tags?: string[];

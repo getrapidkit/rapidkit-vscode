@@ -3,7 +3,11 @@
   "title": "RapidKit Project Configuration",
   "description": "Configuration file for RapidKit project",
   "type": "object",
-  "required": ["name", "framework", "version"],
+  "required": [
+    "name",
+    "framework",
+    "version"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -18,26 +22,42 @@
     "framework": {
       "type": "string",
       "description": "Backend framework",
-      "enum": ["fastapi", "nestjs"]
+      "enum": [
+        "fastapi",
+        "nestjs"
+      ]
     },
     "mode": {
       "type": "string",
       "description": "Project mode",
-      "enum": ["demo", "full"],
+      "enum": [
+        "demo",
+        "full"
+      ],
       "default": "full"
     },
     "profile": {
       "type": "string",
       "description": "Project profile",
-      "enum": ["minimal", "standard", "enterprise"],
-      "default": "standard"
+      "enum": [
+        "minimal",
+        "python-only",
+        "node-only",
+        "go-only",
+        "polyglot",
+        "enterprise"
+      ],
+      "default": "minimal"
     },
     "modules": {
       "type": "array",
       "description": "Installed modules",
       "items": {
         "type": "object",
-        "required": ["name", "version"],
+        "required": [
+          "name",
+          "version"
+        ],
         "properties": {
           "name": {
             "type": "string",

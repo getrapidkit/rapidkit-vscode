@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Eye } from 'lucide-react';
 import { vscode } from '@/vscode';
 import type { ModuleData, CategoryInfo, Workspace, WorkspaceStatus, InstallStatus, ExampleWorkspace, Kit } from '@/types';
 import { Header } from '@/components/Header';
@@ -12,7 +13,7 @@ import { ModuleBrowser } from '@/components/ModuleBrowser';
 import { CommandReference } from '@/components/CommandReference';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { Footer } from '@/components/Footer';
-import { CreateWorkspaceModal } from '@/components/CreateWorkspaceModal';
+import { CreateWorkspaceModal, WorkspaceCreationConfig } from '@/components/CreateWorkspaceModal';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { InstallModuleModal } from '@/components/InstallModuleModal';
 import { ModuleDetailsModal } from '@/components/ModuleDetailsModal';
@@ -39,6 +40,24 @@ export function App() {
         npmInstalled: false,
         coreInstalled: false
     });
+    /** true once extension has sent at least one installStatusUpdate — before that, initial false values must not be trusted */
+    const [installStatusChecked, setInstallStatusChecked] = useState(false);
+    const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
+    const [isSetupCardHidden, setIsSetupCardHidden] = useState(false);
+
+    const activeWorkspace =
+        recentWorkspaces.find((workspace) => workspace.path === workspaceStatus.workspacePath) || null;
+    const hasActiveWorkspace = Boolean(workspaceStatus.hasWorkspace && workspaceStatus.workspacePath);
+    const activeWorkspaceProfile = activeWorkspace?.bootstrapProfile;
+    const activeWorkspaceName = workspaceStatus.workspaceName || activeWorkspace?.name;
+
+    const updateSetupCardHidden = (hidden: boolean) => {
+        setIsSetupCardHidden(hidden);
+        vscode.postMessage('setUiPreference', {
+            key: 'setupStatusCardHidden',
+            value: hidden,
+        });
+    };
 
     // Listen for messages from extension
     useEffect(() => {
@@ -59,6 +78,7 @@ export function App() {
                 case 'updateRecentWorkspaces':
                     console.log('[React Webview] Updating workspaces:', message.data);
                     setRecentWorkspaces(message.data);
+                    setIsRefreshingWorkspaces(false);
                     break;
                 case 'updateExampleWorkspaces':
                     console.log('[React Webview] Updating examples:', message.data);
@@ -82,6 +102,7 @@ export function App() {
                     break;
                 case 'installStatusUpdate':
                     setInstallStatus(message.data);
+                    setInstallStatusChecked(true);
                     break;
                 case 'installProgressUpdate':
                     // Handle progress updates
@@ -113,6 +134,11 @@ export function App() {
                     console.log('[React Webview] openWorkspaceModal');
                     setShowCreateModal(true);
                     break;
+                case 'uiPreferences':
+                    if (typeof message.data?.setupStatusCardHidden === 'boolean') {
+                        setIsSetupCardHidden(message.data.setupStatusCardHidden);
+                    }
+                    break;
             }
         };
 
@@ -120,19 +146,24 @@ export function App() {
 
         // Request initial data
         vscode.postMessage('ready');
+        vscode.postMessage('getUiPreferences');
 
         return () => window.removeEventListener('message', messageHandler);
     }, []);
 
-    const handleCreateWorkspace = (workspaceName: string) => {
-        console.log('[React Webview] Creating workspace:', workspaceName);
-        vscode.postMessage('createWorkspace', { name: workspaceName });
+    const handleCreateWorkspace = (config: WorkspaceCreationConfig) => {
+        console.log('[React Webview] Creating workspace:', config.name);
+        vscode.postMessage('createWorkspace', config);
     };
 
     const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => {
+        // Only block if we've received a confirmed status from the extension AND it's not installed.
+        // Do NOT block on the initial false default — the message may not have arrived yet.
+        if (installStatusChecked && !installStatus.coreInstalled) {
+            vscode.postMessage('openSetup');
+            return;
+        }
         setSelectedFramework(framework);
-        // If kitName is provided, we can pass it to the modal or directly create project
-        // For now, just open modal and let wizard handle kit selection
         setShowProjectModal(true);
     };
 
@@ -159,7 +190,37 @@ export function App() {
         <div className="container">
             <Header version={version} />
 
-            <SetupCard onClick={() => vscode.postMessage('openSetup')} />
+            {!isSetupCardHidden ? (
+                <SetupCard
+                    onClick={() => vscode.postMessage('openSetup')}
+                    onHide={() => updateSetupCardHidden(true)}
+                />
+            ) : (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={() => updateSetupCardHidden(false)}
+                        title="Show Setup Status"
+                        aria-label="Show Setup Status"
+                        style={{
+                            border: '1px solid var(--vscode-panel-border)',
+                            background: 'var(--vscode-editor-inactiveSelectionBackground)',
+                            color: 'var(--vscode-foreground)',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                        }}
+                    >
+                        <Eye size={14} />
+                        Show Setup Status
+                    </button>
+                </div>
+            )}
 
             <div className="mb-8">
                 <HeroAction
@@ -171,7 +232,8 @@ export function App() {
 
             <RecentWorkspaces
                 workspaces={recentWorkspaces}
-                onRefresh={() => vscode.postMessage('refreshWorkspaces')}
+                isRefreshing={isRefreshingWorkspaces}
+                onRefresh={() => { setIsRefreshingWorkspaces(true); vscode.postMessage('refreshWorkspaces'); }}
                 onSelect={(workspace) => vscode.postMessage('openWorkspaceFolder', { path: workspace.path })}
                 onRemove={(workspace) => vscode.postMessage('removeWorkspace', { path: workspace.path })}
                 onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
@@ -237,7 +299,11 @@ export function App() {
                     }}
                 />
             )}
-            <CommandReference />
+            <CommandReference
+                workspaceProfile={activeWorkspaceProfile}
+                hasActiveWorkspace={hasActiveWorkspace}
+                workspaceName={activeWorkspaceName}
+            />
 
             <KeyboardShortcuts />
 

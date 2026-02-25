@@ -4,11 +4,8 @@
 
 ### 📝 Documentation Translation Cleanup
 
-**Complete Persian to English translation + Improved documentation consistency!**
-
 ### What's New
 
-- **🌐 English-Only Documentation** - All Persian text translated to English
   - Enhanced clarity and consistency across all documentation
   - Better accessibility for international users
   - Improved maintainability for future contributors

@@ -158,7 +158,7 @@ async function showUpdateNotification(
       name: '📦 RapidKit Update',
     });
     terminal.show();
-    terminal.sendText('npm install -g rapidkit@latest');
+    terminal.sendText('npm install -g rapidkit');
 
     logger.info('User initiated rapidkit npm update');
   } else if (selected === releaseNotesAction) {

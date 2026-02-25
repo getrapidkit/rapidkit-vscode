@@ -18,7 +18,7 @@ import { WelcomePanel } from '../ui/panels/welcomePanel';
 import { isPoetryInstalledCached } from '../utils/poetryHelper';
 import { checkPythonEnvironmentCached } from '../utils/pythonChecker';
 
-export async function createWorkspaceCommand(workspaceName?: string) {
+export async function createWorkspaceCommand(workspaceName?: string | Record<string, unknown>) {
   const logger = Logger.getInstance();
   logger.info(
     'Create Workspace command initiated',
@@ -123,8 +123,12 @@ export async function createWorkspaceCommand(workspaceName?: string) {
 
     logger.info(`Python ${pythonCheck.version} is available with venv support`);
 
-    // Check Poetry with progress
+    // ── Install-method resolution: poetry (preferred) → fallback chain → venv ──
+    // Poetry is NEVER a hard requirement. If missing, we offer auto-install via
+    // pipx, or a pure venv workspace which is fully equivalent in functionality.
+    let chosenInstallMethod: 'poetry' | 'venv' | 'pipx' = 'venv';
     let hasPoetry = false;
+
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -132,11 +136,9 @@ export async function createWorkspaceCommand(workspaceName?: string) {
         cancellable: false,
       },
       async (progress) => {
-        // Check if cache available
         const { requirementCache } = await import('../utils/requirementCache.js');
         const cacheStats = requirementCache.getStats();
         const poetryCached = cacheStats.poetryCached;
-
         progress.report({
           increment: 0,
           message: poetryCached ? 'Verifying Poetry (cached)...' : 'Verifying Poetry...',
@@ -145,32 +147,111 @@ export async function createWorkspaceCommand(workspaceName?: string) {
         hasPoetry = await isPoetryInstalledCached();
         progress.report({
           increment: 100,
-          message: hasPoetry ? 'Poetry found' : 'Poetry not found',
+          message: hasPoetry ? 'Poetry found' : 'Poetry not found — checking fallback options...',
         });
       }
     );
 
-    if (!hasPoetry) {
-      logger.warn('Poetry not installed - redirecting to Setup Panel');
+    if (hasPoetry) {
+      chosenInstallMethod = 'poetry';
+      logger.info('Poetry is installed — using poetry install method');
+    } else {
+      logger.warn('Poetry not installed — offering smart fallback');
 
-      vscode.window
-        .showInformationMessage(
-          '⚙️ Poetry Required\n\n' +
-            'Poetry is required to create RapidKit workspaces.\n' +
-            'Opening setup panel to install...',
-          'Open Setup'
-        )
-        .then((choice) => {
-          if (choice === 'Open Setup') {
-            vscode.commands.executeCommand('rapidkit.openSetup');
-          }
+      // Detect whether pipx is available for automatic Poetry installation
+      let hasPipx = false;
+      try {
+        const { execa } = await import('execa');
+        await execa('pipx', ['--version'], { timeout: 3000 });
+        hasPipx = true;
+      } catch {
+        try {
+          const { execa } = await import('execa');
+          await execa('python3', ['-m', 'pipx', '--version'], { timeout: 3000 });
+          hasPipx = true;
+        } catch {
+          hasPipx = false;
+        }
+      }
+
+      type PickItem = vscode.QuickPickItem & { value: string };
+
+      const choices: PickItem[] = [
+        ...(hasPipx
+          ? [
+              {
+                label: '$(zap) Auto-install Poetry via pipx',
+                description: 'Recommended — installs Poetry globally then creates workspace',
+                detail: 'Runs: pipx install poetry',
+                value: 'auto-poetry',
+              },
+            ]
+          : []),
+        {
+          label: '$(package) Use Python venv instead',
+          description: 'No extra tools needed — pip + venv (equivalent functionality)',
+          detail: 'Workspace is fully functional without Poetry. You can add it later.',
+          value: 'venv',
+        },
+        {
+          label: '$(tools) Open Setup Panel',
+          description: 'Guide me through manual Poetry / pipx installation',
+          detail: 'Workspace creation will be cancelled. Opens the setup wizard.',
+          value: 'setup',
+        },
+      ];
+
+      const pick = await vscode.window.showQuickPick(choices, {
+        placeHolder: 'Poetry is not installed. How would you like to proceed?',
+        title: '⚙️ Workspace Install Method',
+        ignoreFocusOut: true,
+      });
+
+      if (!pick) {
+        logger.info('User cancelled workspace creation at install method selection');
+        return;
+      }
+
+      if (pick.value === 'auto-poetry') {
+        logger.info('Auto-installing Poetry via pipx...');
+        const installTerminal = vscode.window.createTerminal({
+          name: 'RapidKit: Install Poetry',
         });
+        installTerminal.show();
+        installTerminal.sendText('pipx install poetry && echo "✅ Poetry installed successfully"');
 
-      await vscode.commands.executeCommand('rapidkit.openSetup');
-      return;
+        const confirm = await vscode.window.showInformationMessage(
+          'Installing Poetry via pipx...\n\nWait until the terminal shows\n"✅ Poetry installed successfully", then click Continue.',
+          { modal: true },
+          'Continue',
+          'Skip — use venv instead'
+        );
+
+        if (!confirm || confirm === 'Skip — use venv instead') {
+          chosenInstallMethod = 'venv';
+          logger.info('User skipped Poetry auto-install — using venv fallback');
+        } else {
+          const { requirementCache } = await import('../utils/requirementCache.js');
+          requirementCache.invalidateAll();
+          hasPoetry = await isPoetryInstalledCached();
+          chosenInstallMethod = hasPoetry ? 'poetry' : 'venv';
+          logger.info(
+            hasPoetry
+              ? 'Poetry confirmed after auto-install — using poetry'
+              : 'Poetry still not detected — falling back to venv'
+          );
+        }
+      } else if (pick.value === 'venv') {
+        chosenInstallMethod = 'venv';
+        logger.info('User selected venv install method');
+      } else {
+        // Open Setup Panel and abort workspace creation
+        vscode.commands.executeCommand('rapidkit.openSetup');
+        return;
+      }
     }
 
-    logger.info('Poetry is installed, proceeding with workspace creation');
+    logger.info(`Proceeding with workspace creation (install method: ${chosenInstallMethod})`);
 
     // Check if this is first-time setup and show guidance (only if name not provided from modal)
     if (!workspaceName) {
@@ -189,14 +270,30 @@ export async function createWorkspaceCommand(workspaceName?: string) {
     let config: any;
 
     if (workspaceName) {
-      // Name provided from modal - skip wizard
-      logger.info('Using provided workspace name:', workspaceName);
-      const defaultPath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
-      config = {
-        name: workspaceName,
-        path: path.join(defaultPath, workspaceName),
-        initGit: true,
-      };
+      if (typeof workspaceName === 'object' && workspaceName !== null) {
+        // Full config object sent from the webview modal
+        const wc = workspaceName as any;
+        logger.info('Using full config from webview modal:', wc.name);
+        const defaultPath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+        config = {
+          name: wc.name,
+          path: path.join(defaultPath, wc.name),
+          initGit: wc.initGit !== undefined ? wc.initGit : true,
+          profile: wc.profile || 'minimal',
+          installMethod: wc.installMethod || 'auto',
+          policyMode: wc.policyMode || 'warn',
+          dependencySharing: wc.dependencySharing || 'isolated',
+        };
+      } else {
+        // Legacy: plain name string (from command palette or internal calls)
+        logger.info('Using provided workspace name:', workspaceName);
+        const defaultPath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+        config = {
+          name: workspaceName as string,
+          path: path.join(defaultPath, workspaceName as string),
+          initGit: true,
+        };
+      }
     } else {
       // Show wizard to collect user input
       const wizard = new WorkspaceWizard();
@@ -206,6 +303,12 @@ export async function createWorkspaceCommand(workspaceName?: string) {
         logger.info('Workspace creation cancelled by user');
         return;
       }
+    }
+
+    // Honour install method explicitly chosen in the wizard (overrides auto-detection)
+    if (config.installMethod && config.installMethod !== 'auto') {
+      logger.info(`Wizard override: install method → ${config.installMethod}`);
+      chosenInstallMethod = config.installMethod as 'poetry' | 'venv' | 'pipx';
     }
 
     // Execute with progress
@@ -248,6 +351,8 @@ export async function createWorkspaceCommand(workspaceName?: string) {
               name: config.name,
               parentPath: path.dirname(config.path),
               skipGit: !config.initGit,
+              installMethod: chosenInstallMethod,
+              profile: config.profile,
             });
 
             // Check if creation was successful
@@ -365,6 +470,8 @@ export async function createWorkspaceCommand(workspaceName?: string) {
               name: config.name,
               parentPath: path.dirname(config.path), // Use actual parent path, not default
               skipGit: !config.initGit,
+              installMethod: chosenInstallMethod,
+              profile: config.profile,
             });
 
             // Check if creation was successful
@@ -406,6 +513,69 @@ export async function createWorkspaceCommand(workspaceName?: string) {
 
           if (!rapidkitDirExists) {
             logger.warn('Workspace created but .rapidkit directory not found');
+          }
+
+          // Apply wizard-specified policy mode and dependency sharing to .rapidkit files
+          // using canonical npm/CLI keys:
+          // - mode
+          // - dependency_sharing_mode
+          if (rapidkitDirExists) {
+            try {
+              const policiesPath = path.join(rapidkitDir, 'policies.yml');
+              const effectiveMode = config.policyMode === 'strict' ? 'strict' : 'warn';
+              const effectiveDependencySharingMode =
+                config.dependencySharing === 'shared' ? 'shared-runtime-caches' : 'isolated';
+
+              if (await fs.pathExists(policiesPath)) {
+                let content = await fs.readFile(policiesPath, 'utf-8');
+
+                if (/^\s*mode:\s*(warn|strict)\s*$/m.test(content)) {
+                  content = content.replace(
+                    /^\s*mode:\s*(warn|strict)\s*$/m,
+                    `mode: ${effectiveMode}`
+                  );
+                } else {
+                  content += `\nmode: ${effectiveMode}`;
+                }
+
+                if (/^\s*dependency_sharing_mode:\s*[a-zA-Z-]+\s*$/m.test(content)) {
+                  content = content.replace(
+                    /^\s*dependency_sharing_mode:\s*[a-zA-Z-]+\s*$/m,
+                    `dependency_sharing_mode: ${effectiveDependencySharingMode}`
+                  );
+                } else {
+                  content += `\ndependency_sharing_mode: ${effectiveDependencySharingMode}`;
+                }
+
+                if (!content.endsWith('\n')) {
+                  content += '\n';
+                }
+
+                await fs.writeFile(policiesPath, content, 'utf-8');
+              } else {
+                await fs.writeFile(
+                  policiesPath,
+                  [
+                    'version: "1.0"',
+                    `mode: ${effectiveMode}`,
+                    `dependency_sharing_mode: ${effectiveDependencySharingMode}`,
+                    'rules:',
+                    '  enforce_workspace_marker: true',
+                    '  enforce_toolchain_lock: false',
+                    '  disallow_untrusted_tool_sources: false',
+                    '',
+                  ].join('\n'),
+                  'utf-8'
+                );
+              }
+
+              logger.info(
+                `Policy settings written: mode=${effectiveMode}, dependency_sharing_mode=${effectiveDependencySharingMode}`
+              );
+            } catch (writeErr) {
+              logger.warn('Could not write extra wizard options to .rapidkit files', writeErr);
+              // Non-fatal: workspace is still fully usable
+            }
           }
 
           // Verify workspace marker exists (created by npm package)

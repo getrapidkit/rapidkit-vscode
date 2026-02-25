@@ -96,7 +96,7 @@ export class WelcomePanelLegacy {
           case 'upgradeNpmGlobal': {
             const terminal = vscode.window.createTerminal('Upgrade RapidKit CLI');
             terminal.show();
-            terminal.sendText('npm install -g rapidkit@latest');
+            terminal.sendText('npm install -g rapidkit');
             // Auto-refresh after 8 seconds
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
@@ -250,7 +250,7 @@ export class WelcomePanelLegacy {
           case 'upgradeBoth': {
             const terminalBoth = vscode.window.createTerminal('Upgrade RapidKit');
             terminalBoth.show();
-            terminalBoth.sendText('npm install -g rapidkit@latest && pipx upgrade rapidkit-core');
+            terminalBoth.sendText('npm install -g rapidkit && pipx upgrade rapidkit-core');
             // Auto-refresh after 15 seconds
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
@@ -2617,8 +2617,8 @@ export class WelcomePanelLegacy {
                     <div class="command-list">
                         <div class="command-item">
                             <div class="command-header">
-                                <div class="command-code">npx rapidkit doctor</div>
-                                <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit doctor')">📋 Copy</button>
+                            <div class="command-code">npx rapidkit doctor workspace</div>
+                            <button class="command-copy" onclick="copyCommand(this, 'npx rapidkit doctor workspace')">📋 Copy</button>
                             </div>
                             <div class="command-desc">Check system requirements and dependencies</div>
                         </div>

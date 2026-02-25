@@ -40,16 +40,18 @@ Download Python 3.10+ from [python.org](https://www.python.org/downloads/) and e
 4. Click Install
 
 ### Step 3: Create Your First Workspace
- (name, location, author)
-5. **Wait 30-60 seconds** for first-time setup:
-   - ⬇️ Downloading RapidKit CLI from npm
-   - 🐍 Creating Python virtual environment with Poetry
-   - 📦 Installing RapidKit Core engine (Python 3.10+ required)
-5. **Wait 30-60 seconds** for first-time setup:
+1. Open Command Palette (`Ctrl+Shift+P`)
+2. Run: `RapidKit: Create Workspace`
+3. Fill workspace details (name, location, author)
+4. **Wait 30-60 seconds** for first-time setup:
    - ⬇️ Downloading RapidKit CLI from npm
    - 🐍 Creating Python virtual environment
    - 📦 Installing RapidKit Core engine
    - ✅ Validating setup
+
+5. Run health check from the extension:
+  - Command Palette → `RapidKit: Check Health (Doctor)`
+  - Or in terminal: `npx rapidkit doctor workspace`
 
 ### Step 4: Create Your First Project
 
@@ -151,7 +153,11 @@ Before creating workspace:
 ```
 Ctrl+Shift+P → RapidKit: Doctor
 ```
-This verifies your system is ready!
+This verifies your system is ready. For workspace-level checks use:
+
+```bash
+npx rapidkit doctor workspace
+```
 
 ### 3. Enable Poetry in-project venvs
 ```bash

@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -17,8 +17,9 @@
   "categories": [
     "Programming Languages",
     "Snippets",
-    "Other",
-    "Formatters"
+    "Formatters",
+    "Linters",
+    "Other"
   ],
   "keywords": [
     "rapidkit",
@@ -29,7 +30,17 @@
     "backend",
     "scaffold",
     "generator",
-    "framework"
+    "framework",
+    "clean architecture",
+    "boilerplate",
+    "api",
+    "rest api",
+    "project template",
+    "code generation",
+    "monorepo",
+    "workspace",
+    "module",
+    "productivity"
   ],
   "repository": {
     "type": "git",
@@ -132,6 +143,12 @@
         "title": "Check Health (Doctor)",
         "category": "RapidKit",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "rapidkit.workspaceInit",
+        "title": "Initialize Workspace (npx rapidkit init)",
+        "category": "RapidKit",
+        "icon": "$(run-all)"
       },
       {
         "command": "rapidkit.deleteProject",
@@ -288,6 +305,66 @@
         "title": "Reveal in Explorer",
         "category": "RapidKit",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "rapidkit.workspaceBootstrap",
+        "title": "Bootstrap Workspace",
+        "category": "RapidKit",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "rapidkit.workspaceSetup",
+        "title": "Setup Runtime",
+        "category": "RapidKit",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "rapidkit.cacheStatus",
+        "title": "Cache: Status",
+        "category": "RapidKit",
+        "icon": "$(database)"
+      },
+      {
+        "command": "rapidkit.cacheClear",
+        "title": "Cache: Clear",
+        "category": "RapidKit",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "rapidkit.cachePrune",
+        "title": "Cache: Prune",
+        "category": "RapidKit",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "rapidkit.cacheRepair",
+        "title": "Cache: Repair",
+        "category": "RapidKit",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "rapidkit.mirrorStatus",
+        "title": "Mirror: Status",
+        "category": "RapidKit",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "rapidkit.mirrorSync",
+        "title": "Mirror: Sync",
+        "category": "RapidKit",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "rapidkit.mirrorVerify",
+        "title": "Mirror: Verify",
+        "category": "RapidKit",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "rapidkit.mirrorRotate",
+        "title": "Mirror: Rotate Keys",
+        "category": "RapidKit",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {
@@ -378,6 +455,36 @@
         },
         {
           "command": "rapidkit.checkForUpdates"
+        },
+        {
+          "command": "rapidkit.workspaceBootstrap"
+        },
+        {
+          "command": "rapidkit.workspaceSetup"
+        },
+        {
+          "command": "rapidkit.cacheStatus"
+        },
+        {
+          "command": "rapidkit.cacheClear"
+        },
+        {
+          "command": "rapidkit.cachePrune"
+        },
+        {
+          "command": "rapidkit.cacheRepair"
+        },
+        {
+          "command": "rapidkit.mirrorStatus"
+        },
+        {
+          "command": "rapidkit.mirrorSync"
+        },
+        {
+          "command": "rapidkit.mirrorVerify"
+        },
+        {
+          "command": "rapidkit.mirrorRotate"
         }
       ],
       "view/title": [
@@ -419,6 +526,11 @@
           "group": "inline@2"
         },
         {
+          "command": "rapidkit.workspaceInit",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@3"
+        },
+        {
           "command": "rapidkit.openWorkspaceFolder",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "navigation@1"
@@ -432,6 +544,56 @@
           "command": "rapidkit.removeWorkspace",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "z_danger@99"
+        },
+        {
+          "command": "rapidkit.workspaceBootstrap",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_ops@1"
+        },
+        {
+          "command": "rapidkit.workspaceSetup",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_ops@2"
+        },
+        {
+          "command": "rapidkit.cacheStatus",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_cache@1"
+        },
+        {
+          "command": "rapidkit.cacheClear",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_cache@2"
+        },
+        {
+          "command": "rapidkit.cachePrune",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_cache@3"
+        },
+        {
+          "command": "rapidkit.cacheRepair",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_cache@4"
+        },
+        {
+          "command": "rapidkit.mirrorStatus",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_mirror@1"
+        },
+        {
+          "command": "rapidkit.mirrorSync",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_mirror@2"
+        },
+        {
+          "command": "rapidkit.mirrorVerify",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_mirror@3"
+        },
+        {
+          "command": "rapidkit.mirrorRotate",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_mirror@4"
         },
         {
           "command": "rapidkit.addModule",

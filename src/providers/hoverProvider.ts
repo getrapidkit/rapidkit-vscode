@@ -52,7 +52,10 @@ export class RapidKitHoverProvider implements vscode.HoverProvider {
         '**Profile**\n\nProject complexity profile.\n\n' +
           'Supported values:\n' +
           '- `minimal` - Basic structure\n' +
-          '- `standard` - Standard features\n' +
+          '- `python-only` - Python-focused dependencies\n' +
+          '- `node-only` - Node.js-focused dependencies\n' +
+          '- `go-only` - Go-focused dependencies\n' +
+          '- `polyglot` - Multi-runtime dependencies\n' +
           '- `enterprise` - Full enterprise setup'
       ),
       pythonVersion: new vscode.MarkdownString(

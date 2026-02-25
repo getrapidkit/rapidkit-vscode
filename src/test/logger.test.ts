@@ -2,7 +2,19 @@
  * Logger Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('vscode', () => ({
+  window: {
+    createOutputChannel: () => ({
+      appendLine: () => undefined,
+      show: () => undefined,
+      clear: () => undefined,
+      dispose: () => undefined,
+    }),
+  },
+}));
+
 import { Logger } from '../utils/logger';
 
 describe('Logger', () => {
@@ -28,10 +40,10 @@ describe('Logger', () => {
   });
 
   it('should enable/disable debug mode', () => {
-    logger.setDebug(true);
+    logger.setDebugMode(true);
     expect(() => logger.debug('Debug message')).not.toThrow();
 
-    logger.setDebug(false);
+    logger.setDebugMode(false);
     expect(() => logger.debug('Debug message')).not.toThrow();
   });
 });

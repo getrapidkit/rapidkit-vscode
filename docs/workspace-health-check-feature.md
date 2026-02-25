@@ -8,7 +8,7 @@ Added a new "Doctor" health check feature to the VS Code extension that allows u
 
 ## 🎯 Feature Description
 
-A new inline button (pulse icon 🩺) appears next to each workspace name in the **WORKSPACES** sidebar. Clicking this button runs the `npx rapidkit doctor --workspace` command to perform comprehensive health diagnostics.
+A new inline button (pulse icon 🩺) appears next to each workspace name in the **WORKSPACES** sidebar. Clicking this button runs the `npx rapidkit doctor workspace` command to perform comprehensive health diagnostics.
 
 ---
 
@@ -44,7 +44,7 @@ A new inline button (pulse icon 🩺) appears next to each workspace name in the
 2. Sees list of workspaces in WORKSPACES view
 3. Clicks the pulse icon (🩺) next to workspace name
 4. Extension shows progress notification: "🩺 Checking health of workspace: [name]"
-5. Terminal opens automatically running `npx rapidkit doctor --workspace`
+5. Terminal opens automatically running `npx rapidkit doctor workspace`
 6. Results displayed in terminal with health status
 
 ### Technical Flow
@@ -56,7 +56,7 @@ Get workspace path
   ↓
 Create terminal with workspace cwd
   ↓
-Run: npx rapidkit doctor --workspace
+Run: npx rapidkit doctor workspace
   ↓
 Show results in terminal
 ```
@@ -245,7 +245,7 @@ vscode.commands.registerCommand('rapidkit.checkWorkspaceHealth', async (item: an
       terminal.show();
       progress.report({ increment: 50, message: 'Running diagnostics...' });
 
-      terminal.sendText('npx rapidkit doctor --workspace');
+      terminal.sendText('npx rapidkit doctor workspace');
 
       progress.report({ increment: 100, message: 'Complete!' });
 

@@ -11,10 +11,7 @@ export function Header({ version }: HeaderProps) {
                 <span className="kit">Kit</span>
             </h1>
             <p className="tagline">
-                Build production-ready APIs at warp speed
-            </p>
-            <p className="tagline">
-                FastAPI & NestJS scaffolding with clean architecture, 27+ modules, and automation-first workflows
+                Build production-ready APIs at warp speed with clean architecture, 27+ modules, and automation-first workflows.
             </p>
             <span className="version">v{version}</span>
         </div>

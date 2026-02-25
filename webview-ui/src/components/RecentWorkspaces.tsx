@@ -1,9 +1,12 @@
-import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle, Stethoscope, Upload } from 'lucide-react';
+import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle, Stethoscope, Upload, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import type { Workspace } from '@/types';
 
+const PAGE_SIZE = 5;
+
 interface RecentWorkspacesProps {
     workspaces: Workspace[];
+    isRefreshing?: boolean;
     onRefresh: () => void;
     onSelect: (workspace: Workspace) => void;
     onRemove: (workspace: Workspace) => void;
@@ -16,15 +19,15 @@ const getStatusIcon = (status?: string) => {
     switch (status) {
         case 'up-to-date':
         case 'ok':
-            return <span title="RapidKit Core installed and up to date"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>;
+            return <span title="RapidKit Core installed and up to date" aria-label="Up to date"><CheckCircle2 className="w-4 h-4 text-green-500" /></span>;
         case 'update-available':
-            return <span title="Update available for RapidKit Core"><ArrowUpCircle className="w-4 h-4 text-yellow-500" /></span>;
+            return <span title="Update available for RapidKit Core" aria-label="Update available"><ArrowUpCircle className="w-4 h-4 text-yellow-500" /></span>;
         case 'outdated':
-            return <span title="RapidKit Core is outdated"><AlertCircle className="w-4 h-4 text-orange-500" /></span>;
+            return <span title="RapidKit Core is outdated" aria-label="Outdated"><AlertCircle className="w-4 h-4 text-orange-500" /></span>;
         case 'not-installed':
-            return <span title="RapidKit Core not installed"><XCircle className="w-4 h-4 text-red-500" /></span>;
+            return <span title="RapidKit Core not installed" aria-label="Not installed"><XCircle className="w-4 h-4 text-red-500" /></span>;
         case 'error':
-            return <span title="Error checking RapidKit Core status"><AlertCircle className="w-4 h-4 text-gray-500" /></span>;
+            return <span title="Error checking RapidKit Core status" aria-label="Status error"><AlertCircle className="w-4 h-4 text-gray-500" /></span>;
         default:
             return null;
     }
@@ -46,25 +49,24 @@ const formatDate = (timestamp?: number): string => {
     return date.toLocaleDateString();
 };
 
-const getProjectTypeEmoji = (type: 'fastapi' | 'nestjs'): string => {
-    return type === 'fastapi' ? '⚡' : '🐱';
-};
+export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport }: RecentWorkspacesProps) {
+    const [showAll, setShowAll] = useState(false);
+    /** path of workspace currently performing an action (health/export/upgrade) */
+    const [busyPath, setBusyPath] = useState<string | null>(null);
 
-export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport }: RecentWorkspacesProps) {
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const sorted = [...workspaces].sort((left, right) => {
+        const leftTs = left.lastAccessed ?? left.lastModified ?? 0;
+        const rightTs = right.lastAccessed ?? right.lastModified ?? 0;
+        return rightTs - leftTs;
+    });
+    const visible = showAll ? sorted : sorted.slice(0, PAGE_SIZE);
+    const hiddenCount = sorted.length - PAGE_SIZE;
 
-    const recentWorkspaces = [...workspaces]
-        .sort((left, right) => {
-            const leftTs = left.lastAccessed ?? left.lastModified ?? 0;
-            const rightTs = right.lastAccessed ?? right.lastModified ?? 0;
-            return rightTs - leftTs;
-        })
-        .slice(0, 5);
-
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        onRefresh();
-        setTimeout(() => setIsRefreshing(false), 1000);
+    const withBusy = (path: string, fn: () => void) => {
+        setBusyPath(path);
+        fn();
+        // Clear after a generous timeout so it doesn't stick if extension never replies
+        setTimeout(() => setBusyPath(prev => (prev === path ? null : prev)), 8000);
     };
 
     return (
@@ -72,7 +74,13 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, on
             <div className="section-title">
                 <Folder className="w-6 h-6" />
                 Recent Workspaces
-                <button className="refresh-btn" onClick={handleRefresh} title="Refresh workspaces">
+                <button
+                    className="refresh-btn"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                    title="Refresh workspaces"
+                    aria-label="Refresh workspaces"
+                >
                     <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'spinning' : ''}`} />
                 </button>
             </div>
@@ -84,21 +92,60 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, on
                         No recent workspaces found.
                     </div>
                 ) : (
-                    recentWorkspaces.map((workspace, index) => (
-                        (() => {
+                    <>
+                        {visible.map((workspace) => {
                             const shouldShowUpgrade =
                                 workspace.coreStatus === 'update-available' &&
                                 !!onUpgrade &&
                                 !!workspace.coreLatestVersion;
+                            const isBusy = busyPath === workspace.path;
 
                             return (
                                 <div
-                                    key={index}
-                                    className="ws-card"
-                                    onClick={() => onSelect(workspace)}
+                                    key={workspace.path}
+                                    className={`ws-card${isBusy ? ' ws-card--busy' : ''}`}
+                                    onClick={() => !isBusy && onSelect(workspace)}
+                                    aria-busy={isBusy}
                                 >
                                     <div className="ws-row-top">
                                         <span className="ws-name">{workspace.name}</span>
+
+                                        {/* Busy spinner — replaces action buttons while an action is running */}
+                                        {isBusy && (
+                                            <span className="ws-busy-spinner" aria-label="Working…">
+                                                <Loader2 size={13} className="spinning" />
+                                            </span>
+                                        )}
+
+                                        {/* Phase 4: compliance failure badge */}
+                                        {workspace.complianceStatus === 'failing' && (
+                                            <span
+                                                className="ws-tag ws-tag--danger"
+                                                title="Bootstrap compliance failing — run: npx rapidkit bootstrap"
+                                            >
+                                                ⚠ Policy
+                                            </span>
+                                        )}
+
+                                        {/* Phase 4: bootstrap profile badge */}
+                                        {workspace.bootstrapProfile && (
+                                            <span
+                                                className="ws-tag ws-tag--profile"
+                                                title={`Bootstrap profile: ${workspace.bootstrapProfile}`}
+                                            >
+                                                {workspace.bootstrapProfile}
+                                            </span>
+                                        )}
+
+                                        {/* Phase 4: stale mirror warning */}
+                                        {workspace.mirrorStatus === 'stale' && (
+                                            <span
+                                                className="ws-tag ws-tag--mirror-stale ws-hover-show"
+                                                title="Mirror is stale — run: npx rapidkit mirror sync"
+                                            >
+                                                mirror stale
+                                            </span>
+                                        )}
 
                                         {/* Version badge - only on hover */}
                                         {workspace.coreVersion && (
@@ -124,41 +171,44 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, on
                                         )}
 
                                         {/* Status icon - always visible */}
-                                        {!shouldShowUpgrade && getStatusIcon(workspace.coreStatus)}
+                                        {!shouldShowUpgrade && !isBusy && getStatusIcon(workspace.coreStatus)}
 
-                                        {/* Action buttons - only on hover */}
-                                        {onCheckHealth && (
+                                        {/* Action buttons - only on hover, hidden while busy */}
+                                        {!isBusy && onCheckHealth && (
                                             <button
                                                 className="ws-doctor-btn ws-hover-show"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onCheckHealth(workspace);
+                                                    withBusy(workspace.path, () => onCheckHealth(workspace));
                                                 }}
                                                 title="Check Workspace Health (Doctor)"
+                                                aria-label={`Check health of ${workspace.name}`}
                                             >
                                                 <Stethoscope size={14} />
                                             </button>
                                         )}
-                                        {onExport && (
+                                        {!isBusy && onExport && (
                                             <button
                                                 className="ws-export-btn ws-hover-show"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onExport(workspace);
+                                                    withBusy(workspace.path, () => onExport(workspace));
                                                 }}
                                                 title="Export Workspace"
+                                                aria-label={`Export workspace ${workspace.name}`}
                                             >
                                                 <Upload size={14} />
                                             </button>
                                         )}
-                                        {shouldShowUpgrade && (
+                                        {!isBusy && shouldShowUpgrade && (
                                             <button
                                                 className="ws-upgrade-btn ws-hover-show"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    onUpgrade(workspace);
+                                                    withBusy(workspace.path, () => onUpgrade!(workspace));
                                                 }}
                                                 title={`Upgrade to v${workspace.coreLatestVersion}`}
+                                                aria-label={`Upgrade ${workspace.name} to v${workspace.coreLatestVersion}`}
                                             >
                                                 <ArrowUpCircle size={14} />
                                             </button>
@@ -170,6 +220,7 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, on
                                                 onRemove(workspace);
                                             }}
                                             title="Remove from list"
+                                            aria-label={`Remove ${workspace.name} from list`}
                                         >
                                             <X size={12} />
                                         </button>
@@ -179,8 +230,23 @@ export function RecentWorkspaces({ workspaces, onRefresh, onSelect, onRemove, on
                                     </div>
                                 </div>
                             );
-                        })()
-                    ))
+                        })}
+
+                        {/* Show more / less toggle */}
+                        {sorted.length > PAGE_SIZE && (
+                            <button
+                                className="ws-show-more-btn"
+                                onClick={() => setShowAll(v => !v)}
+                                aria-expanded={showAll}
+                            >
+                                {showAll ? (
+                                    <><ChevronUp size={13} /> Show less</>
+                                ) : (
+                                    <><ChevronDown size={13} /> Show {hiddenCount} more</>
+                                )}
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
         </div>

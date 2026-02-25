@@ -20,11 +20,11 @@ export function HeroAction({ onClick, isLoading = false }: HeroActionProps) {
                 ) : (
                     <Rocket className="hero-icon" size={32} style={{ color: '#00cfc1' }} />
                 )}
-                <div className="hero-title">Create Your First Workspace</div>
+                <div className="hero-title">New Workspace</div>
                 <p className="hero-description">
-                    Choose your framework: FastAPI or NestJS, then create a complete project
+                    Create a new RapidKit workspace with your preferred profile and install method
                 </p>
-                <span className="hero-badge">{isLoading ? 'CHECKING...' : 'GET STARTED'}</span>
+                <span className="hero-badge">{isLoading ? 'CREATING...' : 'NEW WORKSPACE'}</span>
             </div>
         </div>
     );

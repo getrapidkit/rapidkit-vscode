@@ -95,294 +95,238 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ── Button reset: prevent UA stylesheet from forcing black text ── */
+        button {
+            appearance: none;
+            font: inherit;
+            color: var(--vscode-foreground);
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        button:focus-visible {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 1px;
+        }
+
         body {
             font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size, 13px);
             color: var(--vscode-foreground);
             background: transparent;
-            padding: 12px 8px;
-        }
-        
-        /* Grid Layout */
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        
-        /* Framework Row */
-        .framework-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            margin-bottom: 8px;
-        }
-        
-        /* Icon Button */
-        .icon-btn {
+            padding: 10px 8px 14px;
             display: flex;
             flex-direction: column;
+            gap: 10px;
+        }
+
+        /* ── Theme-adaptive color variables ───────────────
+           Each uses a VS Code design-system token with a
+           brand-color fallback for light/unknown themes.   */
+        .fastapi { --c: var(--vscode-testing-iconPassed,   #009688); }
+        .nestjs  { --c: var(--vscode-testing-iconFailed,   #E0234E); }
+        .go      { --c: var(--vscode-terminal-ansiCyan,    #00ADD8); }
+        .modules { --c: var(--vscode-terminal-ansiMagenta, #9C27B0); }
+        .doctor  { --c: var(--vscode-editorWarning-foreground, #FF9800); }
+        .welcome { --c: var(--vscode-textLink-foreground,  #00cfc1); }
+        .docs    { --c: var(--vscode-terminal-ansiBlue,    #2196F3); }
+
+        /* ── CTA: New Workspace ─────────────────────────── */
+        .cta-btn {
+            width: 100%;
+            display: flex;
             align-items: center;
             justify-content: center;
-            padding: 14px 8px;
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border: 1px solid transparent;
+            gap: 8px;
+            padding: 10px 12px;
+            background: color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 12%, var(--vscode-editor-background) 88%);
+            border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 40%, transparent 60%);
             border-radius: 8px;
-            cursor: pointer;
             transition: all 0.2s ease;
-            position: relative;
-            min-height: 70px;
+            color: var(--vscode-foreground);
         }
-        
-        .icon-btn:hover {
-            background: var(--vscode-list-hoverBackground);
-            border-color: var(--c);
-            transform: translateY(-2px);
+        .cta-btn:hover {
+            background: color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 22%, var(--vscode-list-hoverBackground) 78%);
+            border-color: var(--vscode-textLink-foreground, #00cfc1);
+            transform: translateY(-1px);
         }
-        
-        .icon-btn:active {
-            transform: scale(0.95);
-        }
-        
-        .icon-btn .icon {
-            font-size: 24px;
-            margin-bottom: 6px;
-            filter: grayscale(0.3);
-            transition: all 0.2s ease;
-        }
-        
-        .icon-btn:hover .icon {
-            filter: grayscale(0);
-            transform: scale(1.1);
-        }
-        
-        .icon-btn .icon svg {
-            width: 24px;
-            height: 24px;
-            fill: var(--vscode-descriptionForeground);
-        }
-        
-        .icon-btn:hover .icon svg {
-            fill: var(--c);
-        }
-        
-        .icon-btn .icon img {
-            width: 24px;
-            height: 24px;
-        }
-        
-        .icon-btn .label {
+        .cta-btn:active { transform: scale(0.98); }
+        .cta-btn .cta-icon { font-size: 16px; }
+        .cta-btn .cta-text {
             font-size: 12px;
             font-weight: 700;
-            color: var(--vscode-foreground);
-            text-align: center;
-            line-height: 1.2;
-            opacity: 0.85;
+            color: var(--vscode-textLink-foreground, #00cfc1);
+            letter-spacing: 0.02em;
         }
-        
-        .icon-btn:hover .label {
-            opacity: 1;
-        }
-        
-        .icon-btn .badge {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            font-size: 8px;
-            background: var(--c);
-            color: white;
-            padding: 2px 5px;
-            border-radius: 8px;
+
+        /* ── Section label ──────────────────────────────── */
+        .section-label {
+            font-size: 9.5px;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.65;
+            padding: 0 1px;
+            margin-bottom: -4px;
         }
-        
-        /* Divider */
-        .divider {
-            height: 1px;
-            background: var(--vscode-panel-border);
-            margin: 12px 0;
-            opacity: 0.3;
-        }
-        
-        /* Single Row */
-        .single-row {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 6px;
-        }
-        
-        /* Three Column Grid */
-        .grid-3col {
+
+        /* ── Framework grid (3 cols) ─────────────────────── */
+        .fw-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            margin-bottom: 4px;
+            gap: 5px;
         }
-        
-        .compact-btn {
+        .fw-btn {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 10px;
-            padding: 8px 10px;
-            background: transparent;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            cursor: pointer;
+            gap: 4px;
+            padding: 7px 4px;
+            color: var(--vscode-foreground);
+            background: color-mix(in srgb, var(--c, #00cfc1) 8%, var(--vscode-editor-inactiveSelectionBackground) 92%);
+            border: 1px solid color-mix(in srgb, var(--c, #00cfc1) 20%, var(--vscode-panel-border) 80%);
+            border-radius: 7px;
             transition: all 0.15s ease;
         }
-        
-        .grid-3col .compact-btn {
-            flex-direction: column;
-            gap: 4px;
-            padding: 8px 4px;
-            min-height: 60px;
-            justify-content: center;
-        }
-        
-        .compact-btn:hover {
-            background: var(--vscode-list-hoverBackground);
+        .fw-btn:hover {
+            background: color-mix(in srgb, var(--c, #00cfc1) 18%, var(--vscode-list-hoverBackground) 82%);
             border-color: var(--c);
+            transform: translateY(-1px);
         }
-        
-        .compact-btn .icon {
-            width: 16px;
-            height: 16px;
+        .fw-btn:active { transform: scale(0.96); }
+        .fw-btn img { width: 18px; height: 18px; }
+        .fw-btn .fw-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            opacity: 0.85;
+        }
+        .fw-btn:hover .fw-label {
+            opacity: 1;
+            color: var(--c);
+        }
+
+        /* ── Tool grid (2 cols) ──────────────────────────── */
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+        }
+        .tool-btn {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 9px;
+            color: var(--vscode-foreground);
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid transparent;
+            border-radius: 7px;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+        .tool-btn:hover {
+            background: color-mix(in srgb, var(--c, #00cfc1) 10%, var(--vscode-list-hoverBackground) 90%);
+            border-color: color-mix(in srgb, var(--c, #00cfc1) 55%, transparent 45%);
+        }
+        .tool-btn:active { transform: scale(0.97); }
+        .tool-btn .t-icon {
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        
-        .grid-3col .compact-btn .icon {
             width: 18px;
             height: 18px;
-            font-size: 16px;
+            flex-shrink: 0;
         }
-        
-        .compact-btn .icon svg {
-            width: 16px;
-            height: 16px;
+        .tool-btn .t-icon svg {
+            width: 15px;
+            height: 15px;
             fill: var(--vscode-descriptionForeground);
+            transition: fill 0.15s;
         }
-        
-        .grid-3col .compact-btn .icon svg {
-            width: 18px;
-            height: 18px;
-        }
-        
-        /* Framework compact button */
-        .framework-row .compact-btn {
-            flex-direction: column;
-            gap: 3px;
-            padding: 5px 2px;
-            min-height: 44px;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .framework-row .compact-btn .icon {
-            width: 16px;
-            height: 16px;
-            flex: none;
-        }
-        
-        .framework-row .compact-btn .icon img {
-            width: 16px;
-            height: 16px;
-        }
-        
-        .framework-row .compact-btn .label {
-            flex: none;
-            font-size: 9.5px;
-            text-align: center;
-            line-height: 1.1;
-            opacity: 0.85;
-        }
-        
-        .compact-btn:hover .icon svg {
-            fill: var(--c);
-        }
-        
-        .compact-btn .label {
+        .tool-btn:hover .t-icon svg { fill: var(--c); }
+        .tool-btn .t-text {
             font-size: 11px;
             font-weight: 600;
-            flex: 1;
             color: var(--vscode-foreground);
-        }
-        
-        .grid-3col .compact-btn .label {
             flex: 1;
-            font-size: 10.5px;
-            text-align: center;
-            line-height: 1.1;
-            opacity: 0.85;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        
-        /* Colors */
-        .workspace { --c: #00cfc1; }
-        .fastapi { --c: #009688; }
-        .nestjs { --c: #E0234E; }
-        .go { --c: #00ADD8; }
-        .modules { --c: #9C27B0; }
-        .doctor { --c: #FF9800; }
-        .welcome { --c: #00cfc1; }
-        .docs { --c: #2196F3; }
+        .tool-btn:hover .t-text { color: var(--c); }
+        .tool-btn .t-badge {
+            font-size: 8.5px;
+            font-weight: 700;
+            background: var(--c);
+            color: #fff;
+            padding: 1px 5px;
+            border-radius: 6px;
+        }
+
+        /* ── Subtle divider ──────────────────────────────── */
+        .hairline {
+            height: 1px;
+            background: var(--vscode-panel-border);
+            opacity: 0.25;
+            margin: 0 1px;
+        }
     </style>
 </head>
 <body>
-    <!-- Primary Actions: Workspace + Modules -->
-    <div class="grid">
-        <button class="icon-btn workspace" onclick="send('openWorkspaceModal')">
-            <span class="icon">${icons.workspace}</span>
-            <span class="label">Workspace</span>
-        </button>
-        
-        <button class="icon-btn modules" onclick="send('browseModules')">
-            <span class="icon">${icons.modules}</span>
-            <span class="label">Modules</span>
-            <span class="badge">27</span>
-        </button>
-    </div>
-    
-    <!-- Framework Row: FastAPI | NestJS | Go -->
-    <div class="framework-row">
-        <button class="compact-btn fastapi" onclick="send('createFastAPIProject')" title="New FastAPI project">
-            <span class="icon"><img src="${fastapiIconUri}" alt=""></span>
-            <span class="label">FastAPI</span>
-        </button>
-        
-        <button class="compact-btn nestjs" onclick="send('createNestJSProject')" title="New NestJS project">
-            <span class="icon"><img src="${nestjsIconUri}" alt=""></span>
-            <span class="label">NestJS</span>
-        </button>
-        
-        <button class="compact-btn go" onclick="send('createGoProject')" title="New Go project">
-            <span class="icon"><img src="${goIconUri}" alt=""></span>
-            <span class="label">Go</span>
-        </button>
-    </div>
-    
-    <div class="divider"></div>
-    
-    <!-- Secondary Actions: 3-Column Grid -->
-    <div class="grid-3col">
-         <button class="compact-btn welcome" onclick="send('openWelcome')" title="Open welcome page">
-            <span class="icon">${icons.home}</span>
-            <span class="label">Welcome</span>
-        </button>
-        
-        <button class="compact-btn doctor" onclick="send('doctor')" title="Run system checks">
-            <span class="icon">${icons.doctor}</span>
-            <span class="label">Check</span>
-        </button>   
 
-        <button class="compact-btn docs" onclick="send('openDocs')" title="Open documentation">
-            <span class="icon">${icons.docs}</span>
-            <span class="label">Docs</span>
+    <!-- ① New Workspace — primary CTA -->
+    <button class="cta-btn" onclick="send('openWorkspaceModal')" title="Create a new RapidKit workspace">
+        <span class="cta-icon">＋</span>
+        <span class="cta-text">New Workspace</span>
+    </button>
+
+    <!-- ② New Project -->
+    <span class="section-label">New Project</span>
+    <div class="fw-grid">
+        <button class="fw-btn fastapi" onclick="send('createFastAPIProject')" title="New FastAPI project">
+            <img src="${fastapiIconUri}" alt="FastAPI">
+            <span class="fw-label">FastAPI</span>
+        </button>
+        <button class="fw-btn nestjs" onclick="send('createNestJSProject')" title="New NestJS project">
+            <img src="${nestjsIconUri}" alt="NestJS">
+            <span class="fw-label">NestJS</span>
+        </button>
+        <button class="fw-btn go" onclick="send('createGoProject')" title="New Go project">
+            <img src="${goIconUri}" alt="Go">
+            <span class="fw-label">Go</span>
         </button>
     </div>
-    
+
+    <!-- ③ Explore & Health -->
+    <span class="section-label">Explore</span>
+    <div class="tool-grid">
+        <button class="tool-btn modules" onclick="send('browseModules')" title="Browse 27+ modules">
+            <span class="t-icon">${icons.modules}</span>
+            <span class="t-text">Modules</span>
+            <span class="t-badge" style="--c:#9C27B0">27</span>
+        </button>
+        <button class="tool-btn doctor" onclick="send('doctor')" title="Run health check">
+            <span class="t-icon">${icons.doctor}</span>
+            <span class="t-text">Check</span>
+        </button>
+    </div>
+
+    <div class="hairline"></div>
+
+    <div class="tool-grid">
+        <button class="tool-btn welcome" onclick="send('openWelcome')" title="Open welcome panel">
+            <span class="t-icon">${icons.home}</span>
+            <span class="t-text">Welcome</span>
+        </button>
+        <button class="tool-btn docs" onclick="send('openDocs')" title="Open documentation">
+            <span class="t-icon">${icons.docs}</span>
+            <span class="t-text">Docs</span>
+        </button>
+    </div>
+
     <script>
         const vscode = acquireVsCodeApi();
         function send(cmd) { vscode.postMessage({ command: cmd }); }

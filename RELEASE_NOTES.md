@@ -1,6 +1,40 @@
 # Release Notes
 
-## Latest Release: v0.13.0 (February 21, 2026)
+## Latest Release: v0.14.0 (February 25, 2026)
+
+### 🎯 Workspace/Project Accuracy + Persistent Welcome UX
+
+**Summary:** This release focuses on correctness across workspace and project state, durable Welcome preferences, and safer example-workspace actions.
+
+#### Added
+
+- 🧭 **Profile-aware Command Reference** in Welcome page, based on active `WORKSPACES` selection
+- 👁️ **Persistent Setup Status toggle** (hide/show survives panel reopen and VS Code restart)
+- 🏷️ **Workspace profile tags** shown in both sidebar `WORKSPACES` and Welcome `Recent Workspaces`
+
+#### Fixed
+
+- 🌐 **Example links open externally** via extension host messaging (no broken webview `window.open` behavior)
+- 📦 **Example clone source correctness** by separating `repoUrl` (browse) from `cloneUrl` (git clone)
+- 🧠 **Modules install gating** now requires selected **project** state, not only workspace selection
+- 🎨 **Quick Actions theme adaptation** using VS Code tokens for dark/light readability
+
+#### Quality
+
+- ✅ Drift guards strengthened for command/profile contracts and repository text consistency
+
+### 🧪 Contract Regression Log (doctor/create/bootstrap)
+
+Use this section for each release to track command-contract changes and drift risks.
+
+| Area | Expected Contract | Status | Notes |
+|------|-------------------|--------|-------|
+| doctor workspace | `npx rapidkit doctor workspace` | ✅ | Extension workspace health action aligned |
+| doctor fix | `npx rapidkit doctor workspace --fix` | ✅ | Extension auto-fix action aligned |
+| legacy doctor flag | `--workspace` (deprecated form) | ✅ Not used | Drift guard test blocks regression |
+| create workspace | `rapidkit create workspace <name>` | ✅ | Routed via npm bridge |
+| create project | `rapidkit create project <kit> <name> --output <dir>` | ✅ | Routed via npm bridge |
+| bootstrap profile | `rapidkit bootstrap --profile <profile>` | ✅ | Profile values aligned across UI/types/docs |
 
 ### 🐹 Release: v0.13.0 — Go Framework Support + Sidebar Quick Actions Redesign
 
@@ -101,6 +135,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.14.0](releases/RELEASE_NOTES_v0.14.0.md) | Feb 25, 2026 | 🎯 Workspace-vs-project correctness, 👁️ persisted setup toggle, 🌐 example link/clone fixes, 🏷️ profile tags |
 | [v0.13.0](releases/RELEASE_NOTES_v0.13.0.md) | Feb 21, 2026 | 🐹 Go framework support, 🪟 Workspace modal routing, 🔧 @latest fix, 🚫 Modules disabled for Go |
 | [v0.12.0](releases/RELEASE_NOTES_v0.12.0.md) | Feb 15, 2026 | 🪟 Module details modal, 🧭 workspace-first CLI resolution, 🔄 post-install refresh |
 | [v0.11.0](releases/RELEASE_NOTES_v0.11.0.md) | Feb 14, 2026 | 🌐 Dynamic Examples, 🎨 Kit Selection, 📦 Workspace Export/Import |

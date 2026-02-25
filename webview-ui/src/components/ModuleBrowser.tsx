@@ -62,6 +62,7 @@ export function ModuleBrowser({
     const [copiedModuleId, setCopiedModuleId] = useState<string | null>(null);
     const [loadingModuleId, setLoadingModuleId] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const hasProjectSelected = workspaceStatus.hasProjectSelected === true;
 
     // Get unique categories
     const categories = useMemo(() => {
@@ -141,7 +142,7 @@ export function ModuleBrowser({
                     <span className="module-count" style={{ marginLeft: '4px' }}>
                         {modules.length} free modules
                     </span>
-                    {workspaceStatus.hasWorkspace && workspaceStatus.installedModules && (
+                    {hasProjectSelected && workspaceStatus.installedModules && (
                         <span className="module-count installed-count">
                             {workspaceStatus.installedModules.length} installed
                         </span>
@@ -152,7 +153,7 @@ export function ModuleBrowser({
                 </button>
             </div>
 
-            {!workspaceStatus.hasWorkspace ? (
+            {!hasProjectSelected ? (
                 <div className="workspace-warning">
                     <AlertTriangle className="warning-icon" />
                     <div className="warning-content">
@@ -188,7 +189,7 @@ export function ModuleBrowser({
             )}
 
             {/* Always show search and filters when modules exist */}
-            {modules.length > 0 && !modulesDisabled && (
+            {modules.length > 0 && !modulesDisabled && hasProjectSelected && (
                 <div className="module-controls">
                     <input
                         type="text"
@@ -211,7 +212,7 @@ export function ModuleBrowser({
                 </div>
             )}
 
-            {modulesDisabled ? (
+            {!hasProjectSelected ? null : modulesDisabled ? (
                 <div className="empty-state" style={{ opacity: 0.7 }}>
                     <div className="workspace-empty-icon">🐹</div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Modules not available for Go projects</div>
@@ -252,7 +253,7 @@ export function ModuleBrowser({
                                                 <button
                                                     className="module-install-btn update"
                                                     onClick={() => onInstall(module)}
-                                                    disabled={!workspaceStatus.hasWorkspace}
+                                                    disabled={!hasProjectSelected}
                                                     title={`Update from v${installedInfo.version} to v${module.version}`}
                                                 >
                                                     <ArrowUp size={16} /> Update
@@ -269,7 +270,7 @@ export function ModuleBrowser({
                                                 <button
                                                     className="module-install-btn"
                                                     onClick={() => onInstall(module)}
-                                                    disabled={!workspaceStatus.hasWorkspace}
+                                                    disabled={!hasProjectSelected}
                                                 >
                                                     <Download size={16} /> Install
                                                 </button>
