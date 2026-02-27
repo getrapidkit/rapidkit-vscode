@@ -46,7 +46,7 @@ function collectProjectFiles(root: string): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      const relPath = path.relative(root, fullPath);
+      const relPath = path.relative(root, fullPath).split(path.sep).join('/');
 
       if (entry.isDirectory()) {
         if (EXCLUDED_DIRS.has(entry.name)) continue;
