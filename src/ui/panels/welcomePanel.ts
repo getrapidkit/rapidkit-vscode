@@ -13,6 +13,15 @@ import { ExamplesService } from '../../core/examplesService';
 import { KitsService } from '../../core/kitsService';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
+import { run } from '../../utils/exec';
+import { getWorkspaceVenvRapidkitCandidates } from '../../utils/platformCapabilities';
+import { isPoetryInstalledCached } from '../../utils/poetryHelper';
+import { checkPythonEnvironmentCached } from '../../utils/pythonChecker';
+import {
+  runCommandsInTerminal,
+  runRapidkitCommandsInTerminal,
+  runShellCommandInTerminal,
+} from '../../utils/terminalExecutor';
 import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
 
 export class WelcomePanel {
@@ -378,6 +387,9 @@ export class WelcomePanel {
           case 'refreshModules':
             this._sendModulesCatalog();
             break;
+          case 'requestWorkspaceToolStatus':
+            await this._sendWorkspaceToolStatus();
+            break;
           case 'installModule': {
             if (message.data) {
               // Construct full module object like stable welcomePanel does
@@ -430,21 +442,16 @@ export class WelcomePanel {
             if (message.data?.path) {
               const workspacePath = message.data.path;
               const targetVersion = message.data.version;
-              const terminal = vscode.window.createTerminal({
-                name: `Upgrade RapidKit Core`,
-                cwd: workspacePath,
-              });
-              terminal.show();
 
               // Detect if workspace has venv
               const venvPath = path.join(workspacePath, '.venv');
               const hasVenv = await fs.pathExists(venvPath);
 
-              if (hasVenv) {
-                terminal.sendText('poetry update rapidkit-core');
-              } else {
-                terminal.sendText('pipx upgrade rapidkit-core');
-              }
+              runCommandsInTerminal({
+                name: `Upgrade RapidKit Core`,
+                cwd: workspacePath,
+                commands: [hasVenv ? 'poetry update rapidkit-core' : 'pipx upgrade rapidkit-core'],
+              });
 
               vscode.window.showInformationMessage(
                 `Upgrading RapidKit Core${targetVersion ? ` to v${targetVersion}` : ''}...`,
@@ -514,12 +521,11 @@ export class WelcomePanel {
             break;
           case 'projectBuild':
             if (WelcomePanel._selectedProject) {
-              const terminal = vscode.window.createTerminal({
+              runRapidkitCommandsInTerminal({
                 name: `Build ${WelcomePanel._selectedProject.name}`,
                 cwd: WelcomePanel._selectedProject.path,
+                commands: [['build']],
               });
-              terminal.show();
-              terminal.sendText('npx rapidkit build');
               vscode.window.showInformationMessage(
                 `Building ${WelcomePanel._selectedProject.name}...`,
                 'OK'
@@ -568,7 +574,56 @@ export class WelcomePanel {
     this._sendAvailableKits();
     this._sendModulesCatalog();
     this._sendWorkspaceStatus();
+    this._sendWorkspaceToolStatus();
     this._sendUiPreferences();
+  }
+
+  private async _sendWorkspaceToolStatus() {
+    const python = await checkPythonEnvironmentCached();
+    const poetryAvailable = await isPoetryInstalledCached();
+
+    let pipxAvailable = false;
+    const pipxCandidates: Array<{ command: string; args: string[] }> =
+      process.platform === 'win32'
+        ? [
+            { command: 'python', args: ['-m', 'pipx', '--version'] },
+            { command: 'py', args: ['-m', 'pipx', '--version'] },
+            { command: 'pipx', args: ['--version'] },
+          ]
+        : [
+            { command: 'pipx', args: ['--version'] },
+            { command: 'python3', args: ['-m', 'pipx', '--version'] },
+            { command: 'python', args: ['-m', 'pipx', '--version'] },
+          ];
+
+    for (const candidate of pipxCandidates) {
+      try {
+        const result = await run(candidate.command, candidate.args, {
+          timeout: 3000,
+          stdio: 'pipe',
+        });
+        if (result.exitCode === 0) {
+          pipxAvailable = true;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    const venvAvailable = python.available && python.venvSupport;
+    const preferredInstallMethod = poetryAvailable ? 'poetry' : pipxAvailable ? 'pipx' : 'venv';
+
+    this._panel.webview.postMessage({
+      command: 'workspaceToolStatus',
+      data: {
+        pythonAvailable: python.available,
+        venvAvailable,
+        poetryAvailable,
+        pipxAvailable,
+        preferredInstallMethod,
+      },
+    });
   }
 
   private _getUiPreferences(): { setupStatusCardHidden: boolean } {
@@ -738,18 +793,14 @@ export class WelcomePanel {
 
       // Clone the repository
       vscode.window.showInformationMessage(`🔄 Cloning ${example.title}...`);
+      const cloneSource = example.cloneUrl || 'https://github.com/getrapidkit/rapidkit-examples';
 
-      const terminal = vscode.window.createTerminal({
+      const terminal = runShellCommandInTerminal({
         name: `Clone ${example.name}`,
         cwd: parentFolder,
-        isTransient: false,
+        command: 'git',
+        args: ['clone', cloneSource, 'rapidkit-examples-temp'],
       });
-
-      terminal.show();
-
-      // Clone the entire repository (never use /tree/main/... URLs for git clone)
-      const cloneSource = example.cloneUrl || 'https://github.com/getrapidkit/rapidkit-examples';
-      terminal.sendText(`git clone ${cloneSource} rapidkit-examples-temp`);
 
       // Wait for clone to complete
       await new Promise((resolve) => setTimeout(resolve, 8000));
@@ -870,13 +921,11 @@ export class WelcomePanel {
       }
 
       // Create terminal and run git pull
-      const terminal = vscode.window.createTerminal({
+      runCommandsInTerminal({
         name: `Update ${example.name}`,
         cwd: info.clonedPath,
+        commands: ['git fetch origin main', 'git pull origin main'],
       });
-
-      terminal.show();
-      terminal.sendText('git fetch origin main && git pull origin main');
 
       vscode.window.showInformationMessage(
         `🔄 Updating ${example.name}... Check terminal for details.`,
@@ -914,17 +963,11 @@ export class WelcomePanel {
 
   private async _checkGitStatus(repoPath: string): Promise<boolean> {
     try {
-      // Check if git status is clean
-      const { exec } = require('child_process');
-      return new Promise((resolve) => {
-        exec('git status --porcelain', { cwd: repoPath }, (error: any, stdout: string) => {
-          if (error) {
-            resolve(false); // Assume clean if git command fails
-          } else {
-            resolve(stdout.trim().length > 0); // Has changes if output is not empty
-          }
-        });
-      });
+      const result = await run('git', ['status', '--porcelain'], { cwd: repoPath });
+      if (result.exitCode !== 0) {
+        return false;
+      }
+      return result.stdout.trim().length > 0;
     } catch {
       return false;
     }
@@ -1371,12 +1414,16 @@ export class WelcomePanel {
 
       const { run } = await import('../../utils/exec.js');
 
-      const rapidkitPath = workspacePath
-        ? path.join(workspacePath, '.venv', 'bin', 'rapidkit')
-        : 'rapidkit';
-
-      const useWorkspaceRapidkit = workspacePath && (await fs.pathExists(rapidkitPath));
-      const command = useWorkspaceRapidkit ? rapidkitPath : 'rapidkit';
+      let command = 'rapidkit';
+      if (workspacePath) {
+        const candidates = getWorkspaceVenvRapidkitCandidates(workspacePath);
+        for (const candidate of candidates) {
+          if (await fs.pathExists(candidate)) {
+            command = candidate;
+            break;
+          }
+        }
+      }
 
       const candidates = [
         moduleData.slug,
@@ -1394,7 +1441,8 @@ export class WelcomePanel {
           // Try to get JSON output first
           const jsonResult = await run(command, ['modules', 'info', candidate, '--json'], {
             cwd: workspacePath,
-            shell: true,
+            shell: false,
+            timeout: 5000,
           });
           if (jsonResult.exitCode === 0 && jsonResult.stdout) {
             try {

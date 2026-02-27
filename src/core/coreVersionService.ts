@@ -4,10 +4,10 @@
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs-extra';
 import { run } from '../utils/exec';
 import { Logger } from '../utils/logger';
+import { getWorkspaceVenvRapidkitCandidates } from '../utils/platformCapabilities';
 
 export type VersionStatus =
   | 'up-to-date'
@@ -29,6 +29,13 @@ export class CoreVersionService {
   private logger: Logger;
   private cache: Map<string, { info: CoreVersionInfo; timestamp: number }> = new Map();
   private cacheTtl = 5 * 60 * 1000; // 5 minutes
+  private globalInstalledCache: {
+    version?: string;
+    location?: string;
+    path?: string;
+    timestamp: number;
+  } | null = null;
+  private latestVersionCache: { version?: string; timestamp: number } | null = null;
 
   private constructor() {
     this.logger = Logger.getInstance();
@@ -70,6 +77,8 @@ export class CoreVersionService {
       this.cache.delete(workspacePath);
     } else {
       this.cache.clear();
+      this.globalInstalledCache = null;
+      this.latestVersionCache = null;
     }
   }
 
@@ -83,7 +92,7 @@ export class CoreVersionService {
     }
 
     // Get latest version (optional, can be disabled for performance)
-    const latestVersion = await this._getLatestVersion().catch(() => undefined);
+    const latestVersion = await this._getLatestVersionCached().catch(() => undefined);
 
     // Compare versions
     let status: VersionStatus = 'up-to-date';
@@ -103,9 +112,13 @@ export class CoreVersionService {
   private async _getInstalledVersion(
     workspacePath: string
   ): Promise<{ version?: string; location?: string; path?: string }> {
-    // Priority 1: Workspace .venv
-    const venvPath = path.join(workspacePath, '.venv', 'bin', 'rapidkit');
-    if (await fs.pathExists(venvPath)) {
+    // Priority 1: Workspace .venv (cross-platform)
+    const venvCandidates = getWorkspaceVenvRapidkitCandidates(workspacePath);
+    for (const venvPath of venvCandidates) {
+      if (!(await fs.pathExists(venvPath))) {
+        continue;
+      }
+
       try {
         const { stdout } = await run(venvPath, ['--version'], {
           cwd: workspacePath,
@@ -120,11 +133,33 @@ export class CoreVersionService {
           };
         }
       } catch {
-        // Continue to next check
+        // Continue to next candidate
       }
     }
 
-    // Priority 2: Global installation
+    // Priority 2: Global installation (cached across workspaces)
+    const globalVersion = await this._getGlobalInstalledVersionCached(workspacePath);
+    if (globalVersion.version) {
+      return globalVersion;
+    }
+
+    return {};
+  }
+
+  private async _getGlobalInstalledVersionCached(
+    workspacePath: string
+  ): Promise<{ version?: string; location?: string; path?: string }> {
+    if (
+      this.globalInstalledCache &&
+      Date.now() - this.globalInstalledCache.timestamp < this.cacheTtl
+    ) {
+      return {
+        version: this.globalInstalledCache.version,
+        location: this.globalInstalledCache.location,
+        path: this.globalInstalledCache.path,
+      };
+    }
+
     try {
       const { stdout } = await run('rapidkit', ['--version'], {
         cwd: workspacePath,
@@ -132,16 +167,37 @@ export class CoreVersionService {
       });
       const match = stdout.match(/v?([\d.]+(?:rc\d+)?(?:a\d+)?(?:b\d+)?)/);
       if (match) {
-        return {
+        const result = {
           version: match[1],
           location: 'global',
         };
+        this.globalInstalledCache = { ...result, timestamp: Date.now() };
+        return result;
       }
     } catch {
       // Not installed
     }
 
+    this.globalInstalledCache = {
+      version: undefined,
+      location: undefined,
+      path: undefined,
+      timestamp: Date.now(),
+    };
     return {};
+  }
+
+  private async _getLatestVersionCached(): Promise<string | undefined> {
+    if (this.latestVersionCache && Date.now() - this.latestVersionCache.timestamp < this.cacheTtl) {
+      return this.latestVersionCache.version;
+    }
+
+    const version = await this._getLatestVersion().catch(() => undefined);
+    this.latestVersionCache = {
+      version,
+      timestamp: Date.now(),
+    };
+    return version;
   }
 
   private async _getLatestVersion(): Promise<string | undefined> {

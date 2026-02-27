@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { vscode } from '@/vscode';
-import type { ModuleData, CategoryInfo, Workspace, WorkspaceStatus, InstallStatus, ExampleWorkspace, Kit } from '@/types';
+import type {
+    ModuleData,
+    CategoryInfo,
+    Workspace,
+    WorkspaceStatus,
+    InstallStatus,
+    ExampleWorkspace,
+    Kit,
+    WorkspaceToolStatus,
+} from '@/types';
 import { Header } from '@/components/Header';
 import { SetupCard } from '@/components/SetupCard';
 import { HeroAction } from '@/components/HeroAction';
@@ -40,6 +49,7 @@ export function App() {
         npmInstalled: false,
         coreInstalled: false
     });
+    const [workspaceToolStatus, setWorkspaceToolStatus] = useState<WorkspaceToolStatus | null>(null);
     /** true once extension has sent at least one installStatusUpdate — before that, initial false values must not be trusted */
     const [installStatusChecked, setInstallStatusChecked] = useState(false);
     const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
@@ -134,6 +144,9 @@ export function App() {
                     console.log('[React Webview] openWorkspaceModal');
                     setShowCreateModal(true);
                     break;
+                case 'workspaceToolStatus':
+                    setWorkspaceToolStatus(message.data);
+                    break;
                 case 'uiPreferences':
                     if (typeof message.data?.setupStatusCardHidden === 'boolean') {
                         setIsSetupCardHidden(message.data.setupStatusCardHidden);
@@ -150,6 +163,12 @@ export function App() {
 
         return () => window.removeEventListener('message', messageHandler);
     }, []);
+
+    useEffect(() => {
+        if (showCreateModal) {
+            vscode.postMessage('requestWorkspaceToolStatus');
+        }
+    }, [showCreateModal]);
 
     const handleCreateWorkspace = (config: WorkspaceCreationConfig) => {
         console.log('[React Webview] Creating workspace:', config.name);
@@ -272,6 +291,7 @@ export function App() {
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
                 onCreate={handleCreateWorkspace}
+                toolStatus={workspaceToolStatus}
             />
             <CreateProjectModal
                 isOpen={showProjectModal}

@@ -1,0 +1,98 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildRapidkitCommand,
+  buildShellCommand,
+  detectPlatformKind,
+  quoteShellArg,
+} from '../utils/platformCapabilities';
+
+describe('platformCapabilities', () => {
+  it('detects platform kind correctly', () => {
+    expect(detectPlatformKind('win32')).toBe('windows');
+    expect(detectPlatformKind('linux')).toBe('linux');
+    expect(detectPlatformKind('darwin')).toBe('macos');
+    expect(detectPlatformKind('aix')).toBe('other');
+  });
+
+  it('quotes shell args correctly on posix', () => {
+    expect(quoteShellArg('rapidkit', 'linux')).toBe('rapidkit');
+    expect(quoteShellArg('my project', 'linux')).toBe("'my project'");
+    expect(quoteShellArg("it's", 'linux')).toBe("'it'\"'\"'s'");
+    expect(quoteShellArg('', 'linux')).toBe('""');
+  });
+
+  it('quotes shell args correctly on windows', () => {
+    expect(quoteShellArg('rapidkit', 'win32')).toBe('rapidkit');
+    expect(quoteShellArg('my project', 'win32')).toBe('"my project"');
+    expect(quoteShellArg('a"b', 'win32')).toBe('"a""b"');
+    expect(quoteShellArg('', 'win32')).toBe('""');
+  });
+
+  it('builds shell commands with platform-aware quoting', () => {
+    expect(buildShellCommand('npx', ['rapidkit', 'workspace', 'my folder'], 'linux')).toBe(
+      "npx rapidkit workspace 'my folder'"
+    );
+
+    expect(buildShellCommand('npx', ['rapidkit', 'workspace', 'my folder'], 'darwin')).toBe(
+      "npx rapidkit workspace 'my folder'"
+    );
+
+    expect(buildShellCommand('npx', ['rapidkit', 'workspace', 'my folder'], 'win32')).toBe(
+      'npx rapidkit workspace "my folder"'
+    );
+
+    expect(buildShellCommand('echo', ['a&b'], 'win32')).toBe('echo "a&b"');
+  });
+
+  it('builds rapidkit commands consistently across platforms', () => {
+    expect(buildRapidkitCommand(['doctor', 'workspace'], 'linux')).toBe(
+      'npx rapidkit doctor workspace'
+    );
+    expect(buildRapidkitCommand(['doctor', 'workspace'], 'win32')).toBe(
+      'npx rapidkit doctor workspace'
+    );
+    expect(buildRapidkitCommand(['create', 'workspace', 'my folder'], 'linux')).toBe(
+      "npx rapidkit create workspace 'my folder'"
+    );
+  });
+
+  it('keeps scenario command matrix stable across linux/macos/windows', () => {
+    const platforms: NodeJS.Platform[] = ['linux', 'darwin', 'win32'];
+
+    const noSpaceScenarios: string[][] = [
+      ['init'],
+      ['dev'],
+      ['test'],
+      ['build'],
+      ['doctor', 'workspace'],
+      ['doctor', 'workspace', '--fix'],
+      ['workspace', 'policy', 'show'],
+      ['workspace', 'policy', 'set', 'mode', 'strict'],
+      ['cache', 'status'],
+      ['cache', 'clear'],
+      ['cache', 'prune'],
+      ['cache', 'repair'],
+      ['mirror', 'status'],
+      ['mirror', 'sync'],
+      ['mirror', 'verify'],
+      ['mirror', 'rotate'],
+      ['add', 'module', 'free/auth/auth_core'],
+    ];
+
+    for (const scenario of noSpaceScenarios) {
+      for (const platform of platforms) {
+        expect(buildRapidkitCommand(scenario, platform)).toBe(`npx rapidkit ${scenario.join(' ')}`);
+      }
+    }
+
+    expect(
+      buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'linux')
+    ).toBe("npx rapidkit workspace policy set 'team name' strict");
+    expect(
+      buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'darwin')
+    ).toBe("npx rapidkit workspace policy set 'team name' strict");
+    expect(
+      buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'win32')
+    ).toBe('npx rapidkit workspace policy set "team name" strict');
+  });
+});

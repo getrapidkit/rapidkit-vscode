@@ -94,8 +94,12 @@ export class WorkspaceDetector {
     const weakIndicators = [
       'pyproject.toml',
       'package.json',
+      'go.mod',
+      'go.sum',
       path.join('src', 'main.py'),
       path.join('src', 'app.ts'),
+      path.join('cmd', 'main.go'),
+      path.join('main.go'),
     ];
     for (const indicator of weakIndicators) {
       if (await fs.pathExists(path.join(dirPath, indicator))) {
@@ -112,13 +116,47 @@ export class WorkspaceDetector {
   private async analyzeProject(projectPath: string): Promise<RapidKitProject | null> {
     try {
       const projectName = path.basename(projectPath);
-      let type: 'fastapi' | 'nestjs' = 'fastapi';
+      let type: 'fastapi' | 'nestjs' | 'go' = 'fastapi';
       let kit = 'unknown';
       const modules: string[] = [];
 
+      const goModPath = path.join(projectPath, 'go.mod');
+      const goSumPath = path.join(projectPath, 'go.sum');
+      const goMainPath = path.join(projectPath, 'main.go');
+      const goCmdMainPath = path.join(projectPath, 'cmd', 'main.go');
+
+      if (
+        (await fs.pathExists(goModPath)) ||
+        (await fs.pathExists(goSumPath)) ||
+        (await fs.pathExists(goMainPath)) ||
+        (await fs.pathExists(goCmdMainPath))
+      ) {
+        type = 'go';
+        try {
+          if (await fs.pathExists(goModPath)) {
+            const content = await fs.readFile(goModPath, 'utf-8');
+            if (content.includes('github.com/getrapidkit') || content.includes('rapidkit')) {
+              if (content.includes('gofiber')) {
+                kit = 'gofiber.standard';
+              } else if (content.includes('gogin')) {
+                kit = 'gogin.standard';
+              } else {
+                kit = 'go.standard';
+              }
+            } else {
+              kit = 'go.standard';
+            }
+          } else {
+            kit = 'go.standard';
+          }
+        } catch {
+          kit = 'go.standard';
+        }
+      }
+
       // Check pyproject.toml for FastAPI
       const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-      if (await fs.pathExists(pyprojectPath)) {
+      if (type !== 'go' && (await fs.pathExists(pyprojectPath))) {
         type = 'fastapi';
         const content = await fs.readFile(pyprojectPath, 'utf-8');
         if (content.includes('rapidkit')) {
@@ -128,7 +166,7 @@ export class WorkspaceDetector {
 
       // Check package.json for NestJS
       const packageJsonPath = path.join(projectPath, 'package.json');
-      if (await fs.pathExists(packageJsonPath)) {
+      if (type !== 'go' && (await fs.pathExists(packageJsonPath))) {
         type = 'nestjs';
         const packageJson = await fs.readJson(packageJsonPath);
         if (packageJson.dependencies?.['@nestjs/core']) {

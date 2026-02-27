@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, FolderPlus, AlertCircle } from 'lucide-react';
+import type { WorkspaceToolStatus } from '@/types';
 
 export type WorkspaceProfile = 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
 export type WorkspaceInstallMethod = 'auto' | 'poetry' | 'venv' | 'pipx';
@@ -17,6 +18,7 @@ interface CreateWorkspaceModalProps {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (config: WorkspaceCreationConfig) => void;
+    toolStatus?: WorkspaceToolStatus | null;
 }
 
 const PROFILES: { value: WorkspaceProfile; icon: string; label: string; desc: string }[] = [
@@ -35,7 +37,7 @@ const INSTALL_METHODS: { value: WorkspaceInstallMethod; label: string; desc: str
     { value: 'pipx', label: 'pipx', desc: 'Isolated pipx environments' },
 ];
 
-export function CreateWorkspaceModal({ isOpen, onClose, onCreate }: CreateWorkspaceModalProps) {
+export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: CreateWorkspaceModalProps) {
     const [workspaceName, setWorkspaceName] = useState('');
     const [error, setError] = useState('');
     const [profile, setProfile] = useState<WorkspaceProfile>('minimal');
@@ -60,6 +62,51 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate }: CreateWorksp
         }
         return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || !toolStatus) {
+            return;
+        }
+
+        setInstallMethod(toolStatus.preferredInstallMethod);
+    }, [isOpen, toolStatus]);
+
+    const isInstallMethodEnabled = (method: WorkspaceInstallMethod): boolean => {
+        if (!toolStatus) {
+            return true;
+        }
+        if (method === 'auto') {
+            return true;
+        }
+        if (method === 'poetry') {
+            return toolStatus.poetryAvailable;
+        }
+        if (method === 'venv') {
+            return toolStatus.venvAvailable;
+        }
+        if (method === 'pipx') {
+            return toolStatus.pipxAvailable;
+        }
+        return true;
+    };
+
+    const getInstallMethodDisabledReason = (method: WorkspaceInstallMethod): string | null => {
+        if (!toolStatus || isInstallMethodEnabled(method)) {
+            return null;
+        }
+
+        if (method === 'poetry') {
+            return 'Poetry is not detected on this system';
+        }
+        if (method === 'pipx') {
+            return 'pipx is not detected on this system';
+        }
+        if (method === 'venv') {
+            return 'Python venv support is not available';
+        }
+
+        return null;
+    };
 
     const validateName = (name: string): boolean => {
         if (!name.trim()) {
@@ -240,36 +287,52 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate }: CreateWorksp
                         <div>
                             <label style={labelStyle}>Install Method</label>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                {INSTALL_METHODS.map(m => (
-                                    <div
-                                        key={m.value}
-                                        role="radio"
-                                        aria-checked={installMethod === m.value}
-                                        tabIndex={0}
-                                        onClick={() => setInstallMethod(m.value)}
-                                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setInstallMethod(m.value)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                            padding: '8px 10px', borderRadius: '6px', cursor: 'pointer',
-                                            border: `1.5px solid ${installMethod === m.value ? teal : 'var(--vscode-panel-border)'}`,
-                                            backgroundColor: installMethod === m.value ? 'rgba(0,207,193,0.07)' : 'var(--vscode-input-background)',
-                                            transition: 'border-color 0.15s',
-                                            userSelect: 'none',
-                                        }}
-                                    >
-                                        <div style={{
-                                            width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
-                                            border: `2px solid ${installMethod === m.value ? teal : 'var(--vscode-descriptionForeground)'}`,
-                                            backgroundColor: installMethod === m.value ? teal : 'transparent',
-                                            transition: 'all 0.15s',
-                                        }} />
-                                        <div>
-                                            <div style={{ fontSize: '12px', fontWeight: 600 }}>{m.label}</div>
-                                            <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>{m.desc}</div>
+                                {INSTALL_METHODS.map(m => {
+                                    const enabled = isInstallMethodEnabled(m.value);
+                                    const disabledReason = getInstallMethodDisabledReason(m.value);
+                                    return (
+                                        <div
+                                            key={m.value}
+                                            role="radio"
+                                            aria-checked={installMethod === m.value}
+                                            tabIndex={enabled ? 0 : -1}
+                                            onClick={() => enabled && setInstallMethod(m.value)}
+                                            onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && enabled && setInstallMethod(m.value)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '8px',
+                                                padding: '8px 10px', borderRadius: '6px', cursor: enabled ? 'pointer' : 'not-allowed',
+                                                border: `1.5px solid ${installMethod === m.value ? teal : 'var(--vscode-panel-border)'}`,
+                                                backgroundColor: installMethod === m.value ? 'rgba(0,207,193,0.07)' : 'var(--vscode-input-background)',
+                                                opacity: enabled ? 1 : 0.45,
+                                                transition: 'border-color 0.15s',
+                                                userSelect: 'none',
+                                            }}
+                                            title={enabled ? '' : `${m.label} is not available on this system`}
+                                        >
+                                            <div style={{
+                                                width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
+                                                border: `2px solid ${installMethod === m.value ? teal : 'var(--vscode-descriptionForeground)'}`,
+                                                backgroundColor: installMethod === m.value ? teal : 'transparent',
+                                                transition: 'all 0.15s',
+                                            }} />
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: 600 }}>{m.label}</div>
+                                                <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>{m.desc}</div>
+                                                {disabledReason && (
+                                                    <div style={{ fontSize: '10px', color: 'var(--vscode-errorForeground)', marginTop: '2px' }}>
+                                                        {disabledReason}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
+                            {toolStatus && (
+                                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
+                                    Active: <strong>{toolStatus.preferredInstallMethod}</strong>
+                                </div>
+                            )}
                         </div>
 
                         {/* Options */}

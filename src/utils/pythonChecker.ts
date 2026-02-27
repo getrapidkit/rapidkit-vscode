@@ -6,6 +6,8 @@
 import { run } from './exec';
 import { Logger } from './logger';
 import { requirementCache } from './requirementCache';
+import * as os from 'os';
+import * as path from 'path';
 
 export interface PythonCheckResult {
   available: boolean;
@@ -153,8 +155,8 @@ export async function checkPythonEnvironment(): Promise<PythonCheckResult> {
             // Check each version using direct path
             for (const version of versions) {
               try {
-                const pyenvRoot = process.env.PYENV_ROOT || `${process.env.HOME}/.pyenv`;
-                const pipPath = `${pyenvRoot}/versions/${version.trim()}/bin/pip`;
+                const pyenvRoot = process.env.PYENV_ROOT || path.join(os.homedir(), '.pyenv');
+                const pipPath = path.join(pyenvRoot, 'versions', version.trim(), 'bin', 'pip');
 
                 const pyenvCheck = await run(pipPath, ['show', 'rapidkit-core'], {
                   timeout: 3000,
@@ -170,14 +172,14 @@ export async function checkPythonEnvironment(): Promise<PythonCheckResult> {
               } catch {
                 // Try with PYENV_VERSION environment variable
                 try {
-                  const pyenvCheck = await run(
-                    'bash',
-                    ['-c', `PYENV_VERSION=${version.trim()} pyenv exec pip show rapidkit-core`],
-                    {
-                      timeout: 3000,
-                      stdio: 'pipe',
-                    }
-                  );
+                  const pyenvCheck = await run('pyenv', ['exec', 'pip', 'show', 'rapidkit-core'], {
+                    timeout: 3000,
+                    stdio: 'pipe',
+                    env: {
+                      ...process.env,
+                      PYENV_VERSION: version.trim(),
+                    },
+                  });
                   if (
                     pyenvCheck.exitCode === 0 &&
                     pyenvCheck.stdout?.includes('Name: rapidkit-core')

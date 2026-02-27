@@ -10,6 +10,7 @@
 
 import { Logger } from '../utils/logger';
 import { run } from '../utils/exec';
+import { getWorkspaceVenvRapidkitCandidates } from '../utils/platformCapabilities';
 import * as path from 'path';
 
 type ExecaReturnValue = any;
@@ -256,18 +257,24 @@ export class RapidKitCLI {
     this.logger.debug('Running rapidkit with args:', args);
     const workingDir = cwd || process.cwd();
 
-    // Priority 1: Try to find workspace .venv/bin/rapidkit (walk up from project to workspace root)
+    // Priority 1: Try to find workspace .venv rapidkit runner (walk up from project to workspace root)
     let currentDir = workingDir;
     let venvRapidkit: string | null = null;
+    const fs = require('fs');
 
     // Walk up to 3 levels to find .venv (handles project inside workspace)
     for (let i = 0; i < 3; i++) {
-      const testPath = path.join(currentDir, '.venv', 'bin', 'rapidkit');
+      const candidatePaths = getWorkspaceVenvRapidkitCandidates(currentDir);
+
       try {
-        const fs = require('fs');
-        if (fs.existsSync(testPath)) {
-          venvRapidkit = testPath;
-          this.logger.debug('Found workspace rapidkit:', venvRapidkit);
+        for (const candidate of candidatePaths) {
+          if (fs.existsSync(candidate)) {
+            venvRapidkit = candidate;
+            this.logger.debug('Found workspace rapidkit:', venvRapidkit);
+            break;
+          }
+        }
+        if (venvRapidkit) {
           break;
         }
       } catch {
@@ -293,7 +300,7 @@ export class RapidKitCLI {
         // Continue to fallback options
       }
     } else {
-      this.logger.debug('Workspace .venv/bin/rapidkit not found, trying global rapidkit');
+      this.logger.debug('Workspace .venv rapidkit runner not found, trying global rapidkit');
     }
 
     // Priority 2: Try global rapidkit binary
@@ -321,7 +328,7 @@ export class RapidKitCLI {
   }
 
   /**
-   * Add a module to a project (cd <project> && npx rapidkit add module <module-slug>)
+   * Add a module to a project from the project directory.
    * Must be run with cwd = project directory (not workspace root).
    * The npm package will detect the project and workspace automatically.
    */
@@ -329,7 +336,7 @@ export class RapidKitCLI {
     this.logger.info('Adding module to project:', { projectPath, moduleSlug });
 
     // Run from project directory - npm package will auto-detect workspace
-    // Command: cd <projectPath> && npx rapidkit add module <moduleSlug>
+    // Equivalent command from that directory: npx rapidkit add module <moduleSlug>
     return await this.run(['add', 'module', moduleSlug], projectPath, true);
   }
 }

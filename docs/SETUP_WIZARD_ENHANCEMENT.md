@@ -216,7 +216,7 @@ Prioritizes common commands first, then falls back to alternatives:
 ### Timeout Handling
 All external commands have 2-3 second timeouts to prevent UI freezing:
 ```typescript
-const result = await exec(command, { timeout: 2000 });
+const result = await execa(command, args, { timeout: 2000 });
 ```
 
 ## Commit History

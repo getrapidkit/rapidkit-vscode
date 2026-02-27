@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { runCommandsInTerminal, runRapidkitCommandsInTerminal } from '../../utils/terminalExecutor';
 
 export class SetupPanel {
   public static currentPanel: SetupPanel | undefined;
@@ -50,9 +51,10 @@ export class SetupPanel {
             vscode.window.showInformationMessage(message.message);
             break;
           case 'installNpmGlobal': {
-            const terminal = vscode.window.createTerminal('Install RapidKit CLI');
-            terminal.show();
-            terminal.sendText('npm install -g rapidkit');
+            runCommandsInTerminal({
+              name: 'Install RapidKit CLI',
+              commands: ['npm install -g rapidkit'],
+            });
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
@@ -60,9 +62,10 @@ export class SetupPanel {
             break;
           }
           case 'upgradeNpmGlobal': {
-            const terminal = vscode.window.createTerminal('Upgrade RapidKit CLI');
-            terminal.show();
-            terminal.sendText('npm install -g rapidkit');
+            runCommandsInTerminal({
+              name: 'Upgrade RapidKit CLI',
+              commands: ['npm install -g rapidkit'],
+            });
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
@@ -70,9 +73,14 @@ export class SetupPanel {
             break;
           }
           case 'installPipCore': {
-            const terminal = vscode.window.createTerminal('Install RapidKit Core');
-            terminal.show();
-            terminal.sendText('pipx install --force rapidkit-core');
+            runCommandsInTerminal({
+              name: 'Install RapidKit Core',
+              commands: [
+                process.platform === 'win32'
+                  ? 'python -m pipx install --force rapidkit-core'
+                  : 'pipx install --force rapidkit-core',
+              ],
+            });
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
@@ -80,9 +88,14 @@ export class SetupPanel {
             break;
           }
           case 'upgradePipCore': {
-            const terminal = vscode.window.createTerminal('Upgrade RapidKit Core');
-            terminal.show();
-            terminal.sendText('pipx upgrade rapidkit-core');
+            runCommandsInTerminal({
+              name: 'Upgrade RapidKit Core',
+              commands: [
+                process.platform === 'win32'
+                  ? 'python -m pipx upgrade rapidkit-core'
+                  : 'pipx upgrade rapidkit-core',
+              ],
+            });
             setTimeout(async () => {
               const newStatus = await this._checkInstallationStatus();
               this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
@@ -90,15 +103,15 @@ export class SetupPanel {
             break;
           }
           case 'installPoetry': {
-            const terminal = vscode.window.createTerminal('Install Poetry');
-            terminal.show();
-            if (process.platform === 'win32') {
-              terminal.sendText(
-                '(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -'
-              );
-            } else {
-              terminal.sendText('curl -sSL https://install.python-poetry.org | python3 -');
-            }
+            const poetryCommands =
+              process.platform === 'win32'
+                ? ['python -m pip install --user poetry']
+                : ['python3 -m pip install --user poetry'];
+            runCommandsInTerminal({
+              name: 'Install Poetry',
+              commands: poetryCommands,
+            });
+            vscode.window.showInformationMessage('Installing Poetry with pip (user mode).');
             setTimeout(async () => {
               // Invalidate Poetry cache after installation
               try {
@@ -113,13 +126,14 @@ export class SetupPanel {
             break;
           }
           case 'installPipx': {
-            const terminal = vscode.window.createTerminal('Install pipx');
-            terminal.show();
-            if (process.platform === 'win32') {
-              terminal.sendText('python -m pip install --user pipx && python -m pipx ensurepath');
-            } else {
-              terminal.sendText('python3 -m pip install --user pipx && python3 -m pipx ensurepath');
-            }
+            const pipxCommands =
+              process.platform === 'win32'
+                ? ['python -m pip install --user pipx', 'python -m pipx ensurepath']
+                : ['python3 -m pip install --user pipx', 'python3 -m pipx ensurepath'];
+            runCommandsInTerminal({
+              name: 'Install pipx',
+              commands: pipxCommands,
+            });
             vscode.window.showInformationMessage(
               'pipx installed. Please restart your terminal or VS Code for PATH changes to take effect.'
             );
@@ -130,17 +144,22 @@ export class SetupPanel {
             break;
           }
           case 'installPipxThenCore': {
-            const terminal = vscode.window.createTerminal('Setup RapidKit Toolchain');
-            terminal.show();
-            if (process.platform === 'win32') {
-              terminal.sendText(
-                'python -m pip install --user pipx && python -m pipx ensurepath && pipx install --force rapidkit-core'
-              );
-            } else {
-              terminal.sendText(
-                'python3 -m pip install --user pipx && python3 -m pipx ensurepath && pipx install --force rapidkit-core'
-              );
-            }
+            const toolchainCommands =
+              process.platform === 'win32'
+                ? [
+                    'python -m pip install --user pipx',
+                    'python -m pipx ensurepath',
+                    'python -m pipx install --force rapidkit-core',
+                  ]
+                : [
+                    'python3 -m pip install --user pipx',
+                    'python3 -m pipx ensurepath',
+                    'pipx install --force rapidkit-core',
+                  ];
+            runCommandsInTerminal({
+              name: 'Setup RapidKit Toolchain',
+              commands: toolchainCommands,
+            });
             vscode.window.showInformationMessage(
               'Installing pipx and RapidKit Core. Please wait...'
             );
@@ -157,13 +176,14 @@ export class SetupPanel {
               'Cancel'
             );
             if (answer === 'Install with pip') {
-              const terminal = vscode.window.createTerminal('Install RapidKit Core (fallback)');
-              terminal.show();
-              if (process.platform === 'win32') {
-                terminal.sendText('python -m pip install --user rapidkit-core');
-              } else {
-                terminal.sendText('python3 -m pip install --user rapidkit-core');
-              }
+              runCommandsInTerminal({
+                name: 'Install RapidKit Core (fallback)',
+                commands: [
+                  process.platform === 'win32'
+                    ? 'python -m pip install --user rapidkit-core'
+                    : 'python3 -m pip install --user rapidkit-core',
+                ],
+              });
               vscode.window.showWarningMessage(
                 'RapidKit Core installed via pip. This may conflict with virtualenvs. Consider installing pipx later.'
               );
@@ -174,40 +194,109 @@ export class SetupPanel {
             }
             break;
           }
+          case 'installCoreSmart': {
+            const installStatus = await this._checkInstallationStatus();
+
+            if (!installStatus.pythonInstalled || !installStatus.pipInstalled) {
+              vscode.window.showWarningMessage(
+                'Python and pip are required before installing RapidKit Core. Please install Python 3.10+ first.'
+              );
+              break;
+            }
+
+            if (installStatus.pipxInstalled) {
+              runCommandsInTerminal({
+                name: 'Install RapidKit Core (smart fallback)',
+                commands: [
+                  process.platform === 'win32'
+                    ? 'python -m pipx install --force rapidkit-core'
+                    : 'pipx install --force rapidkit-core',
+                ],
+              });
+              vscode.window.showInformationMessage(
+                'Installing RapidKit Core with pipx (recommended isolated mode).'
+              );
+            } else {
+              runCommandsInTerminal({
+                name: 'Install RapidKit Core (smart fallback)',
+                commands: [
+                  process.platform === 'win32'
+                    ? 'python -m pip install --user rapidkit-core'
+                    : 'python3 -m pip install --user rapidkit-core',
+                ],
+              });
+              vscode.window.showInformationMessage(
+                'Installing RapidKit Core with pip fallback. You can install pipx later for better isolation.'
+              );
+            }
+
+            setTimeout(async () => {
+              const newStatus = await this._checkInstallationStatus();
+              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
+            }, 10000);
+            break;
+          }
           case 'verifyPython': {
-            const terminal = vscode.window.createTerminal('Verify Python');
-            terminal.show();
-            terminal.sendText('python --version');
+            runCommandsInTerminal({
+              name: 'Verify Python',
+              commands: ['python --version'],
+            });
             break;
           }
           case 'verifyPip': {
-            const terminal = vscode.window.createTerminal('Verify pip');
-            terminal.show();
-            terminal.sendText('pip --version');
+            runCommandsInTerminal({
+              name: 'Verify pip',
+              commands: [
+                process.platform === 'win32'
+                  ? 'python -m pip --version'
+                  : 'python3 -m pip --version',
+              ],
+            });
             break;
           }
           case 'verifyPipx': {
-            const terminal = vscode.window.createTerminal('Verify pipx');
-            terminal.show();
-            terminal.sendText('pipx --version');
+            runCommandsInTerminal({
+              name: 'Verify pipx',
+              commands: [
+                process.platform === 'win32' ? 'python -m pipx --version' : 'pipx --version',
+              ],
+            });
             break;
           }
           case 'verifyCore': {
-            const terminal = vscode.window.createTerminal('Verify RapidKit Core');
-            terminal.show();
-            terminal.sendText('rapidkit --version');
+            runCommandsInTerminal({
+              name: 'Verify RapidKit Core',
+              commands: ['rapidkit --version'],
+            });
             break;
           }
           case 'verifyNpm': {
-            const terminal = vscode.window.createTerminal('Verify RapidKit CLI');
-            terminal.show();
-            terminal.sendText('npx rapidkit --version');
+            runRapidkitCommandsInTerminal({
+              name: 'Verify RapidKit CLI',
+              commands: [['--version']],
+            });
             break;
           }
           case 'verifyPoetry': {
-            const terminal = vscode.window.createTerminal('Verify Poetry');
-            terminal.show();
-            terminal.sendText('poetry --version');
+            const poetryVerifyCommands =
+              process.platform === 'win32'
+                ? ['python -m poetry --version', 'poetry --version']
+                : [
+                    'poetry --version',
+                    '~/.local/bin/poetry --version',
+                    'python3 -m poetry --version',
+                  ];
+            runCommandsInTerminal({
+              name: 'Verify Poetry',
+              commands: poetryVerifyCommands,
+            });
+            break;
+          }
+          case 'verifyGo': {
+            runCommandsInTerminal({
+              name: 'Verify Go',
+              commands: ['go version'],
+            });
             break;
           }
           case 'getCacheStats': {
@@ -293,6 +382,8 @@ export class SetupPanel {
       pipxVersion: null as string | null,
       poetryInstalled: false,
       poetryVersion: null as string | null,
+      goInstalled: false,
+      goVersion: null as string | null,
 
       coreInstalled: false,
       coreVersion: null as string | null,
@@ -311,6 +402,20 @@ export class SetupPanel {
       status.nodeVersion = result.stdout.trim().replace('v', '');
     } catch {
       // ignore
+    }
+
+    try {
+      const result = await execa('go', ['version'], {
+        shell: status.isWindows,
+        timeout: 2500,
+      });
+      const out = `${result.stdout || ''} ${result.stderr || ''}`.trim();
+      const goMatch = out.match(/go version go([\d.]+)/i);
+      status.goInstalled = true;
+      status.goVersion = goMatch?.[1] || 'unknown';
+    } catch {
+      status.goInstalled = false;
+      status.goVersion = null;
     }
 
     try {
@@ -425,22 +530,90 @@ export class SetupPanel {
           result.stdout.match(/([\d.]+)/)?.[1] ||
           'unknown';
       } catch {
-        status.pipxInstalled = false;
+        if (status.isWindows) {
+          try {
+            const fallback = await execa('python', ['-m', 'pipx', '--version'], {
+              shell: false,
+              timeout: 3000,
+            });
+            status.pipxInstalled = true;
+            status.pipxVersion =
+              fallback.stdout.match(/pipx ([\d.]+)/)?.[1] ||
+              fallback.stdout.match(/([\d.]+)/)?.[1] ||
+              'unknown';
+          } catch {
+            status.pipxInstalled = false;
+          }
+        } else {
+          status.pipxInstalled = false;
+        }
       }
     }
 
     if (status.pythonInstalled && status.pipInstalled) {
-      try {
-        const result = await execa('poetry', ['--version'], {
-          shell: status.isWindows,
-          timeout: 3000,
-        });
-        status.poetryInstalled = true;
-        status.poetryVersion =
-          result.stdout.match(/Poetry .*version ([\d.]+)/)?.[1] ||
-          result.stdout.match(/([\d.]+)/)?.[1] ||
-          'unknown';
-      } catch {
+      const path = await import('path');
+      const poetryCandidates = status.isWindows
+        ? [
+            { cmd: 'poetry', args: ['--version'], shell: false },
+            { cmd: 'python', args: ['-m', 'poetry', '--version'], shell: false },
+            { cmd: 'py', args: ['-3', '-m', 'poetry', '--version'], shell: false },
+            {
+              cmd: path.join(process.env.APPDATA || '', 'Python', 'Scripts', 'poetry.exe'),
+              args: ['--version'],
+              shell: false,
+            },
+            {
+              cmd: path.join(
+                process.env.USERPROFILE || '',
+                'AppData',
+                'Roaming',
+                'Python',
+                'Scripts',
+                'poetry.exe'
+              ),
+              args: ['--version'],
+              shell: false,
+            },
+            {
+              cmd: path.join(process.env.USERPROFILE || '', '.local', 'bin', 'poetry.exe'),
+              args: ['--version'],
+              shell: false,
+            },
+          ]
+        : [
+            { cmd: 'poetry', args: ['--version'], shell: false },
+            {
+              cmd: path.join(os.homedir(), '.local', 'bin', 'poetry'),
+              args: ['--version'],
+              shell: false,
+            },
+            { cmd: 'python3', args: ['-m', 'poetry', '--version'], shell: false },
+            { cmd: 'python', args: ['-m', 'poetry', '--version'], shell: false },
+          ];
+
+      let poetryDetected = false;
+      for (const candidate of poetryCandidates) {
+        if (!candidate.cmd || !candidate.cmd.trim()) {
+          continue;
+        }
+        try {
+          const result = await execa(candidate.cmd, candidate.args, {
+            shell: candidate.shell,
+            timeout: 3000,
+          });
+          status.poetryInstalled = true;
+          status.poetryVersion =
+            result.stdout.match(/Poetry .*version ([\d.]+)/)?.[1] ||
+            result.stdout.match(/([\d.]+)/)?.[1] ||
+            'unknown';
+          poetryDetected = true;
+          break;
+        } catch {
+          continue;
+        }
+      }
+
+      if (!poetryDetected) {
         status.poetryInstalled = false;
       }
     }
@@ -589,6 +762,73 @@ export class SetupPanel {
       }
     };
 
+    const detectViaWorkspaceVenvRunner = async (): Promise<CoreDetectResult | null> => {
+      try {
+        const fs = await import('fs-extra');
+        const path = await import('path');
+        const workspaceFolders = vscode.workspace.workspaceFolders || [];
+
+        for (const folder of workspaceFolders) {
+          const workspacePath = folder.uri.fsPath;
+          const candidates = status.isWindows
+            ? [
+                path.join(workspacePath, '.venv', 'Scripts', 'rapidkit.exe'),
+                path.join(workspacePath, '.venv', 'Scripts', 'python.exe'),
+              ]
+            : [
+                path.join(workspacePath, '.venv', 'bin', 'rapidkit'),
+                path.join(workspacePath, '.venv', 'bin', 'python'),
+              ];
+
+          for (const candidate of candidates) {
+            if (!(await fs.pathExists(candidate))) {
+              continue;
+            }
+
+            const isPythonBinary = /python(?:\.exe)?$/i.test(candidate);
+            const probeArgs = isPythonBinary
+              ? ['-m', 'rapidkit', '--version', '--json']
+              : ['--version', '--json'];
+
+            try {
+              const probe = await execa(candidate, probeArgs, {
+                shell: false,
+                timeout: 2500,
+                reject: false,
+                cwd: workspacePath,
+              });
+
+              if (probe.exitCode !== 0) {
+                continue;
+              }
+
+              const raw = (probe.stdout || '').trim();
+              if (!raw) {
+                continue;
+              }
+
+              const version = extractVersion(raw);
+              if (!version) {
+                continue;
+              }
+
+              return {
+                version,
+                installType: 'workspace',
+                source: 'workspace-venv-runner',
+              };
+            } catch {
+              continue;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      return null;
+    };
+
     const detectViaWorkspacePoetry = async (): Promise<CoreDetectResult | null> => {
       try {
         const result = await execa('poetry', ['show', 'rapidkit-core'], {
@@ -683,6 +923,7 @@ export class SetupPanel {
       detectViaPipxList,
       detectViaPipxVenv,
       detectViaRapidkitOnPath,
+      detectViaWorkspaceVenvRunner,
       detectViaWorkspacePoetry,
       detectViaPythonImport,
       detectViaPipShow,
@@ -831,6 +1072,9 @@ export class SetupPanel {
     );
     const poetryIconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'poetry.svg')
+    );
+    const goIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'go.svg')
     );
 
     return `<!DOCTYPE html>
@@ -1012,7 +1256,7 @@ export class SetupPanel {
         gap: 12px;
       }
     }
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .rapidkit-packages {
         grid-template-columns: 1fr;
         gap: 12px;
@@ -1020,15 +1264,21 @@ export class SetupPanel {
     }
     .wizard-steps {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 16px;
       margin-bottom: 16px;
+    }
+    @media (max-width: 900px) {
+      .wizard-steps {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 12px;
+      }
     }
     @media (max-width: 768px) {
       .wizard-steps {
         grid-template-columns: 1fr;
         gap: 12px;
-      }
+      }    
     }
     .wizard-step {
       position: relative;
@@ -1349,7 +1599,7 @@ export class SetupPanel {
             <button class="step-btn primary" onclick="installPythonCore()">Install</button>
           </div>
           <div class="step-actions" id="coreActionsNoPipx" style="display: none;">
-            <button class="step-btn primary" onclick="installPipxThenCore()">Setup All</button>
+            <button class="step-btn primary" onclick="installCoreSmart()">Install</button>
           </div>
           <div class="step-actions" id="coreUpgrade" style="display: none;">
             <button class="step-btn primary" onclick="upgradeCore()">Upgrade</button>
@@ -1421,6 +1671,23 @@ export class SetupPanel {
           <div class="step-details" id="pipDetails">Checking...</div>
           <div class="step-actions" id="pipVerify" style="display: none;">
             <button class="step-btn verify" onclick="verifyPip()">Verify</button>
+          </div>
+        </div>
+
+        <div class="wizard-step" id="goStep">
+          <div class="step-header">
+            <span class="step-icon tooltip"><img src="${goIconUri}" width="20" height="20" alt="Go" />
+              <span class="tooltiptext">Go runtime for GoFiber/GoGin projects.</span>
+            </span>
+            <span class="step-title">Go</span>
+            <span class="step-status loading" id="goStatus"></span>
+          </div>
+          <div class="step-details" id="goDetails">Checking...</div>
+          <div class="step-actions" id="goActions" style="display: none;">
+            <button class="step-btn primary" onclick="openGoDownload()">Install</button>
+          </div>
+          <div class="step-actions" id="goVerify" style="display: none;">
+            <button class="step-btn verify" onclick="verifyGo()">Verify</button>
           </div>
         </div>
       </div>
@@ -1541,6 +1808,30 @@ export class SetupPanel {
         pipStatus.classList.remove('loading');
         pipDetails.innerHTML = 'Optional (per-project dependencies)';
         if (pipVerify) pipVerify.style.display = 'none';
+      }
+
+      const goStep = document.getElementById('goStep');
+      const goStatus = document.getElementById('goStatus');
+      const goDetails = document.getElementById('goDetails');
+      const goActions = document.getElementById('goActions');
+      const goVerify = document.getElementById('goVerify');
+
+      if (status.goInstalled) {
+        goStep.classList.remove('not-installed');
+        goStep.classList.add('installed');
+        goStatus.textContent = '✓';
+        goStatus.classList.remove('loading');
+        goDetails.innerHTML = '<span class="step-version">v' + status.goVersion + '</span>';
+        if (goActions) goActions.style.display = 'none';
+        if (goVerify) goVerify.style.display = 'flex';
+      } else {
+        goStep.classList.remove('installed');
+        goStep.classList.add('not-installed');
+        goStatus.textContent = '⚠';
+        goStatus.classList.remove('loading');
+        goDetails.innerHTML = 'Optional: Required for Go projects (gofiber.standard / gogin.standard)';
+        if (goActions) goActions.style.display = 'flex';
+        if (goVerify) goVerify.style.display = 'none';
       }
 
       const poetryStep = document.getElementById('poetryStep');
@@ -1744,7 +2035,7 @@ export class SetupPanel {
           coreActions.style.display = 'flex';
           if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'none';
         } else {
-          coreDetails.innerHTML = '<span style="color: #FF5722; font-weight: 600;">pipx required</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Install pipx first, or use fallback</span>';
+          coreDetails.innerHTML = '<span style="color: #FF9800; font-weight: 600;">Smart install available</span> <span style="font-size: 10px; display: block; margin-top: 4px;">Uses pipx when available, otherwise pip fallback</span>';
           coreActions.style.display = 'none';
           if (coreActionsNoPipx) coreActionsNoPipx.style.display = 'flex';
         }
@@ -1753,10 +2044,9 @@ export class SetupPanel {
 
       const pythonOk = status.pythonInstalled && !status.pythonNeedsUpgrade ? 1 : 0;
       const npmOk = status.npmInstalled ? 1 : 0;
-      const pipxOk = status.pipxInstalled ? 1 : 0;
       const coreOk = status.coreInstalled ? 1 : 0;
-      const requiredInstalled = pythonOk + npmOk + pipxOk + coreOk;
-      const requiredTotal = 4;
+      const requiredInstalled = pythonOk + npmOk + coreOk;
+      const requiredTotal = 3;
 
       const toolchainBadge = document.getElementById('toolchainBadge');
       if (requiredInstalled === requiredTotal) {
@@ -1770,6 +2060,10 @@ export class SetupPanel {
 
     function openPythonDownload() {
       vscode.postMessage({ command: 'openUrl', url: 'https://www.python.org/downloads/' });
+    }
+
+    function openGoDownload() {
+      vscode.postMessage({ command: 'openUrl', url: 'https://go.dev/dl/' });
     }
 
     function showPipInstall() {
@@ -1791,6 +2085,11 @@ export class SetupPanel {
     function installPipxThenCore() {
       vscode.postMessage({ command: 'installPipxThenCore' });
       setTimeout(checkInstallationStatus, 15000);
+    }
+
+    function installCoreSmart() {
+      vscode.postMessage({ command: 'installCoreSmart' });
+      setTimeout(checkInstallationStatus, 10000);
     }
 
     function installCoreFallback() {
@@ -1846,7 +2145,7 @@ export class SetupPanel {
         refreshIcon.style.animation = 'spin 1s linear infinite';
       }
 
-      const statuses = ['pythonStatus', 'pipStatus', 'poetryStatus', 'npmStatus', 'coreStatus', 'pipxStatus'];
+      const statuses = ['pythonStatus', 'pipStatus', 'poetryStatus', 'npmStatus', 'coreStatus', 'pipxStatus', 'goStatus'];
       statuses.forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
@@ -1943,6 +2242,10 @@ export class SetupPanel {
 
     function verifyPoetry() {
       vscode.postMessage({ command: 'verifyPoetry' });
+    }
+
+    function verifyGo() {
+      vscode.postMessage({ command: 'verifyGo' });
     }
   </script>
 </body>

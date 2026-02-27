@@ -132,6 +132,14 @@ export interface InstallStatus {
   coreVersion?: string;
 }
 
+export interface WorkspaceToolStatus {
+  pythonAvailable: boolean;
+  venvAvailable: boolean;
+  poetryAvailable: boolean;
+  pipxAvailable: boolean;
+  preferredInstallMethod: 'poetry' | 'venv' | 'pipx';
+}
+
 export interface WorkspaceStatus {
   hasWorkspace: boolean;
   hasProjectSelected?: boolean;

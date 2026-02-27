@@ -237,15 +237,12 @@ vscode.commands.registerCommand('rapidkit.checkWorkspaceHealth', async (item: an
     async (progress) => {
       progress.report({ increment: 0, message: 'Starting health check...' });
 
-      const terminal = vscode.window.createTerminal({
+      runRapidkitCommandsInTerminal({
         name: `RapidKit Doctor - ${workspace.name}`,
         cwd: workspace.path,
+        commands: [['doctor', 'workspace']],
       });
-
-      terminal.show();
       progress.report({ increment: 50, message: 'Running diagnostics...' });
-
-      terminal.sendText('npx rapidkit doctor workspace');
 
       progress.report({ increment: 100, message: 'Complete!' });
 

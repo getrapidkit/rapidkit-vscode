@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-02-27
+
+### Added
+
+- 🧩 **Modular command registration architecture**
+  - Split extension command wiring into focused modules (`coreCommands`, `workspaceSelection`, `workspaceOperations`, `projectLifecycle`, `fileManagement`, `projectContextAndLogs`)
+  - Reduced activation-file complexity and improved command maintainability
+
+- 🧪 **Cross-platform command contract coverage**
+  - Added dedicated tests for platform command building and workspace detection/selection flows
+  - Expanded drift-guard checks for terminal execution centralization and command-array contracts
+
+### Changed
+
+- 🪟 **Create Workspace modal UX (tool-aware flow)**
+  - Tool availability (Python / venv / Poetry / pipx) is checked when modal opens
+  - Install methods are auto-selected when possible and unavailable options are disabled with inline reasons
+  - Removed duplicate Poetry prompt in modal-driven create flow
+
+- ⚡ **Workspace sidebar loading performance**
+  - Added caching in `coreVersionService` for global installed version and latest version lookups
+  - Parallelized workspace item enrichment in `workspaceExplorer` for faster list rendering
+
+- 🖥️ **Terminal execution + platform abstraction**
+  - Centralized terminal execution in `terminalExecutor`
+  - Added `platformCapabilities` utilities for safe cross-platform shell command building
+
+### Fixed
+
+- 🩺 **Doctor workspace path output clarity**
+  - `doctor workspace` no longer shows launcher path entries
+  - Real installation paths remain visible and are rendered in deterministic order
+
+- 🧭 **Setup and requirement checks consistency**
+  - Improved alignment between setup checks, update flows, and workspace health diagnostics
+
 ## [0.14.0] - 2026-02-25
 
 ### Added

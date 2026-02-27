@@ -4,6 +4,9 @@
 
 import { describe, it, expect, beforeAll, vi, beforeEach } from 'vitest';
 import { RapidKitCLI } from '../core/rapidkitCLI';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 vi.mock('vscode', () => ({
   window: {
@@ -82,5 +85,47 @@ describe('RapidKitCLI', () => {
       ['--yes', 'rapidkit', 'doctor', 'workspace'],
       expect.objectContaining({ cwd: '/tmp/workspace', stdio: 'pipe' })
     );
+  });
+
+  it('uses workspace .venv POSIX rapidkit runner when available', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'rapidkit-cli-posix-'));
+    const expectedRunner = path.join(workspacePath, '.venv', 'bin', 'rapidkit');
+
+    fs.mkdirSync(path.dirname(expectedRunner), { recursive: true });
+    fs.writeFileSync(expectedRunner, '#!/usr/bin/env bash\n');
+
+    vi.mocked(run).mockResolvedValueOnce({ stdout: 'ok', stderr: '', exitCode: 0 } as any);
+
+    const result = await cli.run(['doctor', 'workspace'], workspacePath, true);
+
+    expect(result.stdout).toBe('ok');
+    expect(vi.mocked(run)).toHaveBeenCalledWith(
+      expectedRunner,
+      ['doctor', 'workspace'],
+      expect.objectContaining({ cwd: workspacePath, stdio: 'pipe' })
+    );
+
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  });
+
+  it('uses workspace .venv Windows rapidkit runner when available', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'rapidkit-cli-win-'));
+    const expectedRunner = path.join(workspacePath, '.venv', 'Scripts', 'rapidkit.exe');
+
+    fs.mkdirSync(path.dirname(expectedRunner), { recursive: true });
+    fs.writeFileSync(expectedRunner, '');
+
+    vi.mocked(run).mockResolvedValueOnce({ stdout: 'ok-win', stderr: '', exitCode: 0 } as any);
+
+    const result = await cli.run(['doctor', 'workspace'], workspacePath, true);
+
+    expect(result.stdout).toBe('ok-win');
+    expect(vi.mocked(run)).toHaveBeenCalledWith(
+      expectedRunner,
+      ['doctor', 'workspace'],
+      expect.objectContaining({ cwd: workspacePath, stdio: 'pipe' })
+    );
+
+    fs.rmSync(workspacePath, { recursive: true, force: true });
   });
 });

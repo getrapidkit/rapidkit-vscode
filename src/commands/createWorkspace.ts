@@ -17,6 +17,7 @@ import { updateWorkspaceMetadata } from '../utils/workspaceMarker';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
 import { isPoetryInstalledCached } from '../utils/poetryHelper';
 import { checkPythonEnvironmentCached } from '../utils/pythonChecker';
+import { runCommandsInTerminal, runShellCommandInTerminal } from '../utils/terminalExecutor';
 
 export async function createWorkspaceCommand(workspaceName?: string | Record<string, unknown>) {
   const logger = Logger.getInstance();
@@ -123,6 +124,16 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
 
     logger.info(`Python ${pythonCheck.version} is available with venv support`);
 
+    const modalConfig =
+      typeof workspaceName === 'object' && workspaceName !== null ? (workspaceName as any) : null;
+    const modalInstallMethod = modalConfig?.installMethod as
+      | 'poetry'
+      | 'venv'
+      | 'pipx'
+      | 'auto'
+      | undefined;
+    const isModalFlow = Boolean(modalConfig?.name);
+
     // ── Install-method resolution: poetry (preferred) → fallback chain → venv ──
     // Poetry is NEVER a hard requirement. If missing, we offer auto-install via
     // pipx, or a pure venv workspace which is fully equivalent in functionality.
@@ -156,98 +167,122 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
       chosenInstallMethod = 'poetry';
       logger.info('Poetry is installed — using poetry install method');
     } else {
-      logger.warn('Poetry not installed — offering smart fallback');
+      if (isModalFlow) {
+        if (modalInstallMethod && modalInstallMethod !== 'auto') {
+          if (modalInstallMethod === 'poetry') {
+            chosenInstallMethod = 'venv';
+            logger.warn(
+              'Modal requested poetry, but Poetry is not installed — using venv fallback without extra prompt'
+            );
+          } else {
+            chosenInstallMethod = modalInstallMethod;
+            logger.info(`Modal install method respected: ${modalInstallMethod}`);
+          }
+        } else {
+          chosenInstallMethod = 'venv';
+          logger.info('Modal auto install method with missing Poetry — using venv fallback');
+        }
+      }
 
-      // Detect whether pipx is available for automatic Poetry installation
-      let hasPipx = false;
-      try {
-        const { execa } = await import('execa');
-        await execa('pipx', ['--version'], { timeout: 3000 });
-        hasPipx = true;
-      } catch {
+      if (isModalFlow) {
+        logger.info('Modal flow detected — skipping interactive Poetry prompt');
+      } else {
+        logger.warn('Poetry not installed — offering smart fallback');
+
+        // Detect whether pipx is available for automatic Poetry installation
+        let hasPipx = false;
         try {
           const { execa } = await import('execa');
-          await execa('python3', ['-m', 'pipx', '--version'], { timeout: 3000 });
+          await execa('pipx', ['--version'], { timeout: 3000 });
           hasPipx = true;
         } catch {
-          hasPipx = false;
+          try {
+            const { execa } = await import('execa');
+            await execa('python3', ['-m', 'pipx', '--version'], { timeout: 3000 });
+            hasPipx = true;
+          } catch {
+            hasPipx = false;
+          }
         }
-      }
 
-      type PickItem = vscode.QuickPickItem & { value: string };
+        type PickItem = vscode.QuickPickItem & { value: string };
 
-      const choices: PickItem[] = [
-        ...(hasPipx
-          ? [
-              {
-                label: '$(zap) Auto-install Poetry via pipx',
-                description: 'Recommended — installs Poetry globally then creates workspace',
-                detail: 'Runs: pipx install poetry',
-                value: 'auto-poetry',
-              },
-            ]
-          : []),
-        {
-          label: '$(package) Use Python venv instead',
-          description: 'No extra tools needed — pip + venv (equivalent functionality)',
-          detail: 'Workspace is fully functional without Poetry. You can add it later.',
-          value: 'venv',
-        },
-        {
-          label: '$(tools) Open Setup Panel',
-          description: 'Guide me through manual Poetry / pipx installation',
-          detail: 'Workspace creation will be cancelled. Opens the setup wizard.',
-          value: 'setup',
-        },
-      ];
+        const choices: PickItem[] = [
+          ...(hasPipx
+            ? [
+                {
+                  label: '$(zap) Auto-install Poetry via pipx',
+                  description: 'Recommended — installs Poetry globally then creates workspace',
+                  detail: 'Runs: pipx install poetry',
+                  value: 'auto-poetry',
+                },
+              ]
+            : []),
+          {
+            label: '$(package) Use Python venv instead',
+            description: 'No extra tools needed — pip + venv (equivalent functionality)',
+            detail: 'Workspace is fully functional without Poetry. You can add it later.',
+            value: 'venv',
+          },
+          {
+            label: '$(tools) Open Setup Panel',
+            description: 'Guide me through manual Poetry / pipx installation',
+            detail: 'Workspace creation will be cancelled. Opens the setup wizard.',
+            value: 'setup',
+          },
+        ];
 
-      const pick = await vscode.window.showQuickPick(choices, {
-        placeHolder: 'Poetry is not installed. How would you like to proceed?',
-        title: '⚙️ Workspace Install Method',
-        ignoreFocusOut: true,
-      });
-
-      if (!pick) {
-        logger.info('User cancelled workspace creation at install method selection');
-        return;
-      }
-
-      if (pick.value === 'auto-poetry') {
-        logger.info('Auto-installing Poetry via pipx...');
-        const installTerminal = vscode.window.createTerminal({
-          name: 'RapidKit: Install Poetry',
+        const pick = await vscode.window.showQuickPick(choices, {
+          placeHolder: 'Poetry is not installed. How would you like to proceed?',
+          title: '⚙️ Workspace Install Method',
+          ignoreFocusOut: true,
         });
-        installTerminal.show();
-        installTerminal.sendText('pipx install poetry && echo "✅ Poetry installed successfully"');
 
-        const confirm = await vscode.window.showInformationMessage(
-          'Installing Poetry via pipx...\n\nWait until the terminal shows\n"✅ Poetry installed successfully", then click Continue.',
-          { modal: true },
-          'Continue',
-          'Skip — use venv instead'
-        );
-
-        if (!confirm || confirm === 'Skip — use venv instead') {
-          chosenInstallMethod = 'venv';
-          logger.info('User skipped Poetry auto-install — using venv fallback');
-        } else {
-          const { requirementCache } = await import('../utils/requirementCache.js');
-          requirementCache.invalidateAll();
-          hasPoetry = await isPoetryInstalledCached();
-          chosenInstallMethod = hasPoetry ? 'poetry' : 'venv';
-          logger.info(
-            hasPoetry
-              ? 'Poetry confirmed after auto-install — using poetry'
-              : 'Poetry still not detected — falling back to venv'
-          );
+        if (!pick) {
+          logger.info('User cancelled workspace creation at install method selection');
+          return;
         }
-      } else if (pick.value === 'venv') {
-        chosenInstallMethod = 'venv';
-        logger.info('User selected venv install method');
-      } else {
-        // Open Setup Panel and abort workspace creation
-        vscode.commands.executeCommand('rapidkit.openSetup');
-        return;
+
+        if (pick.value === 'auto-poetry') {
+          logger.info('Auto-installing Poetry via pipx...');
+          const installCommands =
+            process.platform === 'win32'
+              ? ['python -m pipx install poetry', 'echo ✅ Poetry installed successfully']
+              : ['pipx install poetry', 'echo "✅ Poetry installed successfully"'];
+          runCommandsInTerminal({
+            name: 'RapidKit: Install Poetry',
+            commands: installCommands,
+          });
+
+          const confirm = await vscode.window.showInformationMessage(
+            'Installing Poetry via pipx...\n\nWait until the terminal shows\n"✅ Poetry installed successfully", then click Continue.',
+            { modal: true },
+            'Continue',
+            'Skip — use venv instead'
+          );
+
+          if (!confirm || confirm === 'Skip — use venv instead') {
+            chosenInstallMethod = 'venv';
+            logger.info('User skipped Poetry auto-install — using venv fallback');
+          } else {
+            const { requirementCache } = await import('../utils/requirementCache.js');
+            requirementCache.invalidateAll();
+            hasPoetry = await isPoetryInstalledCached();
+            chosenInstallMethod = hasPoetry ? 'poetry' : 'venv';
+            logger.info(
+              hasPoetry
+                ? 'Poetry confirmed after auto-install — using poetry'
+                : 'Poetry still not detected — falling back to venv'
+            );
+          }
+        } else if (pick.value === 'venv') {
+          chosenInstallMethod = 'venv';
+          logger.info('User selected venv install method');
+        } else {
+          // Open Setup Panel and abort workspace creation
+          vscode.commands.executeCommand('rapidkit.openSetup');
+          return;
+        }
       }
     }
 
@@ -413,9 +448,11 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
 
                   if (selected === installAction) {
                     // Open terminal with install command
-                    const terminal = vscode.window.createTerminal('Install RapidKit');
-                    terminal.show();
-                    terminal.sendText('npm install -g rapidkit');
+                    runShellCommandInTerminal({
+                      name: 'Install RapidKit',
+                      command: 'npm',
+                      args: ['install', '-g', 'rapidkit'],
+                    });
                   } else if (selected === openReadme) {
                     const readmePath = path.join(config.path, 'README.md');
                     const doc = await vscode.workspace.openTextDocument(readmePath);
@@ -650,9 +687,11 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
 
           if (selected === 'Install npm Package') {
             // Open terminal with install command
-            const terminal = vscode.window.createTerminal('Install RapidKit');
-            terminal.show();
-            terminal.sendText('npm install -g rapidkit');
+            runShellCommandInTerminal({
+              name: 'Install RapidKit',
+              command: 'npm',
+              args: ['install', '-g', 'rapidkit'],
+            });
 
             // Also open README for reference
             const readmePath = path.join(config.path, 'README.md');
@@ -776,6 +815,21 @@ echo ""
     await fs.writeFile(cliScriptPath, cliScript, { mode: 0o755 });
     logger.info('Created rapidkit CLI script');
 
+    // 4b. Create Windows launcher for parity on win32 environments
+    const cliScriptCmdPath = path.join(workspacePath, 'rapidkit.cmd');
+    const cliScriptCmd = `@echo off
+  echo ⚠️  This is a fallback workspace created without RapidKit Core
+  echo.
+  echo To create projects:
+  echo   1. Install npm package: npm install -g rapidkit
+  echo   2. Create project: npx rapidkit create project fastapi.standard my-api --output .
+  echo.
+  echo Or use VS Code Extension: "RapidKit: Create Project"
+  echo.
+  `;
+    await fs.writeFile(cliScriptCmdPath, cliScriptCmd, 'utf-8');
+    logger.info('Created rapidkit.cmd launcher');
+
     // 5. Create README.md (comprehensive guide)
     const readmePath = path.join(workspacePath, 'README.md');
     const readmeContent = `# ${name}
@@ -843,7 +897,8 @@ Create projects manually following standard structures:
 
 **FastAPI Project:**
 \`\`\`bash
-mkdir my-api && cd my-api
+mkdir my-api
+cd my-api
 poetry init --name my-api --python "^3.10"
 poetry add fastapi uvicorn
 # Add your code
@@ -895,7 +950,7 @@ npx rapidkit create project nestjs.standard my-app --output .
 ## 🆘 Need Help?
 
 - 📖 Documentation: https://getrapidkit.com/docs
-- 💬 GitHub Issues: https://github.com/yourusername/rapidkit
+- 💬 GitHub Issues: https://github.com/getrapidkit/rapidkit-vscode/issues
 - 🔧 VS Code Extension: Run \`RapidKit: Run System Check\`
 
 ## 🔄 Upgrade to Full Workspace

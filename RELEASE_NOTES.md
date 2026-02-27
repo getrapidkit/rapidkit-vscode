@@ -1,6 +1,50 @@
 # Release Notes
 
-## Latest Release: v0.14.0 (February 25, 2026)
+## Latest Release: v0.15.0 (February 27, 2026)
+
+### 🚀 Platform-Safe Command Layer + Smarter Workspace UX
+
+**Summary:** This release hardens command execution and platform compatibility, improves create-workspace UX with real tool-awareness, and speeds up `WORKSPACES` rendering for larger lists.
+
+#### Added
+
+- 🧩 **Modular command registration** across focused command groups (`core`, `workspace selection`, `workspace operations`, `project lifecycle`, `file/log`, `project context`)
+- 🧪 **New contract tests** for platform capability helpers and workspace detector/manager behavior
+- 🖥️ **Terminal execution abstraction** via centralized `terminalExecutor` utility
+
+#### Changed
+
+- 🪟 **Create Workspace modal now tool-aware**
+	- Detects Python / venv / Poetry / pipx on modal open
+	- Auto-selects viable install method and disables invalid options with inline reason text
+	- Prevents duplicate Poetry prompt in modal-based flows
+
+- ⚡ **Workspace sidebar performance improvements**
+	- Caches global-installed and latest-version checks in `coreVersionService`
+	- Parallelizes workspace enrichment in `workspaceExplorer` instead of sequential waits
+
+- 🧠 **Cross-platform command building**
+	- Uses platform-aware shell quoting/building through `platformCapabilities`
+	- Keeps terminal command contracts consistent across Linux/macOS/Windows
+
+#### Fixed
+
+- 🩺 **Doctor workspace path output** no longer includes launcher aliases; shows real install paths in stable order
+
+### 🧪 Contract Regression Log (doctor/create/bootstrap)
+
+Use this section for each release to track command-contract changes and drift risks.
+
+| Area | Expected Contract | Status | Notes |
+|------|-------------------|--------|-------|
+| doctor workspace | `npx rapidkit doctor workspace` | ✅ | Launcher path hidden; real installs retained |
+| doctor fix | `npx rapidkit doctor workspace --fix` | ✅ | Extension action still aligned |
+| create workspace | `rapidkit create workspace <name>` | ✅ | Modal flow avoids duplicate Poetry prompt |
+| create project | `rapidkit create project <kit> <name> --output <dir>` | ✅ | Command-array contract preserved |
+| bootstrap profile | `rapidkit bootstrap --profile <profile>` | ✅ | Profile values aligned with tests/schemas |
+| terminal API usage | via `terminalExecutor` only | ✅ | Drift test enforces centralization |
+
+### Previous Release: v0.14.0 (February 25, 2026)
 
 ### 🎯 Workspace/Project Accuracy + Persistent Welcome UX
 
@@ -135,6 +179,7 @@ Use this section for each release to track command-contract changes and drift ri
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.15.0](releases/RELEASE_NOTES_v0.15.0.md) | Feb 27, 2026 | 🚀 platform-safe command layer, 🪟 tool-aware workspace modal, ⚡ workspace list performance, 🩺 doctor path clarity |
 | [v0.14.0](releases/RELEASE_NOTES_v0.14.0.md) | Feb 25, 2026 | 🎯 Workspace-vs-project correctness, 👁️ persisted setup toggle, 🌐 example link/clone fixes, 🏷️ profile tags |
 | [v0.13.0](releases/RELEASE_NOTES_v0.13.0.md) | Feb 21, 2026 | 🐹 Go framework support, 🪟 Workspace modal routing, 🔧 @latest fix, 🚫 Modules disabled for Go |
 | [v0.12.0](releases/RELEASE_NOTES_v0.12.0.md) | Feb 15, 2026 | 🪟 Module details modal, 🧭 workspace-first CLI resolution, 🔄 post-install refresh |

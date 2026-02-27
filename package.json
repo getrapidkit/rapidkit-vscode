@@ -1,8 +1,8 @@
 {
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
-  "description": "Scaffold production-ready FastAPI & NestJS APIs with clean architecture",
-  "version": "0.14.0",
+  "description": "VS Code extension for RapidKit, an open-source workspace platform that standardizes how teams build, scale, and deploy backend services.",
+  "version": "0.15.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -25,12 +25,13 @@
     "rapidkit",
     "fastapi",
     "nestjs",
+    "go",
+    "workspace platform",
     "python",
     "typescript",
     "backend",
     "scaffold",
     "generator",
-    "framework",
     "clean architecture",
     "boilerplate",
     "api",
@@ -149,6 +150,18 @@
         "title": "Initialize Workspace (npx rapidkit init)",
         "category": "RapidKit",
         "icon": "$(run-all)"
+      },
+      {
+        "command": "rapidkit.workspacePolicyShow",
+        "title": "Workspace Policy: Show",
+        "category": "RapidKit",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "rapidkit.workspacePolicySet",
+        "title": "Workspace Policy: Set",
+        "category": "RapidKit",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "rapidkit.deleteProject",
@@ -463,6 +476,12 @@
           "command": "rapidkit.workspaceSetup"
         },
         {
+          "command": "rapidkit.workspacePolicyShow"
+        },
+        {
+          "command": "rapidkit.workspacePolicySet"
+        },
+        {
           "command": "rapidkit.cacheStatus"
         },
         {
@@ -554,6 +573,16 @@
           "command": "rapidkit.workspaceSetup",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "workspace_ops@2"
+        },
+        {
+          "command": "rapidkit.workspacePolicyShow",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_policy@1"
+        },
+        {
+          "command": "rapidkit.workspacePolicySet",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "workspace_policy@2"
         },
         {
           "command": "rapidkit.cacheStatus",
@@ -811,8 +840,9 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "build": "npm run esbuild-base -- --production && cd webview-ui && npm run build",
-    "compile": "tsc -p ./",
+    "clean:dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean:dist && npm run esbuild-base -- --production && cd webview-ui && npm run build",
+    "compile": "npm run clean:dist && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "esbuild-base": "node esbuild.js",
     "esbuild": "npm run esbuild-base -- --sourcemap",
@@ -824,7 +854,7 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "lint:fix": "eslint src --ext ts --fix",
-    "test": "npm run compile && npm run lint",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:vscode": "vscode-test",

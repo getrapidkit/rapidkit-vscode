@@ -8,6 +8,7 @@ import { ProjectWizard } from '../ui/wizards/projectWizard';
 import { Logger } from '../utils/logger';
 import { WorkspaceManager } from '../core/workspaceManager';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
+import { runCommandsInTerminal } from '../utils/terminalExecutor';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
@@ -367,12 +368,11 @@ export async function createProjectCommand(
               forceNewWindow: false,
             });
           } else if (selected === terminalAction) {
-            const terminal = vscode.window.createTerminal({
+            runCommandsInTerminal({
               name: `RapidKit - ${config.name}`,
               cwd: projectPath,
+              commands: ['# Run: rapidkit init && rapidkit dev'],
             });
-            terminal.show();
-            terminal.sendText('# Run: rapidkit init && rapidkit dev');
           } else if (selected === addModulesAction) {
             // Set project path context then trigger add module
             await vscode.commands.executeCommand('rapidkit.addModule', projectPath);

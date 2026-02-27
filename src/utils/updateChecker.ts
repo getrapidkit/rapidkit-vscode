@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import { Logger } from './logger';
+import { runShellCommandInTerminal } from './terminalExecutor';
+import { run } from './exec';
 
 interface VersionInfo {
   current: string | null;
@@ -23,8 +25,7 @@ export async function getCurrentVersion(): Promise<string | null> {
   const logger = Logger.getInstance();
 
   try {
-    const { execa } = await import('execa');
-    const result = await execa('npx', ['rapidkit', '--version'], {
+    const result = await run('npx', ['rapidkit', '--version'], {
       timeout: 10000,
       reject: false,
     });
@@ -46,8 +47,7 @@ export async function getLatestVersion(): Promise<string | null> {
   const logger = Logger.getInstance();
 
   try {
-    const { execa } = await import('execa');
-    const result = await execa('npm', ['view', 'rapidkit', 'version'], {
+    const result = await run('npm', ['view', 'rapidkit', 'version'], {
       timeout: 10000,
       reject: false,
     });
@@ -154,11 +154,11 @@ async function showUpdateNotification(
 
   if (selected === updateAction) {
     // Open terminal and run update command
-    const terminal = vscode.window.createTerminal({
+    runShellCommandInTerminal({
       name: '📦 RapidKit Update',
+      command: 'npm',
+      args: ['install', '-g', 'rapidkit'],
     });
-    terminal.show();
-    terminal.sendText('npm install -g rapidkit');
 
     logger.info('User initiated rapidkit npm update');
   } else if (selected === releaseNotesAction) {

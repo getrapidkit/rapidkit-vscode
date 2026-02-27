@@ -62,42 +62,40 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   async getChildren(element?: WorkspaceTreeItem): Promise<WorkspaceTreeItem[]> {
     if (!element) {
-      // Root level - only show workspaces (no action buttons)
-      const items: WorkspaceTreeItem[] = [];
+      const items = await Promise.all(
+        this.workspaces.map(async (ws) => {
+          const isActive = this.selectedWorkspace?.path === ws.path;
 
-      // Add workspaces with version info
-      for (const ws of this.workspaces) {
-        const isActive = this.selectedWorkspace?.path === ws.path;
+          // Fetch version info (async but cached)
+          const versionInfo = await this.versionService.getVersionInfo(ws.path);
+          this.versionInfoCache.set(ws.path, versionInfo);
+          const profile = await this.getBootstrapProfile(ws.path);
 
-        // Fetch version info (async but cached)
-        const versionInfo = await this.versionService.getVersionInfo(ws.path);
-        this.versionInfoCache.set(ws.path, versionInfo);
-        const profile = await this.getBootstrapProfile(ws.path);
+          const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
 
-        const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
-
-        const descParts: string[] = [];
-        if (profile) {
-          descParts.push(`[${profile}]`);
-        }
-
-        // Show active status with icon or time since last opened
-        if (isActive) {
-          descParts.push('🟢 Active');
-        } else {
-          // Calculate time since last opened
-          const lastOpened = this.getLastOpenedTime(ws);
-          if (lastOpened) {
-            descParts.push(lastOpened);
+          const descParts: string[] = [];
+          if (profile) {
+            descParts.push(`[${profile}]`);
           }
-        }
 
-        if (descParts.length > 0) {
-          item.description = descParts.join(' • ');
-        }
+          // Show active status with icon or time since last opened
+          if (isActive) {
+            descParts.push('🟢 Active');
+          } else {
+            // Calculate time since last opened
+            const lastOpened = this.getLastOpenedTime(ws);
+            if (lastOpened) {
+              descParts.push(lastOpened);
+            }
+          }
 
-        items.push(item);
-      }
+          if (descParts.length > 0) {
+            item.description = descParts.join(' • ');
+          }
+
+          return item;
+        })
+      );
 
       return items;
     }

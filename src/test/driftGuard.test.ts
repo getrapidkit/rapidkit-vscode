@@ -108,10 +108,12 @@ describe('contract drift guard', () => {
 
   it('keeps workspace doctor command contract aligned with npm CLI', () => {
     const extensionSource = read('src/extension.ts');
+    const workspaceOpsSource = read('src/commands/workspaceOperations.ts');
+    const commandSource = `${extensionSource}\n${workspaceOpsSource}`;
 
-    expect(extensionSource).toContain('npx rapidkit doctor workspace');
-    expect(extensionSource).toContain('npx rapidkit doctor workspace --fix');
-    expect(extensionSource).not.toContain('npx rapidkit doctor --workspace');
+    expect(commandSource).toContain("['doctor', 'workspace']");
+    expect(commandSource).toContain("['doctor', 'workspace', '--fix']");
+    expect(commandSource).not.toContain('doctor --workspace');
   });
 
   it('keeps profile enum values aligned across type, completion, hover, and wizard', () => {
@@ -125,6 +127,8 @@ describe('contract drift guard', () => {
     ];
 
     const extensionSource = read('src/extension.ts');
+    const workspaceOpsSource = read('src/commands/workspaceOperations.ts');
+    const commandSource = `${extensionSource}\n${workspaceOpsSource}`;
     const typesSource = read('src/types/index.ts');
     const completionSource = read('src/providers/completionProvider.ts');
     const hoverSource = read('src/providers/hoverProvider.ts');
@@ -135,7 +139,7 @@ describe('contract drift guard', () => {
     const workspaceSchemaSource = read('schemas/rapidkitrc.schema.json');
 
     for (const profile of expectedProfiles) {
-      expect(extensionSource).toContain(`'${profile}'`);
+      expect(commandSource).toContain(`'${profile}'`);
       expect(typesSource).toContain(`'${profile}'`);
       expect(completionSource).toContain(profile);
       expect(hoverSource).toContain(`\`${profile}\``);
@@ -152,16 +156,150 @@ describe('contract drift guard', () => {
     expect(workspaceSchemaSource).not.toContain('"standard"');
   });
 
-  it('keeps updater/setup/legacy commands pinned to stable npm install syntax and workspace doctor contract', () => {
+  it('keeps updater/setup commands pinned to stable npm install syntax and workspace doctor contract', () => {
     const updateCheckerSource = read('src/utils/updateChecker.ts');
     const setupPanelSource = read('src/ui/panels/setupPanel.ts');
-    const welcomeLegacySource = read('src/ui/panels/welcomePanelLegacy.ts');
+    const extensionSource = read('src/extension.ts');
+    const workspaceOpsSource = read('src/commands/workspaceOperations.ts');
+    const commandSource = `${extensionSource}\n${workspaceOpsSource}`;
 
     expect(updateCheckerSource).not.toContain('rapidkit@latest');
     expect(setupPanelSource).not.toContain('rapidkit@latest');
-    expect(welcomeLegacySource).not.toContain('rapidkit@latest');
+    expect(extensionSource).not.toContain('rapidkit@latest');
 
-    expect(welcomeLegacySource).toContain('npx rapidkit doctor workspace');
-    expect(welcomeLegacySource).not.toContain("copyCommand(this, 'npx rapidkit doctor')");
+    expect(commandSource).toContain("['doctor', 'workspace']");
+    expect(commandSource).toContain("['doctor', 'workspace', '--fix']");
+
+    expect(setupPanelSource).toContain('runCommandsInTerminal');
+    expect(setupPanelSource).toContain("'python -m pipx upgrade rapidkit-core'");
+    expect(setupPanelSource).toContain("'python -m pipx install --force rapidkit-core'");
+    expect(setupPanelSource).toContain("'python -m pipx --version'");
+    expect(setupPanelSource).toContain("'python3 -m pip --version'");
+    expect(setupPanelSource).toContain("'python -m pip install --user pipx'");
+    expect(setupPanelSource).toContain("'python -m pipx ensurepath'");
+  });
+
+  it('keeps terminal execution centralized in approved files', () => {
+    const sourceFiles = collectProjectFiles(path.join(repoRoot, 'src')).filter(
+      (relPath) => relPath.endsWith('.ts') && !relPath.startsWith('test/')
+    );
+
+    const violations: string[] = [];
+
+    for (const relPath of sourceFiles) {
+      const content = read(`src/${relPath}`);
+      const sendTextCount = (content.match(/\.sendText\(/g) || []).length;
+      const createTerminalCount = (content.match(/createTerminal\(/g) || []).length;
+
+      if (relPath === 'utils/terminalExecutor.ts') {
+        expect(sendTextCount).toBe(2);
+        expect(createTerminalCount).toBe(1);
+        continue;
+      }
+
+      if (relPath === 'extension.ts') {
+        expect(sendTextCount).toBe(0);
+        expect(createTerminalCount).toBe(0);
+        continue;
+      }
+
+      if (relPath === 'commands/projectLifecycle.ts') {
+        expect(sendTextCount).toBe(0);
+        expect(createTerminalCount).toBe(0);
+        expect(content).toContain('openTerminal({');
+        expect(content).toContain('interruptTerminal(existingTerminal)');
+        continue;
+      }
+
+      if (sendTextCount > 0) {
+        violations.push(`${relPath}: sendText(${sendTextCount})`);
+      }
+      if (createTerminalCount > 0) {
+        violations.push(`${relPath}: createTerminal(${createTerminalCount})`);
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(`Terminal API drift detected:\n${violations.join('\n')}`);
+    }
+
+    expect(violations).toHaveLength(0);
+  });
+
+  it('keeps project lifecycle command contracts cross-platform for fastapi/go/nestjs', () => {
+    const extensionSource = read('src/extension.ts');
+    const projectLifecycleSource = read('src/commands/projectLifecycle.ts');
+    const lifecycleSource = `${extensionSource}\n${projectLifecycleSource}`;
+
+    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectInit'");
+    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectDev'");
+    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectTest'");
+
+    expect(lifecycleSource).toContain("commands: [['init']]");
+    expect(lifecycleSource).toContain("commands: [['test']]");
+    expect(lifecycleSource).toContain("commands: [['init'], ['dev']]");
+
+    expect(lifecycleSource).toContain("commands: [['dev', '--allow-global-runtime']]");
+    expect(lifecycleSource).toContain("commands: [['dev', '--port', String(port)]]");
+    expect(lifecycleSource).toContain("commands: [['dev']]");
+
+    expect(lifecycleSource).toContain("commands: ['npm run start:dev']");
+    expect(lifecycleSource).toContain('PORT: String(port)');
+
+    expect(lifecycleSource).not.toContain('PORT=${port} npm run start:dev');
+    expect(lifecycleSource).not.toContain('PORT=${port} npx rapidkit dev');
+    expect(lifecycleSource).not.toContain('PORT=$PORT npx rapidkit dev');
+    expect(lifecycleSource).not.toContain('npx rapidkit init && npx rapidkit dev');
+  });
+
+  it('keeps workspace operations on command-array contracts', () => {
+    const extensionSource = read('src/extension.ts');
+    const workspaceOpsSource = read('src/commands/workspaceOperations.ts');
+    const operationsSource = `${extensionSource}\n${workspaceOpsSource}`;
+
+    expect(operationsSource).toContain("commands: [['bootstrap', '--profile'");
+    expect(operationsSource).toContain("commands: [['setup', (runtime as any).value]]");
+    expect(operationsSource).toContain("commands: [['init']]");
+
+    expect(operationsSource).toContain("commands: [['workspace', 'policy', 'show']]");
+    expect(operationsSource).toContain(
+      "['workspace', 'policy', 'set', policyKey.label, policyValue]"
+    );
+
+    expect(operationsSource).toContain("commands: [['cache', 'status']]");
+    expect(operationsSource).toContain("commands: [['cache', 'clear']]");
+    expect(operationsSource).toContain("commands: [['cache', 'prune']]");
+    expect(operationsSource).toContain("commands: [['cache', 'repair']]");
+
+    expect(operationsSource).toContain("commands: [['mirror', 'status']]");
+    expect(operationsSource).toContain("commands: [['mirror', 'sync']]");
+    expect(operationsSource).toContain("commands: [['mirror', 'verify']]");
+    expect(operationsSource).toContain("commands: [['mirror', 'rotate']]");
+
+    expect(operationsSource).toContain("commands: [['doctor', 'workspace']]");
+    expect(operationsSource).toContain("commands: [['doctor', 'workspace', '--fix']]");
+
+    expect(operationsSource).not.toContain('npx rapidkit cache status');
+    expect(operationsSource).not.toContain('npx rapidkit mirror status');
+    expect(operationsSource).not.toContain('npx rapidkit doctor workspace');
+    expect(operationsSource).not.toContain('RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1 npx rapidkit setup');
+  });
+
+  it('keeps setup panel language toolchain commands cross-platform and shell-safe', () => {
+    const setupPanelSource = read('src/ui/panels/setupPanel.ts');
+
+    expect(setupPanelSource).toContain('runCommandsInTerminal');
+
+    expect(setupPanelSource).toContain("commands: ['python --version']");
+    expect(setupPanelSource).toContain("'python -m pip --version'");
+    expect(setupPanelSource).toContain("'python3 -m pip --version'");
+    expect(setupPanelSource).toContain("commands: [['--version']]");
+    expect(setupPanelSource).toContain("commands: ['go version']");
+
+    expect(setupPanelSource).toContain("'python -m pipx install --force rapidkit-core'");
+    expect(setupPanelSource).toContain("'pipx install --force rapidkit-core'");
+
+    expect(setupPanelSource).not.toContain('RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1');
+    expect(setupPanelSource).not.toContain('PORT=');
   });
 });

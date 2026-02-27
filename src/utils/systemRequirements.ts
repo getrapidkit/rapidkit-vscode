@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { run } from './exec';
 import { Logger } from './logger';
 import { checkPythonEnvironment, getPythonErrorMessage } from './pythonChecker';
+import { appendCommandsToTerminal, runCommandsInTerminal } from './terminalExecutor';
 
 export interface SystemRequirementsResult {
   allMet: boolean;
@@ -129,17 +130,10 @@ async function checkVenvAutoFix(pythonVersion: string): Promise<{
 export async function autoFixVenvSupport(command: string): Promise<boolean> {
   const logger = Logger.getInstance();
 
-  const terminal = vscode.window.createTerminal({
+  const terminal = runCommandsInTerminal({
     name: 'RapidKit: Install Python venv',
-    hideFromUser: false,
+    commands: [`echo "Installing Python venv support..."`, `echo "Command: ${command}"`, command],
   });
-
-  terminal.show();
-
-  // Show command first for transparency
-  terminal.sendText(`echo "Installing Python venv support..."`);
-  terminal.sendText(`echo "Command: ${command}"`);
-  terminal.sendText(command);
 
   // Wait a bit for installation
   await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -149,12 +143,16 @@ export async function autoFixVenvSupport(command: string): Promise<boolean> {
   const success = verification.venvSupport;
 
   if (success) {
-    terminal.sendText(`echo "\n✅ Python venv support installed successfully!"`);
-    terminal.sendText(`echo "You can close this terminal now."`);
+    appendCommandsToTerminal(terminal, [
+      `echo "\n✅ Python venv support installed successfully!"`,
+      `echo "You can close this terminal now."`,
+    ]);
     logger.info('Auto-fix venv support: SUCCESS');
   } else {
-    terminal.sendText(`echo "\n⚠️ Installation may require manual verification."`);
-    terminal.sendText(`echo "Please restart VS Code after installation completes."`);
+    appendCommandsToTerminal(terminal, [
+      `echo "\n⚠️ Installation may require manual verification."`,
+      `echo "Please restart VS Code after installation completes."`,
+    ]);
     logger.warn('Auto-fix venv support: verification failed');
   }
 

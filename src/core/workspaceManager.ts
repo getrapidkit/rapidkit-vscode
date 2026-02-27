@@ -284,6 +284,18 @@ export class WorkspaceManager {
               path: projectPath,
             });
           }
+          // Fallback: Check for Go project
+          else if (
+            (await fs.pathExists(path.join(projectPath, 'go.mod'))) ||
+            (await fs.pathExists(path.join(projectPath, 'go.sum'))) ||
+            (await fs.pathExists(path.join(projectPath, 'main.go'))) ||
+            (await fs.pathExists(path.join(projectPath, 'cmd', 'main.go')))
+          ) {
+            projects.push({
+              name: entry.name,
+              path: projectPath,
+            });
+          }
           // Fallback: Check for NestJS project
           else if (await fs.pathExists(path.join(projectPath, 'package.json'))) {
             try {
