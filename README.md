@@ -2,17 +2,31 @@
 
 <div align="center">
 
-**Build production-ready APIs at warp speed**
+**RapidKit is an open-source workspace platform that standardizes how teams build, scale, and deploy backend services.**
 
 FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free modules, and automation-first workflows
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square&color=red&label=npm)](https://www.npmjs.com/package/rapidkit)
+[![Part of RapidKit Platform](https://img.shields.io/badge/Part%20of-RapidKit%20Workspace%20Platform-0f172a?logo=github)](https://github.com/getrapidkit/rapidkit)
 
 [Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.getrapidkit.com/docs) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
 </div>
+
+---
+
+## Part of the RapidKit Ecosystem
+
+RapidKit for VS Code is the IDE layer of the platform.
+
+| Layer | Repository |
+|---|---|
+| Ecosystem Hub | [getrapidkit/rapidkit](https://github.com/getrapidkit/rapidkit) |
+| CLI | [getrapidkit/rapidkit-npm](https://github.com/getrapidkit/rapidkit-npm) |
+| Core Engine | [getrapidkit/rapidkit-core](https://github.com/getrapidkit/rapidkit-core) |
+| Examples | [getrapidkit/rapidkit-examples](https://github.com/getrapidkit/rapidkit-examples) |
 
 ---
 
@@ -247,6 +261,10 @@ npx rapidkit format    # Format code
 ### Sidebar
 
 - **Workspaces View** - Manage all your RapidKit workspaces
+    - Right-click a workspace for: Bootstrap, Setup, Cache/Mirror ops, and Policy actions
+    - Policy actions map directly to npm CLI:
+        - `npx rapidkit workspace policy show`
+        - `npx rapidkit workspace policy set <key> <value>`
 - **Projects View** - Browse projects in current workspace
 - **Modules View** - Explore and install modules
 
@@ -313,9 +331,11 @@ npm install -g rapidkit
 
 **Quick Commands:**
 ```bash
-rapidkit create          # Interactive mode
-rapidkit workspace list  # List all workspaces
-rapidkit add module auth # Add modules to project
+npx rapidkit create                       # Interactive mode
+npx rapidkit workspace list               # List all workspaces
+npx rapidkit workspace policy show        # Show workspace policy
+npx rapidkit workspace policy set <key> <value> # Set workspace policy key
+npx rapidkit add module auth              # Add modules to project
 ```
 
 [📦 View on npm](https://www.npmjs.com/package/rapidkit) • [💻 GitHub Repo](https://github.com/getrapidkit/rapidkit-npm)
