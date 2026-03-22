@@ -113,7 +113,7 @@ The doctor command checks:
 🩺 RapidKit Health Check
 
 Workspace: my-workspace
-Path: /home/user/Documents/my-workspace
+Path: <WORKSPACE_PATH>
 
 System Tools:
 
@@ -129,13 +129,13 @@ System Tools:
 📦 Projects (2):
 
 ✅ Project: my-api
-   Path: /home/user/Documents/my-workspace/my-api
+  Path: <WORKSPACE_PATH>/my-api
    ✅ Virtual environment: Active
    ✅ RapidKit Core: 0.2.2rc1
    ✅ Dependencies: Installed
 
 ✅ Project: auth-service
-   Path: /home/user/Documents/my-workspace/auth-service
+  Path: <WORKSPACE_PATH>/auth-service
    ✅ Virtual environment: Active
    ✅ RapidKit Core: 0.2.2rc1
    ✅ Dependencies: Installed

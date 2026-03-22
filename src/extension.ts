@@ -13,6 +13,7 @@ import {
 } from './ui/treeviews/projectExplorer';
 import { setSelectedProjectPath } from './core/selectedProject';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
+import { DoctorEvidenceProvider } from './ui/treeviews/doctorEvidenceProvider';
 import { checkAndNotifyUpdates } from './utils/updateChecker';
 // templateExplorer removed in v0.4.3 (redundant with npm package)
 import { registerCoreCommands } from './commands/coreCommands';
@@ -40,6 +41,7 @@ let actionsWebviewProvider: ActionsWebviewProvider;
 let workspaceExplorer: WorkspaceExplorerProvider;
 let projectExplorer: ProjectExplorerProvider;
 let moduleExplorer: ModuleExplorerProvider;
+let doctorEvidenceExplorer: DoctorEvidenceProvider;
 // templateExplorer removed
 
 // Track running dev servers per project (exported for ProjectExplorer)
@@ -142,9 +144,13 @@ export async function activate(context: vscode.ExtensionContext) {
     workspaceExplorer = new WorkspaceExplorerProvider();
     projectExplorer = new ProjectExplorerProvider();
     moduleExplorer = new ModuleExplorerProvider();
+    doctorEvidenceExplorer = new DoctorEvidenceProvider(
+      () => workspaceExplorer?.getSelectedWorkspace()?.path ?? null
+    );
 
     // Set workspace explorer reference for WelcomePanel
     WelcomePanel.setWorkspaceExplorer(workspaceExplorer);
+    WelcomePanel.setExtensionContext(context);
 
     // Register tree views
     logger.info('Step 6: Registering tree views...');
@@ -165,7 +171,52 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     });
     context.subscriptions.push(
-      vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer)
+      vscode.window.registerTreeDataProvider('rapidkitModules', moduleExplorer),
+      vscode.window.registerTreeDataProvider('rapidkitDoctorEvidence', doctorEvidenceExplorer),
+      // Refresh evidence panel whenever workspace tree changes (fires right after selectedWorkspace is updated)
+      workspaceExplorer.onDidChangeTreeData(() => {
+        doctorEvidenceExplorer.refresh();
+      })
+    );
+
+    // Doctor Evidence commands
+    context.subscriptions.push(
+      vscode.commands.registerCommand('rapidkit.doctorEvidence.refresh', () => {
+        doctorEvidenceExplorer.refresh();
+      }),
+      vscode.commands.registerCommand('rapidkit.doctorEvidence.rerun', async () => {
+        const ws = workspaceExplorer.getSelectedWorkspace();
+        if (!ws) {
+          vscode.window.showWarningMessage('Select a workspace first.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: 'RapidKit Doctor',
+          cwd: ws.path,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit doctor workspace');
+        // Refresh evidence panel after a short delay so the new file is picked up
+        setTimeout(() => doctorEvidenceExplorer.refresh(), 5000);
+      }),
+      vscode.commands.registerCommand('rapidkit.doctorEvidence.autofix', async () => {
+        const ws = workspaceExplorer.getSelectedWorkspace();
+        if (!ws) {
+          vscode.window.showWarningMessage('Select a workspace first.');
+          return;
+        }
+        const terminal = vscode.window.createTerminal({
+          name: 'RapidKit Doctor Fix',
+          cwd: ws.path,
+        });
+        terminal.show();
+        terminal.sendText('npx rapidkit doctor workspace --fix');
+        setTimeout(() => doctorEvidenceExplorer.refresh(), 8000);
+      }),
+      // Refresh evidence panel whenever workspace selection changes
+      vscode.commands.registerCommand('rapidkit.workspaceSelected', () => {
+        doctorEvidenceExplorer.refresh();
+      })
     );
 
     // Register IntelliSense providers
@@ -224,6 +275,10 @@ export async function activate(context: vscode.ExtensionContext) {
       try {
         logger.info('Step 9: Initializing workspace selection...');
         await workspaceExplorer.refresh();
+
+        // Sync evidence panel with whatever workspace was auto-selected on load
+        const initialWs = workspaceExplorer.getSelectedWorkspace();
+        doctorEvidenceExplorer.setWorkspacePath(initialWs?.path ?? null);
 
         // Show welcome page on first activation
         logger.info('Step 10: Checking welcome page settings...');

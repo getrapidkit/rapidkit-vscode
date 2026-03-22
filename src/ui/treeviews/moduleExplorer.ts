@@ -185,10 +185,12 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
 
       // Only add command if project is selected AND (not installed or has update available)
       if (this._currentProjectPath && (!installed || hasUpdate)) {
+        // Normalize to webview ModuleData shape (adds display_name required by InstallModuleModal)
+        const modalData = { ...moduleData, display_name: moduleData.name };
         item.command = {
-          command: 'rapidkit.addModule',
+          command: 'rapidkit.showModuleInstallModal',
           title: installed && hasUpdate ? 'Update Module' : 'Install Module',
-          arguments: [moduleObj],
+          arguments: [modalData],
         };
       }
 

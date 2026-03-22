@@ -5,7 +5,9 @@
 ### Test Environment 1: Clean System (No Packages)
 ```bash
 # Temporarily hide npm package
-sudo mv /usr/local/bin/rapidkit /tmp/rapidkit.bak
+RAPIDKIT_BIN_PATH="$(command -v rapidkit)"
+TEMP_BACKUP_PATH="<TEMP_BACKUP_PATH>"
+sudo mv "$RAPIDKIT_BIN_PATH" "$TEMP_BACKUP_PATH"
 
 # Temporarily hide Python package (if using pyenv)
 pyenv shell system  # Switch to system Python without rapidkit-core
@@ -14,7 +16,7 @@ pyenv shell system  # Switch to system Python without rapidkit-core
 ### Test Environment 2: npm Only
 ```bash
 # Restore npm
-sudo mv /tmp/rapidkit.bak /usr/local/bin/rapidkit
+sudo mv "$TEMP_BACKUP_PATH" "$RAPIDKIT_BIN_PATH"
 
 # Python Core still not installed
 ```
@@ -22,7 +24,7 @@ sudo mv /tmp/rapidkit.bak /usr/local/bin/rapidkit
 ### Test Environment 3: Python Core Only
 ```bash
 # Hide npm again
-sudo mv /usr/local/bin/rapidkit /tmp/rapidkit.bak
+sudo mv "$RAPIDKIT_BIN_PATH" "$TEMP_BACKUP_PATH"
 
 # Install Python Core
 pip install rapidkit-core
@@ -31,7 +33,7 @@ pip install rapidkit-core
 ### Test Environment 4: Both Installed
 ```bash
 # Restore npm
-sudo mv /tmp/rapidkit.bak /usr/local/bin/rapidkit
+sudo mv "$TEMP_BACKUP_PATH" "$RAPIDKIT_BIN_PATH"
 
 # Python Core already installed
 ```

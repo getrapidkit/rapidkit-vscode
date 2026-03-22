@@ -34,6 +34,10 @@ export class WelcomePanel {
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
   /** Framework name queued to open as a modal after the webview becomes ready */
   private static _pendingModal: string | null = null;
+  /** Module data queued to show as install modal after webview becomes ready */
+  private static _pendingModuleModal: any | null = null;
+  /** Cached extension context so static methods can open the panel */
+  private static _extensionContext: vscode.ExtensionContext | undefined;
 
   /**
    * Open the welcome panel and immediately trigger the Create Project modal
@@ -62,6 +66,30 @@ export class WelcomePanel {
    * Open the welcome panel and immediately trigger the Create Workspace modal.
    * Safe to call whether the panel is open or not.
    */
+  /**
+   * Open the welcome panel and immediately show the module install modal.
+   * Safe to call whether the panel is open or not.
+   */
+  public static showModuleInstallModal(moduleData: any): void {
+    const context = WelcomePanel._extensionContext;
+    if (!context) {
+      return;
+    }
+    WelcomePanel._pendingModuleModal = moduleData;
+    WelcomePanel.createOrShow(context);
+    // If panel was already visible the 'ready' event won't fire again — post directly after short delay
+    setTimeout(() => {
+      if (WelcomePanel._pendingModuleModal && WelcomePanel.currentPanel) {
+        const data = WelcomePanel._pendingModuleModal;
+        WelcomePanel._pendingModuleModal = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openModuleInstallModal',
+          data,
+        });
+      }
+    }, 350);
+  }
+
   public static openWorkspaceModal(context: vscode.ExtensionContext): void {
     WelcomePanel._pendingModal = '__workspace__';
     WelcomePanel.createOrShow(context);
@@ -80,6 +108,10 @@ export class WelcomePanel {
    */
   public static setWorkspaceExplorer(explorer: WorkspaceExplorerProvider) {
     WelcomePanel._workspaceExplorer = explorer;
+  }
+
+  public static setExtensionContext(context: vscode.ExtensionContext) {
+    WelcomePanel._extensionContext = context;
   }
 
   /**
@@ -240,6 +272,17 @@ export class WelcomePanel {
                     data: { framework: pending },
                   });
                 }
+              }, 300);
+            }
+            // If a module install modal was queued (e.g. triggered from sidebar), open it now
+            if (WelcomePanel._pendingModuleModal) {
+              const moduleData = WelcomePanel._pendingModuleModal;
+              WelcomePanel._pendingModuleModal = null;
+              setTimeout(() => {
+                this._panel.webview.postMessage({
+                  command: 'openModuleInstallModal',
+                  data: moduleData,
+                });
               }, 300);
             }
             break;

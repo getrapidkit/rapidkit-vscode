@@ -86,7 +86,7 @@ If FAIL:
         
         Command: sudo apt update && sudo apt install -y python3.13-venv
         
-        This requires sudo password and will take ~10 seconds.
+        This requires administrator confirmation and will take ~10 seconds.
         
         [🔧 Auto Install] [Install Manually] [Cancel]"
     
@@ -124,7 +124,7 @@ If SUCCESS:
 ### 1.2 - First-Time Setup Detection 🎉
 ```typescript
 isFirstTimeSetup() 
-  // Checks if ~/.cache/rapidkit-npm/ exists and has rapidkit package
+  // Checks if <CACHE_DIR>/rapidkit-npm/ exists and has rapidkit package
   ↓
 Result: true (first time)
   ↓
@@ -183,7 +183,7 @@ npx rapidkit workspace create my-project --install-method poetry
   ↓
   # If first time:
   # - Downloads rapidkit@latest from npm
-  # - Caches in ~/.cache/rapidkit-npm/
+  # - Caches in <CACHE_DIR>/rapidkit-npm/
   # - Takes ~10-30 seconds
   
   # If cached:
@@ -265,7 +265,7 @@ If validation SUCCEEDS:
      "✅ Workspace created successfully!
       
       Your RapidKit workspace is ready at:
-      /home/user/my-project
+      <WORKSPACE_PATH>
       
       Next steps:
         • Open workspace folder in VS Code
@@ -442,7 +442,7 @@ Python:
 
 Poetry:
   ✅ Version: 1.7.1
-  ✅ Location: ~/.local/bin/poetry
+  ✅ Location: <POETRY_BIN_PATH>
 
 Node.js:
   ✅ Version: 20.10.0
@@ -454,11 +454,11 @@ Git:
 🏠 Current Workspace
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Workspace Root: /home/user/my-project
+Workspace Root: <WORKSPACE_PATH>
 
 Virtual Environment:
   ✅ Type: Poetry
-  ✅ Location: ~/.cache/pypoetry/virtualenvs/my-project-xxx
+  ✅ Location: <POETRY_VENV_PATH>
   ✅ Python: 3.13.5
 
 RapidKit Core:

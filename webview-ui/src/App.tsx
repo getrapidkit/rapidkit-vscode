@@ -131,6 +131,14 @@ export function App() {
                     setModuleDetails(message.data);
                     setShowModuleDetailsModal(true);
                     break;
+                case 'openModuleInstallModal':
+                    // Triggered from sidebar AVAILABLE MODULES click
+                    console.log('[React Webview] openModuleInstallModal:', message.data);
+                    if (message.data) {
+                        setSelectedModule(message.data);
+                        setShowInstallModal(true);
+                    }
+                    break;
                 case 'openProjectModal':
                     // Triggered from sidebar or external command
                     console.log('[React Webview] openProjectModal:', message.data?.framework);

@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "RapidKit",
   "description": "VS Code extension for RapidKit, an open-source workspace platform that standardizes how teams build, scale, and deploy backend services.",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -144,6 +144,24 @@
         "title": "Check Health (Doctor)",
         "category": "RapidKit",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "rapidkit.doctorEvidence.rerun",
+        "title": "Re-run Doctor",
+        "category": "RapidKit",
+        "icon": "$(run)"
+      },
+      {
+        "command": "rapidkit.doctorEvidence.autofix",
+        "title": "Auto-fix Issues",
+        "category": "RapidKit",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "rapidkit.doctorEvidence.refresh",
+        "title": "Refresh Health View",
+        "category": "RapidKit",
+        "icon": "$(refresh)"
       },
       {
         "command": "rapidkit.workspaceInit",
@@ -415,6 +433,12 @@
           "name": "Available Modules",
           "icon": "media/icons/icon-128.png",
           "contextualTitle": "RapidKit Modules"
+        },
+        {
+          "id": "rapidkitDoctorEvidence",
+          "name": "Workspace Health",
+          "icon": "media/icons/icon-128.png",
+          "contextualTitle": "RapidKit Workspace Health"
         }
       ]
     },
@@ -531,6 +555,21 @@
           "command": "rapidkit.refreshProjects",
           "when": "view == rapidkitProjects",
           "group": "navigation@2"
+        },
+        {
+          "command": "rapidkit.doctorEvidence.rerun",
+          "when": "view == rapidkitDoctorEvidence",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rapidkit.doctorEvidence.autofix",
+          "when": "view == rapidkitDoctorEvidence",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rapidkit.doctorEvidence.refresh",
+          "when": "view == rapidkitDoctorEvidence",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

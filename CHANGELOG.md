@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-03-22
+
+### Added
+
+- 🩺 **Doctor Evidence Viewer** (`DoctorEvidenceProvider` tree view)
+  - New `WORKSPACE HEALTH` panel in the RapidKit sidebar activity bar
+  - Reads `.rapidkit/reports/doctor-last-run.json` — zero extra CLI calls
+  - Tree structure: summary score bar → timestamp → System Tools → Projects → per-project issues
+  - File watcher auto-refreshes on CLI evidence write
+  - Three `view/title` toolbar commands: `rapidkit.doctorEvidence.rerun`, `.autofix`, `.refresh`
+  - Syncs to active workspace via live getter (`workspaceExplorer.getSelectedWorkspace()`)
+  - Hooks into `workspaceExplorer.onDidChangeTreeData` for automatic workspace-switch refresh
+
+- 📦 **Module install modal from Available Modules sidebar**
+  - New command `rapidkit.showModuleInstallModal`
+  - Clicking a module in the sidebar opens the `InstallModuleModal` (same as welcome page cards)
+  - New webview message `openModuleInstallModal` handled in `App.tsx`
+  - `WelcomePanel.showModuleInstallModal()` static method + `_pendingModuleModal` queue
+
+### Changed
+
+- 🧩 `WelcomePanel` gains `setExtensionContext()` static method so sidebar components can open the panel without passing context
+- 🔄 Initial workspace path sync: after `workspaceExplorer.refresh()` on activation, health panel is immediately seeded with the auto-selected workspace
+
 ## [0.15.0] - 2026-02-27
 
 ### Added

@@ -138,6 +138,9 @@ export function registerCoreCommands(options: {
     }),
 
     vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
+    vscode.commands.registerCommand('rapidkit.showModuleInstallModal', (moduleData: any) => {
+      WelcomePanel.showModuleInstallModal(moduleData);
+    }),
     vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
     vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
     vscode.commands.registerCommand('rapidkit.checkSystem', checkSystemCommand),

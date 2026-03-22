@@ -1,184 +1,64 @@
 # Release Notes
 
-## Latest Release: v0.15.0 (February 27, 2026)
+## Latest Release: v0.16.0 (March 22, 2026)
 
-### 🚀 Platform-Safe Command Layer + Smarter Workspace UX
+### 🩺 Workspace Health Sidebar + Module Install Modal
 
-**Summary:** This release hardens command execution and platform compatibility, improves create-workspace UX with real tool-awareness, and speeds up `WORKSPACES` rendering for larger lists.
+**Summary:** Introduces the **Doctor Evidence Viewer** — a persistent sidebar panel that reads `.rapidkit/reports/doctor-last-run.json` and renders an inline health dashboard (score bar, system tool status, per-project issues) without any extra CLI call. Also wires the **Available Modules** sidebar item click directly into the same install confirmation modal used on the welcome page, so users see exactly what will be installed and where before confirming.
 
 #### Added
 
-- 🧩 **Modular command registration** across focused command groups (`core`, `workspace selection`, `workspace operations`, `project lifecycle`, `file/log`, `project context`)
-- 🧪 **New contract tests** for platform capability helpers and workspace detector/manager behavior
-- 🖥️ **Terminal execution abstraction** via centralized `terminalExecutor` utility
+- 🩺 **`WORKSPACE HEALTH` sidebar panel** (`DoctorEvidenceProvider`)
+  - Reads `.rapidkit/reports/doctor-last-run.json` from the active workspace — zero CLI overhead
+  - **Summary row:** health score bar (e.g. `70%  ███████░░░`) with `✅ passed  ⚠️ warnings  ❌ errors` counts
+  - **Timestamp row:** `Last checked: Xm ago` with `(cached scan)` badge when CLI reused cache
+  - **System Tools** (collapsible): per-tool status row — `✅ Python`, `⚠️ pipx`, `❌ ...` with message detail
+  - **Projects** (collapsible): each project with health icon; unhealthy projects expand to show individual issues
+  - **No-data state:** single click-to-run item (`No health data — run doctor to scan`)
+  - **No-workspace state:** placeholder until workspace is selected
+  - Three `view/title` toolbar icon buttons:
+    - `$(run)` **Re-run Doctor** — opens terminal at workspace CWD, runs `npx rapidkit doctor workspace`
+    - `$(wrench)` **Auto-fix Issues** — opens terminal, runs `npx rapidkit doctor workspace --fix`
+    - `$(refresh)` **Refresh** — re-reads evidence file from disk immediately
+  - **File watcher:** auto-refreshes the panel the moment the CLI writes new evidence (no manual refresh needed)
+  - **Live workspace sync:** uses a live getter `() => workspaceExplorer.getSelectedWorkspace()` so the correct workspace is always used, regardless of initialization timing
+  - **`onDidChangeTreeData` subscription:** workspace switch immediately triggers a panel reload
+
+- 📦 **Module install modal from `AVAILABLE MODULES` sidebar**
+  - New command `rapidkit.showModuleInstallModal`
+  - Clicking any installable module in the sidebar now opens the **`InstallModuleModal`** — the same confirmation modal used by welcome page module cards
+  - Modal shows: module name, version, description, category tags, installation target (workspace name + path), and exact CLI command (`npx rapidkit add module <slug>`)
+  - User must explicitly click **Install Module** to proceed — no silent execution
+  - Module data is normalized with `display_name` field to match the webview `ModuleData` interface
 
 #### Changed
 
-- 🪟 **Create Workspace modal now tool-aware**
-	- Detects Python / venv / Poetry / pipx on modal open
-	- Auto-selects viable install method and disables invalid options with inline reason text
-	- Prevents duplicate Poetry prompt in modal-based flows
-
-- ⚡ **Workspace sidebar performance improvements**
-	- Caches global-installed and latest-version checks in `coreVersionService`
-	- Parallelizes workspace enrichment in `workspaceExplorer` instead of sequential waits
-
-- 🧠 **Cross-platform command building**
-	- Uses platform-aware shell quoting/building through `platformCapabilities`
-	- Keeps terminal command contracts consistent across Linux/macOS/Windows
+- 🔄 **Workspace-switch health refresh** now hooks directly into `workspaceExplorer.onDidChangeTreeData` — fires immediately after `selectedWorkspace` is updated, before any command event chain
+- 🧩 **`WelcomePanel`** gains two new static methods:
+  - `setExtensionContext(context)` — stores context so sidebar-triggered flows can open the panel without passing context through the call chain
+  - `showModuleInstallModal(moduleData)` — opens the panel (if needed) and posts `openModuleInstallModal` to the React webview
+- 🪟 **`App.tsx`** handles new `openModuleInstallModal` message — sets `selectedModule` and opens `showInstallModal`, identical to the welcome page card click flow
 
 #### Fixed
 
-- 🩺 **Doctor workspace path output** no longer includes launcher aliases; shows real install paths in stable order
+- ⏱️ **Workspace Health not showing on reload** — fixed initial workspace path not being passed to the provider because `workspaceSelected` event only fires when workspace *changes*, not on first load. Now explicitly seeded after `workspaceExplorer.refresh()` completes.
+- 🗂️ **Stale health data after workspace switch** — fixed by always re-reading evidence from disk in `getChildren` instead of relying on in-memory cache
 
-### 🧪 Contract Regression Log (doctor/create/bootstrap)
-
-Use this section for each release to track command-contract changes and drift risks.
+### 🧪 Contract Regression Log (v0.16.0)
 
 | Area | Expected Contract | Status | Notes |
 |------|-------------------|--------|-------|
-| doctor workspace | `npx rapidkit doctor workspace` | ✅ | Launcher path hidden; real installs retained |
-| doctor fix | `npx rapidkit doctor workspace --fix` | ✅ | Extension action still aligned |
-| create workspace | `rapidkit create workspace <name>` | ✅ | Modal flow avoids duplicate Poetry prompt |
-| create project | `rapidkit create project <kit> <name> --output <dir>` | ✅ | Command-array contract preserved |
-| bootstrap profile | `rapidkit bootstrap --profile <profile>` | ✅ | Profile values aligned with tests/schemas |
-| terminal API usage | via `terminalExecutor` only | ✅ | Drift test enforces centralization |
+| doctor workspace | `npx rapidkit doctor workspace` | ✅ | Rerun button uses terminal at workspace CWD |
+| doctor fix | `npx rapidkit doctor workspace --fix` | ✅ | Auto-fix button aligned |
+| add module | `npx rapidkit add module <slug>` | ✅ | Shown in modal before execution |
+| evidence file path | `<workspace>/.rapidkit/reports/doctor-last-run.json` | ✅ | Provider reads this exact path |
 
-### Previous Release: v0.14.0 (February 25, 2026)
-
-### 🎯 Workspace/Project Accuracy + Persistent Welcome UX
-
-**Summary:** This release focuses on correctness across workspace and project state, durable Welcome preferences, and safer example-workspace actions.
-
-#### Added
-
-- 🧭 **Profile-aware Command Reference** in Welcome page, based on active `WORKSPACES` selection
-- 👁️ **Persistent Setup Status toggle** (hide/show survives panel reopen and VS Code restart)
-- 🏷️ **Workspace profile tags** shown in both sidebar `WORKSPACES` and Welcome `Recent Workspaces`
-
-#### Fixed
-
-- 🌐 **Example links open externally** via extension host messaging (no broken webview `window.open` behavior)
-- 📦 **Example clone source correctness** by separating `repoUrl` (browse) from `cloneUrl` (git clone)
-- 🧠 **Modules install gating** now requires selected **project** state, not only workspace selection
-- 🎨 **Quick Actions theme adaptation** using VS Code tokens for dark/light readability
-
-#### Quality
-
-- ✅ Drift guards strengthened for command/profile contracts and repository text consistency
-
-### 🧪 Contract Regression Log (doctor/create/bootstrap)
-
-Use this section for each release to track command-contract changes and drift risks.
-
-| Area | Expected Contract | Status | Notes |
-|------|-------------------|--------|-------|
-| doctor workspace | `npx rapidkit doctor workspace` | ✅ | Extension workspace health action aligned |
-| doctor fix | `npx rapidkit doctor workspace --fix` | ✅ | Extension auto-fix action aligned |
-| legacy doctor flag | `--workspace` (deprecated form) | ✅ Not used | Drift guard test blocks regression |
-| create workspace | `rapidkit create workspace <name>` | ✅ | Routed via npm bridge |
-| create project | `rapidkit create project <kit> <name> --output <dir>` | ✅ | Routed via npm bridge |
-| bootstrap profile | `rapidkit bootstrap --profile <profile>` | ✅ | Profile values aligned across UI/types/docs |
-
-### 🐹 Release: v0.13.0 — Go Framework Support + Sidebar Quick Actions Redesign
-
-**Summary:** Full Go framework support (Go/Fiber, Go/Gin) in sidebar Quick Actions and Welcome Page, workspace creation routed through Welcome Panel modal, smart init detection for Go projects, and modules disabled for Go projects.
-
-#### Added
-
-- 🐹 **Go Framework Quick Actions** — FastAPI / NestJS / Go buttons now sit in a compact 3-column row in the sidebar Quick Actions panel
-- 🪟 **Workspace Button → Welcome Modal** — Clicking Workspace in sidebar opens Welcome Panel and triggers the Create Workspace modal instead of an inline VS Code input box
-- 🚫 **Modules Disabled for Go Projects** — Both the sidebar AVAILABLE MODULES panel and the Welcome Page Module Browser show a clear "not available" banner when a Go project is selected; search and filters are hidden
-- 🐹 **Go Project Type Detection** — `_detectProjectType` now returns `'go'` via `go.mod` check; `projectType` is propagated through `WorkspaceStatus` to the webview
-
-#### Fixed
-
-- 🔧 **`@latest` Removed from All npx Calls** — All 12 npx invocations across 6 files now use `npx rapidkit` (no version tag), preventing the npm registry version (0.21.2) from overriding the local version (0.22.0) and breaking `create workspace` / `create project` commands
-- 🔧 **Go Project Init Check** — `rapidkit.projectDev` command now checks for `go.sum` instead of `node_modules` to determine whether a Go project is initialized
-- 🔧 **Go Dev Server Port & Command** — Default port for Go projects set to `3000`; dev command is `npx rapidkit dev` (not `npm run start:dev`)
-- 🔧 **openWorkspaceModal Fix** — Sidebar Workspace button was triggering loading state on HeroAction card; now correctly calls `setShowCreateModal(true)`
-
-#### Changed
-
-- 🎨 **Framework Button Size** — Framework buttons in Quick Actions redesigned: smaller icons (16px), reduced padding and min-height (44px), tighter gap — all three fit cleanly in one row
-- 🧭 **Module Explorer setProjectPath** — Now accepts optional `projectType` argument forwarded from both tree-selection handlers
-
-#### Technical
-
-- **`WorkspaceStatus` type** — Added `projectType?: 'fastapi' | 'nestjs' | 'go'` field
-- **`ModuleBrowser` component** — Added `modulesDisabled` prop; hides search/filters and renders Go banner
-- **`WelcomePanel._detectProjectTypeStatic()`** — New static helper reused by both instance method and `updateWithProject`
-- **`WelcomePanel.openWorkspaceModal()`** — New static method using `__workspace__` pending modal token
-- **`rapidkit.openWorkspaceModal` command** — Registered in `extension.ts`
-
----
-
-## Previous Release: v0.12.0 (February 15, 2026)
-
-### 🪟 Release: v0.12.0 — Module Details Modal + Workspace-First CLI Resolution
-
-**Summary:** Introduced an in-app module details modal in the Welcome webview, improved workspace-first CLI binary resolution for nested projects, and added automatic workspace/module refresh after module install.
-
-#### Added
-
-- 🪟 **Module Details Modal** — Rich tabbed module details UI (overview, dependencies, configuration, profiles, features, docs)
-- 🧩 **Expanded ModuleData Typing** — Support for runtime dependencies, profiles, documentation, compatibility, support, and changelog metadata
-- 🔄 **Workspace Status Refresh Hook** — Refreshes installed modules and catalog after successful module installation
-
-#### Changed
-
-- 🧭 **CLI Resolution Strategy** — Searches for workspace `.venv/bin/rapidkit` by walking parent directories before global fallback
-- 📡 **Module Info Fetching** — Uses `rapidkit modules info <module> --json` and merges with catalog data
-- 🎨 **Webview UX** — Module details now open in modal instead of separate HTML panel
-
-#### Technical
-
-- **UI Architecture:** Replaced standalone HTML module details page with React modal workflow
-- **CLI Reliability:** Better `.venv` discovery in nested workspace/project layouts
-- **State Sync:** Installed-modules list now refreshes immediately after add-module success
-
----
-
-## Previous Release: v0.10.0 (February 12, 2026)
-
-### 🚀 Release: v0.10.0 — Smart Project Actions + Intelligent Browser + Port Detection
-
-**Summary:** Introduced unified project actions panel in Welcome Page, smart browser button that activates only when server is running, workspace upgrade detection, and intelligent port tracking for running servers.
-
-#### Added
-
-- 🚀 **Project Actions Panel** — Complete project lifecycle management in Welcome Page with 6 smart buttons (Terminal, Init, Dev/Stop toggle, Test, Browser, Build)
-- ⬆️ **Workspace Upgrade Button** — Automatic detection of rapidkit-core updates with one-click upgrade for venv/pipx installations
-- 🎯 **Smart Browser Button** — Context-aware browser opening that only enables when dev server is running with port detection
-- 📡 **Running Port Detection** — Automatic port extraction and display in sidebar, tooltips, and Welcome Page
-
-#### Improved
-
-- 🎨 **Enhanced Sidebar Icons** — Browser icon only visible for running projects, port displayed next to project name
-- 🔄 **State Synchronization** — Real-time UI updates between terminal state, tree view, and webview panels
-- 💅 **Disabled Button Styling** — Professional disabled states with clear visual feedback
-- 🎯 **Better UX** — No more blind browser opens; button intelligently guides user workflow
-
-#### Technical
-
-- **New Component:** `ProjectActions.tsx` with conditional rendering and smart toggles
-- **Type Enhancement:** `WorkspaceStatus` now includes `runningPort?: number`
-- **Integration:** Real-time server state tracking via `runningServers` Map
-- **Performance:** Minimal overhead with regex-based port extraction from terminal names
-
-#### User Experience
-
-- ✨ **Workflow Clarity** — Clear visual states guide user: Dev → Browser (enabled) → Stop → Browser (disabled)
-- ✨ **Port Transparency** — Always know which port your server is running on
-- ✨ **One-Click Upgrades** — No more manual core updates; orange button appears when needed
-- ✨ **Centralized Actions** — All project operations accessible from welcome page
-
----
 
 ## 📋 Version History
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.16.0](releases/RELEASE_NOTES_v0.16.0.md) | Mar 22, 2026 | 🩺 Doctor Evidence Viewer sidebar, 📦 module install modal from sidebar, 🔄 live workspace-switch health refresh |
 | [v0.15.0](releases/RELEASE_NOTES_v0.15.0.md) | Feb 27, 2026 | 🚀 platform-safe command layer, 🪟 tool-aware workspace modal, ⚡ workspace list performance, 🩺 doctor path clarity |
 | [v0.14.0](releases/RELEASE_NOTES_v0.14.0.md) | Feb 25, 2026 | 🎯 Workspace-vs-project correctness, 👁️ persisted setup toggle, 🌐 example link/clone fixes, 🏷️ profile tags |
 | [v0.13.0](releases/RELEASE_NOTES_v0.13.0.md) | Feb 21, 2026 | 🐹 Go framework support, 🪟 Workspace modal routing, 🔧 @latest fix, 🚫 Modules disabled for Go |

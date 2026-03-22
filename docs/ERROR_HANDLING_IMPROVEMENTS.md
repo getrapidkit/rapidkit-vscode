@@ -282,7 +282,7 @@ RapidKit can automatically install it for you.
 
 Command: sudo apt update && sudo apt install -y python3.13-venv
 
-This requires sudo password and will take ~10 seconds.
+This requires administrator confirmation and will take ~10 seconds.
 
 [🔧 Auto Install] [Install Manually] [Cancel]
 ```
