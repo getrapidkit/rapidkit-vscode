@@ -33,6 +33,7 @@ import { RapidKitHoverProvider } from './providers/hoverProvider';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
 import { WelcomePanel } from './ui/panels/welcomePanel';
 import { ModulesCatalogService } from './core/modulesCatalogService';
+import { runRapidkitCommandsInTerminal } from './utils/terminalExecutor';
 import { ExamplesService } from './core/examplesService';
 import { KitsService } from './core/kitsService';
 
@@ -190,12 +191,11 @@ export async function activate(context: vscode.ExtensionContext) {
           vscode.window.showWarningMessage('Select a workspace first.');
           return;
         }
-        const terminal = vscode.window.createTerminal({
-          name: 'RapidKit Doctor',
+        runRapidkitCommandsInTerminal({
+          name: `RapidKit Doctor - ${ws.name ?? ws.path}`,
           cwd: ws.path,
+          commands: [['doctor', 'workspace']],
         });
-        terminal.show();
-        terminal.sendText('npx rapidkit doctor workspace');
         // Refresh evidence panel after a short delay so the new file is picked up
         setTimeout(() => doctorEvidenceExplorer.refresh(), 5000);
       }),
@@ -205,12 +205,11 @@ export async function activate(context: vscode.ExtensionContext) {
           vscode.window.showWarningMessage('Select a workspace first.');
           return;
         }
-        const terminal = vscode.window.createTerminal({
-          name: 'RapidKit Doctor Fix',
+        runRapidkitCommandsInTerminal({
+          name: `RapidKit Doctor Fix - ${ws.name ?? ws.path}`,
           cwd: ws.path,
+          commands: [['doctor', 'workspace', '--fix']],
         });
-        terminal.show();
-        terminal.sendText('npx rapidkit doctor workspace --fix');
         setTimeout(() => doctorEvidenceExplorer.refresh(), 8000);
       }),
       // Refresh evidence panel whenever workspace selection changes
