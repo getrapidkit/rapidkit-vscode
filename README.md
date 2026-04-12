@@ -1,15 +1,15 @@
-# RapidKit for VS Code
+# Workspai for VS Code
 
 <div align="center">
 
-**RapidKit is an open-source workspace platform that standardizes how teams build, scale, and deploy backend services.**
+**Workspai (formerly RapidKit) — An AI-powered developer toolkit for building, scaling, and deploying backend services.**
 
 FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free modules, and automation-first workflows
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square&color=red&label=npm)](https://www.npmjs.com/package/rapidkit)
-[![Part of RapidKit Platform](https://img.shields.io/badge/Part%20of-RapidKit%20Workspace%20Platform-0f172a?logo=github)](https://github.com/getrapidkit/rapidkit)
+[![Part of Workspai by RapidKit](https://img.shields.io/badge/Part%20of-Workspai%20by%20RapidKit-0f172a?logo=github)](https://github.com/getrapidkit/rapidkit)
 
 [Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.getrapidkit.com/docs) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
@@ -17,15 +17,15 @@ FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free
 
 ---
 
-## Part of the RapidKit Ecosystem
+## Part of the Workspai by RapidKit Ecosystem
 
-RapidKit for VS Code is the IDE layer of the platform.
+Workspai for VS Code is the IDE layer of the Workspai platform.
 
 | Layer | Repository |
 |---|---|
-| Ecosystem Hub | [getrapidkit/rapidkit](https://github.com/getrapidkit/rapidkit) |
-| CLI | [getrapidkit/rapidkit-npm](https://github.com/getrapidkit/rapidkit-npm) |
-| Core Engine | [getrapidkit/rapidkit-core](https://github.com/getrapidkit/rapidkit-core) |
+| Ecosystem Hub | [getrapidkit/rapidkit](https://github.com/getrapidkit/rapidkit) | Workspai platform |
+| CLI | [getrapidkit/rapidkit-npm](https://github.com/getrapidkit/rapidkit-npm) | Workspai CLI |
+| Core Engine | [getrapidkit/rapidkit-core](https://github.com/getrapidkit/rapidkit-core) | Workspai Core |
 | Examples | [getrapidkit/rapidkit-examples](https://github.com/getrapidkit/rapidkit-examples) |
 
 ---
@@ -33,7 +33,7 @@ RapidKit for VS Code is the IDE layer of the platform.
 ## Features in Action
 
 ### Welcome Page - Your Central Hub
-![RapidKit Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
+![Workspai Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
 
 **Your first stop:** Quick access to workspaces, module browser, and setup verification. Browse recent projects, check workspace health with one click, and explore 27+ available modules - all from your central hub.
 
@@ -75,9 +75,9 @@ Your project is ready with:
 
 ---
 
-## 🎯 What is RapidKit?
+## 🎯 What is Workspai?
 
-RapidKit generates **production-ready backend projects** with **clean architecture** built-in:
+Workspai (powered by RapidKit) generates **production-ready backend projects** with **clean architecture** built-in:
 
 | Framework | Language | Features |
 |-----------|----------|----------|

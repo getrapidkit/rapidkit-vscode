@@ -4,11 +4,11 @@
  */
 
 import * as vscode from 'vscode';
-import { RapidKitTemplate } from '../types';
+import { WorkspaiTemplate } from '../types';
 import { Logger } from '../utils/logger';
 import { TemplatePreviewPanel } from '../ui/panels/templatePreviewPanel';
 
-export async function previewTemplateCommand(template?: RapidKitTemplate) {
+export async function previewTemplateCommand(template?: WorkspaiTemplate) {
   const logger = Logger.getInstance();
   logger.info('Preview Template command initiated', template);
 

@@ -1,5 +1,5 @@
 {
-  "RapidKit Module Structure": {
+  "Workspai Module Structure": {
     "prefix": "rk-module",
     "body": [
       "\"\"\"",
@@ -21,9 +21,9 @@
       "        ${6:pass}",
       "$0"
     ],
-    "description": "RapidKit module structure"
+    "description": "Workspai module structure"
   },
-  "RapidKit FastAPI Route": {
+  "Workspai FastAPI Route": {
     "prefix": "rk-fastapi-route",
     "body": [
       "from fastapi import APIRouter, Depends",
@@ -44,7 +44,7 @@
     ],
     "description": "FastAPI router with basic CRUD operations"
   },
-  "RapidKit Service Class": {
+  "Workspai Service Class": {
     "prefix": "rk-service",
     "body": [
       "\"\"\"",
@@ -73,9 +73,9 @@
       "        ${7:pass}",
       "$0"
     ],
-    "description": "RapidKit service class template"
+    "description": "Workspai service class template"
   },
-  "RapidKit Repository": {
+  "Workspai Repository": {
     "prefix": "rk-repository",
     "body": [
       "\"\"\"",
@@ -105,9 +105,9 @@
       "        return obj",
       "$0"
     ],
-    "description": "RapidKit repository pattern"
+    "description": "Workspai repository pattern"
   },
-  "RapidKit Test Case": {
+  "Workspai Test Case": {
     "prefix": "rk-test",
     "body": [
       "\"\"\"",
@@ -130,9 +130,9 @@
       "    ${8:pass}",
       "$0"
     ],
-    "description": "RapidKit test case template"
+    "description": "Workspai test case template"
   },
-  "RapidKit CLI Command": {
+  "Workspai CLI Command": {
     "prefix": "rk-cli-command",
     "body": [
       "import typer",
@@ -149,6 +149,6 @@
       "    ${8:pass}",
       "$0"
     ],
-    "description": "RapidKit CLI command with Typer"
+    "description": "Workspai CLI command with Typer"
   }
 }

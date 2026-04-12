@@ -1,6 +1,6 @@
-# RapidKit VS Code Extension - Media Assets
+# Workspai VS Code Extension - Media Assets
 
-This directory contains media assets for the RapidKit VS Code extension.
+This directory contains media assets for the Workspai VS Code extension.
 
 ## Files
 
@@ -17,7 +17,7 @@ This directory contains media assets for the RapidKit VS Code extension.
 - **Small Icon**: 128x128 pixels (PNG with transparent background)
 - **Format**: PNG for Marketplace, SVG for activity bar
 - **Design**: Simple, recognizable at small sizes
-- **Colors**: RapidKit brand colors
+- **Colors**: Workspai brand colors
 
 ## Logo Guidelines
 

@@ -278,7 +278,7 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
 <body>
 
     <!-- ① New Workspace — primary CTA -->
-    <button class="cta-btn" onclick="send('openWorkspaceModal')" title="Create a new RapidKit workspace">
+    <button class="cta-btn" onclick="send('openWorkspaceModal')" title="Create a new Workspai workspace">
         <span class="cta-icon">＋</span>
         <span class="cta-text">New Workspace</span>
     </button>

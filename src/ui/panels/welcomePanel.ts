@@ -595,7 +595,7 @@ export class WelcomePanel {
     // Create new panel
     const panel = vscode.window.createWebviewPanel(
       'rapidkitWelcomeReact',
-      '🚀 Welcome to RapidKit',
+      '🚀 Welcome to Workspai',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -1401,7 +1401,7 @@ export class WelcomePanel {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this._panel.webview.cspSource} 'unsafe-inline'; font-src ${this._panel.webview.cspSource}; img-src ${this._panel.webview.cspSource} https:; script-src 'nonce-${nonce}';">
-    <title>Welcome to RapidKit</title>
+    <title>Welcome to Workspai</title>
     <link rel="stylesheet" type="text/css" href="${cssUri}">
     <style>
         @font-face {

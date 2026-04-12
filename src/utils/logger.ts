@@ -10,7 +10,7 @@ export class Logger {
   private debugMode: boolean = false;
 
   private constructor() {
-    this.outputChannel = vscode.window.createOutputChannel('RapidKit');
+    this.outputChannel = vscode.window.createOutputChannel('Workspai');
   }
 
   public static getInstance(): Logger {

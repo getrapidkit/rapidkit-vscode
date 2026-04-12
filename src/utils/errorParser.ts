@@ -105,7 +105,7 @@ export function parseRapidKitError(stderr: string, stdout: string = ''): ParsedE
     message: extractErrorMessage(stderr, stdout),
     suggestion:
       '• Check the Output panel for details\n' +
-      '• Run "RapidKit: Run System Check"\n' +
+      '• Run "Workspai: Run System Check"\n' +
       '• Visit documentation for troubleshooting',
     canRetry: true,
     canFallback: false,

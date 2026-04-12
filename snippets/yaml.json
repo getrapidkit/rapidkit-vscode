@@ -1,5 +1,5 @@
 {
-  "RapidKit Module Config": {
+  "Workspai Module Config": {
     "prefix": "rk-module-yaml",
     "body": [
       "name: ${1:module-name}",
@@ -25,9 +25,9 @@
       "    - ${12:tag2}",
       "$0"
     ],
-    "description": "RapidKit module.yaml template"
+    "description": "Workspai module.yaml template"
   },
-  "RapidKit Base Config": {
+  "Workspai Base Config": {
     "prefix": "rk-base-config",
     "body": [
       "variables:",
@@ -53,9 +53,9 @@
       "    - ${10:command}",
       "$0"
     ],
-    "description": "RapidKit config/base.yaml template"
+    "description": "Workspai config/base.yaml template"
   },
-  "RapidKit Snippets Config": {
+  "Workspai Snippets Config": {
     "prefix": "rk-snippets",
     "body": [
       "snippets:",
@@ -72,9 +72,9 @@
       "      ${8:var_name}: ${9:var_value}",
       "$0"
     ],
-    "description": "RapidKit config/snippets.yaml template"
+    "description": "Workspai config/snippets.yaml template"
   },
-  "RapidKit Profile Config": {
+  "Workspai Profile Config": {
     "prefix": "rk-profile",
     "body": [
       "profiles:",
@@ -95,9 +95,9 @@
       "      - ${10:feature2}",
       "$0"
     ],
-    "description": "RapidKit config/profiles.yaml template"
+    "description": "Workspai config/profiles.yaml template"
   },
-  "RapidKit Workspace Config": {
+  "Workspai Workspace Config": {
     "prefix": "rk-workspace",
     "body": [
       "{",
@@ -115,6 +115,6 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit .rapidkitrc.json template"
+    "description": "Workspai .rapidkitrc.json template"
   }
 }

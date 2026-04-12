@@ -131,7 +131,7 @@ export async function autoFixVenvSupport(command: string): Promise<boolean> {
   const logger = Logger.getInstance();
 
   const terminal = runCommandsInTerminal({
-    name: 'RapidKit: Install Python venv',
+    name: 'Workspai: Install Python venv',
     commands: [`echo "Installing Python venv support..."`, `echo "Command: ${command}"`, command],
   });
 

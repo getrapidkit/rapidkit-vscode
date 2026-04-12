@@ -1,11 +1,11 @@
 /**
  * Completion Provider
- * Provides IntelliSense for RapidKit configuration files
+ * Provides IntelliSense for Workspai configuration files
  */
 
 import * as vscode from 'vscode';
 
-export class RapidKitCompletionProvider implements vscode.CompletionItemProvider {
+export class WorkspaiCompletionProvider implements vscode.CompletionItemProvider {
   provideCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,

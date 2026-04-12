@@ -1,11 +1,11 @@
 /**
  * Hover Provider
- * Provides documentation on hover for RapidKit files
+ * Provides documentation on hover for Workspai files
  */
 
 import * as vscode from 'vscode';
 
-export class RapidKitHoverProvider implements vscode.HoverProvider {
+export class WorkspaiHoverProvider implements vscode.HoverProvider {
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,

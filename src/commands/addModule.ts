@@ -1,6 +1,6 @@
 /**
  * Add Module Command
- * Add a module to an existing RapidKit project via npx rapidkit add module <module-slug>
+ * Add a module to an existing Workspai project via npx rapidkit add module <module-slug>
  * Requires an active/selected project: right-click project in Projects panel, or open project folder.
  *
  * Project target is never persisted: it is always derived from current context at invocation time
@@ -11,8 +11,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { Logger } from '../utils/logger';
-import { RapidKitModule } from '../types';
-import { RapidKitCLI } from '../core/rapidkitCLI';
+import { WorkspaiModule } from '../types';
+import { WorkspaiCLI } from '../core/rapidkitCLI';
 import { ModulesCatalogService } from '../core/modulesCatalogService';
 import { getSelectedProjectPath } from '../core/selectedProject';
 import { checkPythonEnvironment, getPythonErrorMessage } from '../utils/pythonChecker';
@@ -28,16 +28,16 @@ const NO_PROJECT_MESSAGE =
   '3. Right-click the project and choose **Add Module**\n\n' +
   'Or open your project folder in VS Code.';
 
-/** First arg: RapidKitModule (from module tree), projectPath (string, from createProject), or TreeItem with project.path (from project context menu). */
+/** First arg: WorkspaiModule (from module tree), projectPath (string, from createProject), or TreeItem with project.path (from project context menu). */
 export async function addModuleCommand(
-  moduleOrProjectPath?: RapidKitModule | string | { project?: { path: string } }
+  moduleOrProjectPath?: WorkspaiModule | string | { project?: { path: string } }
 ) {
   const logger = Logger.getInstance();
   logger.info('Add Module command initiated', moduleOrProjectPath);
 
   try {
     let projectPath: string | undefined;
-    let module: RapidKitModule | undefined;
+    let module: WorkspaiModule | undefined;
 
     if (typeof moduleOrProjectPath === 'string') {
       projectPath = moduleOrProjectPath;
@@ -45,7 +45,7 @@ export async function addModuleCommand(
       if ('project' in moduleOrProjectPath && moduleOrProjectPath.project?.path) {
         projectPath = moduleOrProjectPath.project.path;
       } else if ('id' in moduleOrProjectPath && 'displayName' in moduleOrProjectPath) {
-        module = moduleOrProjectPath as RapidKitModule;
+        module = moduleOrProjectPath as WorkspaiModule;
       }
     }
 
@@ -111,7 +111,7 @@ export async function addModuleCommand(
       }
     }
 
-    const cli = new RapidKitCLI();
+    const cli = new WorkspaiCLI();
 
     await vscode.window.withProgress(
       {
@@ -283,14 +283,14 @@ async function resolveProjectPath(givenPath?: string): Promise<string | undefine
   }
   if (folders.length === 1) {
     const single = folders[0].uri.fsPath;
-    if (await isRapidKitProject(single)) {
+    if (await isWorkspaiProject(single)) {
       return single;
     }
     return undefined;
   }
   const rapidKitFolders = [];
   for (const f of folders) {
-    if (await isRapidKitProject(f.uri.fsPath)) {
+    if (await isWorkspaiProject(f.uri.fsPath)) {
       rapidKitFolders.push(f);
     }
   }
@@ -303,7 +303,7 @@ async function resolveProjectPath(givenPath?: string): Promise<string | undefine
   return undefined;
 }
 
-async function isRapidKitProject(dirPath: string): Promise<boolean> {
+async function isWorkspaiProject(dirPath: string): Promise<boolean> {
   const rapidkitDir = path.join(dirPath, '.rapidkit');
   const pyproject = path.join(dirPath, 'pyproject.toml');
   const packageJson = path.join(dirPath, 'package.json');
@@ -326,7 +326,7 @@ async function isRapidKitProject(dirPath: string): Promise<boolean> {
   return false;
 }
 
-async function showModulePicker(workspacePath?: string): Promise<RapidKitModule | undefined> {
+async function showModulePicker(workspacePath?: string): Promise<WorkspaiModule | undefined> {
   let moduleData = MODULES;
   try {
     const catalog = await ModulesCatalogService.getInstance().getModulesCatalog(workspacePath);
@@ -337,14 +337,14 @@ async function showModulePicker(workspacePath?: string): Promise<RapidKitModule 
     // fall back to static list
   }
 
-  const modules: RapidKitModule[] = moduleData.map((m) => ({
+  const modules: WorkspaiModule[] = moduleData.map((m) => ({
     id: m.id,
     name: m.id,
     displayName: m.name,
     version: m.version,
     description: m.description,
     category: m.category,
-    status: m.status as RapidKitModule['status'],
+    status: m.status as WorkspaiModule['status'],
     tags: m.tags || [],
     dependencies: m.dependencies || [],
     installed: false,

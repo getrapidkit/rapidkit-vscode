@@ -22,7 +22,7 @@ export function HeroAction({ onClick, isLoading = false }: HeroActionProps) {
                 )}
                 <div className="hero-title">New Workspace</div>
                 <p className="hero-description">
-                    Create a new RapidKit workspace with your preferred profile and install method
+                    Create a new Workspai workspace with your preferred profile and install method
                 </p>
                 <span className="hero-badge">{isLoading ? 'CREATING...' : 'NEW WORKSPACE'}</span>
             </div>

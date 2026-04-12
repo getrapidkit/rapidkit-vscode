@@ -1,6 +1,6 @@
 /**
  * Module Explorer TreeView Provider
- * Displays available RapidKit modules organized by category
+ * Displays available Workspai modules organized by category
  * Shows installation state: Install, Update, or Installed
  */
 
@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { MODULES, CATEGORY_INFO, ModuleData } from '../../data/modules';
 import { ModulesCatalogService } from '../../core/modulesCatalogService';
-import { RapidKitModule } from '../../types';
+import { WorkspaiModule } from '../../types';
 
 interface InstalledModule {
   slug: string;
@@ -81,7 +81,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
         item.contextValue = 'placeholder';
         item.description = 'Go kits manage dependencies via go mod';
         item.tooltip =
-          'RapidKit modules are currently available for FastAPI and NestJS projects only';
+          'Workspai modules are currently available for FastAPI and NestJS projects only';
         item.collapsibleState = vscode.TreeItemCollapsibleState.None;
         item.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.gray'));
         return [new ModuleTreeItem(item, 'placeholder')];
@@ -167,7 +167,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
       item.iconPath = new vscode.ThemeIcon('package', iconTheme);
 
       // Create full module object for command
-      const moduleObj: RapidKitModule = {
+      const moduleObj: WorkspaiModule = {
         id: moduleData.id,
         name: moduleData.name,
         displayName: moduleData.name,
@@ -317,7 +317,7 @@ export class ModuleTreeItem extends vscode.TreeItem {
   constructor(
     item: vscode.TreeItem,
     public readonly contextValue: string,
-    public readonly module?: RapidKitModule
+    public readonly module?: WorkspaiModule
   ) {
     super(item.label!, item.collapsibleState);
     this.description = item.description;

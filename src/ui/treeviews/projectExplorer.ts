@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { RapidKitProject, RapidKitWorkspace } from '../../types';
+import { WorkspaiProject, WorkspaiWorkspace } from '../../types';
 import { runningServers } from '../../extension';
 
 // Store extension path for icons
@@ -87,15 +87,15 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   readonly onDidChangeTreeData: vscode.Event<ProjectTreeItem | undefined | null | void> =
     this._onDidChangeTreeData.event;
 
-  private selectedWorkspace: RapidKitWorkspace | null = null;
-  private projects: RapidKitProject[] = [];
-  private selectedProject: RapidKitProject | null = null;
+  private selectedWorkspace: WorkspaiWorkspace | null = null;
+  private projects: WorkspaiProject[] = [];
+  private selectedProject: WorkspaiProject | null = null;
 
   constructor() {
     // Listen for workspace selection changes
     vscode.commands.registerCommand(
       'rapidkit.workspaceSelected',
-      (workspace: RapidKitWorkspace) => {
+      (workspace: WorkspaiWorkspace) => {
         this.setWorkspace(workspace);
       }
     );
@@ -121,7 +121,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     this._onDidChangeTreeData.fire();
   }
 
-  setWorkspace(workspace: RapidKitWorkspace | null): void {
+  setWorkspace(workspace: WorkspaiWorkspace | null): void {
     this.selectedWorkspace = workspace;
 
     // Clear selected project when workspace changes
@@ -143,18 +143,18 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     this.refresh();
   }
 
-  getSelectedWorkspace(): RapidKitWorkspace | null {
+  getSelectedWorkspace(): WorkspaiWorkspace | null {
     return this.selectedWorkspace;
   }
 
-  setSelectedProject(project: RapidKitProject | null): void {
+  setSelectedProject(project: WorkspaiProject | null): void {
     this.selectedProject = project;
     // Update context for UI elements that depend on selection
     vscode.commands.executeCommand('setContext', 'rapidkit:projectSelected', project !== null);
     this._onDidChangeTreeData.fire();
   }
 
-  getSelectedProject(): RapidKitProject | null {
+  getSelectedProject(): WorkspaiProject | null {
     return this.selectedProject;
   }
 
@@ -228,7 +228,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
   private async getFileChildren(
     dirPath: string,
-    project: RapidKitProject | null
+    project: WorkspaiProject | null
   ): Promise<ProjectTreeItem[]> {
     const items: ProjectTreeItem[] = [];
     const projectType = project?.type;
@@ -287,7 +287,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
           // Check for FastAPI project (pyproject.toml)
           if (await fs.pathExists(pyprojectPath)) {
-            const project: RapidKitProject = {
+            const project: WorkspaiProject = {
               name: entry.name,
               path: projectPath,
               type: 'fastapi',
@@ -304,7 +304,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
             try {
               const packageJson = await fs.readJSON(packageJsonPath);
               if (packageJson.dependencies?.['@nestjs/core']) {
-                const project: RapidKitProject = {
+                const project: WorkspaiProject = {
                   name: entry.name,
                   path: projectPath,
                   type: 'nestjs',
@@ -324,7 +324,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
           else {
             const goModPath = path.join(projectPath, 'go.mod');
             if (await fs.pathExists(goModPath)) {
-              const project: RapidKitProject = {
+              const project: WorkspaiProject = {
                 name: entry.name,
                 path: projectPath,
                 type: 'go',
@@ -348,7 +348,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
   public readonly filePath?: string;
 
   constructor(
-    public readonly project: RapidKitProject | null,
+    public readonly project: WorkspaiProject | null,
     public readonly contextValue: string,
     public readonly isSelected: boolean = false,
     customLabel?: string,

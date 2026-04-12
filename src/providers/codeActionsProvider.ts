@@ -1,11 +1,11 @@
 /**
  * Code Actions Provider
- * Provides quick fixes and refactorings for RapidKit files
+ * Provides quick fixes and refactorings for Workspai files
  */
 
 import * as vscode from 'vscode';
 
-export class RapidKitCodeActionsProvider implements vscode.CodeActionProvider {
+export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
     vscode.CodeActionKind.Refactor,

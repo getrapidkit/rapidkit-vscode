@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { RapidKitTemplate } from '../../types';
+import { WorkspaiTemplate } from '../../types';
 
 export class TemplateExplorerProvider implements vscode.TreeDataProvider<TemplateTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<TemplateTreeItem | undefined | null | void> =
@@ -48,7 +48,7 @@ export class TemplateExplorerProvider implements vscode.TreeDataProvider<Templat
   }
 
   private getTemplatesForFramework(framework: string): TemplateTreeItem[] {
-    const templates: Record<string, RapidKitTemplate[]> = {
+    const templates: Record<string, WorkspaiTemplate[]> = {
       FastAPI: [
         {
           id: 'fastapi.standard',
@@ -103,7 +103,7 @@ export class TemplateTreeItem extends vscode.TreeItem {
   constructor(
     item: vscode.TreeItem,
     public readonly contextValue: string,
-    public readonly template?: RapidKitTemplate
+    public readonly template?: WorkspaiTemplate
   ) {
     super(item.label!, item.collapsibleState);
     this.description = item.description;

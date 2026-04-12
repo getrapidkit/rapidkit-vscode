@@ -1,5 +1,5 @@
 {
-  "RapidKit NestJS Module": {
+  "Workspai NestJS Module": {
     "prefix": "rk-nest-module",
     "body": [
       "import { Module } from '@nestjs/common';",
@@ -15,9 +15,9 @@
       "export class ${6:ModuleName}Module {}",
       "$0"
     ],
-    "description": "RapidKit NestJS module"
+    "description": "Workspai NestJS module"
   },
-  "RapidKit NestJS Controller": {
+  "Workspai NestJS Controller": {
     "prefix": "rk-nest-controller",
     "body": [
       "import { Controller, Get, Post, Body, Param } from '@nestjs/common';",
@@ -45,9 +45,9 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit NestJS controller"
+    "description": "Workspai NestJS controller"
   },
-  "RapidKit NestJS Service": {
+  "Workspai NestJS Service": {
     "prefix": "rk-nest-service",
     "body": [
       "import { Injectable } from '@nestjs/common';",
@@ -72,9 +72,9 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit NestJS service"
+    "description": "Workspai NestJS service"
   },
-  "RapidKit DTO": {
+  "Workspai DTO": {
     "prefix": "rk-dto",
     "body": [
       "import { IsString, IsNotEmpty, IsOptional } from 'class-validator';",
@@ -90,9 +90,9 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit DTO with validation"
+    "description": "Workspai DTO with validation"
   },
-  "RapidKit Entity": {
+  "Workspai Entity": {
     "prefix": "rk-entity",
     "body": [
       "import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';",
@@ -113,9 +113,9 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit TypeORM entity"
+    "description": "Workspai TypeORM entity"
   },
-  "RapidKit Guard": {
+  "Workspai Guard": {
     "prefix": "rk-guard",
     "body": [
       "import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';",
@@ -133,6 +133,6 @@
       "}",
       "$0"
     ],
-    "description": "RapidKit NestJS guard"
+    "description": "Workspai NestJS guard"
   }
 }

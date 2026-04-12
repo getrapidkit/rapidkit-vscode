@@ -1,19 +1,19 @@
 /**
  * Workspace Manager
- * Manages RapidKit workspaces storage and detection
+ * Manages Workspai workspaces storage and detection
  */
 
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import { RapidKitWorkspace } from '../types';
+import { WorkspaiWorkspace } from '../types';
 import { MARKERS } from '../utils/constants';
 import { getRegistryDir } from '../utils/registryPath';
 
 export class WorkspaceManager {
   private static instance: WorkspaceManager;
-  private workspaces: RapidKitWorkspace[] = [];
+  private workspaces: WorkspaiWorkspace[] = [];
   private storageFile: string;
 
   private constructor() {
@@ -38,7 +38,7 @@ export class WorkspaceManager {
   /**
    * Load workspaces from storage
    */
-  public async loadWorkspaces(): Promise<RapidKitWorkspace[]> {
+  public async loadWorkspaces(): Promise<WorkspaiWorkspace[]> {
     try {
       if (await fs.pathExists(this.storageFile)) {
         const data = await fs.readJSON(this.storageFile);
@@ -86,7 +86,7 @@ export class WorkspaceManager {
   /**
    * Add a new workspace
    */
-  public async addWorkspace(workspacePath: string): Promise<RapidKitWorkspace | null> {
+  public async addWorkspace(workspacePath: string): Promise<WorkspaiWorkspace | null> {
     // Ensure we have the latest workspaces loaded from storage
     // This prevents overwriting existing workspaces when adding a new one
     if (this.workspaces.length === 0) {
@@ -105,7 +105,7 @@ export class WorkspaceManager {
     }
 
     // Detect if it's a RapidKit workspace
-    const isRapidKit = await this.isRapidKitWorkspace(workspacePath);
+    const isRapidKit = await this.isWorkspaiWorkspace(workspacePath);
     if (!isRapidKit) {
       // Silently skip non-RapidKit workspaces
       console.log('Skipping non-RapidKit workspace:', workspacePath);
@@ -113,7 +113,7 @@ export class WorkspaceManager {
     }
 
     // Create workspace object
-    const workspace: RapidKitWorkspace = {
+    const workspace: WorkspaiWorkspace = {
       name: path.basename(workspacePath),
       path: workspacePath,
       mode: (await this.isDemoWorkspace(workspacePath)) ? 'demo' : 'full',
@@ -137,21 +137,21 @@ export class WorkspaceManager {
   /**
    * Get all workspaces
    */
-  public getWorkspaces(): RapidKitWorkspace[] {
+  public getWorkspaces(): WorkspaiWorkspace[] {
     return this.workspaces;
   }
 
   /**
    * Auto-discover workspaces in common locations
    */
-  public async autoDiscover(): Promise<RapidKitWorkspace[]> {
-    const discovered: RapidKitWorkspace[] = [];
+  public async autoDiscover(): Promise<WorkspaiWorkspace[]> {
+    const discovered: WorkspaiWorkspace[] = [];
 
     // Check current workspace folders
     if (vscode.workspace.workspaceFolders) {
       for (const folder of vscode.workspace.workspaceFolders) {
         const wsPath = folder.uri.fsPath;
-        if (await this.isRapidKitWorkspace(wsPath)) {
+        if (await this.isWorkspaiWorkspace(wsPath)) {
           const ws = await this.addWorkspace(wsPath);
           if (ws) {
             discovered.push(ws);
@@ -179,7 +179,7 @@ export class WorkspaceManager {
           for (const entry of entries) {
             if (entry.isDirectory()) {
               const wsPath = path.join(dir, entry.name);
-              if (await this.isRapidKitWorkspace(wsPath)) {
+              if (await this.isWorkspaiWorkspace(wsPath)) {
                 const ws = await this.addWorkspace(wsPath);
                 if (ws) {
                   discovered.push(ws);
@@ -200,7 +200,7 @@ export class WorkspaceManager {
    * Check if a path is a RapidKit workspace
    * Validates by checking for workspace markers and structure
    */
-  private async isRapidKitWorkspace(wsPath: string): Promise<boolean> {
+  private async isWorkspaiWorkspace(wsPath: string): Promise<boolean> {
     // Check if path exists first
     if (!(await fs.pathExists(wsPath))) {
       return false;

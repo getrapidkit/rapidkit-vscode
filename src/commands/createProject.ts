@@ -1,6 +1,6 @@
 /**
  * Create Project Command
- * Interactive wizard for creating a new RapidKit project
+ * Interactive wizard for creating a new Workspai project
  */
 
 import * as vscode from 'vscode';
@@ -51,8 +51,8 @@ export async function createProjectCommand(
 
           await fs.ensureDir(parentPath);
 
-          const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
-          const cli = new RapidKitCLI();
+          const { WorkspaiCLI } = await import('../core/rapidkitCLI.js');
+          const cli = new WorkspaiCLI();
 
           await cli.createWorkspace({
             name: workspaceName,
@@ -211,7 +211,7 @@ export async function createProjectCommand(
             // Create standalone project without workspace
             logger.info('User chose standalone project mode');
             isStandaloneMode = true;
-            workspaceRoot = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+            workspaceRoot = path.join(os.homedir(), 'Workspai', 'rapidkits');
 
             // Ensure directory exists
             await fs.ensureDir(workspaceRoot);
@@ -251,8 +251,8 @@ export async function createProjectCommand(
 
         try {
           const path = require('path');
-          const { RapidKitCLI } = await import('../core/rapidkitCLI.js');
-          const cli = new RapidKitCLI();
+          const { WorkspaiCLI } = await import('../core/rapidkitCLI.js');
+          const cli = new WorkspaiCLI();
 
           progress.report({ increment: 20, message: 'Running rapidkit CLI...' });
 

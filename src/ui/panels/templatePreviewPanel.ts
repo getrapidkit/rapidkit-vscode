@@ -4,14 +4,14 @@
  */
 
 import * as vscode from 'vscode';
-import { RapidKitTemplate } from '../../types';
+import { WorkspaiTemplate } from '../../types';
 
 export class TemplatePreviewPanel {
   public static currentPanel: TemplatePreviewPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
 
-  private constructor(panel: vscode.WebviewPanel, template: RapidKitTemplate) {
+  private constructor(panel: vscode.WebviewPanel, template: WorkspaiTemplate) {
     this._panel = panel;
     this._panel.webview.html = this._getHtmlContent(template);
 
@@ -31,7 +31,7 @@ export class TemplatePreviewPanel {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
   }
 
-  public static createOrShow(template: RapidKitTemplate) {
+  public static createOrShow(template: WorkspaiTemplate) {
     // Create new panel
     const panel = vscode.window.createWebviewPanel(
       'rapidkitTemplatePreview',
@@ -46,7 +46,7 @@ export class TemplatePreviewPanel {
     TemplatePreviewPanel.currentPanel = new TemplatePreviewPanel(panel, template);
   }
 
-  private _getHtmlContent(template: RapidKitTemplate): string {
+  private _getHtmlContent(template: WorkspaiTemplate): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>

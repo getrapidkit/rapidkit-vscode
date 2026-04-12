@@ -1,6 +1,6 @@
 /**
  * Create Workspace Command
- * Interactive wizard for creating a new RapidKit workspace
+ * Interactive wizard for creating a new Workspai workspace
  */
 
 import * as vscode from 'vscode';
@@ -10,7 +10,7 @@ import * as os from 'os';
 import { WorkspaceWizard } from '../ui/wizards/workspaceWizard';
 import { Logger } from '../utils/logger';
 import { parseRapidKitError, formatErrorMessage, logDetailedError } from '../utils/errorParser';
-import { RapidKitCLI } from '../core/rapidkitCLI';
+import { WorkspaiCLI } from '../core/rapidkitCLI';
 import { WorkspaceManager } from '../core/workspaceManager';
 import { isFirstTimeSetup, showFirstTimeSetupMessage } from '../utils/firstTimeSetup';
 import { updateWorkspaceMetadata } from '../utils/workspaceMarker';
@@ -250,7 +250,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
               ? ['python -m pipx install poetry', 'echo ✅ Poetry installed successfully']
               : ['pipx install poetry', 'echo "✅ Poetry installed successfully"'];
           runCommandsInTerminal({
-            name: 'RapidKit: Install Poetry',
+            name: 'Workspai: Install Poetry',
             commands: installCommands,
           });
 
@@ -322,7 +322,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
       } else {
         // Legacy: plain name string (from command palette or internal calls)
         logger.info('Using provided workspace name:', workspaceName);
-        const defaultPath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+        const defaultPath = path.join(os.homedir(), 'Workspai', 'rapidkits');
         config = {
           name: workspaceName as string,
           path: path.join(defaultPath, workspaceName as string),
@@ -350,7 +350,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: 'Creating RapidKit workspace',
+        title: 'Creating Workspai workspace',
         cancellable: false,
       },
       async (progress) => {
@@ -360,7 +360,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
         });
 
         try {
-          const cli = new RapidKitCLI();
+          const cli = new WorkspaiCLI();
 
           progress.report({ increment: 10, message: 'Preparing workspace directory...' });
 
@@ -372,7 +372,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
 
           // Check if it's a default location (~/.RapidKit/rapidkits/<name>)
           const homeDir = require('os').homedir();
-          const defaultWorkspacePath = path.join(homeDir, 'RapidKit', 'rapidkits', config.name);
+          const defaultWorkspacePath = path.join(homeDir, 'Workspai', 'rapidkits', config.name);
           const isDefaultLocation = config.path === defaultWorkspacePath;
 
           if (isDefaultLocation) {
@@ -464,7 +464,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
                   vscode.window.showInformationMessage(
                     '💡 Demo Mode\n\n' +
                       'You can create standalone projects without a workspace using the npm package.\n\n' +
-                      'Use "RapidKit: Create Project" from the command palette to get started.'
+                      'Use "Workspai: Create Project" from the command palette to get started.'
                   );
                   return;
                 } else if (choice === 'Retry') {
@@ -472,7 +472,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
                   return createWorkspaceCommand();
                 } else if (choice === 'View Details') {
                   // Show detailed error in output panel
-                  const output = vscode.window.createOutputChannel('RapidKit Error');
+                  const output = vscode.window.createOutputChannel('Workspai Error');
                   output.clear();
                   output.appendLine(`# ${parsedError.title}\n`);
                   output.appendLine(parsedError.message);
@@ -809,7 +809,7 @@ echo "To create projects:"
 echo "  1. Install npm package: npm install -g rapidkit"
 echo "  2. Create project: npx rapidkit create project fastapi.standard my-api --output ."
 echo ""
-echo "Or use VS Code Extension: 'RapidKit: Create Project'"
+echo "Or use VS Code Extension: 'Workspai: Create Project'"
 echo ""
 `;
     await fs.writeFile(cliScriptPath, cliScript, { mode: 0o755 });
@@ -824,7 +824,7 @@ echo ""
   echo   1. Install npm package: npm install -g rapidkit
   echo   2. Create project: npx rapidkit create project fastapi.standard my-api --output .
   echo.
-  echo Or use VS Code Extension: "RapidKit: Create Project"
+  echo Or use VS Code Extension: "Workspai: Create Project"
   echo.
   `;
     await fs.writeFile(cliScriptCmdPath, cliScriptCmd, 'utf-8');

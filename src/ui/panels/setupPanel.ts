@@ -52,7 +52,7 @@ export class SetupPanel {
             break;
           case 'installNpmGlobal': {
             runCommandsInTerminal({
-              name: 'Install RapidKit CLI',
+              name: 'Install Workspai CLI',
               commands: ['npm install -g rapidkit'],
             });
             setTimeout(async () => {
@@ -63,7 +63,7 @@ export class SetupPanel {
           }
           case 'upgradeNpmGlobal': {
             runCommandsInTerminal({
-              name: 'Upgrade RapidKit CLI',
+              name: 'Upgrade Workspai CLI',
               commands: ['npm install -g rapidkit'],
             });
             setTimeout(async () => {
@@ -157,7 +157,7 @@ export class SetupPanel {
                     'pipx install --force rapidkit-core',
                   ];
             runCommandsInTerminal({
-              name: 'Setup RapidKit Toolchain',
+              name: 'Setup Workspai Toolchain',
               commands: toolchainCommands,
             });
             vscode.window.showInformationMessage(
@@ -272,7 +272,7 @@ export class SetupPanel {
           }
           case 'verifyNpm': {
             runRapidkitCommandsInTerminal({
-              name: 'Verify RapidKit CLI',
+              name: 'Verify Workspai CLI',
               commands: [['--version']],
             });
             break;
@@ -333,7 +333,7 @@ export class SetupPanel {
 
     const panel = vscode.window.createWebviewPanel(
       'rapidkitSetup',
-      '⚙️ RapidKit Setup & Installation',
+      '⚙️ Workspai Setup & Installation',
       column,
       {
         enableScripts: true,
@@ -1082,7 +1082,7 @@ export class SetupPanel {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidKit Setup</title>
+  <title>Workspai Setup</title>
   <style>
     @font-face {
       font-family: 'MuseoModerno';
@@ -1586,7 +1586,7 @@ export class SetupPanel {
         <div class="wizard-step" id="coreStep">
           <div class="step-recommended-badge" style="background: linear-gradient(135deg, #00cfc1, #00BFA5);">Engine</div>
           <div class="step-header">
-            <span class="step-icon tooltip"><img src="${rapidkitIconUri}" width="20" height="20" alt="RapidKit" />
+            <span class="step-icon tooltip"><img src="${rapidkitIconUri}" width="20" height="20" alt="Workspai" />
               <span class="tooltiptext">RapidKit Python Framework with 40+ commands. Core engine for workspace creation and management.</span>
             </span>
             <span class="step-title">RapidKit Core</span>

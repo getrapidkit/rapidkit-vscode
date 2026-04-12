@@ -1,6 +1,6 @@
 /**
  * Doctor Command
- * Run system checks for RapidKit requirements
+ * Run system checks for Workspai requirements
  */
 
 import * as vscode from 'vscode';
@@ -9,7 +9,7 @@ import { SystemCheckResult } from '../types';
 import { getPoetryVersion } from '../utils/poetryHelper';
 import { checkPythonEnvironment } from '../utils/pythonChecker';
 import { run } from '../utils/exec';
-import { RapidKitCLI } from '../core/rapidkitCLI';
+import { WorkspaiCLI } from '../core/rapidkitCLI';
 
 // Helper function to fetch JSON from HTTPS URL (version checking)
 const fetchJson = (url: string): Promise<any> => {
@@ -110,7 +110,7 @@ const isNewerVersion = (current: string, latest: string): boolean => {
 async function runSystemChecks(
   progress: vscode.Progress<{ message?: string; increment?: number }>
 ) {
-  const rapidkitCli = new RapidKitCLI();
+  const rapidkitCli = new WorkspaiCLI();
 
   progress.report({ increment: 0, message: 'Checking Python...' });
 
@@ -331,7 +331,7 @@ async function runSystemChecks(
   );
 
   // Show in output channel
-  const output = vscode.window.createOutputChannel('RapidKit Doctor');
+  const output = vscode.window.createOutputChannel('Workspai Doctor');
   output.clear();
   output.appendLine(lines.join('\n'));
   output.show();

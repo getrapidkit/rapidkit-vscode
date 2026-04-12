@@ -1,8 +1,8 @@
 {
   "name": "rapidkit-vscode",
-  "displayName": "RapidKit",
-  "description": "VS Code extension for RapidKit, an open-source workspace platform that standardizes how teams build, scale, and deploy backend services.",
-  "version": "0.16.0",
+  "displayName": "Workspai (by RapidKit)",
+  "description": "Workspai is an AI-powered developer toolkit for building, scaling, and deploying backend services. Formerly RapidKit. FastAPI, NestJS, Go/Fiber & Go/Gin with clean architecture.",
+  "version": "0.17.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -22,6 +22,7 @@
     "Other"
   ],
   "keywords": [
+    "workspai",
     "rapidkit",
     "fastapi",
     "nestjs",
@@ -58,343 +59,343 @@
       {
         "command": "rapidkit.createWorkspace",
         "title": "Create Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(new-folder)"
       },
       {
         "command": "rapidkit.createProject",
         "title": "Create Project",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(new-folder)"
       },
       {
         "command": "rapidkit.createFastAPIProject",
         "title": "Create FastAPI Project",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(symbol-method)"
       },
       {
         "command": "rapidkit.createNestJSProject",
         "title": "Create NestJS Project",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(symbol-class)"
       },
       {
         "command": "rapidkit.openDocs",
         "title": "Open Documentation",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(book)"
       },
       {
         "command": "rapidkit.addModule",
         "title": "Add Module",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(extensions)"
       },
       {
         "command": "rapidkit.refreshProjects",
         "title": "Refresh Projects",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(refresh)"
       },
       {
         "command": "rapidkit.refreshWorkspaces",
         "title": "Refresh Workspaces",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(refresh)"
       },
       {
         "command": "rapidkit.selectWorkspace",
         "title": "Select Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(check)"
       },
       {
         "command": "rapidkit.addWorkspace",
         "title": "Add Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(folder-opened)"
       },
       {
         "command": "rapidkit.exportWorkspace",
         "title": "Export Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(export)"
       },
       {
         "command": "rapidkit.removeWorkspace",
         "title": "Remove Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(trash)"
       },
       {
         "command": "rapidkit.openWorkspaceFolder",
         "title": "Open in File Explorer",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(folder-opened)"
       },
       {
         "command": "rapidkit.copyWorkspacePath",
         "title": "Copy Path",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(copy)"
       },
       {
         "command": "rapidkit.checkWorkspaceHealth",
         "title": "Check Health (Doctor)",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(pulse)"
       },
       {
         "command": "rapidkit.doctorEvidence.rerun",
         "title": "Re-run Doctor",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(run)"
       },
       {
         "command": "rapidkit.doctorEvidence.autofix",
         "title": "Auto-fix Issues",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(wrench)"
       },
       {
         "command": "rapidkit.doctorEvidence.refresh",
         "title": "Refresh Health View",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(refresh)"
       },
       {
         "command": "rapidkit.workspaceInit",
         "title": "Initialize Workspace (npx rapidkit init)",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(run-all)"
       },
       {
         "command": "rapidkit.workspacePolicyShow",
         "title": "Workspace Policy: Show",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(list-selection)"
       },
       {
         "command": "rapidkit.workspacePolicySet",
         "title": "Workspace Policy: Set",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(settings-gear)"
       },
       {
         "command": "rapidkit.deleteProject",
         "title": "Delete Project",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(trash)"
       },
       {
         "command": "rapidkit.openProjectFolder",
         "title": "Open in File Explorer",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(folder-opened)"
       },
       {
         "command": "rapidkit.copyProjectPath",
         "title": "Copy Path",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(copy)"
       },
       {
         "command": "rapidkit.discoverWorkspaces",
         "title": "Discover Workspaces",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(search)"
       },
       {
         "command": "rapidkit.importWorkspace",
         "title": "Import Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(cloud-download)"
       },
       {
         "command": "rapidkit.openProjectDashboard",
         "title": "Open Project Dashboard",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(dashboard)"
       },
       {
         "command": "rapidkit.previewTemplate",
         "title": "Preview Template",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(eye)"
       },
       {
         "command": "rapidkit.doctor",
         "title": "Run System Check",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(pulse)"
       },
       {
         "command": "rapidkit.checkSystem",
-        "title": "Check RapidKit Installation",
-        "category": "RapidKit",
+        "title": "Check Workspai Installation",
+        "category": "Workspai",
         "icon": "$(checklist)"
       },
       {
         "command": "rapidkit.checkForUpdates",
         "title": "Check for Updates",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(cloud-download)"
       },
       {
         "command": "rapidkit.showWelcome",
         "title": "Show Welcome",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(home)"
       },
       {
         "command": "rapidkit.openSetup",
         "title": "Open Setup & Installation",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(tools)"
       },
       {
         "command": "rapidkit.showLogs",
         "title": "Show Logs",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(output)"
       },
       {
         "command": "rapidkit.closeLogs",
         "title": "Close Logs",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(close)"
       },
       {
         "command": "rapidkit.clearLogs",
         "title": "Clear Logs",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(trash)"
       },
       {
         "command": "rapidkit.projectInit",
         "title": "Install Dependencies",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(package)"
       },
       {
         "command": "rapidkit.projectDev",
         "title": "Start Dev Server",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(play)"
       },
       {
         "command": "rapidkit.projectTerminal",
         "title": "Open Terminal",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(terminal)"
       },
       {
         "command": "rapidkit.projectTest",
         "title": "Run Tests",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(beaker)"
       },
       {
         "command": "rapidkit.projectBrowser",
         "title": "Open in Browser",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(globe)"
       },
       {
         "command": "rapidkit.projectStop",
         "title": "Stop Server",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(debug-stop)"
       },
       {
         "command": "rapidkit.newFile",
         "title": "New File",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(new-file)"
       },
       {
         "command": "rapidkit.newFolder",
         "title": "New Folder",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(new-folder)"
       },
       {
         "command": "rapidkit.deleteFile",
         "title": "Delete",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(trash)"
       },
       {
         "command": "rapidkit.renameFile",
         "title": "Rename",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(edit)"
       },
       {
         "command": "rapidkit.revealInExplorer",
         "title": "Reveal in Explorer",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(folder-opened)"
       },
       {
         "command": "rapidkit.workspaceBootstrap",
         "title": "Bootstrap Workspace",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(zap)"
       },
       {
         "command": "rapidkit.workspaceSetup",
         "title": "Setup Runtime",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(tools)"
       },
       {
         "command": "rapidkit.cacheStatus",
         "title": "Cache: Status",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(database)"
       },
       {
         "command": "rapidkit.cacheClear",
         "title": "Cache: Clear",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(trash)"
       },
       {
         "command": "rapidkit.cachePrune",
         "title": "Cache: Prune",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(filter)"
       },
       {
         "command": "rapidkit.cacheRepair",
         "title": "Cache: Repair",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(wrench)"
       },
       {
         "command": "rapidkit.mirrorStatus",
         "title": "Mirror: Status",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(sync)"
       },
       {
         "command": "rapidkit.mirrorSync",
         "title": "Mirror: Sync",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(cloud-download)"
       },
       {
         "command": "rapidkit.mirrorVerify",
         "title": "Mirror: Verify",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(shield)"
       },
       {
         "command": "rapidkit.mirrorRotate",
         "title": "Mirror: Rotate Keys",
-        "category": "RapidKit",
+        "category": "Workspai",
         "icon": "$(refresh)"
       }
     ],
@@ -420,7 +421,7 @@
           "id": "rapidkitWorkspaces",
           "name": "Workspaces",
           "icon": "media/icons/icon-128.png",
-          "contextualTitle": "RapidKit Workspaces"
+          "contextualTitle": "Workspai Workspaces"
         },
         {
           "id": "rapidkitProjects",
@@ -432,20 +433,20 @@
           "id": "rapidkitModules",
           "name": "Available Modules",
           "icon": "media/icons/icon-128.png",
-          "contextualTitle": "RapidKit Modules"
+          "contextualTitle": "Workspai Modules"
         },
         {
           "id": "rapidkitDoctorEvidence",
           "name": "Workspace Health",
           "icon": "media/icons/icon-128.png",
-          "contextualTitle": "RapidKit Workspace Health"
+          "contextualTitle": "Workspai Workspace Health"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "rapidkitWorkspaces",
-        "contents": "No RapidKit workspaces found.\n\nUse the Actions panel above to create your first workspace."
+        "contents": "No Workspai workspaces found.\n\nUse the Actions panel above to create your first workspace."
       },
       {
         "view": "rapidkitProjects",
@@ -753,7 +754,7 @@
       ]
     },
     "configuration": {
-      "title": "RapidKit",
+      "title": "Workspai",
       "properties": {
         "rapidkit.pythonPath": {
           "type": "string",

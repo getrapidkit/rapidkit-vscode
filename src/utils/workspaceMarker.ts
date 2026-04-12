@@ -3,7 +3,7 @@
  * Standardized structure for .rapidkit-workspace files
  *
  * This module defines the canonical workspace marker format used across
- * all RapidKit tools (npm, VS Code Extension, future CLI tools, etc.)
+ * all Workspai tools (npm, VS Code Extension, future CLI tools, etc.)
  */
 
 import * as fs from 'fs-extra';

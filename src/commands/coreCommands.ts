@@ -31,7 +31,7 @@ export function registerCoreCommands(options: {
 
   return [
     vscode.commands.registerCommand('rapidkit.test', () => {
-      vscode.window.showInformationMessage('✅ RapidKit commands are working!');
+      vscode.window.showInformationMessage('✅ Workspai commands are working!');
     }),
 
     vscode.commands.registerCommand(

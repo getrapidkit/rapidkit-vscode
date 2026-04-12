@@ -1,6 +1,6 @@
 /**
  * Extension Constants
- * Centralized constants for the RapidKit VS Code extension
+ * Centralized constants for the Workspai VS Code extension
  */
 
 import * as vscode from 'vscode';
@@ -18,7 +18,7 @@ export function getExtensionVersion(): string {
  */
 export const EXTENSION = {
   ID: 'rapidkit.rapidkit-vscode',
-  NAME: 'RapidKit',
+  NAME: 'Workspai',
   PUBLISHER: 'rapidkit',
 } as const;
 

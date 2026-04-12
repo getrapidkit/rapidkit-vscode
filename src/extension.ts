@@ -1,5 +1,5 @@
 /**
- * RapidKit VS Code Extension
+ * Workspai VS Code Extension
  * Main extension entry point
  */
 
@@ -23,13 +23,13 @@ import { registerProjectLifecycleCommands } from './commands/projectLifecycle';
 import { showWelcomeCommand } from './commands/showWelcome';
 import { registerWorkspaceSelectionCommands } from './commands/workspaceSelection';
 import { registerWorkspaceOperationsCommands } from './commands/workspaceOperations';
-import { RapidKitStatusBar } from './ui/statusBar';
+import { WorkspaiStatusBar } from './ui/statusBar';
 import { ConfigurationManager } from './core/configurationManager';
 import { WorkspaceDetector } from './core/workspaceDetector';
 import { Logger } from './utils/logger';
-import { RapidKitCodeActionsProvider } from './providers/codeActionsProvider';
-import { RapidKitCompletionProvider } from './providers/completionProvider';
-import { RapidKitHoverProvider } from './providers/hoverProvider';
+import { WorkspaiCodeActionsProvider } from './providers/codeActionsProvider';
+import { WorkspaiCompletionProvider } from './providers/completionProvider';
+import { WorkspaiHoverProvider } from './providers/hoverProvider';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
 import { WelcomePanel } from './ui/panels/welcomePanel';
 import { ModulesCatalogService } from './core/modulesCatalogService';
@@ -37,7 +37,7 @@ import { runRapidkitCommandsInTerminal } from './utils/terminalExecutor';
 import { ExamplesService } from './core/examplesService';
 import { KitsService } from './core/kitsService';
 
-let statusBar: RapidKitStatusBar;
+let statusBar: WorkspaiStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
 let workspaceExplorer: WorkspaceExplorerProvider;
 let projectExplorer: ProjectExplorerProvider;
@@ -50,7 +50,7 @@ export const runningServers: Map<string, vscode.Terminal> = new Map();
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
-  logger.info('🚀 RapidKit extension is activating...');
+  logger.info('🚀 Workspai extension is activating...');
 
   // Store context globally for access from commands
   (global as any).extensionContext = context;
@@ -136,7 +136,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize status bar
     logger.info('Step 4: Initializing status bar...');
-    statusBar = new RapidKitStatusBar();
+    statusBar = new WorkspaiStatusBar();
     context.subscriptions.push(statusBar);
 
     // Initialize tree view providers
@@ -192,7 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
           return;
         }
         runRapidkitCommandsInTerminal({
-          name: `RapidKit Doctor - ${ws.name ?? ws.path}`,
+          name: `Workspai Doctor - ${ws.name ?? ws.path}`,
           cwd: ws.path,
           commands: [['doctor', 'workspace']],
         });
@@ -206,7 +206,7 @@ export async function activate(context: vscode.ExtensionContext) {
           return;
         }
         runRapidkitCommandsInTerminal({
-          name: `RapidKit Doctor Fix - ${ws.name ?? ws.path}`,
+          name: `Workspai Doctor Fix - ${ws.name ?? ws.path}`,
           cwd: ws.path,
           commands: [['doctor', 'workspace', '--fix']],
         });
@@ -228,9 +228,9 @@ export async function activate(context: vscode.ExtensionContext) {
           { pattern: '**/rapidkit.json' },
           { pattern: '**/module.yaml' },
         ],
-        new RapidKitCodeActionsProvider(),
+        new WorkspaiCodeActionsProvider(),
         {
-          providedCodeActionKinds: RapidKitCodeActionsProvider.providedCodeActionKinds,
+          providedCodeActionKinds: WorkspaiCodeActionsProvider.providedCodeActionKinds,
         }
       ),
 
@@ -241,7 +241,7 @@ export async function activate(context: vscode.ExtensionContext) {
           { pattern: '**/rapidkit.json' },
           { pattern: '**/module.yaml' },
         ],
-        new RapidKitCompletionProvider(),
+        new WorkspaiCompletionProvider(),
         '"',
         ':',
         ' '
@@ -254,13 +254,13 @@ export async function activate(context: vscode.ExtensionContext) {
           { pattern: '**/rapidkit.json' },
           { pattern: '**/module.yaml' },
         ],
-        new RapidKitHoverProvider()
+        new WorkspaiHoverProvider()
       )
     );
 
     logger.info('Step 8: IntelliSense providers registered');
 
-    logger.info('✅ RapidKit commands registered successfully!');
+    logger.info('✅ Workspai commands registered successfully!');
     statusBar.updateStatus('ready');
 
     // Check for rapidkit npm updates (non-blocking, runs in background)
@@ -294,7 +294,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const usageTracker = WorkspaceUsageTracker.getInstance();
         await usageTracker.initialize();
 
-        logger.info('✅ RapidKit extension initialized successfully!');
+        logger.info('✅ Workspai extension initialized successfully!');
 
         // Watch for workspace changes
         const fileWatcher = vscode.workspace.createFileSystemWatcher(
@@ -328,9 +328,9 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     })();
   } catch (error) {
-    logger.error('Failed to activate RapidKit extension', error);
+    logger.error('Failed to activate Workspai extension', error);
     vscode.window.showErrorMessage(
-      `Failed to activate RapidKit extension: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to activate Workspai extension: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -342,7 +342,7 @@ export async function refreshModuleExplorerStates(): Promise<void> {
 }
 
 export function deactivate() {
-  Logger.getInstance().info('👋 RapidKit extension is deactivating...');
+  Logger.getInstance().info('👋 Workspai extension is deactivating...');
   if (statusBar) {
     statusBar.dispose();
   }

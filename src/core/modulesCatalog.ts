@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { RapidKitCLI } from './rapidkitCLI';
+import { WorkspaiCLI } from './rapidkitCLI';
 import { Logger } from '../utils/logger';
 import { CATEGORY_INFO, MODULES, ModuleData } from '../data/modules';
 
@@ -161,7 +161,7 @@ function safeParseJson(value: string): unknown {
 }
 
 export async function loadModulesCatalog(opts: {
-  cli: RapidKitCLI;
+  cli: WorkspaiCLI;
   storagePath: string;
   ttlMs?: number;
   workspacePath?: string;

@@ -43,7 +43,7 @@ export interface CreateProjectInWorkspaceOptions {
   skipInstall?: boolean;
 }
 
-export class RapidKitCLI {
+export class WorkspaiCLI {
   private logger: Logger;
 
   constructor() {

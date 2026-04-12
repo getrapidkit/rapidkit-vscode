@@ -1,4 +1,4 @@
-# Contributing to RapidKit VS Code Extension
+# Contributing to Workspai VS Code Extension
 
 Thank you for your interest in contributing to RapidKit! This document provides guidelines and instructions for contributing.
 

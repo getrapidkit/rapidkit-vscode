@@ -41,11 +41,11 @@ export async function showFirstTimeSetupMessage(): Promise<boolean> {
   }
 
   const message =
-    '👋 Welcome to RapidKit!\n\n' +
+    '👋 Welcome to Workspai!\n\n' +
     'First-time setup will:\n' +
-    '  • Download RapidKit CLI (~5-10 seconds)\n' +
+    '  • Download Workspai CLI (~5-10 seconds)\n' +
     '  • Create a Python virtual environment\n' +
-    '  • Install RapidKit Core engine\n\n' +
+    '  • Install Workspai Core engine\n\n' +
     'This may take 30-60 seconds. Ready to continue?';
 
   const continueAction = 'Continue';
@@ -126,7 +126,7 @@ async function checkNetworkSpeed(): Promise<boolean> {
  */
 export async function showFirstTimeSetupComplete(): Promise<void> {
   const message =
-    '✅ RapidKit setup complete!\n\n' +
+    '✅ Workspai setup complete!\n\n' +
     "You're now ready to:\n" +
     '  • Create FastAPI & NestJS projects\n' +
     '  • Add modules (auth, database, caching, etc.)\n' +

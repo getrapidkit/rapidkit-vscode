@@ -87,7 +87,7 @@ export class WorkspaceWizard {
     }
 
     // ── Step 3 of 5: Location ─────────────────────────────────────────────────
-    const defaultParent = path.join(os.homedir(), 'RapidKit');
+    const defaultParent = path.join(os.homedir(), 'Workspai');
     const defaultFull = path.join(defaultParent, name);
 
     type LocationItem = vscode.QuickPickItem & { value: 'default' | 'browse' };

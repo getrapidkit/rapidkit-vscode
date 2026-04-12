@@ -1,9 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "RapidKit Module Definition",
+  "title": "Workspai Module Definition",
   "description": "Module metadata file (module.yaml)",
   "type": "object",
-  "required": ["name", "version", "description", "category"],
+  "required": [
+    "name",
+    "version",
+    "description",
+    "category"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -38,7 +43,11 @@
     "tier": {
       "type": "string",
       "description": "Module tier/license",
-      "enum": ["free", "pro", "enterprise"],
+      "enum": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
       "default": "free"
     },
     "frameworks": {
@@ -46,7 +55,11 @@
       "description": "Supported frameworks",
       "items": {
         "type": "string",
-        "enum": ["fastapi", "nestjs", "all"]
+        "enum": [
+          "fastapi",
+          "nestjs",
+          "all"
+        ]
       }
     },
     "dependencies": {
@@ -69,7 +82,7 @@
         },
         "modules": {
           "type": "array",
-          "description": "Required RapidKit modules",
+          "description": "Required Workspai modules",
           "items": {
             "type": "string"
           }

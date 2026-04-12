@@ -1,13 +1,13 @@
 /**
  * Workspace Explorer TreeView Provider
- * Shows list of RapidKit workspaces with actions
+ * Shows list of Workspai workspaces with actions
  */
 
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import { RapidKitWorkspace } from '../../types';
+import { WorkspaiWorkspace } from '../../types';
 import { WorkspaceManager } from '../../core/workspaceManager';
 import { CoreVersionService, CoreVersionInfo } from '../../core/coreVersionService';
 
@@ -19,8 +19,8 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   private workspaceManager = WorkspaceManager.getInstance();
   private versionService = CoreVersionService.getInstance();
-  private workspaces: RapidKitWorkspace[] = [];
-  private selectedWorkspace: RapidKitWorkspace | null = null;
+  private workspaces: WorkspaiWorkspace[] = [];
+  private selectedWorkspace: WorkspaiWorkspace | null = null;
   private fileWatcher?: vscode.FileSystemWatcher;
   private versionInfoCache: Map<string, CoreVersionInfo> = new Map();
   private profileCache: Map<string, string | undefined> = new Map();
@@ -125,7 +125,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     return profile;
   }
 
-  private getLastOpenedTime(workspace: RapidKitWorkspace): string | undefined {
+  private getLastOpenedTime(workspace: WorkspaiWorkspace): string | undefined {
     const lastAccessed = (workspace as any).lastAccessed;
     if (!lastAccessed) {
       return undefined;
@@ -172,7 +172,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       canSelectFolders: true,
       canSelectMany: false,
       openLabel: 'Select Workspace Folder',
-      title: 'Add RapidKit Workspace',
+      title: 'Add Workspai Workspace',
     });
 
     if (result && result[0]) {
@@ -193,8 +193,8 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       [
         {
           label: '$(folder) Import Existing Workspace Folder',
-          description: 'Register an existing RapidKit workspace',
-          detail: 'Browse and select a folder containing a RapidKit workspace',
+          description: 'Register an existing Workspai workspace',
+          detail: 'Browse and select a folder containing a Workspai workspace',
           value: 'folder',
         },
         {
@@ -227,7 +227,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       canSelectFolders: true,
       canSelectMany: false,
       openLabel: 'Import Workspace',
-      title: 'Select RapidKit Workspace Folder',
+      title: 'Select Workspai Workspace Folder',
     });
 
     if (!result || !result[0]) {
@@ -240,7 +240,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: 'Validating RapidKit workspace...',
+        title: 'Validating Workspai workspace...',
         cancellable: false,
       },
       async (progress) => {
@@ -259,9 +259,9 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
             'OK'
           );
         } else {
-          // Not a valid RapidKit workspace
+          // Not a valid Workspai workspace
           vscode.window.showErrorMessage(
-            `❌ Invalid RapidKit workspace\n\nThe selected folder is not a valid RapidKit workspace.\n\nA valid workspace must have:\n• .rapidkit-workspace marker file, OR\n• pyproject.toml + .venv + rapidkit script, OR\n• .rapidkit/project.json or .rapidkit/context.json`,
+            `❌ Invalid Workspai workspace\n\nThe selected folder is not a valid Workspai workspace.\n\nA valid workspace must have:\n• .rapidkit-workspace marker file, OR\n• pyproject.toml + .venv + rapidkit script, OR\n• .rapidkit/project.json or .rapidkit/context.json`,
             'OK'
           );
         }
@@ -275,9 +275,9 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       canSelectFolders: false,
       canSelectMany: false,
       openLabel: 'Import Archive',
-      title: 'Select RapidKit Archive',
+      title: 'Select Workspai Archive',
       filters: {
-        'RapidKit Archive': ['zip'],
+        'Workspai Archive': ['zip'],
         'All Files': ['*'],
       },
     });
@@ -344,10 +344,10 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
           progress.report({ increment: 30, message: 'Validating workspace...' });
 
-          // Validate it's a valid RapidKit workspace
+          // Validate it's a valid Workspai workspace
           const markerPath = path.join(extractPath, '.rapidkit-workspace');
           if (!(await fs.pathExists(markerPath))) {
-            throw new Error('Extracted archive is not a valid RapidKit workspace');
+            throw new Error('Extracted archive is not a valid Workspai workspace');
           }
 
           progress.report({ increment: 10, message: 'Registering workspace...' });
@@ -379,7 +379,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     );
   }
 
-  public async removeWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+  public async removeWorkspace(workspace: WorkspaiWorkspace): Promise<void> {
     const answer = await vscode.window.showWarningMessage(
       `Remove workspace "${workspace.name}" from the list?\n(Files will not be deleted)`,
       'Remove',
@@ -393,7 +393,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
   }
 
-  public async exportWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+  public async exportWorkspace(workspace: WorkspaiWorkspace): Promise<void> {
     try {
       await this.exportFullWorkspace(workspace);
     } catch (error) {
@@ -401,7 +401,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
   }
 
-  private async exportFullWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+  private async exportFullWorkspace(workspace: WorkspaiWorkspace): Promise<void> {
     const archiver = require('archiver');
 
     await vscode.window.withProgress(
@@ -419,7 +419,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
             path.join(os.homedir(), 'Downloads', `${workspace.name}.rapidkit-archive.zip`)
           ),
           filters: {
-            'RapidKit Archive': ['zip'],
+            'Workspai Archive': ['zip'],
             'All Files': ['*'],
           },
           title: 'Export Full Workspace',
@@ -510,7 +510,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   public async autoDiscover(): Promise<void> {
     const message = vscode.window.setStatusBarMessage(
-      '$(search) Discovering RapidKit workspaces...'
+      '$(search) Discovering Workspai workspaces...'
     );
 
     try {
@@ -519,12 +519,12 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
       if (discovered.length > 0) {
         vscode.window.showInformationMessage(
-          `Found ${discovered.length} RapidKit workspace(s)`,
+          `Found ${discovered.length} Workspai workspace(s)`,
           'OK'
         );
         await this.refresh();
       } else {
-        vscode.window.showInformationMessage('No new RapidKit workspaces found', 'OK');
+        vscode.window.showInformationMessage('No new Workspai workspaces found', 'OK');
       }
     } catch (error) {
       message.dispose();
@@ -532,7 +532,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
   }
 
-  public async selectWorkspace(workspace: RapidKitWorkspace): Promise<void> {
+  public async selectWorkspace(workspace: WorkspaiWorkspace): Promise<void> {
     this.selectedWorkspace = workspace;
 
     // Update last accessed time
@@ -547,18 +547,18 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     await vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
   }
 
-  public getSelectedWorkspace(): RapidKitWorkspace | null {
+  public getSelectedWorkspace(): WorkspaiWorkspace | null {
     return this.selectedWorkspace;
   }
 
-  public getWorkspaceByPath(path: string): RapidKitWorkspace | undefined {
+  public getWorkspaceByPath(path: string): WorkspaiWorkspace | undefined {
     return this.workspaces.find((ws) => ws.path === path);
   }
 }
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
   constructor(
-    public readonly workspace: RapidKitWorkspace | null,
+    public readonly workspace: WorkspaiWorkspace | null,
     public readonly contextValue: string,
     isActive: boolean = false,
     versionInfo?: CoreVersionInfo,

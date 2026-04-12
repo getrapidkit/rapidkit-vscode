@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { RapidKitCLI } from './rapidkitCLI';
+import { WorkspaiCLI } from './rapidkitCLI';
 import {
   loadModulesCatalog,
   invalidateModulesCatalogCache,
@@ -8,12 +8,12 @@ import {
 
 export class ModulesCatalogService {
   private static instance: ModulesCatalogService | null = null;
-  private readonly cli: RapidKitCLI;
+  private readonly cli: WorkspaiCLI;
   private readonly storagePath: string;
   private ttlMs: number;
 
   private constructor(context: vscode.ExtensionContext) {
-    this.cli = new RapidKitCLI();
+    this.cli = new WorkspaiCLI();
     this.storagePath = context.globalStorageUri.fsPath;
     this.ttlMs = 10 * 60 * 1000;
   }

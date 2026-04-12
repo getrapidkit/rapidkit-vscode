@@ -1,8 +1,8 @@
 /**
- * TypeScript type definitions for RapidKit
+ * TypeScript type definitions for Workspai
  */
 
-export interface RapidKitWorkspace {
+export interface WorkspaiWorkspace {
   name: string;
   path: string;
   mode: 'demo' | 'full';
@@ -12,7 +12,7 @@ export interface RapidKitWorkspace {
   }>;
 }
 
-export interface RapidKitProject {
+export interface WorkspaiProject {
   name: string;
   path: string;
   type: 'fastapi' | 'nestjs' | 'go';
@@ -22,7 +22,7 @@ export interface RapidKitProject {
   workspacePath?: string;
 }
 
-export interface RapidKitModule {
+export interface WorkspaiModule {
   id: string;
   name: string;
   displayName: string;
@@ -35,7 +35,7 @@ export interface RapidKitModule {
   installed: boolean;
 }
 
-export interface RapidKitTemplate {
+export interface WorkspaiTemplate {
   id: string;
   name: string;
   displayName: string;
@@ -66,7 +66,7 @@ export interface ProjectConfig {
   packageManager?: string; // For NestJS: npm, yarn, pnpm
 }
 
-export interface RapidKitConfig {
+export interface WorkspaiConfig {
   defaultKit?: string;
   defaultInstallMethod?: string;
   pythonVersion?: string;

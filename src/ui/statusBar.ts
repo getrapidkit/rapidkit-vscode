@@ -1,10 +1,10 @@
 /**
- * Status Bar for RapidKit extension
+ * Status Bar for Workspai extension
  */
 
 import * as vscode from 'vscode';
 
-export class RapidKitStatusBar implements vscode.Disposable {
+export class WorkspaiStatusBar implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
   private projectCount: number = 0;
 
@@ -27,18 +27,18 @@ export class RapidKitStatusBar implements vscode.Disposable {
           this.projectCount > 0
             ? ` | ${this.projectCount} Project${this.projectCount > 1 ? 's' : ''}`
             : '';
-        this.statusBarItem.text = `🚀 RapidKit${projectText} | Ready`;
-        this.statusBarItem.tooltip = 'Click to open RapidKit quick actions';
+        this.statusBarItem.text = `🚀 Workspai${projectText} | Ready`;
+        this.statusBarItem.tooltip = 'Click to open Workspai quick actions';
         this.statusBarItem.backgroundColor = undefined;
         break;
       }
       case 'working':
-        this.statusBarItem.text = `$(sync~spin) RapidKit: ${message || 'Working...'}`;
+        this.statusBarItem.text = `$(sync~spin) Workspai: ${message || 'Working...'}`;
         this.statusBarItem.tooltip = message;
         this.statusBarItem.backgroundColor = undefined;
         break;
       case 'error':
-        this.statusBarItem.text = '$(error) RapidKit';
+        this.statusBarItem.text = '$(error) Workspai';
         this.statusBarItem.tooltip = message || 'Error occurred';
         this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
         break;

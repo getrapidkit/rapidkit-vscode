@@ -5,13 +5,13 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { RapidKitProject } from '../types';
+import { WorkspaiProject } from '../types';
 import { Logger } from '../utils/logger';
 
 export class WorkspaceDetector {
   private static instance: WorkspaceDetector;
   private logger = Logger.getInstance();
-  private projects: RapidKitProject[] = [];
+  private projects: WorkspaiProject[] = [];
 
   private constructor() {}
 
@@ -44,8 +44,8 @@ export class WorkspaceDetector {
   /**
    * Scan directory for RapidKit projects
    */
-  private async scanDirectory(dirPath: string): Promise<RapidKitProject[]> {
-    const projects: RapidKitProject[] = [];
+  private async scanDirectory(dirPath: string): Promise<WorkspaiProject[]> {
+    const projects: WorkspaiProject[] = [];
 
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -113,7 +113,7 @@ export class WorkspaceDetector {
   /**
    * Analyze project to extract metadata
    */
-  private async analyzeProject(projectPath: string): Promise<RapidKitProject | null> {
+  private async analyzeProject(projectPath: string): Promise<WorkspaiProject | null> {
     try {
       const projectName = path.basename(projectPath);
       let type: 'fastapi' | 'nestjs' | 'go' = 'fastapi';
@@ -202,14 +202,14 @@ export class WorkspaceDetector {
   /**
    * Get all detected projects
    */
-  public getProjects(): RapidKitProject[] {
+  public getProjects(): WorkspaiProject[] {
     return this.projects;
   }
 
   /**
    * Get project by path
    */
-  public getProject(projectPath: string): RapidKitProject | undefined {
+  public getProject(projectPath: string): WorkspaiProject | undefined {
     return this.projects.find((p) => p.path === projectPath);
   }
 

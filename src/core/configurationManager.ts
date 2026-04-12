@@ -7,14 +7,14 @@ import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import { RapidKitConfig } from '../types';
+import { WorkspaiConfig } from '../types';
 import { Logger } from '../utils/logger';
 
 export class ConfigurationManager {
   private static instance: ConfigurationManager;
   // @ts-expect-error - context is used by initialize() method
   private context: vscode.ExtensionContext | null = null;
-  private userConfig: RapidKitConfig = {};
+  private userConfig: WorkspaiConfig = {};
   private logger = Logger.getInstance();
 
   private constructor() {}
@@ -54,7 +54,7 @@ export class ConfigurationManager {
   private watchConfiguration(): void {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('rapidkit')) {
-        this.logger.info('RapidKit configuration changed');
+        this.logger.info('Workspai configuration changed');
         vscode.commands.executeCommand('rapidkit.refreshProjects');
       }
     });
@@ -125,7 +125,7 @@ export class ConfigurationManager {
 
     // Create if doesn't exist
     if (!(await fs.pathExists(configPath))) {
-      const defaultConfig: RapidKitConfig = {
+      const defaultConfig: WorkspaiConfig = {
         defaultKit: 'fastapi.standard',
         defaultInstallMethod: 'poetry',
         pythonVersion: '3.10',

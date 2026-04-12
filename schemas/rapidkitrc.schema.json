@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "RapidKit Workspace Configuration",
-  "description": "Configuration file for RapidKit workspace",
+  "title": "Workspai Workspace Configuration",
+  "description": "Configuration file for Workspai workspace",
   "type": "object",
   "required": [
     "name",
