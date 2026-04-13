@@ -1,5 +1,5 @@
 /**
- * Logger utility for RapidKit extension
+ * Logger utility for Workspai extension
  */
 
 import * as vscode from 'vscode';

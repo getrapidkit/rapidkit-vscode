@@ -23,7 +23,7 @@ import { MODULES } from '../data/modules';
 const NO_PROJECT_MESSAGE =
   '⚠️ No project selected!\n\n' +
   'To add a module:\n' +
-  '1. Click on a project in the RapidKit **Projects** sidebar\n' +
+  '1. Click on a project in the **Workspai** Projects sidebar\n' +
   '2. The project name will show a ✓ checkmark when selected\n' +
   '3. Right-click the project and choose **Add Module**\n\n' +
   'Or open your project folder in VS Code.';

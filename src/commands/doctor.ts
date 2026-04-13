@@ -314,7 +314,7 @@ async function runSystemChecks(
   progress.report({ increment: 100, message: 'Done!' });
 
   // Show results
-  const lines = ['# RapidKit System Check\n'];
+  const lines = ['# Workspai System Check\n'];
 
   for (const check of result.checks) {
     const icon = check.status === 'pass' ? '✅' : check.status === 'warning' ? '⚠' : '❌';

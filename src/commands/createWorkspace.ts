@@ -309,7 +309,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
         // Full config object sent from the webview modal
         const wc = workspaceName as any;
         logger.info('Using full config from webview modal:', wc.name);
-        const defaultPath = path.join(os.homedir(), 'RapidKit', 'rapidkits');
+        const defaultPath = path.join(os.homedir(), 'Workspai', 'rapidkits');
         config = {
           name: wc.name,
           path: path.join(defaultPath, wc.name),
@@ -370,7 +370,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
           await fs.ensureDir(parentDir);
           logger.info('Parent directory ensured:', parentDir);
 
-          // Check if it's a default location (~/.RapidKit/rapidkits/<name>)
+          // Check if it's a default location (~/Workspai/rapidkits/<name>)
           const homeDir = require('os').homedir();
           const defaultWorkspacePath = path.join(homeDir, 'Workspai', 'rapidkits', config.name);
           const isDefaultLocation = config.path === defaultWorkspacePath;
@@ -888,7 +888,7 @@ ${name}/
 
 4. **Or use VS Code Extension:**
    - Open Command Palette (\`Ctrl+Shift+P\`)
-   - Run: \`RapidKit: Create Project\`
+   - Run: \`Workspai: Create Project\`
    - Select this workspace
 
 ### Option 2: Manual Project Setup
@@ -951,7 +951,7 @@ npx rapidkit create project nestjs.standard my-app --output .
 
 - 📖 Documentation: https://getrapidkit.com/docs
 - 💬 GitHub Issues: https://github.com/getrapidkit/rapidkit-vscode/issues
-- 🔧 VS Code Extension: Run \`RapidKit: Run System Check\`
+- 🔧 VS Code Extension: Run \`Workspai: Run System Check\`
 
 ## 🔄 Upgrade to Full Workspace
 
@@ -978,7 +978,7 @@ To upgrade when RapidKit Core becomes available:
 
 **Created:** ${new Date().toISOString()}  
 **Mode:** Fallback (npm-compatible structure)  
-**Created By:** VS Code RapidKit Extension  
+**Created By:** VS Code Workspai Extension  
 **Structure Version:** Compatible with rapidkit npm v0.16.x
 `;
     await fs.writeFile(readmePath, readmeContent);

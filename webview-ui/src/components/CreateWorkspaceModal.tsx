@@ -249,7 +249,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                 </div>
                             ) : workspaceName ? (
                                 <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', opacity: 0.8 }}>
-                                    📁 ~/RapidKit/rapidkits/<strong>{workspaceName}</strong>
+                                    📁 ~/Workspai/rapidkits/<strong>{workspaceName}</strong>
                                 </div>
                             ) : null}
                         </div>

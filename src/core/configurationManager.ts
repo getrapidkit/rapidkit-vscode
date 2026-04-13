@@ -1,5 +1,5 @@
 /**
- * Configuration Manager for RapidKit extension
+ * Configuration Manager for Workspai extension
  * Handles user settings, workspace config, and .rapidkitrc.json
  */
 

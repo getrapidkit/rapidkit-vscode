@@ -25,7 +25,7 @@ export function registerProjectLifecycleCommands(options: {
       const projectPath = item?.project?.path || item?.projectPath;
       if (projectPath) {
         openTerminal({
-          name: `RapidKit: ${item?.project?.name || 'Project'}`,
+          name: `Workspai: ${item?.project?.name || 'Project'}`,
           cwd: projectPath,
         });
         logger.info(`Opened terminal for project: ${projectPath}`);

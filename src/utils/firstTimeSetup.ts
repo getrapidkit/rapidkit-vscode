@@ -8,7 +8,7 @@ import { run } from './exec';
 import { Logger } from './logger';
 
 /**
- * Check if this is user's first time using RapidKit extension
+ * Check if this is user's first time using Workspai extension
  */
 export async function isFirstTimeSetup(): Promise<boolean> {
   const logger = Logger.getInstance();
@@ -43,9 +43,9 @@ export async function showFirstTimeSetupMessage(): Promise<boolean> {
   const message =
     '👋 Welcome to Workspai!\n\n' +
     'First-time setup will:\n' +
-    '  • Download Workspai CLI (~5-10 seconds)\n' +
+    '  • Download RapidKit CLI (~5-10 seconds)\n' +
     '  • Create a Python virtual environment\n' +
-    '  • Install Workspai Core engine\n\n' +
+    '  • Install RapidKit Core engine\n\n' +
     'This may take 30-60 seconds. Ready to continue?';
 
   const continueAction = 'Continue';

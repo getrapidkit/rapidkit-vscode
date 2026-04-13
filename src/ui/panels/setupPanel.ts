@@ -1123,7 +1123,7 @@ export class SetupPanel {
       }
     }
     h1 .rapid {
-      background: linear-gradient(135deg, #00cfc1, #009688);
+      background: linear-gradient(135deg, #6C5CE7, #00CFC1);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -1132,7 +1132,7 @@ export class SetupPanel {
     .tagline { font-size: 1rem; color: var(--vscode-descriptionForeground); margin-bottom: 10px; }
     .version {
       display: inline-block;
-      background: linear-gradient(135deg, #00cfc1, #009688);
+      background: linear-gradient(135deg, #6C5CE7, #00CFC1);
       color: white;
       padding: 4px 14px;
       border-radius: 999px;
@@ -1481,7 +1481,7 @@ export class SetupPanel {
 <body>
   <div class="container">
     <div class="header">
-      <h1><span class="rapid">Rapid</span><span class="kit">Kit</span></h1>
+      <h1><span class="rapid">worksp</span><span class="kit">ai</span></h1>
       <p class="tagline">Setup & Installation</p>
     </div>
 

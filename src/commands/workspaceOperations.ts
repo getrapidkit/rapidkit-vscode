@@ -85,7 +85,7 @@ export function registerWorkspaceOperationsCommands(options: {
       }
 
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Bootstrap — ${wsName}`,
+        name: `Workspai: Bootstrap — ${wsName}`,
         cwd: workspacePath,
         commands: [['bootstrap', '--profile', (profile as any).value]],
       });
@@ -130,7 +130,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Setup — ${wsName}`,
+        name: `Workspai: Setup — ${wsName}`,
         cwd: workspacePath,
         env: {
           RAPIDKIT_ENABLE_RUNTIME_ADAPTERS: '1',
@@ -151,7 +151,7 @@ export function registerWorkspaceOperationsCommands(options: {
       }
       const wsName = path.basename(workspacePath);
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Init — ${wsName}`,
+        name: `Workspai: Init — ${wsName}`,
         cwd: workspacePath,
         commands: [['init']],
       });
@@ -168,7 +168,7 @@ export function registerWorkspaceOperationsCommands(options: {
 
       const wsName = path.basename(workspacePath);
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Policy — ${wsName}`,
+        name: `Workspai: Policy — ${wsName}`,
         cwd: workspacePath,
         commands: [['workspace', 'policy', 'show']],
       });
@@ -259,7 +259,7 @@ export function registerWorkspaceOperationsCommands(options: {
       }
 
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Policy — ${wsName}`,
+        name: `Workspai: Policy — ${wsName}`,
         cwd: workspacePath,
         commands: [
           ['workspace', 'policy', 'set', policyKey.label, policyValue],
@@ -277,7 +277,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'status']],
       });
@@ -301,7 +301,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'clear']],
       });
@@ -316,7 +316,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'prune']],
       });
@@ -331,7 +331,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'repair']],
       });
@@ -346,7 +346,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'status']],
       });
@@ -361,7 +361,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'sync']],
       });
@@ -376,7 +376,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'verify']],
       });
@@ -401,7 +401,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `RapidKit Mirror — ${wsName}`,
+        name: `Workspai: Mirror — ${wsName}`,
         cwd: workspacePath,
         commands: [['mirror', 'rotate']],
       });
@@ -448,7 +448,7 @@ export function registerWorkspaceOperationsCommands(options: {
       }
 
       const selection = await vscode.window.showQuickPick(actions, {
-        placeHolder: `RapidKit Health & Version - ${workspaceName}`,
+        placeHolder: `Workspai: Health & Version - ${workspaceName}`,
         title: versionService.getStatusMessage(versionInfo),
       });
 
@@ -469,7 +469,7 @@ export function registerWorkspaceOperationsCommands(options: {
 
               try {
                 runRapidkitCommandsInTerminal({
-                  name: `RapidKit Doctor - ${workspaceName}`,
+                  name: `Workspai: Doctor - ${workspaceName}`,
                   cwd: workspacePath,
                   commands: [['doctor', 'workspace']],
                 });
@@ -502,7 +502,7 @@ export function registerWorkspaceOperationsCommands(options: {
 
               try {
                 runRapidkitCommandsInTerminal({
-                  name: `RapidKit Doctor Fix - ${workspaceName}`,
+                  name: `Workspai: Doctor Fix - ${workspaceName}`,
                   cwd: workspacePath,
                   commands: [['doctor', 'workspace', '--fix']],
                 });
@@ -562,7 +562,7 @@ export function registerWorkspaceOperationsCommands(options: {
             const reportData = await fsCompat.default.readJSON(reportPath).catch(() => null);
 
             const output = vscode.window.createOutputChannel(
-              `RapidKit Compliance — ${workspaceName}`
+              `Workspai: Compliance — ${workspaceName}`
             );
             output.clear();
             output.appendLine(`=== Bootstrap Compliance Report: ${workspaceName} ===`);
@@ -672,14 +672,14 @@ export function registerWorkspaceOperationsCommands(options: {
           if (confirmUpgrade === 'Upgrade') {
             if (versionInfo.location === 'workspace') {
               runShellCommandInTerminal({
-                name: `RapidKit Upgrade - ${workspaceName}`,
+                name: `Workspai: Upgrade - ${workspaceName}`,
                 cwd: workspacePath,
                 command: 'poetry',
                 args: ['update', 'rapidkit-core'],
               });
             } else {
               runShellCommandInTerminal({
-                name: `RapidKit Upgrade - ${workspaceName}`,
+                name: `Workspai: Upgrade - ${workspaceName}`,
                 cwd: workspacePath,
                 command: 'pipx',
                 args: ['upgrade', 'rapidkit-core'],

@@ -222,7 +222,7 @@ export async function showSystemRequirementsError(
       // We can auto-fix!
       const message =
         '⚠️ Python venv support is missing.\n\n' +
-        'RapidKit can automatically install it for you.\n\n' +
+        'Workspai can automatically install it for you.\n\n' +
         `Command: ${requirements.python.autoFixCommand}\n\n` +
         'This requires sudo password and will take ~10 seconds.';
 

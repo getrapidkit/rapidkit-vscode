@@ -1,5 +1,5 @@
 /**
- * RapidKit Modules Data
+ * Workspai Modules Data
  * Source: core/src/modules/free
  */
 

@@ -4,7 +4,7 @@
 
 @layer base {
 
-  /* RapidKit Brand Colors from Design System */
+  /* Workspai Brand Colors from Design System */
   :root {
     --rapidkit-primary: #00cfc1;
     --rapidkit-primary-light: #68e3d7;
@@ -67,7 +67,7 @@
   }
 
   .rapid {
-    background: linear-gradient(135deg, #00cfc1, #009688);
+    background: linear-gradient(135deg, #6C5CE7, #00CFC1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

@@ -93,7 +93,7 @@ export async function createProjectCommand(
             {
               label: '$(home) Default Location',
               description: 'Recommended for quick start',
-              detail: '~/RapidKit/rapidkits/',
+              detail: '~/Workspai/rapidkits/',
               value: 'default',
             },
             {
@@ -165,7 +165,7 @@ export async function createProjectCommand(
               {
                 label: '$(file-directory) Create Standalone Project',
                 description: 'Without workspace',
-                detail: 'Create project directly in ~/RapidKit/rapidkits/',
+                detail: 'Create project directly in ~/Workspai/rapidkits/',
                 value: 'standalone',
               },
               {
@@ -312,7 +312,7 @@ export async function createProjectCommand(
             }
             if (i === 14) {
               throw new Error(
-                `Project was not created at ${projectPath}. Check Output > RapidKit for CLI errors.`
+                `Project was not created at ${projectPath}. Check Output > Workspai for CLI errors.`
               );
             }
           }
@@ -369,7 +369,7 @@ export async function createProjectCommand(
             });
           } else if (selected === terminalAction) {
             runCommandsInTerminal({
-              name: `RapidKit - ${config.name}`,
+              name: `Workspai - ${config.name}`,
               cwd: projectPath,
               commands: ['# Run: rapidkit init && rapidkit dev'],
             });

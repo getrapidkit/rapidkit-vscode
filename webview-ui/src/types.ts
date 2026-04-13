@@ -1,5 +1,5 @@
 /**
- * Type definitions for RapidKit data structures
+ * Type definitions for Workspai data structures
  */
 
 export interface ModuleData {
