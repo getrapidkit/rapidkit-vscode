@@ -1,5 +1,5 @@
 /**
- * Workspace Detector - Detects RapidKit projects in the workspace
+ * Workspace Detector - Detects Workspai projects in the workspace
  */
 
 import * as vscode from 'vscode';
@@ -23,7 +23,7 @@ export class WorkspaceDetector {
   }
 
   /**
-   * Detect all RapidKit projects in workspace
+   * Detect all Workspai projects in workspace
    */
   public async detectRapidKitProjects(): Promise<boolean> {
     if (!vscode.workspace.workspaceFolders) {
@@ -37,12 +37,12 @@ export class WorkspaceDetector {
       this.projects.push(...foundProjects);
     }
 
-    this.logger.info(`Detected ${this.projects.length} RapidKit project(s)`);
+    this.logger.info(`Detected ${this.projects.length} Workspai project(s)`);
     return this.projects.length > 0;
   }
 
   /**
-   * Scan directory for RapidKit projects
+   * Scan directory for Workspai projects
    */
   private async scanDirectory(dirPath: string): Promise<WorkspaiProject[]> {
     const projects: WorkspaiProject[] = [];
@@ -71,7 +71,7 @@ export class WorkspaceDetector {
   }
 
   /**
-   * Check if directory is a RapidKit project
+   * Check if directory is a Workspai project
    */
   private async isRapidKitProject(dirPath: string): Promise<boolean> {
     // Strong markers created by RapidKit

@@ -2,14 +2,15 @@
 
 <div align="center">
 
-**Workspai (formerly RapidKit) — An AI-powered developer toolkit for building, scaling, and deploying backend services.**
+**Build backend systems with AI that knows your workspace.**
 
-FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free modules, and automation-first workflows
+Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code.
+FastAPI · NestJS · Go/Fiber · Go/Gin · Clean architecture · 27+ free modules
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square&color=red&label=npm)](https://www.npmjs.com/package/rapidkit)
-[![Part of Workspai by RapidKit](https://img.shields.io/badge/Part%20of-Workspai%20by%20RapidKit-0f172a?logo=github)](https://github.com/getrapidkit/rapidkit)
+[![Built by RapidKit](https://img.shields.io/badge/Built%20by-RapidKit-0f172a?logo=github)](https://www.getrapidkit.com)
 
 [Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.getrapidkit.com/docs) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
@@ -17,52 +18,65 @@ FastAPI, NestJS, Go/Fiber & Go/Gin scaffolding with clean architecture, 27+ free
 
 ---
 
-## Part of the Workspai by RapidKit Ecosystem
+## Workspai in the RapidKit Ecosystem
 
-Workspai for VS Code is the IDE layer of the Workspai platform.
+Workspai is a product developed by RapidKit.
 
-| Layer | Repository |
-|---|---|
-| Ecosystem Hub | [getrapidkit/rapidkit](https://github.com/getrapidkit/rapidkit) | Workspai platform |
-| CLI | [getrapidkit/rapidkit-npm](https://github.com/getrapidkit/rapidkit-npm) | Workspai CLI |
-| Core Engine | [getrapidkit/rapidkit-core](https://github.com/getrapidkit/rapidkit-core) | Workspai Core |
-| Examples | [getrapidkit/rapidkit-examples](https://github.com/getrapidkit/rapidkit-examples) |
+This VS Code extension is the IDE layer of Workspai and works alongside the official RapidKit tools below.
+
+| Component | Repository | Role |
+|---|---|---|
+| VS Code Extension | [getrapidkit/rapidkit-vscode](https://github.com/getrapidkit/rapidkit-vscode) | Workspai extension UI |
+| CLI | [getrapidkit/rapidkit-npm](https://github.com/getrapidkit/rapidkit-npm) | Official RapidKit npm CLI used by Workspai |
+| Core Engine | [getrapidkit/rapidkit-core](https://github.com/getrapidkit/rapidkit-core) | Official RapidKit Core used for generation and automation |
+| Examples | [getrapidkit/rapidkit-examples](https://github.com/getrapidkit/rapidkit-examples) | Example workspaces and starter references |
 
 ---
 
 ## Features in Action
 
-### Welcome Page - Your Central Hub
-![Workspai Welcome Page](media/screenshots/rapidkit-screenshot-1.png)
+### Dashboard — Your Central Hub
+![Workspai Dashboard](media/screenshots/workspai-screenshot-1.png)
 
-**Your first stop:** Quick access to workspaces, module browser, and setup verification. Browse recent projects, check workspace health with one click, and explore 27+ available modules - all from your central hub.
+**Everything in one place:** The Workspai dashboard gives you instant access to AI workspace creation, framework quick-start cards (FastAPI, NestJS, Go), and an overview of all AI features — powered by GitHub Copilot.
 
-Quick Actions cards in the sidebar are theme-adaptive and automatically follow VS Code color tokens (light, dark, and high-contrast themes).
+### AI Workspace Builder — Describe, Plan, Confirm
+![Create Workspace with AI](media/screenshots/workspai-screenshot-2.png)
 
-### Setup Status - Toolchain Verification
-![RapidKit Setup Panel](media/screenshots/rapidkit-screenshot-2.png)
+**From intent to scaffold in seconds:** Click _Build with AI_, describe your product in plain language, pick from quick-start presets or type your own, and let AI plan the full workspace — profile, kit, and modules included.
 
-**Get ready fast:** Dedicated setup panel for verifying your development toolchain. Check Python, pipx, Poetry, RapidKit CLI, and Core installation status at a glance. Color-coded status indicators and one-click installation buttons guide you through the setup.
+### AI Assistant — Ask or Debug
+![AI Assistant Modal](media/screenshots/workspai-screenshot-2-1.png)
 
-### Module Browser - Pick Your Stack
-![RapidKit Module Browser](media/screenshots/rapidkit-screenshot-3.png)
+**Context-aware AI inside VS Code:** The AI Assistant modal opens from any workspace, project, or module item. Switch between **Ask AI** (code Q&A grounded in your project structure) and **Debug** (paste logs and stack traces for root-cause analysis).
 
-**Choose what you need:** Browse 27+ production-ready modules organized by category (Auth, Database, Cache, AI, and more). See installation status, version info, and install directly from the extension with dependency management included.
+### Create Project with AI
+![Create Project with AI](media/screenshots/workspai-screenshot-3.png)
 
-### 🩺 New: Workspace Health Check
-Check the health of any workspace with one click! The pulse icon (🩺) next to each workspace in the sidebar runs comprehensive diagnostics:
-- ✅ Python version check
-- ✅ Package managers (pip, pipx, Poetry)
-- ✅ RapidKit Core installation
-- ✅ Workspace configuration integrity
+**Framework-specific scaffolding:** When creating a project inside a workspace, AI pre-selects framework-appropriate presets (FastAPI, NestJS, Go) and scaffolds the full project with the correct kit and module set.
+
+### Sidebar Explorer — Full Workspace Control
+![Workspai Sidebar](media/screenshots/workspai-screenshot-4.png)
+
+**One sidebar, everything:** Quick Actions with AI creation, workspace list with health indicators, project file tree, available module catalog, and the Workspace Health panel — all without leaving the sidebar.
+
+### Module Browser — Browse, Filter, Install
+![Module Browser](media/screenshots/workspai-screenshot-5.png)
+
+**27+ production-ready modules:** Browse by category (Auth, Database, Cache, AI, Billing, Security, and more), search by name, and install directly from the dashboard. Each project's action bar (Terminal, Init, Dev, Test, Build) is always one click away.
+
+### Recent Workspaces & Example Templates
+![Recent Workspaces and Examples](media/screenshots/workspai-screenshot-6.png)
+
+**Pick up where you left off:** Recent workspaces are listed with profile and project count. Clone ready-made example workspaces (AI Agent, Quickstart, SaaS Starter) to get a production-grade backend running in minutes.
 
 ---
 
 ## ⚡ Quick Start
 
 ```
-1. Ctrl+Shift+P → "RapidKit: Create Workspace"
-2. Open your workspace and run "RapidKit: Check Health (Doctor)"
+1. Ctrl+Shift+P → "Workspai: Create Workspace"
+2. Open your workspace and run "Workspai: Run System Check"
 3. Create project: FastAPI, NestJS, Go/Fiber, or Go/Gin
 4. Done! 🎉
 ```
@@ -242,14 +256,15 @@ npx rapidkit format    # Format code
 
 | Command | Description |
 |---------|-------------|
-| `RapidKit: Create Workspace` | Create a new workspace (interactive profile picker) |
-| `RapidKit: Create Project` | Generate a FastAPI, NestJS, Go/Fiber, or Go/Gin project |
-| `RapidKit: Create FastAPI Project` | Quick FastAPI project creation |
-| `RapidKit: Create NestJS Project` | Quick NestJS project creation |
-| `RapidKit: Create Go/Fiber Project` | Quick Go Fiber project creation |
-| `RapidKit: Create Go/Gin Project` | Quick Go Gin project creation |
-| `RapidKit: System Doctor` | Check system requirements |
-| `RapidKit: Open Documentation` | Open RapidKit docs |
+| `Workspai: Create Workspace` | Create a new workspace (interactive profile picker) |
+| `Workspai: Create Project` | Generate a FastAPI, NestJS, Go/Fiber, or Go/Gin project |
+| `Workspai: Create FastAPI Project` | Quick FastAPI project creation |
+| `Workspai: Create NestJS Project` | Quick NestJS project creation |
+| `Workspai: Run System Check` | Check system requirements |
+| `Workspai: Check Workspai Installation` | Verify extension prerequisites and setup |
+| `Workspai: Open Documentation` | Open Workspai documentation |
+| `Workspai: Open Setup & Installation` | Open guided setup for RapidKit CLI and RapidKit Core |
+| `Workspai: AI Assistant` | Open AI Assistant — ask questions or debug with AI |
 
 ### Keyboard Shortcuts
 
@@ -260,13 +275,15 @@ npx rapidkit format    # Format code
 
 ### Sidebar
 
-- **Workspaces View** - Manage all your RapidKit workspaces
+- **Quick Actions** - One-click buttons for creating workspaces, projects, and opening AI Assistant
+- **Workspaces View** - Manage all your Workspai workspaces
     - Right-click a workspace for: Bootstrap, Setup, Cache/Mirror ops, and Policy actions
     - Policy actions map directly to npm CLI:
         - `npx rapidkit workspace policy show`
         - `npx rapidkit workspace policy set <key> <value>`
 - **Projects View** - Browse projects in current workspace
 - **Modules View** - Explore and install modules
+- **Health View** - System diagnostics with AI-powered fix suggestions
 
 ---
 
@@ -281,13 +298,13 @@ npx rapidkit format    # Format code
 | Go | 1.21+ | Go/Fiber & Go/Gin projects |
 | Git | Latest | Version control |
 
-**Check requirements:** Run `RapidKit: System Doctor` from Command Palette.
+**Check requirements:** Run `Workspai: Run System Check` from Command Palette.
 
 ---
 
-## 🌐 RapidKit Ecosystem
+## 🌐 Workspai Ecosystem
 
-RapidKit consists of three integrated components that work seamlessly together:
+Workspai consists of three integrated components that work together with clear responsibilities:
 
 ### 1️⃣ VS Code Extension (This Extension)
 
@@ -302,15 +319,16 @@ code --install-extension rapidkit.rapidkit-vscode
 **Features:**
 - 🎨 Visual workspace management
 - 🚀 One-click project creation
+- 🤖 AI Assistant for debugging and workspace questions
+- 🩺 System diagnostics with Doctor Fix AI
 - 📂 Sidebar navigation
-- 🩺 System diagnostics
 - ⌨️ Command palette integration
 
 [📦 Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 
 ---
 
-### 2️⃣ npm Package (CLI Bridge)
+### 2️⃣ RapidKit npm Package (CLI Bridge)
 
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square)](https://www.npmjs.com/package/rapidkit) [![downloads](https://img.shields.io/npm/dm/rapidkit?style=flat-square&label=downloads)](https://www.npmjs.com/package/rapidkit)
 
@@ -342,7 +360,7 @@ npx rapidkit add module auth              # Add modules to project
 
 ---
 
-### 3️⃣ Python Core (Generation Engine)
+### 3️⃣ RapidKit Core (Generation Engine)
 
 [![PyPI](https://img.shields.io/pypi/v/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/) [![Python](https://img.shields.io/pypi/pyversions/rapidkit-core?style=flat-square)](https://pypi.org/project/rapidkit-core/)
 
@@ -405,7 +423,7 @@ npx rapidkit my-workspace
 # 2. Open in VS Code (auto-detected)
 code my-workspace
 
-# 3. Create project via Extension UI (Ctrl+Shift+P → RapidKit: Create Project)
+# 3. Create project via Extension UI (Ctrl+Shift+P → Workspai: Create Project)
 
 # 4. Add modules via CLI
 cd my-project
@@ -418,20 +436,20 @@ rapidkit workspace list
 
 ---
 
-## � Troubleshooting
+## 🔧 Troubleshooting
 
 ### Extension not showing commands?
 - Reload VS Code: `Ctrl+Shift+P` → `Developer: Reload Window`
 - Check VS Code version: 1.100+ required
 
 ### Python not found?
-- Run `RapidKit: System Doctor` to check requirements
+- Run `Workspai: Run System Check` to check requirements
 - Install Python 3.10+ from [python.org](https://python.org)
 - Restart VS Code after Python installation
 
 ### Project not creating?
 - Ensure Node.js 18+ and Python 3.10+ are installed
-- Check `Output` panel (View → Output → RapidKit)
+- Check `Output` panel (View → Output → Workspai)
 - Report issue with logs at [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
 ### Workspace not detected?
@@ -441,7 +459,7 @@ rapidkit workspace list
 
 ---
 
-## �🔗 Links
+## 🔗 Links
 
 - 📖 **Documentation:** [www.getrapidkit.com/docs](https://www.getrapidkit.com/docs)
 - 🧩 **Modules:** [27+ production-ready modules](https://www.getrapidkit.com/modules)

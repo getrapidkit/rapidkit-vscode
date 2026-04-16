@@ -139,7 +139,7 @@ async function showUpdateNotification(
     return;
   }
 
-  const message = `🚀 RapidKit npm package v${versionInfo.latest} is available! (current: v${versionInfo.current})`;
+  const message = `🚀 RapidKit CLI update available for Workspai: v${versionInfo.latest} (current: v${versionInfo.current})`;
   const updateAction = '📦 Update Now';
   const releaseNotesAction = '📋 Release Notes';
   const dismissAction = '⏭️ Skip This Version';
@@ -155,7 +155,7 @@ async function showUpdateNotification(
   if (selected === updateAction) {
     // Open terminal and run update command
     runShellCommandInTerminal({
-      name: '📦 RapidKit Update',
+      name: '📦 RapidKit CLI Update',
       command: 'npm',
       args: ['install', '-g', 'rapidkit'],
     });
@@ -216,7 +216,7 @@ export async function forceCheckForUpdates(context: vscode.ExtensionContext): Pr
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'Checking for RapidKit updates...',
+      title: 'Checking RapidKit CLI updates for Workspai...',
       cancellable: false,
     },
     async () => {
@@ -226,11 +226,11 @@ export async function forceCheckForUpdates(context: vscode.ExtensionContext): Pr
         await showUpdateNotification(context, versionInfo);
       } else if (versionInfo.current && versionInfo.latest) {
         vscode.window.showInformationMessage(
-          `✅ RapidKit npm is up to date (v${versionInfo.current})`
+          `✅ RapidKit CLI is up to date for Workspai (v${versionInfo.current})`
         );
       } else {
         vscode.window.showWarningMessage(
-          '⚠️ Could not check for updates. RapidKit npm may not be installed.'
+          '⚠️ Could not check RapidKit CLI updates. The rapidkit npm package may not be installed.'
         );
       }
 

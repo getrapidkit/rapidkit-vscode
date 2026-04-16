@@ -104,11 +104,11 @@ export class WorkspaceManager {
       return this.workspaces.find((ws) => ws.path === workspacePath) || null;
     }
 
-    // Detect if it's a RapidKit workspace
+    // Detect if it's a Workspai workspace
     const isRapidKit = await this.isWorkspaiWorkspace(workspacePath);
     if (!isRapidKit) {
-      // Silently skip non-RapidKit workspaces
-      console.log('Skipping non-RapidKit workspace:', workspacePath);
+      // Silently skip non-Workspai workspaces
+      console.log('Skipping non-Workspai workspace:', workspacePath);
       return null;
     }
 
@@ -162,8 +162,9 @@ export class WorkspaceManager {
 
     // Check common dev directories
     const commonDirs = [
-      path.join(os.homedir(), 'RapidKit'), // npm package default location
-      path.join(os.homedir(), 'RapidKit', 'rapidkits'), // npm package nested location
+      path.join(os.homedir(), 'Workspai', 'rapidkits'), // Workspai default location
+      path.join(os.homedir(), 'RapidKit'), // legacy npm package default location
+      path.join(os.homedir(), 'RapidKit', 'rapidkits'), // legacy npm package nested location
       path.join(os.homedir(), 'Projects'),
       path.join(os.homedir(), 'Development'),
       path.join(os.homedir(), 'Code'),

@@ -71,11 +71,18 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
           this.versionInfoCache.set(ws.path, versionInfo);
           const profile = await this.getBootstrapProfile(ws.path);
 
+          // Count installed modules across all projects in this workspace
+          const moduleCount = await this._countInstalledModules(ws.path);
+
           const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
 
           const descParts: string[] = [];
           if (profile) {
             descParts.push(`[${profile}]`);
+          }
+
+          if (moduleCount > 0) {
+            descParts.push(`[${moduleCount} mod]`);
           }
 
           // Show active status with icon or time since last opened
@@ -101,6 +108,34 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     }
 
     return [];
+  }
+
+  private async _countInstalledModules(workspacePath: string): Promise<number> {
+    let total = 0;
+    try {
+      const entries = await fs.readdir(workspacePath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) {
+          continue;
+        }
+        const projectPath = path.join(workspacePath, entry.name);
+        for (const registryRelPath of ['registry.json', '.rapidkit/registry.json']) {
+          const registryPath = path.join(projectPath, registryRelPath);
+          if (await fs.pathExists(registryPath)) {
+            try {
+              const reg = await fs.readJSON(registryPath);
+              total += (reg.installed_modules ?? []).length;
+            } catch {
+              /* skip */
+            }
+            break;
+          }
+        }
+      }
+    } catch {
+      /* workspace not readable */
+    }
+    return total;
   }
 
   private async getBootstrapProfile(workspacePath: string): Promise<string | undefined> {
@@ -553,6 +588,34 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   public getWorkspaceByPath(path: string): WorkspaiWorkspace | undefined {
     return this.workspaces.find((ws) => ws.path === path);
+  }
+
+  public async quickSwitch(): Promise<void> {
+    if (this.workspaces.length === 0) {
+      vscode.window.showInformationMessage('No workspaces found. Add one first.');
+      return;
+    }
+
+    type WsPick = vscode.QuickPickItem & { ws: WorkspaiWorkspace };
+    const picks: WsPick[] = this.workspaces.map((ws) => {
+      const isActive = this.selectedWorkspace?.path === ws.path;
+      return {
+        label: `$(${isActive ? 'folder-opened' : 'folder-library'}) ${ws.name}`,
+        description: isActive ? '🟢 Active' : ws.path,
+        detail: isActive ? ws.path : undefined,
+        ws,
+      };
+    });
+
+    const selected = await vscode.window.showQuickPick<WsPick>(picks, {
+      placeHolder: 'Switch workspace…',
+      title: 'Workspai — Quick Switch',
+      matchOnDescription: true,
+    });
+
+    if (selected) {
+      await this.selectWorkspace(selected.ws);
+    }
   }
 }
 

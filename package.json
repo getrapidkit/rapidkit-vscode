@@ -1,12 +1,12 @@
 {
   "name": "rapidkit-vscode",
   "displayName": "Workspai (by RapidKit)",
-  "description": "Workspai is an AI-powered developer toolkit for building, scaling, and deploying backend services. Formerly RapidKit. FastAPI, NestJS, Go/Fiber & Go/Gin with clean architecture.",
+  "description": "Build backend systems with AI that knows your workspace. Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
   "version": "0.17.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
-    "color": "#1e1e1e",
+    "color": "#0F172A",
     "theme": "dark"
   },
   "preview": false,
@@ -14,35 +14,34 @@
   "engines": {
     "vscode": "^1.100.0"
   },
+  "extensionDependencies": [],
+  "capabilities": {
+    "languageModels": "enabled"
+  },
   "categories": [
+    "AI",
     "Programming Languages",
     "Snippets",
-    "Formatters",
-    "Linters",
+    "Machine Learning",
     "Other"
   ],
   "keywords": [
     "workspai",
     "rapidkit",
+    "AI",
+    "chatgpt",
     "fastapi",
     "nestjs",
     "go",
-    "workspace platform",
-    "python",
-    "typescript",
     "backend",
     "scaffold",
-    "generator",
-    "clean architecture",
-    "boilerplate",
-    "api",
-    "rest api",
-    "project template",
-    "code generation",
-    "monorepo",
     "workspace",
-    "module",
-    "productivity"
+    "python",
+    "typescript",
+    "rest api",
+    "code generation",
+    "boilerplate",
+    "monorepo"
   ],
   "repository": {
     "type": "git",
@@ -67,6 +66,12 @@
         "title": "Create Project",
         "category": "Workspai",
         "icon": "$(new-folder)"
+      },
+      {
+        "command": "rapidkit.aiCreateProject",
+        "title": "Create Project with AI",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
       },
       {
         "command": "rapidkit.createFastAPIProject",
@@ -165,6 +170,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "rapidkit.doctorEvidence.fixIssueWithAI",
+        "title": "Fix Issue with AI",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "rapidkit.workspaceInit",
         "title": "Initialize Workspace (npx rapidkit init)",
         "category": "Workspai",
@@ -211,6 +222,12 @@
         "title": "Import Workspace",
         "category": "Workspai",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "rapidkit.quickSwitchWorkspace",
+        "title": "Quick Switch Workspace",
+        "category": "Workspai",
+        "icon": "$(arrow-swap)"
       },
       {
         "command": "rapidkit.openProjectDashboard",
@@ -397,13 +414,49 @@
         "title": "Mirror: Rotate Keys",
         "category": "Workspai",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "rapidkit.debugWithAI",
+        "title": "AI Assistant",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "rapidkit.workspaceBrain",
+        "title": "Ask Workspace Brain",
+        "category": "Workspai",
+        "icon": "$(hubot)"
+      },
+      {
+        "command": "rapidkit.aiForWorkspace",
+        "title": "AI Assistant",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "rapidkit.aiForProject",
+        "title": "AI Assistant",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "rapidkit.aiForModule",
+        "title": "AI Help",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "rapidkit.openAICreateWorkspace",
+        "title": "Create Workspace with AI",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "rapidkit-explorer",
-          "title": "RapidKit",
+          "title": "Workspai",
           "icon": "media/icons/icon-128.png"
         }
       ]
@@ -529,9 +582,40 @@
         },
         {
           "command": "rapidkit.mirrorRotate"
+        },
+        {
+          "command": "rapidkit.debugWithAI"
+        },
+        {
+          "command": "rapidkit.workspaceBrain"
+        },
+        {
+          "command": "rapidkit.openAICreateWorkspace"
+        },
+        {
+          "command": "rapidkit.aiForWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "rapidkit.aiForProject",
+          "when": "false"
+        },
+        {
+          "command": "rapidkit.aiForModule",
+          "when": "false"
         }
       ],
       "view/title": [
+        {
+          "command": "rapidkit.debugWithAI",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@0"
+        },
+        {
+          "command": "rapidkit.quickSwitchWorkspace",
+          "when": "view == rapidkitWorkspaces",
+          "group": "navigation@0"
+        },
         {
           "command": "rapidkit.refreshWorkspaces",
           "when": "view == rapidkitWorkspaces",
@@ -548,7 +632,7 @@
           "group": "navigation@3"
         },
         {
-          "command": "rapidkit.createProject",
+          "command": "rapidkit.aiCreateProject",
           "when": "view == rapidkitProjects && rapidkit:workspaceSelected",
           "group": "navigation@1"
         },
@@ -556,6 +640,11 @@
           "command": "rapidkit.refreshProjects",
           "when": "view == rapidkitProjects",
           "group": "navigation@2"
+        },
+        {
+          "command": "workbench.actions.treeView.rapidkitProjects.collapseAll",
+          "when": "view == rapidkitProjects",
+          "group": "navigation@3"
         },
         {
           "command": "rapidkit.doctorEvidence.rerun",
@@ -575,19 +664,29 @@
       ],
       "view/item/context": [
         {
-          "command": "rapidkit.exportWorkspace",
+          "command": "rapidkit.doctorEvidence.fixIssueWithAI",
+          "when": "view == rapidkitDoctorEvidence && viewItem == doctorIssue",
+          "group": "inline@1"
+        },
+        {
+          "command": "rapidkit.aiForWorkspace",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@1"
         },
         {
-          "command": "rapidkit.checkWorkspaceHealth",
+          "command": "rapidkit.exportWorkspace",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@2"
         },
         {
-          "command": "rapidkit.workspaceInit",
+          "command": "rapidkit.checkWorkspaceHealth",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@3"
+        },
+        {
+          "command": "rapidkit.workspaceInit",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@4"
         },
         {
           "command": "rapidkit.openWorkspaceFolder",
@@ -690,34 +789,39 @@
           "group": "z_danger@99"
         },
         {
-          "command": "rapidkit.projectTerminal",
+          "command": "rapidkit.aiForProject",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@1"
         },
         {
-          "command": "rapidkit.projectInit",
+          "command": "rapidkit.projectTerminal",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@2"
         },
         {
+          "command": "rapidkit.projectInit",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@3"
+        },
+        {
           "command": "rapidkit.projectDev",
           "when": "view == rapidkitProjects && viewItem == project",
-          "group": "inline@3"
+          "group": "inline@4"
         },
         {
           "command": "rapidkit.projectStop",
           "when": "view == rapidkitProjects && viewItem == project-running",
-          "group": "inline@3"
+          "group": "inline@4"
         },
         {
           "command": "rapidkit.projectTest",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
-          "group": "inline@4"
+          "group": "inline@5"
         },
         {
           "command": "rapidkit.projectBrowser",
           "when": "view == rapidkitProjects && viewItem == project-running",
-          "group": "inline@5"
+          "group": "inline@6"
         },
         {
           "command": "rapidkit.newFile",
@@ -743,6 +847,11 @@
           "command": "rapidkit.revealInExplorer",
           "when": "view == rapidkitProjects && viewItem =~ /^(project|file|folder)$/",
           "group": "navigation@3"
+        },
+        {
+          "command": "rapidkit.aiForModule",
+          "when": "view == rapidkitModules && viewItem == module",
+          "group": "inline@1"
         }
       ],
       "explorer/context": [
@@ -823,6 +932,28 @@
           "type": "boolean",
           "default": true,
           "description": "Check for RapidKit npm package updates"
+        },
+        "workspai.preferredModel": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "gpt-4o",
+            "gpt-4.1",
+            "claude-sonnet-4-5",
+            "claude-3-7-sonnet",
+            "gpt-4o-mini"
+          ],
+          "enumDescriptions": [
+            "Automatically select the best available Copilot model",
+            "GPT-4o — best overall quality",
+            "GPT-4.1 — latest OpenAI model",
+            "Claude Sonnet 4.5 — fast and highly capable",
+            "Claude 3.7 Sonnet — strongest reasoning",
+            "GPT-4o Mini — faster, lower cost"
+          ],
+          "description": "Preferred AI model for Workspai AI features. Requires GitHub Copilot.",
+          "scope": "window"
         }
       }
     },
@@ -841,6 +972,16 @@
         "command": "rapidkit.addModule",
         "key": "ctrl+shift+r ctrl+shift+m",
         "mac": "cmd+shift+r cmd+shift+m"
+      },
+      {
+        "command": "rapidkit.debugWithAI",
+        "key": "ctrl+shift+r ctrl+shift+d",
+        "mac": "cmd+shift+r cmd+shift+d"
+      },
+      {
+        "command": "rapidkit.workspaceBrain",
+        "key": "ctrl+shift+r ctrl+shift+b",
+        "mac": "cmd+shift+r cmd+shift+b"
       }
     ],
     "snippets": [

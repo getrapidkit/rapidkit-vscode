@@ -354,7 +354,7 @@
 
 /* Focus visible for keyboard navigation */
 *:focus-visible {
-    outline: 2px solid #00cfc1;
+    outline: 2px solid #6C5CE7;
     outline-offset: 2px;
     border-radius: 4px;
 }
@@ -365,7 +365,7 @@ button:focus-visible,
 .module-card:focus-visible,
 .filter-btn:focus-visible,
 a:focus-visible {
-    outline: 2px solid #00cfc1;
+    outline: 2px solid #6C5CE7;
     outline-offset: 2px;
 }
 
@@ -379,7 +379,7 @@ a:focus {
 .module-install-btn:focus-visible,
 .command-copy:focus-visible,
 .ws-close:focus-visible {
-    outline: 2px solid #00cfc1;
+    outline: 2px solid #6C5CE7;
     outline-offset: 1px;
 }
 

@@ -1038,7 +1038,7 @@ Thumbs.db
         const { execa } = await import('execa');
         await execa('git', ['init'], { cwd: workspacePath });
         await execa('git', ['add', '.'], { cwd: workspacePath });
-        await execa('git', ['commit', '-m', 'Initial commit: RapidKit workspace (fallback mode)'], {
+        await execa('git', ['commit', '-m', 'Initial commit: Workspai workspace (fallback mode)'], {
           cwd: workspacePath,
         });
         logger.info('Initialized git repository');

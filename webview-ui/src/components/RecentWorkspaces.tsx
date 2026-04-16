@@ -13,6 +13,7 @@ interface RecentWorkspacesProps {
     onUpgrade?: (workspace: Workspace) => void;
     onCheckHealth?: (workspace: Workspace) => void;
     onExport?: (workspace: Workspace) => void;
+    onAI?: (workspace: Workspace) => void;
 }
 
 const getStatusIcon = (status?: string) => {
@@ -49,7 +50,7 @@ const formatDate = (timestamp?: number): string => {
     return date.toLocaleDateString();
 };
 
-export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport }: RecentWorkspacesProps) {
+export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport, onAI }: RecentWorkspacesProps) {
     const [showAll, setShowAll] = useState(false);
     /** path of workspace currently performing an action (health/export/upgrade) */
     const [busyPath, setBusyPath] = useState<string | null>(null);
@@ -174,6 +175,19 @@ export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, 
                                         {!shouldShowUpgrade && !isBusy && getStatusIcon(workspace.coreStatus)}
 
                                         {/* Action buttons - only on hover, hidden while busy */}
+                                        {!isBusy && onAI && (
+                                            <button
+                                                className="ws-ai-btn ws-hover-show"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onAI(workspace);
+                                                }}
+                                                title="Ask AI about this workspace"
+                                                aria-label={`AI actions for ${workspace.name}`}
+                                            >
+                                                ✦
+                                            </button>
+                                        )}
                                         {!isBusy && onCheckHealth && (
                                             <button
                                                 className="ws-doctor-btn ws-hover-show"

@@ -7,13 +7,13 @@ export function Header({ version }: HeaderProps) {
         <div className="header">
             <img className="logo" src={(window as any).ICON_URI} alt="Workspai Logo" />
             <h1>
-                <span className="rapid">worksp</span>
-                <span className="kit">ai</span>
+                <span className="rapid">workspai</span>
+                {/* <span className="kit">ai</span> */}
             </h1>
             <p className="tagline">
-                Workspai (formerly RapidKit) — An AI-powered developer toolkit for building, scaling, and deploying backend services.
+                Build backend systems with AI that knows your workspace.
             </p>
-            <span className="version">v{version}</span>
+            {/* <span className="version">v{version}</span> */}
         </div>
     );
 }

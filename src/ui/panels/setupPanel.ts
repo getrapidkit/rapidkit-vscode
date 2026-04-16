@@ -1056,7 +1056,7 @@ export class SetupPanel {
 
   private _getHtmlContent(context: vscode.ExtensionContext): string {
     const rapidkitIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkits.svg')
     );
     const fontUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'fonts', 'MuseoModerno-Bold.ttf')
@@ -1481,7 +1481,7 @@ export class SetupPanel {
 <body>
   <div class="container">
     <div class="header">
-      <h1><span class="rapid">worksp</span><span class="kit">ai</span></h1>
+      <h1><span class="rapid">workspai</span></h1>
       <p class="tagline">Setup & Installation</p>
     </div>
 

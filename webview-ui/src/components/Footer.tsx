@@ -32,7 +32,7 @@ export function Footer() {
                 </a>
             </div>
             <div className="copyright">
-                Made with <span className="heart">❤️</span> by Workspai Team
+                Made with <span className="heart">❤️</span> by RapidKit Team
             </div>
         </div>
     );

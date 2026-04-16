@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { X, Code, AlertCircle, Package } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Code, AlertCircle, Package, Sparkles, Loader2 } from 'lucide-react';
+import { vscode } from '@/vscode';
 import type { Kit } from '@/types';
 
 interface CreateProjectModalProps {
@@ -8,12 +9,17 @@ interface CreateProjectModalProps {
     availableKits: Kit[];
     onClose: () => void;
     onCreate: (name: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => void;
+    onSwitchToAI?: () => void;
 }
 
-export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate }: CreateProjectModalProps) {
+export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate, onSwitchToAI }: CreateProjectModalProps) {
     const [projectName, setProjectName] = useState('');
     const [selectedKit, setSelectedKit] = useState('');
     const [error, setError] = useState('');
+    const [aiSuggestions, setAiSuggestions] = useState<{ slug: string; reason: string }[]>([]);
+    const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+    const [aiSuggestError, setAiSuggestError] = useState('');
+    const suggestListenerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
     // Filter kits by framework
     const frameworkKits = availableKits.filter(kit => kit.category === framework);
@@ -22,11 +28,41 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
         if (isOpen) {
             setProjectName('');
             setError('');
+            setAiSuggestions([]);
+            setAiSuggestError('');
+            setAiSuggestLoading(false);
             // Auto-select first kit
             const kits = availableKits.filter(kit => kit.category === framework);
             setSelectedKit(kits.length > 0 ? kits[0].name : '');
         }
     }, [isOpen, framework, availableKits]);
+
+    const handleAISuggest = () => {
+        setAiSuggestLoading(true);
+        setAiSuggestions([]);
+        setAiSuggestError('');
+
+        // Remove previous listener
+        if (suggestListenerRef.current) {
+            window.removeEventListener('message', suggestListenerRef.current);
+        }
+
+        const listener = (e: MessageEvent) => {
+            if (e.data?.command === 'aiModuleSuggestions') {
+                const { loading, suggestions, error: err } = e.data.data ?? {};
+                if (!loading) {
+                    setAiSuggestLoading(false);
+                    if (err) setAiSuggestError(err);
+                    else setAiSuggestions(suggestions ?? []);
+                    window.removeEventListener('message', listener);
+                }
+            }
+        };
+        suggestListenerRef.current = listener;
+        window.addEventListener('message', listener);
+
+        vscode.postMessage('aiSuggestModules', { framework, projectName });
+    };
 
     const frameworkInfo = {
         fastapi: {
@@ -374,71 +410,141 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                                 <li>Project will be created in the current workspace</li>
                             </ul>
                         </div>
+
+                        {/* AI Module Suggestions */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button
+                                onClick={handleAISuggest}
+                                disabled={aiSuggestLoading}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    padding: '7px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 600,
+                                    cursor: aiSuggestLoading ? 'wait' : 'pointer',
+                                    background: 'color-mix(in srgb, #6C5CE7 8%, var(--vscode-editor-background))',
+                                    border: '1px solid color-mix(in srgb, #6C5CE7 25%, transparent)',
+                                    color: '#8B7CF8',
+                                    transition: 'all 0.15s',
+                                    opacity: aiSuggestLoading ? 0.6 : 1,
+                                }}
+                            >
+                                {aiSuggestLoading
+                                    ? <><Loader2 size={11} style={{ animation: 'spin 0.8s linear infinite' }} /> Asking AI…</>
+                                    : <><Sparkles size={11} /> Suggest modules with AI</>
+                                }
+                            </button>
+
+                            {aiSuggestError && (
+                                <div style={{ fontSize: '11px', color: 'var(--vscode-errorForeground)', opacity: 0.8 }}>
+                                    {aiSuggestError}
+                                </div>
+                            )}
+
+                            {aiSuggestions.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--vscode-descriptionForeground)', opacity: 0.6 }}>
+                                        AI Recommended Modules
+                                    </div>
+                                    {aiSuggestions.map((s) => (
+                                        <div key={s.slug} style={{
+                                            display: 'flex', alignItems: 'flex-start', gap: '8px',
+                                            padding: '6px 10px', borderRadius: '6px', fontSize: '11px',
+                                            background: 'color-mix(in srgb, #22c55e 6%, var(--vscode-editor-background))',
+                                            border: '1px solid color-mix(in srgb, #22c55e 18%, transparent)',
+                                        }}>
+                                            <span style={{ color: '#4ade80', fontWeight: 700, fontFamily: 'monospace', flexShrink: 0 }}>{s.slug}</span>
+                                            <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.8 }}>{s.reason}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Footer */}
                     <div
                         style={{
                             display: 'flex',
-                            justifyContent: 'flex-end',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
                             gap: '12px',
                             padding: '16px 24px',
                             borderTop: '1px solid var(--vscode-panel-border)',
                         }}
                     >
-                        <button
-                            onClick={onClose}
-                            style={{
-                                padding: '8px 16px',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                borderRadius: '6px',
-                                border: '1px solid var(--vscode-button-border)',
-                                backgroundColor: 'var(--vscode-button-secondaryBackground)',
-                                color: 'var(--vscode-button-secondaryForeground)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                    'var(--vscode-button-secondaryHoverBackground)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                    'var(--vscode-button-secondaryBackground)';
-                            }}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleCreate}
-                            disabled={!projectName.trim() || !!error}
-                            style={{
-                                padding: '8px 20px',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                borderRadius: '6px',
-                                border: 'none',
-                                backgroundColor: projectName.trim() && !error ? info.color : '#555',
-                                color: 'white',
-                                cursor: projectName.trim() && !error ? 'pointer' : 'not-allowed',
-                                transition: 'all 0.2s',
-                                opacity: projectName.trim() && !error ? 1 : 0.5,
-                            }}
-                            onMouseEnter={(e) => {
-                                if (projectName.trim() && !error) {
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = `0 4px 12px ${info.color}40`;
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = 'none';
-                            }}
-                        >
-                            Create Project
-                        </button>
-                    </div>
+                        {/* AI switch link */}
+                        {onSwitchToAI ? (
+                            <button
+                                onClick={onSwitchToAI}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    background: 'transparent', border: 'none',
+                                    color: '#6C5CE7', cursor: 'pointer',
+                                    fontSize: '11px', fontWeight: 600,
+                                    opacity: 0.75, padding: 0,
+                                    transition: 'opacity 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                                onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
+                            >
+                                <Sparkles size={12} />
+                                Use AI instead
+                            </button>
+                        ) : <span />}
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button
+                                onClick={onClose}
+                                style={{
+                                    padding: '8px 16px',
+                                    fontSize: '13px',
+                                    fontWeight: 500,
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--vscode-button-border)',
+                                    backgroundColor: 'var(--vscode-button-secondaryBackground)',
+                                    color: 'var(--vscode-button-secondaryForeground)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor =
+                                        'var(--vscode-button-secondaryHoverBackground)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor =
+                                        'var(--vscode-button-secondaryBackground)';
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreate}
+                                disabled={!projectName.trim() || !!error}
+                                style={{
+                                    padding: '8px 20px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    backgroundColor: projectName.trim() && !error ? info.color : '#555',
+                                    color: 'white',
+                                    cursor: projectName.trim() && !error ? 'pointer' : 'not-allowed',
+                                    transition: 'all 0.2s',
+                                    opacity: projectName.trim() && !error ? 1 : 0.5,
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (projectName.trim() && !error) {
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = `0 4px 12px ${info.color}40`;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                Create Project
+                            </button>
+                        </div>  {/* end buttons row */}
+                    </div>  {/* end footer */}
                 </div>
             </div>
 

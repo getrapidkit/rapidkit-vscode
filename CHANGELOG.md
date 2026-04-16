@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-16
+
+### Added
+
+- ✦ **AI Debug Actions (Code Actions)** — `✦ Debug with Workspai AI` and `✦ Explain error with AI` quick-fix actions appear in the editor lightbulb for Python, TypeScript, JavaScript, and Go files that have diagnostics or a text selection; opens the AI modal with the error/selection pre-filled in Debug mode
+- ✦ **Doctor Fix with AI** — each issue in the **Workspace Health** sidebar panel now has a ✨ inline button; clicking it opens the AI modal with the full issue context pre-filled, ready for analysis
+- ✦ **AI Module Suggestions** — the Create Project modal now has a "Suggest modules with AI" button that recommends the top modules for your chosen framework and project description
+- **Minimizable AI Create modal** — a `−` minimize button appears during `thinking` and `creating` steps; the modal collapses to a floating pill in the bottom-left corner so the dashboard stays usable; auto-restores when creation completes
+
+### Changed
+
+- **Quick Actions sidebar** — consolidated to a single `✦ AI Assistant` button (`$(sparkle)` icon) that opens the AI modal; redundant "Workspace Brain" button removed
+- **`rapidkit.debugWithAI` command** — now opens the main Workspai panel AI modal instead of a separate HTML tab; context (editor selection or diagnostics) is passed as `prefillQuestion`
+- **`rapidkit.workspaceBrain` command** — now focuses the main Workspai panel instead of opening a separate HTML tab
+- **Doctor Fix with AI** — removed scratch-doc workaround; issue text is now passed directly as `prefillQuestion` to the AI modal
+
+### Fixed
+
+- `AIModal.tsx` — added `context` to `useEffect` dependency array so that `prefillQuestion` is correctly applied even when the modal is already mounted with a previous context
+
+
+
+### Added
+
+- ✦ **AI actions on workspace cards** — each workspace in the Recent Workspaces list now has a `✦` button (visible on hover) that opens the AI modal pre-loaded with that workspace's context
+- ✦ **AI actions on module cards** — each module card in the Module Browser now has a `✦` button that opens the AI modal with the module's context (Module Advisor)
+- **`aiForWorkspace` / `aiForModule` webview messages** handled in `WelcomePanel` — routes to `showAIModal()` with correct context type
+
+### Fixed
+
+- **Critical: `command 'rapidkit.workspaceSelected' already exists`** — removed duplicate `registerCommand` call from `ProjectExplorer` constructor; command is now registered only once in `extension.ts`
+- `projectExplorer.setWorkspace()` is now correctly called when `rapidkit.workspaceSelected` fires (previously only `doctorEvidenceExplorer.refresh()` was called)
+
 ## [0.16.0] - 2026-03-22
 
 ### Added

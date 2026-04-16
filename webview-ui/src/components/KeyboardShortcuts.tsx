@@ -10,7 +10,7 @@ export function KeyboardShortcuts() {
     return (
         <div className="section">
             <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Keyboard size={18} style={{ color: '#00cfc1' }} />
+                <Keyboard size={18} style={{ color: '#6C5CE7' }} />
                 Keyboard Shortcuts
             </div>
             <div className="shortcuts">

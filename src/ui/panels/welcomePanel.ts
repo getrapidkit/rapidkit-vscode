@@ -34,8 +34,11 @@ export class WelcomePanel {
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
   /** Framework name queued to open as a modal after the webview becomes ready */
   private static _pendingModal: string | null = null;
+  private static _pendingAICreateMode: 'workspace' | 'project' = 'workspace';
   /** Module data queued to show as install modal after webview becomes ready */
   private static _pendingModuleModal: any | null = null;
+  /** AI modal context queued to show after webview becomes ready */
+  private static _pendingAIModal: import('../../core/aiService').AIModalContext | null = null;
   /** Cached extension context so static methods can open the panel */
   private static _extensionContext: vscode.ExtensionContext | undefined;
 
@@ -90,6 +93,28 @@ export class WelcomePanel {
     }, 350);
   }
 
+  /**
+   * Open the welcome panel and immediately show the AI assistant modal for a given context.
+   */
+  public static showAIModal(
+    context: vscode.ExtensionContext,
+    aiContext: import('../../core/aiService').AIModalContext
+  ): void {
+    WelcomePanel._pendingAIModal = aiContext;
+    WelcomePanel._extensionContext = context;
+    WelcomePanel.createOrShow(context);
+    setTimeout(() => {
+      if (WelcomePanel._pendingAIModal && WelcomePanel.currentPanel) {
+        const data = WelcomePanel._pendingAIModal;
+        WelcomePanel._pendingAIModal = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openAIModal',
+          data,
+        });
+      }
+    }, 350);
+  }
+
   public static openWorkspaceModal(context: vscode.ExtensionContext): void {
     WelcomePanel._pendingModal = '__workspace__';
     WelcomePanel.createOrShow(context);
@@ -98,6 +123,28 @@ export class WelcomePanel {
         WelcomePanel._pendingModal = null;
         WelcomePanel.currentPanel._panel.webview.postMessage({
           command: 'openWorkspaceModal',
+        });
+      }
+    }, 350);
+  }
+
+  /**
+   * Open the welcome panel and immediately show the AI Create modal (workspace mode).
+   * Called from the sidebar Quick Actions "Create with AI" button.
+   */
+  public static openAICreateModal(
+    context: vscode.ExtensionContext,
+    mode: 'workspace' | 'project' = 'workspace'
+  ): void {
+    WelcomePanel._pendingModal = '__ai_create__';
+    WelcomePanel._pendingAICreateMode = mode;
+    WelcomePanel.createOrShow(context);
+    setTimeout(() => {
+      if (WelcomePanel._pendingModal === '__ai_create__' && WelcomePanel.currentPanel) {
+        WelcomePanel._pendingModal = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openAICreateModal',
+          data: { mode },
         });
       }
     }, 350);
@@ -266,6 +313,11 @@ export class WelcomePanel {
               setTimeout(() => {
                 if (pending === '__workspace__') {
                   this._panel.webview.postMessage({ command: 'openWorkspaceModal' });
+                } else if (pending === '__ai_create__') {
+                  this._panel.webview.postMessage({
+                    command: 'openAICreateModal',
+                    data: { mode: WelcomePanel._pendingAICreateMode },
+                  });
                 } else {
                   this._panel.webview.postMessage({
                     command: 'openProjectModal',
@@ -285,54 +337,55 @@ export class WelcomePanel {
                 });
               }, 300);
             }
+            // If an AI modal was queued (triggered from tree view inline button), open it now
+            if (WelcomePanel._pendingAIModal) {
+              const aiCtx = WelcomePanel._pendingAIModal;
+              WelcomePanel._pendingAIModal = null;
+              setTimeout(() => {
+                this._panel.webview.postMessage({
+                  command: 'openAIModal',
+                  data: aiCtx,
+                });
+              }, 300);
+            }
             break;
           case 'createWorkspace':
-            // Send loading state to webview
+            // Close the modal immediately — don't block on command execution
             this._panel.webview.postMessage({
               command: 'setCreatingWorkspace',
-              data: { isLoading: true },
+              data: { isLoading: false },
             });
-            try {
-              // Pass full config from modal; fall back to no-arg (launches wizard)
-              if (message.data?.name) {
-                await vscode.commands.executeCommand('rapidkit.createWorkspace', message.data);
-              } else {
-                await vscode.commands.executeCommand('rapidkit.createWorkspace');
-              }
-            } finally {
-              // Reset loading state
-              this._panel.webview.postMessage({
-                command: 'setCreatingWorkspace',
-                data: { isLoading: false },
-              });
+            // Fire and forget — notifications/progress run in background
+            if (message.data?.name) {
+              vscode.commands.executeCommand('rapidkit.createWorkspace', message.data);
+            } else {
+              vscode.commands.executeCommand('rapidkit.createWorkspace');
             }
             break;
           case 'createFastAPIProject':
+            // Close project modal immediately
+            this._panel.webview.postMessage({ command: 'closeProjectModal' });
             if (message.data?.name) {
-              // Modal provided name, pass to command
-              await vscode.commands.executeCommand(
-                'rapidkit.createFastAPIProject',
-                message.data.name
-              );
+              vscode.commands.executeCommand('rapidkit.createFastAPIProject', message.data.name);
             } else {
-              await vscode.commands.executeCommand('rapidkit.createFastAPIProject');
+              vscode.commands.executeCommand('rapidkit.createFastAPIProject');
             }
             break;
           case 'createNestJSProject':
+            // Close project modal immediately
+            this._panel.webview.postMessage({ command: 'closeProjectModal' });
             if (message.data?.name) {
-              // Modal provided name, pass to command
-              await vscode.commands.executeCommand(
-                'rapidkit.createNestJSProject',
-                message.data.name
-              );
+              vscode.commands.executeCommand('rapidkit.createNestJSProject', message.data.name);
             } else {
-              await vscode.commands.executeCommand('rapidkit.createNestJSProject');
+              vscode.commands.executeCommand('rapidkit.createNestJSProject');
             }
             break;
           case 'createProjectWithKit':
             // New handler for kit-aware project creation from modal
             if (message.data?.name && message.data?.framework && message.data?.kit) {
               console.log('[WelcomePanel] Creating project with kit:', message.data);
+              // Close modal immediately
+              this._panel.webview.postMessage({ command: 'closeProjectModal' });
 
               // Get selected workspace path
               let workspacePath: string | undefined;
@@ -341,19 +394,235 @@ export class WelcomePanel {
                 workspacePath = selectedWorkspace?.path;
               }
 
-              // Import createProjectCommand
-              const { createProjectCommand } = await import('../../commands/createProject.js');
-              await createProjectCommand(
-                workspacePath, // Use selected workspace path
-                message.data.framework, // preselectedFramework
-                message.data.name, // projectName
-                message.data.kit // kitName
-              );
+              // Fire and forget
+              (async () => {
+                const { createProjectCommand } = await import('../../commands/createProject.js');
+                await createProjectCommand(
+                  workspacePath,
+                  message.data.framework,
+                  message.data.name,
+                  message.data.kit
+                );
+              })();
             }
             break;
           case 'openSetup':
             await vscode.commands.executeCommand('rapidkit.openSetup');
             break;
+          case 'debugWithAI':
+            await vscode.commands.executeCommand('rapidkit.debugWithAI');
+            break;
+          case 'workspaceBrain':
+            await vscode.commands.executeCommand('rapidkit.workspaceBrain');
+            break;
+          case 'aiSuggestModules': {
+            // AI module recommendation based on framework + project name
+            const { framework: fw, projectName: pn } = message.data || {};
+            if (!fw) {
+              break;
+            }
+            const panel = this._panel;
+            try {
+              const { selectModelWithPreference, fetchLiveModules } =
+                await import('../../core/aiService.js');
+              const { model, modelId } = await selectModelWithPreference();
+              panel.webview.postMessage({
+                command: 'aiModuleSuggestions',
+                data: { loading: true, modelId },
+              });
+
+              const liveModules = fetchLiveModules();
+              const moduleList = liveModules
+                ? liveModules.map((m: any) => `- ${m.slug}: ${m.description ?? ''}`).join('\n')
+                : '(module list not available)';
+
+              const prompt = `You are a Workspai assistant. Recommend the top 5 most useful Workspai modules for a ${fw} project named "${pn || 'my-project'}".
+Available modules:
+${moduleList}
+
+Reply ONLY with a JSON array of objects like: [{"slug": "free/auth/jwt", "reason": "short reason"}]
+No markdown, no explanation outside the JSON.`;
+
+              const token = new vscode.CancellationTokenSource().token;
+              const response = await model.sendRequest(
+                [vscode.LanguageModelChatMessage.User(prompt)],
+                {},
+                token
+              );
+
+              let raw = '';
+              for await (const chunk of response.text) {
+                raw += chunk;
+              }
+
+              // Extract JSON from response
+              const jsonMatch = raw.match(/\[[\s\S]*\]/);
+              const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+              panel.webview.postMessage({
+                command: 'aiModuleSuggestions',
+                data: { loading: false, modelId, suggestions },
+              });
+            } catch (err: any) {
+              panel.webview.postMessage({
+                command: 'aiModuleSuggestions',
+                data: { loading: false, error: err?.message ?? 'AI unavailable' },
+              });
+            }
+            break;
+          }
+          case 'aiQuery': {
+            // Stream AI response for the AI modal queries
+            const { mode, question, context: aiCtx } = message.data || {};
+            if (!question || !aiCtx) {
+              break;
+            }
+            const panel = this._panel;
+            try {
+              const {
+                streamAIResponse,
+                buildWorkspaiSystemPrompt,
+                buildAIModalUserMessage,
+                scanProjectContext,
+              } = await import('../../core/aiService.js');
+
+              // Scan the real project for rich context
+              const scanned = aiCtx.path
+                ? await scanProjectContext(aiCtx.path, aiCtx.framework).catch(() => null)
+                : null;
+
+              const systemPrompt = buildWorkspaiSystemPrompt(aiCtx, scanned ?? undefined);
+              const userMessage = buildAIModalUserMessage(
+                mode,
+                question,
+                aiCtx,
+                scanned ?? undefined
+              );
+
+              const { modelId } = await streamAIResponse(
+                [
+                  { role: 'user', content: systemPrompt },
+                  {
+                    role: 'assistant',
+                    content:
+                      'Understood. I will follow Workspai standards and real project context.',
+                  },
+                  { role: 'user', content: userMessage },
+                ],
+                (chunk) => {
+                  if (chunk.text) {
+                    panel.webview.postMessage({
+                      command: 'aiChunkUpdate',
+                      data: { text: chunk.text },
+                    });
+                  }
+                  if (chunk.done) {
+                    panel.webview.postMessage({ command: 'aiStreamDone' });
+                  }
+                }
+              );
+              // Notify the webview which model was used
+              panel.webview.postMessage({ command: 'aiModelUsed', data: { modelId } });
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              panel.webview.postMessage({ command: 'aiStreamDone', data: { error: errMsg } });
+            }
+            break;
+          }
+          case 'aiParseCreation': {
+            // Parse workspace/project creation intent via AI
+            const {
+              prompt: creationPrompt,
+              mode: creationMode,
+              framework: creationFw,
+            } = message.data || {};
+            if (!creationPrompt || creationPrompt === '__reset__') {
+              this._panel.webview.postMessage({ command: 'aiCreationReset' });
+              break;
+            }
+            const panel = this._panel;
+            panel.webview.postMessage({ command: 'aiCreationThinking', data: { thinking: true } });
+            try {
+              const { parseCreationIntent } = await import('../../core/aiService.js');
+              const { plan, modelId } = await parseCreationIntent(
+                creationPrompt,
+                creationMode ?? 'workspace',
+                creationFw
+              );
+              panel.webview.postMessage({ command: 'aiCreationPlan', data: { plan, modelId } });
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              panel.webview.postMessage({ command: 'aiCreationError', data: { error: errMsg } });
+            } finally {
+              panel.webview.postMessage({
+                command: 'aiCreationThinking',
+                data: { thinking: false },
+              });
+            }
+            break;
+          }
+          case 'aiCreateConfirm': {
+            // Execute workspace + project creation from AI plan
+            const plan = message.data;
+            if (!plan) {
+              break;
+            }
+            const panel = this._panel;
+            panel.webview.postMessage({ command: 'aiCreationStarted' });
+            try {
+              if (plan.type === 'workspace') {
+                // Create workspace with the AI-resolved config
+                const wsConfig = {
+                  name: plan.workspaceName,
+                  profile: plan.profile,
+                  installMethod: plan.installMethod ?? 'auto',
+                  initGit: true,
+                  policyMode: 'warn',
+                  dependencySharing: 'isolated',
+                };
+                await vscode.commands.executeCommand('rapidkit.createWorkspace', wsConfig);
+
+                // Compute the expected workspace path (always created under ~/Workspai/rapidkits/<name>)
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const os = require('os') as typeof import('os');
+                const wsPath = path.join(os.homedir(), 'Workspai', 'rapidkits', plan.workspaceName);
+                const wsExists = await fs.pathExists(wsPath);
+
+                if (wsExists && plan.projectName) {
+                  // Workspace was created — now create the first project inside it
+                  panel.webview.postMessage({
+                    command: 'aiCreationProgress',
+                    data: { stage: 'workspace_done' },
+                  });
+                  const { createProjectCommand } = await import('../../commands/createProject.js');
+                  await createProjectCommand(wsPath, plan.framework, plan.projectName, plan.kit);
+                }
+
+                panel.webview.postMessage({ command: 'aiCreationDone', data: { plan } });
+              } else {
+                // Project-only creation (inside existing selected workspace)
+                let workspacePath: string | undefined;
+                if (WelcomePanel._workspaceExplorer) {
+                  workspacePath = WelcomePanel._workspaceExplorer.getSelectedWorkspace()?.path;
+                }
+                const { createProjectCommand } = await import('../../commands/createProject.js');
+                await createProjectCommand(
+                  workspacePath,
+                  plan.framework,
+                  plan.projectName,
+                  plan.kit
+                );
+                panel.webview.postMessage({ command: 'aiCreationDone', data: { plan } });
+              }
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              panel.webview.postMessage({ command: 'aiCreationError', data: { error: errMsg } });
+              panel.webview.postMessage({
+                command: 'aiCreationThinking',
+                data: { thinking: false },
+              });
+            }
+            break;
+          }
           case 'refreshWorkspaces':
             CoreVersionService.getInstance().clearCache();
             this._sendRecentWorkspaces();
@@ -520,6 +789,20 @@ export class WelcomePanel {
               });
             }
             break;
+          case 'aiForWorkspace':
+            WelcomePanel.showAIModal(WelcomePanel._extensionContext!, {
+              type: 'workspace',
+              name: message.data?.workspaceName || 'Workspace',
+              path: message.data?.workspacePath,
+            });
+            break;
+          case 'aiForModule':
+            WelcomePanel.showAIModal(WelcomePanel._extensionContext!, {
+              type: 'module',
+              name: message.data?.moduleName || 'Module',
+              moduleSlug: message.data?.moduleSlug,
+            });
+            break;
           case 'projectTerminal':
             if (WelcomePanel._selectedProject) {
               await vscode.commands.executeCommand('rapidkit.projectTerminal', {
@@ -595,7 +878,7 @@ export class WelcomePanel {
     // Create new panel
     const panel = vscode.window.createWebviewPanel(
       'rapidkitWelcomeReact',
-      '🚀 Welcome to Workspai',
+      'Workspai Dashboard',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -606,6 +889,8 @@ export class WelcomePanel {
         ],
       }
     );
+
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg');
 
     WelcomePanel.currentPanel = new WelcomePanel(panel, context);
   }

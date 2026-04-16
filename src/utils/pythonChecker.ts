@@ -344,11 +344,11 @@ export async function hasPythonVenv(): Promise<boolean> {
  */
 export function getPythonErrorMessage(checkResult: PythonCheckResult): string {
   if (!checkResult.available) {
-    return `Python not found on your system.\n\nRapidKit requires Python 3.10 or higher.\n\n${checkResult.recommendation}\n\nAfter installing Python, restart VS Code.`;
+    return `Python not found on your system.\n\nWorkspai requires Python 3.10 or higher through RapidKit Core.\n\n${checkResult.recommendation}\n\nAfter installing Python, restart VS Code.`;
   }
 
   if (!checkResult.meetsMinimumVersion) {
-    return `${checkResult.error}.\n\nRapidKit Core requires Python 3.10 or higher for compatibility.\n\nPlease upgrade Python and restart VS Code.`;
+    return `${checkResult.error}.\n\nWorkspai requires Python 3.10 or higher for RapidKit Core compatibility.\n\nPlease upgrade Python and restart VS Code.`;
   }
 
   if (!checkResult.venvSupport) {

@@ -92,13 +92,9 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   private selectedProject: WorkspaiProject | null = null;
 
   constructor() {
-    // Listen for workspace selection changes
-    vscode.commands.registerCommand(
-      'rapidkit.workspaceSelected',
-      (workspace: WorkspaiWorkspace) => {
-        this.setWorkspace(workspace);
-      }
-    );
+    // NOTE: 'rapidkit.workspaceSelected' is registered once in extension.ts
+    // and calls setWorkspace() on this instance via projectExplorer reference.
+    // Do NOT register it here to avoid "command already exists" on re-activation.
 
     // Register command to get selected workspace
     vscode.commands.registerCommand('rapidkit.getSelectedWorkspace', () => {
@@ -368,7 +364,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
     // === Project Item (not running) ===
     if (contextValue === 'project' && project) {
       this.tooltip = `${project.path}\n\n▶️ Click Play to start dev server${isSelected ? '\n\n✓ Currently selected for module operations' : ''}`;
-      this.description = `${frameworkLabel(project.type)}${isSelected ? ' ✓' : ''}`;
+      this.description = `${frameworkLabel(project.type)} 🟡${isSelected ? ' ✓' : ''}`;
 
       // Use custom framework icons
       if (extensionPath) {

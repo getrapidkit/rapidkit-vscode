@@ -169,7 +169,7 @@ export async function showSystemRequirementsError(
     // Python not found - can't auto-fix
     const message =
       '❌ Python not found on your system.\n\n' +
-      'RapidKit requires Python 3.10+ to create projects.\n\n' +
+      'Workspai project creation requires Python 3.10+ through RapidKit Core.\n\n' +
       'Please install Python from:\n' +
       '  • Ubuntu/Debian: sudo apt install python3.13\n' +
       '  • macOS: brew install python@3.13\n' +
@@ -194,7 +194,7 @@ export async function showSystemRequirementsError(
     // Python version too old
     const message =
       `❌ Python ${requirements.python.version} is too old.\n\n` +
-      'RapidKit requires Python 3.10 or higher.\n\n' +
+      'Workspai requires Python 3.10 or higher for RapidKit Core compatibility.\n\n' +
       'Please upgrade Python:\n' +
       '  • Ubuntu/Debian: sudo apt install python3.13\n' +
       '  • macOS: brew install python@3.13\n' +

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, FolderPlus, AlertCircle } from 'lucide-react';
+import { X, FolderPlus, AlertCircle, Sparkles } from 'lucide-react';
 import type { WorkspaceToolStatus } from '@/types';
 
 export type WorkspaceProfile = 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
@@ -18,6 +18,7 @@ interface CreateWorkspaceModalProps {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (config: WorkspaceCreationConfig) => void;
+    onSwitchToAI?: () => void;
     toolStatus?: WorkspaceToolStatus | null;
 }
 
@@ -37,7 +38,7 @@ const INSTALL_METHODS: { value: WorkspaceInstallMethod; label: string; desc: str
     { value: 'pipx', label: 'pipx', desc: 'Isolated pipx environments' },
 ];
 
-export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: CreateWorkspaceModalProps) {
+export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, toolStatus }: CreateWorkspaceModalProps) {
     const [workspaceName, setWorkspaceName] = useState('');
     const [error, setError] = useState('');
     const [profile, setProfile] = useState<WorkspaceProfile>('minimal');
@@ -151,7 +152,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
     if (!isOpen) return null;
 
     /* ── shared tokens ──────────────────────────────────────────────────── */
-    const teal = '#00cfc1';
+    const primary = '#6C5CE7';
     const cardBase: React.CSSProperties = {
         padding: '8px 6px',
         borderRadius: '8px',
@@ -202,7 +203,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                         borderBottom: '1px solid var(--vscode-panel-border)',
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <FolderPlus size={22} style={{ color: teal }} />
+                            <FolderPlus size={22} style={{ color: primary }} />
                             <span style={{ fontSize: '16px', fontWeight: 600 }}>Create Workspace</span>
                         </div>
                         <button onClick={onClose} style={{
@@ -240,7 +241,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                     fontFamily: 'var(--vscode-font-family)',
                                     transition: 'border-color 0.2s',
                                 }}
-                                onFocus={e => { if (!error) e.target.style.borderColor = teal; }}
+                                onFocus={e => { if (!error) e.target.style.borderColor = primary; }}
                                 onBlur={e => { if (!error) e.target.style.borderColor = 'var(--vscode-input-border)'; }}
                             />
                             {error ? (
@@ -268,15 +269,15 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                         onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setProfile(p.value)}
                                         style={{
                                             ...cardBase,
-                                            borderColor: profile === p.value ? teal : 'var(--vscode-panel-border)',
+                                            borderColor: profile === p.value ? primary : 'var(--vscode-panel-border)',
                                             backgroundColor: profile === p.value
                                                 ? 'rgba(0,207,193,0.08)'
                                                 : 'var(--vscode-input-background)',
-                                            boxShadow: profile === p.value ? `0 0 0 1px ${teal}` : 'none',
+                                            boxShadow: profile === p.value ? `0 0 0 1px ${primary}` : 'none',
                                         }}
                                     >
                                         <div style={{ fontSize: '18px', marginBottom: '3px' }}>{p.icon}</div>
-                                        <div style={{ fontSize: '11px', fontWeight: 600, color: profile === p.value ? teal : 'var(--vscode-foreground)' }}>{p.label}</div>
+                                        <div style={{ fontSize: '11px', fontWeight: 600, color: profile === p.value ? primary : 'var(--vscode-foreground)' }}>{p.label}</div>
                                         <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginTop: '2px' }}>{p.desc}</div>
                                     </div>
                                 ))}
@@ -301,7 +302,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: '8px',
                                                 padding: '8px 10px', borderRadius: '6px', cursor: enabled ? 'pointer' : 'not-allowed',
-                                                border: `1.5px solid ${installMethod === m.value ? teal : 'var(--vscode-panel-border)'}`,
+                                                border: `1.5px solid ${installMethod === m.value ? primary : 'var(--vscode-panel-border)'}`,
                                                 backgroundColor: installMethod === m.value ? 'rgba(0,207,193,0.07)' : 'var(--vscode-input-background)',
                                                 opacity: enabled ? 1 : 0.45,
                                                 transition: 'border-color 0.15s',
@@ -311,8 +312,8 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                         >
                                             <div style={{
                                                 width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
-                                                border: `2px solid ${installMethod === m.value ? teal : 'var(--vscode-descriptionForeground)'}`,
-                                                backgroundColor: installMethod === m.value ? teal : 'transparent',
+                                                border: `2px solid ${installMethod === m.value ? primary : 'var(--vscode-descriptionForeground)'}`,
+                                                backgroundColor: installMethod === m.value ? primary : 'transparent',
                                                 transition: 'all 0.15s',
                                             }} />
                                             <div>
@@ -354,7 +355,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '10px',
                                             padding: '8px 10px', borderRadius: '6px', cursor: 'pointer',
-                                            border: `1px solid ${opt.checked ? teal : 'var(--vscode-panel-border)'}`,
+                                            border: `1px solid ${opt.checked ? primary : 'var(--vscode-panel-border)'}`,
                                             backgroundColor: opt.checked ? 'rgba(0,207,193,0.06)' : 'transparent',
                                             transition: 'border-color 0.15s, background-color 0.15s',
                                             userSelect: 'none',
@@ -362,8 +363,8 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
                                     >
                                         <div style={{
                                             width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0,
-                                            border: `2px solid ${opt.checked ? teal : 'var(--vscode-descriptionForeground)'}`,
-                                            backgroundColor: opt.checked ? teal : 'transparent',
+                                            border: `2px solid ${opt.checked ? primary : 'var(--vscode-descriptionForeground)'}`,
+                                            backgroundColor: opt.checked ? primary : 'transparent',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             transition: 'all 0.15s',
                                         }}>
@@ -383,43 +384,64 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, toolStatus }: 
 
                     {/* ── Footer ─────────────────────────────────────────── */}
                     <div style={{
-                        display: 'flex', justifyContent: 'flex-end', gap: '10px',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px',
                         padding: '14px 24px',
                         borderTop: '1px solid var(--vscode-panel-border)',
                     }}>
-                        <button
-                            onClick={onClose}
-                            style={{
-                                padding: '7px 16px', fontSize: '13px', fontWeight: 500,
-                                borderRadius: '6px',
-                                border: '1px solid var(--vscode-button-border)',
-                                backgroundColor: 'var(--vscode-button-secondaryBackground)',
-                                color: 'var(--vscode-button-secondaryForeground)',
-                                cursor: 'pointer',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--vscode-button-secondaryHoverBackground)')}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--vscode-button-secondaryBackground)')}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleCreate}
-                            disabled={!workspaceName.trim() || !!error}
-                            style={{
-                                padding: '7px 20px', fontSize: '13px', fontWeight: 600,
-                                borderRadius: '6px', border: 'none',
-                                backgroundColor: workspaceName.trim() && !error ? teal : 'var(--vscode-button-secondaryBackground)',
-                                color: 'var(--vscode-button-foreground)',
-                                cursor: workspaceName.trim() && !error ? 'pointer' : 'not-allowed',
-                                opacity: workspaceName.trim() && !error ? 1 : 0.5,
-                                transition: 'background-color 0.2s, opacity 0.2s',
-                            }}
-                            onMouseEnter={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = '#00b8a8'; }}
-                            onMouseLeave={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = teal; }}
-                        >
-                            Create Workspace
-                        </button>
-                    </div>
+                        {/* AI switch link */}
+                        {onSwitchToAI ? (
+                            <button
+                                onClick={onSwitchToAI}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    background: 'transparent', border: 'none',
+                                    color: '#6C5CE7', cursor: 'pointer',
+                                    fontSize: '11px', fontWeight: 600,
+                                    opacity: 0.75, padding: 0,
+                                    transition: 'opacity 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                                onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
+                            >
+                                <Sparkles size={12} />
+                                Use AI instead
+                            </button>
+                        ) : <span />}
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={onClose}
+                                style={{
+                                    padding: '7px 16px', fontSize: '13px', fontWeight: 500,
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--vscode-button-border)',
+                                    backgroundColor: 'var(--vscode-button-secondaryBackground)',
+                                    color: 'var(--vscode-button-secondaryForeground)',
+                                    cursor: 'pointer',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--vscode-button-secondaryHoverBackground)')}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--vscode-button-secondaryBackground)')}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreate}
+                                disabled={!workspaceName.trim() || !!error}
+                                style={{
+                                    padding: '7px 20px', fontSize: '13px', fontWeight: 600,
+                                    borderRadius: '6px', border: 'none',
+                                    backgroundColor: workspaceName.trim() && !error ? primary : 'var(--vscode-button-secondaryBackground)',
+                                    color: 'var(--vscode-button-foreground)',
+                                    cursor: workspaceName.trim() && !error ? 'pointer' : 'not-allowed',
+                                    opacity: workspaceName.trim() && !error ? 1 : 0.5,
+                                    transition: 'background-color 0.2s, opacity 0.2s',
+                                }}
+                                onMouseEnter={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = '#00b8a8'; }}
+                                onMouseLeave={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = primary; }}
+                            >
+                                Create Workspace
+                            </button>
+                        </div>  {/* end buttons row */}
+                    </div>  {/* end footer */}
                 </div>
             </div>
 

@@ -182,7 +182,7 @@ export class KitsService {
         category: 'fastapi',
         version: '0.1.0',
         tags: ['fastapi', 'minimal', 'modular'],
-        description: 'Standard FastAPI starter that defers features to RapidKit modules.',
+        description: 'Standard FastAPI starter that defers features to Workspai modules.',
       },
       {
         name: 'fastapi.ddd',
@@ -199,7 +199,7 @@ export class KitsService {
         version: '0.1.0',
         tags: ['javascript', 'modular', 'nestjs', 'scalable', 'standard', 'typescript'],
         description:
-          'Production-ready NestJS starter kit with modular RapidKit integration and TypeScript best practices.',
+          'Production-ready NestJS starter kit with modular Workspai integration and TypeScript best practices.',
       },
       {
         name: 'gofiber.standard',

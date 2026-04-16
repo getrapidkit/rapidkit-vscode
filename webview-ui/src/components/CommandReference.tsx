@@ -238,7 +238,7 @@ export function CommandReference({
     return (
         <div className="section command-reference">
             <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Copy size={18} style={{ color: '#00cfc1' }} />
+                <Copy size={18} style={{ color: '#6C5CE7' }} />
                 Command Reference
                 {hasActiveWorkspace ? (
                     <span

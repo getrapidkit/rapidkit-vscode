@@ -16,15 +16,15 @@ export function HeroAction({ onClick, isLoading = false }: HeroActionProps) {
                 style={{ cursor: isLoading ? 'wait' : 'pointer', opacity: isLoading ? 0.7 : 1 }}
             >
                 {isLoading ? (
-                    <Loader2 className="hero-icon animate-spin" size={32} style={{ color: '#00cfc1' }} />
+                    <Loader2 className="hero-icon animate-spin" size={32} style={{ color: '#6C5CE7' }} />
                 ) : (
-                    <Rocket className="hero-icon" size={32} style={{ color: '#00cfc1' }} />
+                    <Rocket className="hero-icon" size={32} style={{ color: '#6C5CE7' }} />
                 )}
-                <div className="hero-title">New Workspace</div>
+                <div className="hero-title">AI Workspace Builder</div>
                 <p className="hero-description">
-                    Create a new Workspai workspace with your preferred profile and install method
+                    Describe your project — AI picks the kit, selects modules, and scaffolds everything
                 </p>
-                <span className="hero-badge">{isLoading ? 'CREATING...' : 'NEW WORKSPACE'}</span>
+                <span className="hero-badge">{isLoading ? 'CREATING...' : 'BUILD WITH AI'}</span>
             </div>
         </div>
     );

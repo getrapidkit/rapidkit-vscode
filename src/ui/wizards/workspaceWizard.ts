@@ -96,7 +96,7 @@ export class WorkspaceWizard {
         {
           label: `$(folder) ${defaultFull}`,
           description: '(recommended)',
-          detail: 'Standard RapidKit workspace directory',
+          detail: 'Standard Workspai workspace directory',
           value: 'default',
         },
         {

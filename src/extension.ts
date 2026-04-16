@@ -13,7 +13,10 @@ import {
 } from './ui/treeviews/projectExplorer';
 import { setSelectedProjectPath } from './core/selectedProject';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
-import { DoctorEvidenceProvider } from './ui/treeviews/doctorEvidenceProvider';
+import {
+  DoctorEvidenceProvider,
+  type ProjectEvidence,
+} from './ui/treeviews/doctorEvidenceProvider';
 import { checkAndNotifyUpdates } from './utils/updateChecker';
 // templateExplorer removed in v0.4.3 (redundant with npm package)
 import { registerCoreCommands } from './commands/coreCommands';
@@ -36,6 +39,8 @@ import { ModulesCatalogService } from './core/modulesCatalogService';
 import { runRapidkitCommandsInTerminal } from './utils/terminalExecutor';
 import { ExamplesService } from './core/examplesService';
 import { KitsService } from './core/kitsService';
+import { registerAIDebuggerCommand } from './commands/aiDebugger';
+import { registerWorkspaceBrainCommand } from './commands/workspaceBrain';
 
 let statusBar: WorkspaiStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -89,6 +94,61 @@ export async function activate(context: vscode.ExtensionContext) {
       ...registerFileManagementCommands({
         logger,
         getProjectExplorer: () => projectExplorer,
+      }),
+      registerAIDebuggerCommand(context),
+      registerWorkspaceBrainCommand(context)
+    );
+
+    // AI context commands — triggered from tree view inline buttons
+    context.subscriptions.push(
+      vscode.commands.registerCommand('rapidkit.aiForWorkspace', (item?: any) => {
+        const ws = item?.workspace || workspaceExplorer?.getSelectedWorkspace();
+        if (!ws) {
+          vscode.window.showWarningMessage('Select a workspace first.');
+          return;
+        }
+        WelcomePanel.showAIModal(context, {
+          type: 'workspace',
+          name: ws.name,
+          path: ws.path,
+        });
+      }),
+      vscode.commands.registerCommand('rapidkit.aiForProject', (item?: any) => {
+        const project = item?.project || projectExplorer?.getSelectedProject();
+        if (!project) {
+          vscode.window.showWarningMessage('Select a project first.');
+          return;
+        }
+        WelcomePanel.showAIModal(context, {
+          type: 'project',
+          name: project.name,
+          path: project.path,
+          framework: project.type,
+        });
+      }),
+      vscode.commands.registerCommand('rapidkit.aiForModule', (item?: any) => {
+        const mod = item?.module;
+        const project = projectExplorer?.getSelectedProject();
+        WelcomePanel.showAIModal(context, {
+          type: 'module',
+          name: mod?.displayName || mod?.name || 'Module',
+          path: project?.path,
+          framework: project?.type,
+          moduleSlug: (mod as any)?.slug || mod?.id,
+          moduleDescription: mod?.description,
+        });
+      }),
+      // AI-powered workspace creation — triggered from sidebar Quick Actions panel
+      vscode.commands.registerCommand('rapidkit.openAICreateWorkspace', () => {
+        WelcomePanel.openAICreateModal(context, 'workspace');
+      }),
+      // AI-powered project creation — triggered from Projects panel title button
+      vscode.commands.registerCommand('rapidkit.aiCreateProject', () => {
+        WelcomePanel.openAICreateModal(context, 'project');
+      }),
+      // Quick switch workspace via QuickPick
+      vscode.commands.registerCommand('rapidkit.quickSwitchWorkspace', () => {
+        workspaceExplorer.quickSwitch();
       })
     );
 
@@ -212,8 +272,36 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         setTimeout(() => doctorEvidenceExplorer.refresh(), 8000);
       }),
+      vscode.commands.registerCommand(
+        'rapidkit.doctorEvidence.fixIssueWithAI',
+        async (issue: string, project: ProjectEvidence) => {
+          if (!issue) {
+            return;
+          }
+          const framework = project?.framework ?? 'unknown';
+          const projectName = project?.name ?? 'project';
+          const prefillQuestion = [
+            `Project: ${projectName} (${framework})`,
+            `Issue detected by Workspai Doctor:`,
+            issue,
+            project?.fixCommands?.length
+              ? `Suggested fix commands:\n${project.fixCommands.map((c) => `  ${c}`).join('\n')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+
+          WelcomePanel.showAIModal(context, {
+            type: 'project',
+            name: projectName,
+            framework: framework === 'unknown' ? undefined : framework,
+            prefillQuestion,
+          });
+        }
+      ),
       // Refresh evidence panel whenever workspace selection changes
-      vscode.commands.registerCommand('rapidkit.workspaceSelected', () => {
+      vscode.commands.registerCommand('rapidkit.workspaceSelected', (workspace: any) => {
+        projectExplorer?.setWorkspace(workspace);
         doctorEvidenceExplorer.refresh();
       })
     );
@@ -221,12 +309,16 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register IntelliSense providers
     logger.info('Step 7: Registering IntelliSense providers...');
     context.subscriptions.push(
-      // Code actions for configuration files
+      // Code actions for configuration files + AI debug for source files
       vscode.languages.registerCodeActionsProvider(
         [
           { pattern: '**/.rapidkitrc.json' },
           { pattern: '**/rapidkit.json' },
           { pattern: '**/module.yaml' },
+          { language: 'python' },
+          { language: 'typescript' },
+          { language: 'javascript' },
+          { language: 'go' },
         ],
         new WorkspaiCodeActionsProvider(),
         {

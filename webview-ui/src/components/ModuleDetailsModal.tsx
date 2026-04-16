@@ -99,7 +99,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as TabType)}
                                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id
-                                    ? 'border-[#00cfc1] text-[#00cfc1]'
+                                    ? 'border-[#6C5CE7] text-[#6C5CE7]'
                                     : 'border-transparent text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)]'
                                     }`}
                             >
@@ -115,7 +115,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                     {activeTab === 'overview' && (
                         <div className="space-y-6">
                             <section>
-                                <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Description</h3>
+                                <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Description</h3>
                                 <p className="text-[var(--vscode-foreground)] leading-relaxed">
                                     {module.description || 'No description available'}
                                 </p>
@@ -123,7 +123,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.tags && module.tags.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1] flex items-center gap-2">
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7] flex items-center gap-2">
                                         <Tag size={18} />
                                         Tags
                                     </h3>
@@ -142,7 +142,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.capabilities && module.capabilities.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">⚡ Capabilities</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">⚡ Capabilities</h3>
                                     <ul className="space-y-2">
                                         {module.capabilities.map((cap, i) => (
                                             <li key={i} className="flex items-start gap-2 text-[var(--vscode-foreground)]">
@@ -155,7 +155,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                             )}
 
                             <section>
-                                <h3 className="text-lg font-semibold mb-3 text-[#00cfc1] flex items-center gap-2">
+                                <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7] flex items-center gap-2">
                                     <Download size={18} />
                                     Installation
                                 </h3>
@@ -172,7 +172,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                         <div className="space-y-6">
                             {module.module_dependencies && module.module_dependencies.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Module Dependencies</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Module Dependencies</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {module.module_dependencies.map((dep, i) => (
                                             <span
@@ -188,11 +188,11 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.runtime_dependencies && Object.keys(module.runtime_dependencies).length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Runtime Dependencies</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Runtime Dependencies</h3>
                                     <div className="space-y-4">
                                         {Object.entries(module.runtime_dependencies).map(([profile, deps]) => (
                                             <div key={profile} className="border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]">
-                                                <div className="font-semibold text-[#00cfc1] mb-3">{profile}</div>
+                                                <div className="font-semibold text-[#6C5CE7] mb-3">{profile}</div>
                                                 <div className="space-y-2">
                                                     {deps.map((dep, i) => (
                                                         <div key={i} className="flex items-start gap-3 text-sm">
@@ -223,7 +223,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                         <div className="space-y-6">
                             {module.config_sources && module.config_sources.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Configuration Sources</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Configuration Sources</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {module.config_sources.map((source, i) => (
                                             <span
@@ -239,7 +239,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.defaults && Object.keys(module.defaults).length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Default Configuration</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Default Configuration</h3>
                                     <div className="border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]">
                                         <pre className="text-xs text-[var(--vscode-foreground)] overflow-x-auto">
                                             {JSON.stringify(module.defaults, null, 2)}
@@ -250,14 +250,14 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.variables && module.variables.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Environment Variables</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Environment Variables</h3>
                                     <div className="space-y-4">
                                         {module.variables.map((variable, i) => (
                                             <div
                                                 key={i}
                                                 className="border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]"
                                             >
-                                                <div className="font-mono text-sm font-semibold text-[#00cfc1] mb-2">
+                                                <div className="font-mono text-sm font-semibold text-[#6C5CE7] mb-2">
                                                     {variable.key}
                                                 </div>
                                                 <div className="text-xs text-[var(--vscode-descriptionForeground)] mb-2">
@@ -289,7 +289,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                         <div className="space-y-6">
                             {module.profiles && Object.keys(module.profiles).length > 0 ? (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Installation Profiles</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Installation Profiles</h3>
                                     <div className="space-y-3">
                                         {Object.entries(module.profiles).map(([key, value]) => (
                                             <div
@@ -297,7 +297,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                                 className="border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]"
                                             >
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-semibold text-[#00cfc1]">{key}</span>
+                                                    <span className="font-semibold text-[#6C5CE7]">{key}</span>
                                                     {value.inherits && (
                                                         <span className="text-xs px-2 py-0.5 rounded bg-[var(--vscode-button-secondaryBackground)] text-[var(--vscode-button-secondaryForeground)]">
                                                             inherits: {value.inherits}
@@ -320,7 +320,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.compatibility && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Compatibility</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Compatibility</h3>
                                     <div className="space-y-3 border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]">
                                         {module.compatibility.python && (
                                             <div className="flex items-start gap-2">
@@ -368,7 +368,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                         <div className="space-y-6">
                             {module.features && (Array.isArray(module.features) ? module.features.length > 0 : Object.keys(module.features).length > 0) ? (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">Module Features</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">Module Features</h3>
                                     <ul className="space-y-3">
                                         {Array.isArray(module.features) ? (
                                             module.features.map((feature, i) => (
@@ -382,7 +382,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                                 <li key={key} className="border border-[var(--vscode-panel-border)] rounded-lg p-4 bg-[var(--vscode-textCodeBlock-background)]">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <CheckCircle2 size={16} className={value.enabled ? 'text-green-500' : 'text-gray-500'} />
-                                                        <span className="font-semibold text-[#00cfc1]">{key}</span>
+                                                        <span className="font-semibold text-[#6C5CE7]">{key}</span>
                                                         <span className={`text-xs px-2 py-0.5 rounded ${value.status === 'stable' ? 'bg-green-600 text-white' :
                                                             value.status === 'beta' ? 'bg-orange-600 text-white' :
                                                                 'bg-gray-600 text-white'
@@ -398,7 +398,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                                             <div className="text-xs font-semibold text-[var(--vscode-descriptionForeground)] mb-1">Files:</div>
                                                             {value.files.map((file, i) => (
                                                                 <div key={i} className="text-xs space-y-0.5">
-                                                                    <div className="font-mono text-[#00cfc1]">{file.path}</div>
+                                                                    <div className="font-mono text-[#6C5CE7]">{file.path}</div>
                                                                     <div className="text-[var(--vscode-descriptionForeground)] ml-2">
                                                                         {file.description}
                                                                     </div>
@@ -426,7 +426,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                 <>
                                     {module.documentation.readme && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">📄 README</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">📄 README</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.readme}
                                             </div>
@@ -435,7 +435,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.overview && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">📖 Overview</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">📖 Overview</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.overview}
                                             </div>
@@ -444,7 +444,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.usage && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">🚀 Usage Guide</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">🚀 Usage Guide</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.usage}
                                             </div>
@@ -453,7 +453,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.advanced && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">⚙️ Advanced</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">⚙️ Advanced</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.advanced}
                                             </div>
@@ -462,7 +462,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.api_docs && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">🔧 API Reference</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">🔧 API Reference</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.api_docs}
                                             </div>
@@ -471,7 +471,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.migration && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">🔄 Migration Guide</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">🔄 Migration Guide</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.migration}
                                             </div>
@@ -480,7 +480,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.troubleshooting && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">🩹 Troubleshooting</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">🩹 Troubleshooting</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.troubleshooting}
                                             </div>
@@ -489,7 +489,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.changelog && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">📝 Changelog</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">📝 Changelog</h3>
                                             <div className="text-sm text-[var(--vscode-foreground)] font-mono bg-[var(--vscode-textCodeBlock-background)] border border-[var(--vscode-panel-border)] rounded px-3 py-2">
                                                 {module.documentation.changelog}
                                             </div>
@@ -498,7 +498,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.quick_guide && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">⚡ Quick Start</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">⚡ Quick Start</h3>
                                             <p className="text-[var(--vscode-foreground)] leading-relaxed whitespace-pre-wrap">
                                                 {module.documentation.quick_guide}
                                             </p>
@@ -507,7 +507,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                                     {module.documentation.links && Object.keys(module.documentation.links).length > 0 && (
                                         <section>
-                                            <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">🔗 Links</h3>
+                                            <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">🔗 Links</h3>
                                             <ul className="space-y-2">
                                                 {Object.entries(module.documentation.links).map(([key, url]) => (
                                                     <li key={key}>
@@ -528,7 +528,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.changelog && module.changelog.length > 0 && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">📋 Version History</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">📋 Version History</h3>
                                     <div className="space-y-2">
                                         {module.changelog.map((entry, i) => (
                                             <div
@@ -536,7 +536,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
                                                 className="border border-[var(--vscode-panel-border)] rounded-lg p-3 bg-[var(--vscode-textCodeBlock-background)]"
                                             >
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-mono font-semibold text-[#00cfc1]">v{entry.version}</span>
+                                                    <span className="font-mono font-semibold text-[#6C5CE7]">v{entry.version}</span>
                                                     <span className="text-xs text-[var(--vscode-descriptionForeground)]">{entry.date}</span>
                                                 </div>
                                                 <p className="text-sm text-[var(--vscode-foreground)]">{entry.notes}</p>
@@ -548,7 +548,7 @@ export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps)
 
                             {module.support && (
                                 <section>
-                                    <h3 className="text-lg font-semibold mb-3 text-[#00cfc1]">💬 Support</h3>
+                                    <h3 className="text-lg font-semibold mb-3 text-[#6C5CE7]">💬 Support</h3>
                                     <ul className="space-y-2">
                                         {module.support.issues && (
                                             <li>

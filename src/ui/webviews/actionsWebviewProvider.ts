@@ -28,20 +28,11 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     // Handle messages from webview
     webviewView.webview.onDidReceiveMessage((message) => {
       switch (message.command) {
+        case 'createWithAI':
+          vscode.commands.executeCommand('rapidkit.openAICreateWorkspace');
+          break;
         case 'openWorkspaceModal':
           vscode.commands.executeCommand('rapidkit.openWorkspaceModal');
-          break;
-        case 'createFastAPIProject':
-          vscode.commands.executeCommand('rapidkit.openProjectModal', 'fastapi');
-          break;
-        case 'createNestJSProject':
-          vscode.commands.executeCommand('rapidkit.openProjectModal', 'nestjs');
-          break;
-        case 'createGoProject':
-          vscode.commands.executeCommand('rapidkit.openProjectModal', 'go');
-          break;
-        case 'browseModules':
-          vscode.commands.executeCommand('rapidkitModules.focus');
           break;
         case 'doctor':
           vscode.commands.executeCommand('rapidkit.doctor');
@@ -65,17 +56,7 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _getHtmlContent(webview: vscode.Webview): string {
-    const fastapiIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'fastapi.svg')
-    );
-    const nestjsIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'nestjs.svg')
-    );
-    const goIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'go.svg')
-    );
-
+  private _getHtmlContent(_webview: vscode.Webview): string {
     // SVG icons (inline since codicons don't work in webviews)
     const icons = {
       workspace:
@@ -97,7 +78,6 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* ── Button reset: prevent UA stylesheet from forcing black text ── */
         button {
             appearance: none;
             font: inherit;
@@ -119,47 +99,99 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             padding: 10px 8px 14px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
         }
 
-        /* ── Theme-adaptive color variables ───────────────
-           Each uses a VS Code design-system token with a
-           brand-color fallback for light/unknown themes.   */
-        .fastapi { --c: var(--vscode-testing-iconPassed,   #009688); }
-        .nestjs  { --c: var(--vscode-testing-iconFailed,   #E0234E); }
-        .go      { --c: var(--vscode-terminal-ansiCyan,    #00ADD8); }
-        .modules { --c: var(--vscode-terminal-ansiMagenta, #9C27B0); }
         .doctor  { --c: var(--vscode-editorWarning-foreground, #FF9800); }
         .welcome { --c: var(--vscode-textLink-foreground,  #00cfc1); }
         .docs    { --c: var(--vscode-terminal-ansiBlue,    #2196F3); }
+        .manual  { --c: var(--vscode-descriptionForeground, #888); }
 
-        /* ── CTA: New Workspace ─────────────────────────── */
-        .cta-btn {
+        /* ── Primary AI CTA ─────────────────────────────── */
+        .cta-ai {
             width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 10px 12px;
-            background: color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 12%, var(--vscode-editor-background) 88%);
-            border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 40%, transparent 60%);
-            border-radius: 8px;
+            padding: 11px 12px;
+            background: linear-gradient(135deg,
+                color-mix(in srgb, #00cfc1 18%, var(--vscode-editor-background) 82%),
+                color-mix(in srgb, #7c3aed 12%, var(--vscode-editor-background) 88%)
+            );
+            border: 1px solid color-mix(in srgb, #00cfc1 45%, transparent 55%);
+            border-radius: 9px;
             transition: all 0.2s ease;
-            color: var(--vscode-foreground);
+            position: relative;
+            overflow: hidden;
         }
-        .cta-btn:hover {
-            background: color-mix(in srgb, var(--vscode-textLink-foreground, #00cfc1) 22%, var(--vscode-list-hoverBackground) 78%);
-            border-color: var(--vscode-textLink-foreground, #00cfc1);
-            transform: translateY(-1px);
+        .cta-ai::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg,
+                color-mix(in srgb, #00cfc1 30%, transparent 70%),
+                color-mix(in srgb, #7c3aed 20%, transparent 80%)
+            );
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
-        .cta-btn:active { transform: scale(0.98); }
-        .cta-btn .cta-icon { font-size: 16px; }
-        .cta-btn .cta-text {
+        .cta-ai:hover::before { opacity: 1; }
+        .cta-ai:hover { transform: translateY(-1px); box-shadow: 0 3px 12px color-mix(in srgb, #00cfc1 25%, transparent 75%); }
+        .cta-ai:active { transform: scale(0.98); }
+        .cta-ai-icon {
+            font-size: 14px;
+            color: #00cfc1;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 0 4px color-mix(in srgb, #00cfc1 60%, transparent 40%));
+        }
+        .cta-ai-label {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+        }
+        .cta-ai-title {
             font-size: 12px;
             font-weight: 700;
-            color: var(--vscode-textLink-foreground, #00cfc1);
+            background: linear-gradient(90deg, #00cfc1, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             letter-spacing: 0.02em;
         }
+        .cta-ai-sub {
+            font-size: 9.5px;
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.75;
+            -webkit-text-fill-color: var(--vscode-descriptionForeground);
+        }
+
+        /* ── Manual / secondary CTA ─────────────────────── */
+        .cta-manual {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 10px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border, transparent);
+            border-radius: 7px;
+            transition: all 0.15s ease;
+            color: var(--vscode-descriptionForeground);
+        }
+        .cta-manual:hover {
+            background: var(--vscode-list-hoverBackground);
+            border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 40%, transparent 60%);
+            color: var(--vscode-foreground);
+        }
+        .cta-manual:active { transform: scale(0.98); }
+        .cta-manual-icon { font-size: 13px; opacity: 0.7; }
+        .cta-manual-text { font-size: 11px; font-weight: 600; }
 
         /* ── Section label ──────────────────────────────── */
         .section-label {
@@ -168,51 +200,15 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: var(--vscode-descriptionForeground);
-            opacity: 0.65;
+            opacity: 0.55;
             padding: 0 1px;
-            margin-bottom: -4px;
+            margin-bottom: -2px;
         }
 
-        /* ── Framework grid (3 cols) ─────────────────────── */
-        .fw-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 5px;
-        }
-        .fw-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 7px 4px;
-            color: var(--vscode-foreground);
-            background: color-mix(in srgb, var(--c, #00cfc1) 8%, var(--vscode-editor-inactiveSelectionBackground) 92%);
-            border: 1px solid color-mix(in srgb, var(--c, #00cfc1) 20%, var(--vscode-panel-border) 80%);
-            border-radius: 7px;
-            transition: all 0.15s ease;
-        }
-        .fw-btn:hover {
-            background: color-mix(in srgb, var(--c, #00cfc1) 18%, var(--vscode-list-hoverBackground) 82%);
-            border-color: var(--c);
-            transform: translateY(-1px);
-        }
-        .fw-btn:active { transform: scale(0.96); }
-        .fw-btn img { width: 18px; height: 18px; }
-        .fw-btn .fw-label {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--vscode-foreground);
-            opacity: 0.85;
-        }
-        .fw-btn:hover .fw-label {
-            opacity: 1;
-            color: var(--c);
-        }
-
-        /* ── Tool grid (2 cols) ──────────────────────────── */
+        /* ── Tool grid (3 cols) ──────────────────────────── */
         .tool-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 5px;
         }
         .tool-btn {
@@ -220,12 +216,10 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             align-items: center;
             gap: 7px;
             padding: 8px 9px;
-            color: var(--vscode-foreground);
             background: var(--vscode-editor-inactiveSelectionBackground);
             border: 1px solid transparent;
             border-radius: 7px;
             transition: all 0.15s ease;
-            position: relative;
         }
         .tool-btn:hover {
             background: color-mix(in srgb, var(--c, #00cfc1) 10%, var(--vscode-list-hoverBackground) 90%);
@@ -236,90 +230,63 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             flex-shrink: 0;
         }
         .tool-btn .t-icon svg {
-            width: 15px;
-            height: 15px;
+            width: 14px;
+            height: 14px;
             fill: var(--vscode-descriptionForeground);
             transition: fill 0.15s;
         }
         .tool-btn:hover .t-icon svg { fill: var(--c); }
         .tool-btn .t-text {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 600;
             color: var(--vscode-foreground);
-            flex: 1;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
         .tool-btn:hover .t-text { color: var(--c); }
-        .tool-btn .t-badge {
-            font-size: 8.5px;
-            font-weight: 700;
-            background: var(--c);
-            color: #fff;
-            padding: 1px 5px;
-            border-radius: 6px;
-        }
 
-        /* ── Subtle divider ──────────────────────────────── */
         .hairline {
             height: 1px;
             background: var(--vscode-panel-border);
-            opacity: 0.25;
-            margin: 0 1px;
+            opacity: 0.2;
         }
     </style>
 </head>
 <body>
 
-    <!-- ① New Workspace — primary CTA -->
-    <button class="cta-btn" onclick="send('openWorkspaceModal')" title="Create a new Workspai workspace">
-        <span class="cta-icon">＋</span>
-        <span class="cta-text">New Workspace</span>
+    <!-- ① Primary: Create with AI -->
+    <button class="cta-ai" onclick="send('createWithAI')" title="Describe what you want to build — AI creates your workspace">
+        <span class="cta-ai-icon">✦</span>
+        <span class="cta-ai-label">
+            <span class="cta-ai-title">Create with AI</span>
+            <span class="cta-ai-sub">Describe → AI plans → You confirm</span>
+        </span>
     </button>
 
-    <!-- ② New Project -->
-    <span class="section-label">New Project</span>
-    <div class="fw-grid">
-        <button class="fw-btn fastapi" onclick="send('createFastAPIProject')" title="New FastAPI project">
-            <img src="${fastapiIconUri}" alt="FastAPI">
-            <span class="fw-label">FastAPI</span>
-        </button>
-        <button class="fw-btn nestjs" onclick="send('createNestJSProject')" title="New NestJS project">
-            <img src="${nestjsIconUri}" alt="NestJS">
-            <span class="fw-label">NestJS</span>
-        </button>
-        <button class="fw-btn go" onclick="send('createGoProject')" title="New Go project">
-            <img src="${goIconUri}" alt="Go">
-            <span class="fw-label">Go</span>
-        </button>
-    </div>
-
-    <!-- ③ Explore & Health -->
-    <span class="section-label">Explore</span>
-    <div class="tool-grid">
-        <button class="tool-btn modules" onclick="send('browseModules')" title="Browse 27+ modules">
-            <span class="t-icon">${icons.modules}</span>
-            <span class="t-text">Modules</span>
-            <span class="t-badge" style="--c:#9C27B0">27</span>
-        </button>
-        <button class="tool-btn doctor" onclick="send('doctor')" title="Run health check">
-            <span class="t-icon">${icons.doctor}</span>
-            <span class="t-text">Check</span>
-        </button>
-    </div>
+    <!-- ② Secondary: manual workspace -->
+    <button class="cta-manual" onclick="send('openWorkspaceModal')" title="Create workspace manually">
+        <span class="cta-manual-icon">＋</span>
+        <span class="cta-manual-text">New Workspace (manual)</span>
+    </button>
 
     <div class="hairline"></div>
 
+    <!-- ③ Quick tools -->
+    <div class="section-label">Quick Actions</div>
     <div class="tool-grid">
-        <button class="tool-btn welcome" onclick="send('openWelcome')" title="Open welcome panel">
+        <button class="tool-btn welcome" onclick="send('openWelcome')" title="Open Workspai dashboard">
             <span class="t-icon">${icons.home}</span>
-            <span class="t-text">Welcome</span>
+            <span class="t-text">Dashboard</span>
+        </button>
+        <button class="tool-btn doctor" onclick="send('doctor')" title="Run workspace health check">
+            <span class="t-icon">${icons.doctor}</span>
+            <span class="t-text">Health</span>
         </button>
         <button class="tool-btn docs" onclick="send('openDocs')" title="Open documentation">
             <span class="t-icon">${icons.docs}</span>

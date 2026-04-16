@@ -31,6 +31,7 @@ interface ModuleBrowserProps {
     onRefresh: () => void;
     onInstall: (module: ModuleData) => void;
     onShowDetails: (moduleId: string) => void;
+    onAI?: (module: ModuleData) => void;
     onProjectTerminal?: () => void;
     onProjectInit?: () => void;
     onProjectDev?: () => void;
@@ -48,6 +49,7 @@ export function ModuleBrowser({
     onRefresh,
     onInstall,
     onShowDetails,
+    onAI,
     onProjectTerminal,
     onProjectInit,
     onProjectDev,
@@ -300,6 +302,15 @@ export function ModuleBrowser({
                                             <Copy size={14} />
                                         )}
                                     </button>
+                                    {onAI && (
+                                        <button
+                                            className="module-action-btn module-ai-btn"
+                                            onClick={() => onAI(module)}
+                                            title="Ask AI about this module"
+                                        >
+                                            ✦
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );

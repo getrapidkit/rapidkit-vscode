@@ -16,7 +16,7 @@ interface SystemCheck {
   details?: string;
 }
 
-interface ProjectEvidence {
+export interface ProjectEvidence {
   name: string;
   path: string;
   framework?: string;
@@ -340,6 +340,12 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
         const item = new DoctorEvidenceItem(issue, 'issue', vscode.TreeItemCollapsibleState.None);
         item.iconPath = new vscode.ThemeIcon('circle-filled');
         item.tooltip = issue;
+        item.contextValue = 'doctorIssue';
+        item.command = {
+          command: 'rapidkit.doctorEvidence.fixIssueWithAI',
+          title: 'Fix with AI',
+          arguments: [issue, element.projectData],
+        };
         return item;
       });
     }

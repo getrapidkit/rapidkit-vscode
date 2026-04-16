@@ -22,6 +22,9 @@ import { ModuleBrowser } from '@/components/ModuleBrowser';
 import { CommandReference } from '@/components/CommandReference';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { Footer } from '@/components/Footer';
+import { AIActions } from '@/components/AIActions';
+import { AIModal, AIModalContext } from '@/components/AIModal';
+import { AICreateModal, AICreationPlan, AICreateFramework } from '@/components/AICreateModal';
 import { CreateWorkspaceModal, WorkspaceCreationConfig } from '@/components/CreateWorkspaceModal';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { InstallModuleModal } from '@/components/InstallModuleModal';
@@ -34,6 +37,22 @@ export function App() {
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showInstallModal, setShowInstallModal] = useState(false);
     const [showModuleDetailsModal, setShowModuleDetailsModal] = useState(false);
+    const [showAIModal, setShowAIModal] = useState(false);
+    const [aiModalContext, setAIModalContext] = useState<AIModalContext | null>(null);
+    const [aiStreamContent, setAIStreamContent] = useState('');
+    const [aiIsStreaming, setAIIsStreaming] = useState(false);
+    const [aiStreamError, setAIStreamError] = useState<string | null>(null);
+    const [aiModelId, setAIModelId] = useState<string | null>(null);
+    // AI Create state
+    const [showAICreateModal, setShowAICreateModal] = useState(false);
+    const [aiCreateMode, setAICreateMode] = useState<'workspace' | 'project'>('workspace');
+    const [aiCreateFramework, setAICreateFramework] = useState<AICreateFramework | undefined>(undefined);
+    const [aiCreationPlan, setAICreationPlan] = useState<AICreationPlan | null>(null);
+    const [aiCreationThinking, setAICreationThinking] = useState(false);
+    const [aiCreationCreating, setAICreationCreating] = useState(false);
+    const [aiCreationStage, setAICreationStage] = useState<'workspace_done' | null>(null);
+    const [aiCreationError, setAICreationError] = useState<string | null>(null);
+    const [aiCreateModelId, setAICreateModelId] = useState<string | null>(null);
     const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs' | 'go'>('fastapi');
     const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
     const [moduleDetails, setModuleDetails] = useState<ModuleData | null>(null);
@@ -147,10 +166,79 @@ export function App() {
                         setShowProjectModal(true);
                     }
                     break;
+                case 'closeProjectModal':
+                    setShowProjectModal(false);
+                    break;
                 case 'openWorkspaceModal':
                     // Triggered from sidebar Workspace button
                     console.log('[React Webview] openWorkspaceModal');
                     setShowCreateModal(true);
+                    break;
+                case 'openAICreateModal':
+                    // Triggered from sidebar — mode can be 'workspace' or 'project'
+                    setAICreateMode(message.data?.mode ?? 'workspace');
+                    setAICreateFramework(undefined);
+                    setAICreationPlan(null);
+                    setAICreationError(null);
+                    setAICreationThinking(false);
+                    setAICreationCreating(false);
+                    setAICreationStage(null);
+                    setAICreateModelId(null);
+                    setShowAICreateModal(true);
+                    break;
+                case 'openAIModal':
+                    // Triggered from tree view AI inline button
+                    console.log('[React Webview] openAIModal:', message.data);
+                    setAIModalContext(message.data);
+                    setAIStreamContent('');
+                    setAIStreamError(null);
+                    setAIIsStreaming(false);
+                    setAIModelId(null);
+                    setShowAIModal(true);
+                    break;
+                case 'aiChunkUpdate':
+                    setAIStreamContent((prev) => prev + (message.data?.text || ''));
+                    break;
+                case 'aiStreamDone':
+                    setAIIsStreaming(false);
+                    if (message.data?.error) {
+                        setAIStreamError(message.data.error);
+                    }
+                    break;
+                case 'aiModelUsed':
+                    if (message.data?.modelId) setAIModelId(message.data.modelId);
+                    break;
+                // ── AI Create events ────────────────────────────────────────
+                case 'aiCreationThinking':
+                    setAICreationThinking(message.data?.thinking ?? false);
+                    if (message.data?.thinking) setAICreationError(null);
+                    break;
+                case 'aiCreationPlan':
+                    setAICreationPlan(message.data?.plan ?? null);
+                    if (message.data?.modelId) setAICreateModelId(message.data.modelId);
+                    break;
+                case 'aiCreationError':
+                    setAICreationError(message.data?.error ?? 'Unknown error');
+                    setAICreationCreating(false);
+                    break;
+                case 'aiCreationReset':
+                    setAICreationPlan(null);
+                    setAICreationError(null);
+                    setAICreationStage(null);
+                    break;
+                case 'aiCreationStarted':
+                    setAICreationCreating(true);
+                    setAICreationStage(null);
+                    break;
+                case 'aiCreationProgress':
+                    setAICreationStage(message.data?.stage ?? null);
+                    break;
+                case 'aiCreationDone':
+                    setAICreationCreating(false);
+                    setAICreationStage(null);
+                    setShowAICreateModal(false);
+                    setAICreationPlan(null);
+                    setAICreationError(null);
                     break;
                 case 'workspaceToolStatus':
                     setWorkspaceToolStatus(message.data);
@@ -184,14 +272,40 @@ export function App() {
     };
 
     const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => {
-        // Only block if we've received a confirmed status from the extension AND it's not installed.
-        // Do NOT block on the initial false default — the message may not have arrived yet.
         if (installStatusChecked && !installStatus.coreInstalled) {
             vscode.postMessage('openSetup');
             return;
         }
-        setSelectedFramework(framework);
-        setShowProjectModal(true);
+        // Open AI create modal in project mode with pre-selected framework
+        setAICreateMode('project');
+        setAICreateFramework(framework);
+        setAICreationPlan(null);
+        setAICreationError(null);
+        setAICreationThinking(false);
+        setAICreationCreating(false);
+        setAICreationStage(null);
+        setAICreateModelId(null);
+        setShowAICreateModal(true);
+    };
+
+    const handleOpenAICreateWorkspace = () => {
+        setAICreateMode('workspace');
+        setAICreateFramework(undefined);
+        setAICreationPlan(null);
+        setAICreationError(null);
+        setAICreationThinking(false);
+        setAICreationCreating(false);
+        setAICreationStage(null);
+        setAICreateModelId(null);
+        setShowAICreateModal(true);
+    };
+
+    const handleAICreatePromptSubmit = (prompt: string, mode: 'workspace' | 'project', framework?: string) => {
+        vscode.postMessage('aiParseCreation', { prompt, mode, framework });
+    };
+
+    const handleAICreateConfirm = (plan: AICreationPlan) => {
+        vscode.postMessage('aiCreateConfirm', plan);
     };
 
     const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => {
@@ -202,6 +316,13 @@ export function App() {
     const handleOpenInstallModal = (module: ModuleData) => {
         setSelectedModule(module);
         setShowInstallModal(true);
+    };
+
+    const handleAIQuery = (mode: 'debug' | 'ask', question: string, ctx: AIModalContext) => {
+        setAIStreamContent('');
+        setAIStreamError(null);
+        setAIIsStreaming(true);
+        vscode.postMessage('aiQuery', { mode, question, context: ctx });
     };
 
     const handleConfirmInstall = () => {
@@ -251,11 +372,13 @@ export function App() {
 
             <div className="mb-8">
                 <HeroAction
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={handleOpenAICreateWorkspace}
                     isLoading={isCreatingWorkspace}
                 />
                 <QuickLinks onOpenProjectModal={handleOpenProjectModal} />
             </div>
+
+            <AIActions />
 
             <RecentWorkspaces
                 workspaces={recentWorkspaces}
@@ -266,6 +389,7 @@ export function App() {
                 onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
                 onCheckHealth={(workspace) => vscode.postMessage('checkWorkspaceHealth', { path: workspace.path })}
                 onExport={(workspace) => vscode.postMessage('exportWorkspace', { path: workspace.path })}
+                onAI={(workspace) => vscode.postMessage('aiForWorkspace', { workspacePath: workspace.path, workspaceName: workspace.name })}
             />
 
             <ExampleWorkspaces
@@ -283,6 +407,7 @@ export function App() {
                 onRefresh={() => vscode.postMessage('refreshModules')}
                 onInstall={handleOpenInstallModal}
                 onShowDetails={(moduleId) => vscode.postMessage('showModuleDetails', moduleId)}
+                onAI={(module) => vscode.postMessage('aiForModule', { moduleId: module.id, moduleName: module.display_name || module.name, moduleSlug: module.slug })}
                 onProjectTerminal={() => vscode.postMessage('projectTerminal')}
                 onProjectInit={() => vscode.postMessage('projectInit')}
                 onProjectDev={() => vscode.postMessage('projectDev')}
@@ -300,6 +425,10 @@ export function App() {
                 onClose={() => setShowCreateModal(false)}
                 onCreate={handleCreateWorkspace}
                 toolStatus={workspaceToolStatus}
+                onSwitchToAI={() => {
+                    setShowCreateModal(false);
+                    handleOpenAICreateWorkspace();
+                }}
             />
             <CreateProjectModal
                 isOpen={showProjectModal}
@@ -307,6 +436,47 @@ export function App() {
                 availableKits={availableKits}
                 onClose={() => setShowProjectModal(false)}
                 onCreate={handleCreateProject}
+                onSwitchToAI={() => {
+                    setShowProjectModal(false);
+                    setAICreateMode('project');
+                    setAICreateFramework(selectedFramework);
+                    setAICreationPlan(null);
+                    setAICreationError(null);
+                    setAICreationThinking(false);
+                    setAICreationCreating(false);
+                    setAICreationStage(null);
+                    setAICreateModelId(null);
+                    setShowAICreateModal(true);
+                }}
+            />
+            <AICreateModal
+                isOpen={showAICreateModal}
+                mode={aiCreateMode}
+                framework={aiCreateFramework}
+                plan={aiCreationPlan}
+                isThinking={aiCreationThinking}
+                isCreating={aiCreationCreating}
+                creationStage={aiCreationStage}
+                planError={aiCreationError}
+                modelId={aiCreateModelId}
+                onClose={() => {
+                    if (!aiCreationThinking && !aiCreationCreating) {
+                        setShowAICreateModal(false);
+                        setAICreationPlan(null);
+                        setAICreationError(null);
+                    }
+                }}
+                onPromptSubmit={handleAICreatePromptSubmit}
+                onConfirm={handleAICreateConfirm}
+                onManualFallback={() => {
+                    setShowAICreateModal(false);
+                    if (aiCreateMode === 'workspace') {
+                        setShowCreateModal(true);
+                    } else {
+                        setSelectedFramework(aiCreateFramework ?? 'fastapi');
+                        setShowProjectModal(true);
+                    }
+                }}
             />
             <InstallModuleModal
                 isOpen={showInstallModal}
@@ -327,6 +497,23 @@ export function App() {
                     }}
                 />
             )}
+            <AIModal
+                isOpen={showAIModal}
+                context={aiModalContext}
+                isStreaming={aiIsStreaming}
+                streamContent={aiStreamContent}
+                streamError={aiStreamError}
+                modelId={aiModelId}
+                onClose={() => {
+                    if (!aiIsStreaming) {
+                        setShowAIModal(false);
+                        setAIStreamContent('');
+                        setAIStreamError(null);
+                        setAIModelId(null);
+                    }
+                }}
+                onQuery={handleAIQuery}
+            />
             <CommandReference
                 workspaceProfile={activeWorkspaceProfile}
                 hasActiveWorkspace={hasActiveWorkspace}

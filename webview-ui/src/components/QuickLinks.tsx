@@ -38,22 +38,28 @@ export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
         ];
 
     return (
-        <div className="quick-links">
-            {links.map((link) => (
-                <button
-                    key={link.framework}
-                    type="button"
-                    className={`quick-link ${link.className}`}
-                    onClick={() => onOpenProjectModal(link.framework)}
-                    aria-label={`Create ${link.title} project`}
-                >
-                    <span className="quick-link-icon" aria-hidden="true">
-                        <img src={link.icon} alt={link.alt} />
-                    </span>
-                    <div className="quick-link-title">{link.title}</div>
-                    <div className="quick-link-subtitle">{link.subtitle}</div>
-                </button>
-            ))}
-        </div>
+        <>
+            <div className="quick-links-header">
+                <span className="quick-links-label">Start a Project</span>
+                <span className="quick-links-hint">choose your framework</span>
+            </div>
+            <div className="quick-links">
+                {links.map((link) => (
+                    <button
+                        key={link.framework}
+                        type="button"
+                        className={`quick-link ${link.className}`}
+                        onClick={() => onOpenProjectModal(link.framework)}
+                        aria-label={`Create ${link.title} project`}
+                    >
+                        <span className="quick-link-icon" aria-hidden="true">
+                            <img src={link.icon} alt={link.alt} />
+                        </span>
+                        <div className="quick-link-title">{link.title}</div>
+                        <div className="quick-link-subtitle">{link.subtitle}</div>
+                    </button>
+                ))}
+            </div>
+        </>
     );
 }

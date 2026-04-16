@@ -84,14 +84,14 @@ export function InstallModuleModal({
                             borderBottom: '1px solid var(--vscode-panel-border)',
                             background: isInstalled
                                 ? 'linear-gradient(135deg, #ff990010, transparent)'
-                                : 'linear-gradient(135deg, #00cfc110, transparent)',
+                                : 'linear-gradient(135deg, #6C5CE710, transparent)',
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <Download
                                 size={24}
                                 style={{
-                                    color: isInstalled ? '#ff9900' : '#00cfc1',
+                                    color: isInstalled ? '#ff9900' : '#6C5CE7',
                                     filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
                                 }}
                             />
@@ -146,7 +146,7 @@ export function InstallModuleModal({
                                     borderRadius: '8px',
                                     border: '1px solid var(--vscode-panel-border)',
                                 }}>
-                                    <Package size={28} style={{ color: '#00cfc1' }} />
+                                    <Package size={28} style={{ color: '#6C5CE7' }} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <div style={{
@@ -221,7 +221,7 @@ export function InstallModuleModal({
                                 Installation Target
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <Folder size={18} style={{ color: '#00cfc1', flexShrink: 0 }} />
+                                <Folder size={18} style={{ color: '#6C5CE7', flexShrink: 0 }} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{
                                         fontSize: '14px',
@@ -363,7 +363,7 @@ export function InstallModuleModal({
                                 fontWeight: 600,
                                 borderRadius: '6px',
                                 border: 'none',
-                                backgroundColor: isInstalled ? '#ff9900' : '#00cfc1',
+                                backgroundColor: isInstalled ? '#ff9900' : '#6C5CE7',
                                 color: 'white',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
@@ -373,7 +373,7 @@ export function InstallModuleModal({
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = `0 4px 12px ${isInstalled ? '#ff990040' : '#00cfc140'}`;
+                                e.currentTarget.style.boxShadow = `0 4px 12px ${isInstalled ? '#ff990040' : '#6C5CE740'}`;
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = 'translateY(0)';
