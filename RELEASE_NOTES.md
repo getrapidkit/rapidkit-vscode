@@ -1,6 +1,32 @@
 # Release Notes
 
-## Latest Release: v0.16.0 (March 22, 2026)
+## Latest Release: v0.17.0 (April 16, 2026)
+
+### ✦ AI Assistant, Doctor Fix with AI, Code Actions & Minimizable Modal
+
+**Summary:** Introduces deep AI integration across the extension — editor Code Actions for inline debug/explain, AI-powered fix suggestions directly from the Workspace Health panel, AI module recommendations in the Create Project flow, and a minimizable floating pill for the AI Create modal. Consolidates the Quick Actions sidebar to a single **AI Assistant** button.
+
+#### Added
+
+- ✦ **AI Debug Actions (Code Actions)** — `✦ Debug with Workspai AI` and `✦ Explain error with AI` quick-fix lightbulb actions appear in the editor for Python, TypeScript, JavaScript, and Go files with diagnostics or a text selection; opens the AI modal with the error/selection pre-filled in Debug mode
+- ✦ **Doctor Fix with AI** — each issue in the **Workspace Health** sidebar now has a ✨ inline button; clicking it opens the AI modal with the full issue context pre-filled
+- ✦ **AI Module Suggestions** — the Create Project modal has a new "Suggest modules with AI" button that recommends the top modules for your chosen framework and project description
+- **Minimizable AI Create modal** — a `−` button appears during `thinking` and `creating` steps; collapses to a floating pill in the bottom-left corner so the dashboard stays usable; auto-restores when creation completes
+
+#### Changed
+
+- **Quick Actions sidebar** — consolidated to a single `✦ AI Assistant` button that opens the AI modal; redundant "Workspace Brain" button removed
+- **`rapidkit.debugWithAI` command** — now opens the main Workspai panel AI modal with context pre-filled, instead of a separate HTML tab
+- **`rapidkit.workspaceBrain` command** — now focuses the main Workspai panel instead of opening a separate HTML tab
+- **Doctor Fix with AI** — issue text passed directly as `prefillQuestion` to the AI modal (no scratch-doc workaround)
+
+#### Fixed
+
+- `AIModal.tsx` — added `context` to `useEffect` dependency array so `prefillQuestion` is correctly applied when modal is already mounted
+
+---
+
+## v0.16.0 (March 22, 2026)
 
 ### 🩺 Workspace Health Sidebar + Module Install Modal
 
