@@ -10,9 +10,9 @@ FastAPI · NestJS · Go/Fiber · Go/Gin · Clean architecture · 27+ free module
 [![Version](https://img.shields.io/visual-studio-marketplace/v/rapidkit.rapidkit-vscode?style=flat-square&color=blue)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/rapidkit.rapidkit-vscode?style=flat-square&color=green)](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 [![npm](https://img.shields.io/npm/v/rapidkit?style=flat-square&color=red&label=npm)](https://www.npmjs.com/package/rapidkit)
-[![Built by RapidKit](https://img.shields.io/badge/Built%20by-RapidKit-0f172a?logo=github)](https://www.getrapidkit.com)
+[![Built by RapidKit](https://img.shields.io/badge/Built%20by-RapidKit-0f172a?logo=github)](https://getrapidkit.com)
 
-[Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.getrapidkit.com/docs) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
+[Install Extension](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode) · [Documentation](https://www.workspai.com/) · [Report Bug](https://github.com/getrapidkit/rapidkit-vscode/issues)
 
 </div>
 
@@ -461,8 +461,8 @@ rapidkit workspace list
 
 ## 🔗 Links
 
-- 📖 **Documentation:** [www.getrapidkit.com/docs](https://www.getrapidkit.com/docs)
-- 🧩 **Modules:** [27+ production-ready modules](https://www.getrapidkit.com/modules)
+- 📖 **Documentation:** [www.workspai.com](https://www.workspai.com/)
+- 🧩 **Modules:** [27+ production-ready modules](https://getrapidkit.com/modules)
 - 🐛 **Issues:** [GitHub Issues](https://github.com/getrapidkit/rapidkit-vscode/issues)
 - 💬 **Community:** [Discord Server](https://discord.gg/rapidkit)
 - 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
@@ -471,4 +471,4 @@ rapidkit workspace list
 
 ## 📄 License
 
-MIT © [RapidKit](https://www.getrapidkit.com)
+MIT © [RapidKit](https://getrapidkit.com)

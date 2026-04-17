@@ -1,6 +1,31 @@
 # Release Notes
 
-## Latest Release: v0.17.1 (April 17, 2026)
+## Latest Release: v0.18.0 (April 17, 2026)
+
+### ✦ AI Stability + Context Intelligence Upgrade
+
+**Summary:** This release hardens the AI engine for production usage by improving model resolution and fallback logic, making workspace memory and context assembly more resilient, and strengthening prompt/request safety. The result is more reliable AI generation and debugging behavior across large or mixed-framework repositories.
+
+#### Added
+
+- **Deeper AI context extraction** across FastAPI, NestJS, and Go projects to improve answer quality and generation relevance
+- **New AI-focused tests** to guard model alias handling and debugger command behavior
+
+#### Changed
+
+- **Model mapping and fallback strategy** updated for modern Copilot/GitHub model IDs and aliases
+- **Workspace memory service flow** converted to async path for non-blocking operations
+- **Legacy AI commands unified** through the shared Workspai AI modal path for consistent UX
+
+#### Fixed
+
+- **Prompt budget controls** to avoid oversized requests in large workspaces
+- **Module slug typo normalization** for safer module operations
+- **AI request lifecycle handling** (request correlation/cancel flows) for more predictable streaming behavior
+
+---
+
+## v0.17.1 (April 17, 2026)
 
 ### ⚡ Deep Performance Audit — All Sidebars + UI Polish
 
@@ -109,6 +134,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.18.0](releases/RELEASE_NOTES_v0.18.0.md) | Apr 17, 2026 | ✦ AI stability hardening, richer context extraction, stronger prompt safety |
 | [v0.17.1](releases/RELEASE_NOTES_v0.17.1.md) | Apr 17, 2026 | ⚡ Instant sidebar render — two-phase async loading for WORKSPACES panel |
 | [v0.17.0](releases/RELEASE_NOTES_v0.17.0.md) | Apr 16, 2026 | ✦ AI Assistant, Doctor Fix with AI, Code Actions, minimizable modal |
 | [v0.15.0](releases/RELEASE_NOTES_v0.15.0.md) | Feb 27, 2026 | 🚀 platform-safe command layer, 🪟 tool-aware workspace modal, ⚡ workspace list performance, 🩺 doctor path clarity |
@@ -146,5 +172,5 @@
 
 - 📦 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=rapidkit.rapidkit-vscode)
 - 🐙 [GitHub Repository](https://github.com/getrapidkit/rapidkit-vscode)
-- 📚 [Documentation](https://getrapidkit.com/docs)
+- 📚 [Documentation](https://www.workspai.com/)
 - 🚀 [npm Package](https://www.npmjs.com/package/rapidkit)

@@ -302,4 +302,27 @@ describe('contract drift guard', () => {
     expect(setupPanelSource).not.toContain('RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1');
     expect(setupPanelSource).not.toContain('PORT=');
   });
+
+  it('keeps AI modal stop-generation contract aligned across webview and panel', () => {
+    const appSource = read('webview-ui/src/App.tsx');
+    const aiModalSource = read('webview-ui/src/components/AIModal.tsx');
+    const welcomePanelSource = read('src/ui/panels/welcomePanel.ts');
+
+    expect(appSource).toContain(
+      "vscode.postMessage('aiCancelQuery', { requestId: aiRequestIdRef.current });"
+    );
+    expect(appSource).toContain('context: ctx, requestId');
+    expect(appSource).toContain('onCancel={handleAICancelQuery}');
+
+    expect(aiModalSource).toContain('onCancel: () => void;');
+    expect(aiModalSource).toContain('onClick={isStreaming ? onCancel : handleSubmit}');
+    expect(aiModalSource).toContain("{isStreaming ? 'Stop' : 'Send'}");
+
+    expect(welcomePanelSource).toContain("case 'aiCancelQuery':");
+    expect(welcomePanelSource).toContain('this._aiQueryTokenSource?.cancel();');
+    expect(welcomePanelSource).toContain('requestId: queryRequestId');
+    expect(welcomePanelSource).toContain(
+      "this._panel.webview.postMessage({ command: 'aiStreamDone' });"
+    );
+  });
 });

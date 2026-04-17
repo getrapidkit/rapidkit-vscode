@@ -5,9 +5,12 @@
  */
 
 import * as vscode from 'vscode';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { Logger } from '../utils/logger';
+import { ModulesCatalogService } from './modulesCatalogService';
 import { WorkspaceMemoryService } from './workspaceMemoryService';
+import { detectRapidkitProject } from './bridge/pythonRapidkit';
 
 export interface AIMessage {
   role: 'user' | 'assistant';
@@ -17,6 +20,18 @@ export interface AIMessage {
 export interface AIStreamChunk {
   text: string;
   done: boolean;
+}
+
+export type AIConversationMode = 'debug' | 'ask';
+
+export interface AIConversationHistoryEntry {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface PreparedAIConversation {
+  scanned?: ScannedProjectContext;
+  messages: AIMessage[];
 }
 
 /**
@@ -89,6 +104,8 @@ export async function askAI(
 import * as fs from 'fs';
 import * as path from 'path';
 
+const execFileAsync = promisify(execFile);
+
 export interface AIModalContext {
   type: 'workspace' | 'project' | 'module';
   name: string;
@@ -118,6 +135,7 @@ export interface InstalledModule {
 export interface ScannedProjectContext {
   kit: RapidKitType;
   projectName: string;
+  projectRoot: string;
   installedModules: InstalledModule[];
   productionDeps: string[]; // key dependency names
   hasAlembic: boolean;
@@ -132,7 +150,39 @@ export interface ScannedProjectContext {
   dirTree: string; // formatted src/ directory tree
   relevantFiles: Array<{ relPath: string; content: string }>; // key entry-point files
   gitDiff: string | null; // recent uncommitted changes (stat only, truncated)
+  runtime: string | null;
+  engine: string | null;
+  detectionConfidence: 'strong' | 'weak' | 'none';
 }
+
+interface ProjectScanResolution {
+  scanRoot: string;
+  runtime: string | null;
+  engine: string | null;
+  detectionConfidence: 'strong' | 'weak' | 'none';
+  kitName: string | null;
+}
+
+interface ProjectContextCacheEntry {
+  value: ScannedProjectContext;
+  cachedAt: number;
+}
+
+interface ModelSelectionCacheEntry {
+  preference: string;
+  result: {
+    model: vscode.LanguageModelChat;
+    modelId: string;
+  };
+  cachedAt: number;
+}
+
+const PROJECT_CONTEXT_TTL_MS = 15 * 1000;
+const MODEL_SELECTION_TTL_MS = 5 * 60 * 1000;
+const MAX_SYSTEM_PROMPT_CHARS = 28_000;
+
+const _projectContextCache = new Map<string, ProjectContextCacheEntry>();
+let _modelSelectionCache: ModelSelectionCacheEntry | null = null;
 
 /**
  * Scan a project directory and return rich context for the AI prompt.
@@ -143,9 +193,11 @@ export async function scanProjectContext(
   projectPath: string,
   framework?: string
 ): Promise<ScannedProjectContext> {
+  const resolvedInputPath = projectPath ? path.resolve(projectPath) : projectPath;
   const empty: ScannedProjectContext = {
     kit: 'unknown',
-    projectName: path.basename(projectPath),
+    projectName: path.basename(resolvedInputPath),
+    projectRoot: resolvedInputPath,
     installedModules: [],
     productionDeps: [],
     hasAlembic: false,
@@ -159,79 +211,147 @@ export async function scanProjectContext(
     dirTree: '',
     relevantFiles: [],
     gitDiff: null,
+    runtime: null,
+    engine: null,
+    detectionConfidence: 'none',
   };
 
-  if (!projectPath) {
+  if (!resolvedInputPath) {
     return empty;
   }
 
-  const ctx = { ...empty };
+  const cacheKey = `${resolvedInputPath}::${framework ?? 'auto'}`;
+  const cached = _projectContextCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < PROJECT_CONTEXT_TTL_MS) {
+    return cached.value;
+  }
+
+  const resolved = await resolveProjectScanRoot(resolvedInputPath);
+  const scanRoot = resolved.scanRoot;
+  const ctx: ScannedProjectContext = {
+    ...empty,
+    projectName: path.basename(scanRoot),
+    projectRoot: scanRoot,
+    runtime: resolved.runtime,
+    engine: resolved.engine,
+    detectionConfidence: resolved.detectionConfidence,
+  };
 
   // ── helpers ────────────────────────────────────────────────────────────
-  const exists = (rel: string) => {
+  const exists = async (rel: string): Promise<boolean> => {
     try {
-      fs.accessSync(path.join(projectPath, rel));
+      await fs.promises.access(path.join(scanRoot, rel));
       return true;
     } catch {
       return false;
     }
   };
-  const readJSON = <T>(rel: string): T | null => {
+  const readJSON = async <T>(rel: string): Promise<T | null> => {
     try {
-      return JSON.parse(fs.readFileSync(path.join(projectPath, rel), 'utf8')) as T;
+      return JSON.parse(await fs.promises.readFile(path.join(scanRoot, rel), 'utf8')) as T;
     } catch {
       return null;
     }
   };
-  const readText = (rel: string): string | null => {
+  const readText = async (rel: string): Promise<string | null> => {
     try {
-      return fs.readFileSync(path.join(projectPath, rel), 'utf8');
+      return await fs.promises.readFile(path.join(scanRoot, rel), 'utf8');
     } catch {
       return null;
     }
   };
-  const listDir = (rel: string): string[] => {
+  const listDir = async (rel: string): Promise<string[]> => {
     try {
-      return fs.readdirSync(path.join(projectPath, rel));
+      return await fs.promises.readdir(path.join(scanRoot, rel));
     } catch {
       return [];
     }
   };
 
+  const resolvedFramework = normalizeFrameworkHint(framework, resolved);
+
+  const hasPyproject = await exists('pyproject.toml');
+  const hasPackageJson = await exists('package.json');
+  const hasGoMod = await exists('go.mod');
+
+  let inferredFramework = resolvedFramework;
+  if (!inferredFramework) {
+    const candidates: Array<'fastapi' | 'nestjs' | 'go'> = [];
+    if (hasPyproject) {
+      candidates.push('fastapi');
+    }
+    if (hasPackageJson) {
+      candidates.push('nestjs');
+    }
+    if (hasGoMod) {
+      candidates.push('go');
+    }
+
+    if (candidates.length === 1) {
+      inferredFramework = candidates[0];
+    } else if (candidates.length > 1) {
+      if (
+        resolved.runtime === 'python' ||
+        resolved.engine === 'python' ||
+        resolved.engine === 'pip'
+      ) {
+        inferredFramework = 'fastapi';
+      } else if (
+        resolved.runtime === 'node' ||
+        resolved.engine === 'node' ||
+        resolved.engine === 'npm'
+      ) {
+        inferredFramework = 'nestjs';
+      } else if (resolved.runtime === 'go' || resolved.engine === 'go') {
+        inferredFramework = 'go';
+      }
+    }
+  }
+
+  if (resolved.kitName) {
+    ctx.kit = normalizeKitName(resolved.kitName);
+  }
+
   // ── registry.json (installed modules) ─────────────────────────────────
   const registry =
-    readJSON<{ installed_modules?: InstalledModule[] }>('registry.json') ??
-    readJSON<{ installed_modules?: InstalledModule[] }>('.rapidkit/registry.json');
+    (await readJSON<{ installed_modules?: InstalledModule[] }>('registry.json')) ??
+    (await readJSON<{ installed_modules?: InstalledModule[] }>('.rapidkit/registry.json'));
   if (registry?.installed_modules) {
     ctx.installedModules = registry.installed_modules;
   }
 
   // ── project layout ─────────────────────────────────────────────────────
-  ctx.hasAlembic = exists('alembic') || exists('alembic.ini');
-  ctx.hasDocker = exists('Dockerfile') || exists('docker-compose.yml');
-  ctx.hasHealthDir = exists('src/health');
-  ctx.hasDomainLayer = exists('src/app/domain');
-  ctx.hasUseCasesDir = exists('src/app/application/use_cases');
-  ctx.topLevelSrcDirs = listDir('src').filter(
+  ctx.hasAlembic = (await exists('alembic')) || (await exists('alembic.ini'));
+  ctx.hasDocker = (await exists('Dockerfile')) || (await exists('docker-compose.yml'));
+  ctx.hasHealthDir = await exists('src/health');
+  ctx.hasDomainLayer = await exists('src/app/domain');
+  ctx.hasUseCasesDir = await exists('src/app/application/use_cases');
+  ctx.topLevelSrcDirs = (await listDir('src')).filter(
     (n) => !n.startsWith('_') && !n.endsWith('.py') && !n.endsWith('.ts')
   );
 
   // config/*.yaml files
   try {
-    ctx.configFiles = fs
-      .readdirSync(path.join(projectPath, 'config'))
-      .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+    ctx.configFiles = (await fs.promises.readdir(path.join(scanRoot, 'config'))).filter(
+      (f) => f.endsWith('.yaml') || f.endsWith('.yml')
+    );
   } catch {
     /* no config dir */
   }
 
-  ctx.envFile = exists('.env') ? '.env' : exists('.env.local') ? '.env.local' : null;
+  ctx.envFile = (await exists('.env'))
+    ? '.env'
+    : (await exists('.env.local'))
+      ? '.env.local'
+      : null;
 
   // ── kit detection ───────────────────────────────────────────────────────
-  if (framework === 'fastapi' || (!framework && exists('pyproject.toml'))) {
-    ctx.kit = ctx.hasDomainLayer ? 'fastapi.ddd' : 'fastapi.standard';
+  if (inferredFramework === 'fastapi') {
+    if (ctx.kit === 'unknown') {
+      ctx.kit = ctx.hasDomainLayer ? 'fastapi.ddd' : 'fastapi.standard';
+    }
     // extract pydantic, sqlalchemy, other prod deps from pyproject.toml
-    const pyproj = readText('pyproject.toml') ?? '';
+    const pyproj = (await readText('pyproject.toml')) ?? '';
     const depSection = pyproj.split('[tool.poetry.dependencies]')[1]?.split('[')[0] ?? '';
     const deps: string[] = [];
     for (const line of depSection.split('\n')) {
@@ -241,28 +361,154 @@ export async function scanProjectContext(
       }
     }
     ctx.productionDeps = deps;
-  } else if (framework === 'nestjs' || (!framework && exists('package.json'))) {
-    ctx.kit = 'nestjs.standard';
-    const pkg = readJSON<{ dependencies?: Record<string, string> }>('package.json');
+  } else if (inferredFramework === 'nestjs') {
+    if (ctx.kit === 'unknown') {
+      ctx.kit = 'nestjs.standard';
+    }
+    const pkg = await readJSON<{ dependencies?: Record<string, string> }>('package.json');
     ctx.productionDeps = Object.keys(pkg?.dependencies ?? {});
-  } else if (framework === 'go' || (!framework && exists('go.mod'))) {
-    const gomod = readText('go.mod') ?? '';
-    ctx.kit = gomod.toLowerCase().includes('gofiber') ? 'gofiber.standard' : 'gogin.standard';
+  } else if (inferredFramework === 'go') {
+    const gomod = (await readText('go.mod')) ?? '';
+    if (ctx.kit === 'unknown') {
+      ctx.kit = gomod.toLowerCase().includes('gofiber') ? 'gofiber.standard' : 'gogin.standard';
+    }
   }
 
   // ── v0.18: rich context ──────────────────────────────────────────────────
-  ctx.dirTree = _buildDirTree(projectPath, ctx.topLevelSrcDirs);
-  ctx.relevantFiles = _readRelevantFiles(projectPath, ctx.kit);
-  ctx.gitDiff = _getGitDiffStat(projectPath);
+  ctx.dirTree = await _buildDirTree(scanRoot, ctx.topLevelSrcDirs);
+  ctx.relevantFiles = await _readRelevantFiles(scanRoot, ctx.kit);
+  ctx.gitDiff = await _getGitDiffStat(scanRoot);
+
+  _projectContextCache.set(cacheKey, {
+    value: ctx,
+    cachedAt: Date.now(),
+  });
 
   return ctx;
+}
+
+async function resolveProjectScanRoot(projectPath: string): Promise<ProjectScanResolution> {
+  let scanRoot = projectPath;
+  let runtime: string | null = null;
+  let engine: string | null = null;
+  let detectionConfidence: 'strong' | 'weak' | 'none' = 'none';
+  let kitName: string | null = null;
+
+  try {
+    const detected = await detectRapidkitProject(projectPath, {
+      cwd: path.dirname(projectPath),
+      timeoutMs: 2000,
+    });
+    if (detected.ok && detected.data) {
+      detectionConfidence = detected.data.confidence;
+      engine = typeof detected.data.engine === 'string' ? detected.data.engine : null;
+      if (detected.data.projectRoot) {
+        scanRoot = path.resolve(detected.data.projectRoot);
+      }
+    }
+  } catch {
+    // Ignore contract bridge failures and fall back to direct file inspection.
+  }
+
+  const projectJson = await safeReadJson<Record<string, unknown>>(
+    path.join(scanRoot, '.rapidkit', 'project.json')
+  );
+  const contextJson = await safeReadJson<Record<string, unknown>>(
+    path.join(scanRoot, '.rapidkit', 'context.json')
+  );
+
+  if (typeof projectJson?.kit_name === 'string') {
+    kitName = projectJson.kit_name;
+  }
+  if (typeof projectJson?.runtime === 'string') {
+    runtime = projectJson.runtime;
+  }
+  if (typeof contextJson?.engine === 'string' && !engine) {
+    engine = contextJson.engine;
+  }
+
+  return {
+    scanRoot,
+    runtime,
+    engine,
+    detectionConfidence,
+    kitName,
+  };
+}
+
+async function safeReadJson<T>(filePath: string): Promise<T | null> {
+  try {
+    return JSON.parse(await fs.promises.readFile(filePath, 'utf8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeKitName(value: string | null | undefined): RapidKitType {
+  switch (value) {
+    case 'fastapi.ddd':
+      return 'fastapi.ddd';
+    case 'fastapi.standard':
+      return 'fastapi.standard';
+    case 'nestjs.standard':
+      return 'nestjs.standard';
+    case 'gofiber.standard':
+      return 'gofiber.standard';
+    case 'gogin.standard':
+      return 'gogin.standard';
+    default:
+      return 'unknown';
+  }
+}
+
+function normalizeFrameworkHint(
+  framework: string | undefined,
+  resolved: ProjectScanResolution
+): string | undefined {
+  if (framework) {
+    return framework;
+  }
+  const normalizedKit = normalizeKitName(resolved.kitName);
+  if (normalizedKit.startsWith('fastapi')) {
+    return 'fastapi';
+  }
+  if (normalizedKit.startsWith('nestjs')) {
+    return 'nestjs';
+  }
+  if (normalizedKit.startsWith('go')) {
+    return 'go';
+  }
+  if (resolved.runtime === 'node' || resolved.engine === 'node' || resolved.engine === 'npm') {
+    return 'nestjs';
+  }
+  if (resolved.runtime === 'go' || resolved.engine === 'go') {
+    return 'go';
+  }
+  if (resolved.runtime === 'python' || resolved.engine === 'python' || resolved.engine === 'pip') {
+    return 'fastapi';
+  }
+  return undefined;
+}
+
+function resolveFrameworkFamily(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
+  const fw = scanned?.kit ?? ctx.framework ?? '';
+  if (fw.startsWith('fastapi') || fw === 'fastapi') {
+    return 'fastapi';
+  }
+  if (fw.startsWith('nestjs') || fw === 'nestjs') {
+    return 'nestjs';
+  }
+  if (fw.startsWith('go') || fw.startsWith('gofiber') || fw.startsWith('gogin') || fw === 'go') {
+    return 'go';
+  }
+  return fw;
 }
 
 /**
  * Build a first-level directory tree under src/ for prompt context.
  * Limits depth to avoid token bloat.
  */
-function _buildDirTree(projectPath: string, topDirs: string[]): string {
+async function _buildDirTree(projectPath: string, topDirs: string[]): Promise<string> {
   if (topDirs.length === 0) {
     return '';
   }
@@ -270,8 +516,7 @@ function _buildDirTree(projectPath: string, topDirs: string[]): string {
   for (const dir of topDirs.slice(0, 8)) {
     lines.push(`  ${dir}/`);
     try {
-      const children = fs
-        .readdirSync(path.join(projectPath, 'src', dir))
+      const children = (await fs.promises.readdir(path.join(projectPath, 'src', dir)))
         .filter((n) => !n.startsWith('_') && !n.startsWith('.'))
         .slice(0, 6);
       for (const child of children) {
@@ -288,26 +533,48 @@ function _buildDirTree(projectPath: string, topDirs: string[]): string {
  * Read key entry-point files for the detected kit.
  * Limits each file to 1 500 chars to stay within token budgets.
  */
-function _readRelevantFiles(
+async function _readRelevantFiles(
   projectPath: string,
   kit: string
-): Array<{ relPath: string; content: string }> {
+): Promise<Array<{ relPath: string; content: string }>> {
   const candidates: string[] = [];
 
-  if (kit.startsWith('fastapi')) {
-    candidates.push('src/main.py', 'src/routing/__init__.py');
+  if (kit === 'fastapi.ddd') {
+    candidates.push(
+      'src/main.py',
+      'src/routing/__init__.py',
+      'src/app/application/interfaces.py',
+      'src/app/presentation/api/dependencies/__init__.py',
+      'src/app/domain/models/__init__.py'
+    );
+  } else if (kit.startsWith('fastapi')) {
+    candidates.push(
+      'src/main.py',
+      'src/routing/__init__.py',
+      'src/modules/free/essentials/settings/settings.py'
+    );
   } else if (kit.startsWith('nestjs')) {
-    candidates.push('src/main.ts', 'src/app.module.ts');
+    candidates.push(
+      'src/main.ts',
+      'src/app.module.ts',
+      'src/modules/index.ts',
+      'src/config/configuration.ts'
+    );
   } else if (kit.startsWith('gofiber') || kit.startsWith('gogin')) {
-    candidates.push('cmd/server/main.go', 'internal/config/config.go');
+    candidates.push(
+      'cmd/server/main.go',
+      'internal/config/config.go',
+      'internal/server/server.go',
+      'internal/handlers/health.go'
+    );
   }
 
   const result: Array<{ relPath: string; content: string }> = [];
   for (const relPath of candidates) {
     try {
-      const raw = fs.readFileSync(path.join(projectPath, relPath), 'utf8');
+      const raw = await fs.promises.readFile(path.join(projectPath, relPath), 'utf8');
       if (raw) {
-        result.push({ relPath, content: raw.slice(0, 1500) });
+        result.push({ relPath, content: raw.slice(0, 1800) });
       }
     } catch {
       /* file missing — skip silently */
@@ -318,22 +585,45 @@ function _readRelevantFiles(
 
 /**
  * Run `git diff --stat HEAD` in the project directory.
- * Returns a truncated string, or null when git is unavailable / not a repo.
+ * Returns a short status string even when git is unavailable.
  */
-function _getGitDiffStat(projectPath: string): string | null {
+async function _getGitDiffStat(projectPath: string): Promise<string | null> {
   try {
-    const output = execSync('git diff --stat HEAD', {
+    const { stdout } = await execFileAsync('git', ['diff', '--stat', 'HEAD'], {
       cwd: projectPath,
       timeout: 3000,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
-      .trim()
-      .slice(0, 800);
-    return output || null;
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    });
+    const output = stdout.trim().slice(0, 800);
+    return output || 'No uncommitted changes detected (git diff --stat HEAD is empty).';
   } catch {
-    return null;
+    return 'Git context unavailable (not a repository or git is not installed).';
   }
+}
+
+async function getWorkspaceAwareLiveModules(
+  workspacePath?: string
+): Promise<LiveModuleEntry[] | null> {
+  try {
+    const result = await ModulesCatalogService.getInstance().getModulesCatalog(workspacePath);
+    if (result.modules.length > 0) {
+      return result.modules.map((module) => ({
+        name: module.id,
+        display_name: module.name,
+        version: module.version,
+        category: module.category,
+        description: module.description,
+        slug: module.slug,
+        tags: Array.isArray(module.tags) ? module.tags : [],
+      }));
+    }
+  } catch {
+    // The catalog service may not be initialized yet; fall back to direct CLI probing.
+  }
+
+  return await fetchLiveModules();
 }
 
 // ─── Live module registry (fetched from installed rapidkit engine) ──────────
@@ -362,17 +652,22 @@ const LIVE_MODULES_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * Returns `null` when the engine is not installed or the command fails.
  * Results are cached for `LIVE_MODULES_TTL_MS` to avoid overhead.
  */
-export function fetchLiveModules(): LiveModuleEntry[] | null {
+export async function fetchLiveModules(): Promise<LiveModuleEntry[] | null> {
   const now = Date.now();
   if (_liveModulesCache && now - _liveModulesCache.fetchedAt < LIVE_MODULES_TTL_MS) {
     return _liveModulesCache.modules;
   }
   try {
-    const raw = execSync('rapidkit modules list --json-schema 1', {
-      timeout: 8000,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
+    const { stdout: raw } = await execFileAsync(
+      'rapidkit',
+      ['modules', 'list', '--json-schema', '1'],
+      {
+        timeout: 8000,
+        encoding: 'utf8',
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+      }
+    );
     // The CLI prints a preamble line ("🚀 RapidKit") before the JSON — strip it
     const jsonStart = raw.indexOf('{');
     if (jsonStart === -1) {
@@ -392,6 +687,12 @@ export function invalidateLiveModulesCache(): void {
   _liveModulesCache = null;
 }
 
+export function resetAIServiceCaches(): void {
+  _projectContextCache.clear();
+  _modelSelectionCache = null;
+  _liveModulesCache = null;
+}
+
 /**
  * Build the modules section string for the SYSTEM prompt.
  * Uses live data when available, falls back to the static list.
@@ -404,7 +705,14 @@ function buildModuleListForPrompt(liveModules: LiveModuleEntry[] | null): string
       (byCategory[m.category] ??= []).push(m);
     }
     const lines = Object.entries(byCategory).map(([cat, mods]) => {
-      const slugs = mods.map((m) => m.slug).join('  ');
+      const slugs = mods
+        .map((m) => {
+          const status = m.version ? ` v${m.version}` : '';
+          const tags =
+            Array.isArray(m.tags) && m.tags.length > 0 ? ` [${m.tags.slice(0, 3).join(', ')}]` : '';
+          return `${m.slug}${status}${tags}`;
+        })
+        .join('  ');
       return `  ${cat.charAt(0).toUpperCase() + cat.slice(1).padEnd(16)}: ${slugs}`;
     });
     return `Available modules from your installed engine (use EXACT slugs, max 6, ALWAYS include free/essentials/settings):\n${lines.join('\n')}`;
@@ -489,10 +797,10 @@ const MODULE_CONTEXT_HINTS: Record<string, string> = {
  * Build the richest possible system prompt, combining static architecture
  * knowledge with live-scanned project context.
  */
-export function buildWorkspaiSystemPrompt(
+export async function buildWorkspaiSystemPrompt(
   ctx: AIModalContext,
   scanned?: ScannedProjectContext
-): string {
+): Promise<string> {
   // ─── 1. Core identity ──────────────────────────────────────────────────
   const identity = `You are the Workspai AI assistant — a principal backend engineer who authored the Workspai/RapidKit platform. You know every file path, naming convention, inject point, and code pattern by heart.`;
 
@@ -509,7 +817,7 @@ export function buildWorkspaiSystemPrompt(
   const stateSection = buildStateSection(ctx, scanned);
 
   // ─── 6. Workspace memory (team conventions + project context) ──────────
-  const memorySection = _buildMemorySection(ctx);
+  const memorySection = await _buildMemorySection(ctx);
 
   // ─── 7. Instructions ──────────────────────────────────────────────────
   const instructions = `INSTRUCTIONS:
@@ -522,17 +830,26 @@ export function buildWorkspaiSystemPrompt(
 - For migrations: use "alembic revision --autogenerate && alembic upgrade head".
 - Response language: match the user's query language (Persian → Persian, English → English).`;
 
-  return [
+  const prompt = [
     identity,
-    kitSection,
-    moduleSection,
-    stdSection,
-    stateSection,
-    memorySection,
+    clampPromptSection(kitSection, 9000),
+    clampPromptSection(moduleSection, 8000),
+    clampPromptSection(stdSection, 6000),
+    clampPromptSection(stateSection, 7000),
+    clampPromptSection(memorySection, 3000),
     instructions,
   ]
     .filter(Boolean)
     .join('\n\n' + '─'.repeat(60) + '\n\n');
+
+  return clampPromptSection(prompt, MAX_SYSTEM_PROMPT_CHARS);
+}
+
+function clampPromptSection(section: string, maxChars: number): string {
+  if (!section || section.length <= maxChars) {
+    return section;
+  }
+  return `${section.slice(0, maxChars)}\n... [truncated for context budget]`;
 }
 
 function buildKitSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
@@ -730,7 +1047,7 @@ ${moduleLines.join('\n')}`;
 }
 
 function buildStandardsSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  const fw = ctx.framework;
+  const fw = resolveFrameworkFamily(ctx, scanned);
 
   if (fw === 'fastapi') {
     return `FASTAPI / PYTHON CODING STANDARDS (exact Workspai patterns):
@@ -844,12 +1161,23 @@ Testing: table-driven, testify/assert, mock interfaces with testify/mock.`;
 }
 
 function buildStateSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  if (!scanned || ctx.type !== 'project') {
+  if (!scanned || !ctx.path) {
     return '';
   }
 
-  const parts: string[] = [`CURRENT PROJECT STATE: ${scanned.projectName}`];
+  const scopeLabel = ctx.type === 'workspace' ? 'WORKSPACE' : 'PROJECT';
+  const parts: string[] = [`CURRENT ${scopeLabel} STATE: ${scanned.projectName}`];
+  parts.push(`  Root:        ${scanned.projectRoot}`);
   parts.push(`  Kit:         ${scanned.kit}`);
+  if (scanned.runtime) {
+    parts.push(`  Runtime:     ${scanned.runtime}`);
+  }
+  if (scanned.engine) {
+    parts.push(`  Engine:      ${scanned.engine}`);
+  }
+  if (scanned.detectionConfidence !== 'none') {
+    parts.push(`  Detection:   ${scanned.detectionConfidence}`);
+  }
   parts.push(`  Modules:     ${scanned.installedModules.length} installed`);
   if (scanned.hasAlembic) {
     parts.push('  Migrations:  Alembic (alembic/)');
@@ -925,16 +1253,16 @@ function buildStateSection(ctx: AIModalContext, scanned?: ScannedProjectContext)
  * Inject workspace memory (team conventions + decisions) into the system prompt.
  * Returns an empty string when the project has no memory file.
  */
-function _buildMemorySection(ctx: AIModalContext): string {
+async function _buildMemorySection(ctx: AIModalContext): Promise<string> {
   if (!ctx.path) {
     return '';
   }
   try {
     const memSvc = WorkspaceMemoryService.getInstance();
-    if (!memSvc.hasMemory(ctx.path)) {
+    if (!(await memSvc.hasMemory(ctx.path))) {
       return '';
     }
-    const memory = memSvc.read(ctx.path);
+    const memory = await memSvc.read(ctx.path);
     const formatted = memSvc.formatForPrompt(memory);
     if (!formatted) {
       return '';
@@ -951,7 +1279,7 @@ function _buildMemorySection(ctx: AIModalContext): string {
  * Build the user-facing message for an AI modal query.
  */
 export function buildAIModalUserMessage(
-  mode: 'debug' | 'ask',
+  mode: AIConversationMode,
   question: string,
   ctx: AIModalContext,
   scanned?: ScannedProjectContext
@@ -994,6 +1322,41 @@ Question: ${question}
 Answer precisely using the project's actual kit (${kitLabel}), installed modules, and Workspai coding standards. Include working code examples.`;
 }
 
+export async function prepareAIConversation(
+  mode: AIConversationMode,
+  question: string,
+  ctx: AIModalContext,
+  history: AIConversationHistoryEntry[] = []
+): Promise<PreparedAIConversation> {
+  const scanned = ctx.path
+    ? await scanProjectContext(ctx.path, ctx.framework).catch(() => undefined)
+    : undefined;
+
+  const historyMessages: AIMessage[] = history.slice(-8).map((entry) => ({
+    role: entry.role,
+    content: entry.content,
+  }));
+
+  return {
+    scanned,
+    messages: [
+      {
+        role: 'user',
+        content: await buildWorkspaiSystemPrompt(ctx, scanned),
+      },
+      {
+        role: 'assistant',
+        content: 'Understood. I will follow Workspai standards and real project context.',
+      },
+      ...historyMessages,
+      {
+        role: 'user',
+        content: buildAIModalUserMessage(mode, question, ctx, scanned),
+      },
+    ],
+  };
+}
+
 // ─── selectModel: respects workspai.preferredModel VS Code setting ──────────
 
 /**
@@ -1006,47 +1369,116 @@ export async function selectModelWithPreference(): Promise<{
 }> {
   const pref = vscode.workspace.getConfiguration('workspai').get<string>('preferredModel', 'auto');
 
+  if (
+    _modelSelectionCache &&
+    _modelSelectionCache.preference === pref &&
+    Date.now() - _modelSelectionCache.cachedAt < MODEL_SELECTION_TTL_MS
+  ) {
+    return _modelSelectionCache.result;
+  }
+
   const MODEL_MAP: Record<string, string[]> = {
-    'gpt-4o': ['gpt-4o'],
+    // ── Claude ────────────────────────────────────────────
+    'claude-opus-4-6': ['claude-opus-4-6', 'claude-opus-4-5'],
+    'claude-opus-4-5': ['claude-opus-4-5', 'claude-opus-4-6'],
+    'claude-sonnet-4-6': ['claude-sonnet-4-6', 'claude-sonnet-4-5'],
+    'claude-sonnet-4-5': ['claude-sonnet-4-5', 'claude-sonnet-4-6'],
+    'claude-sonnet-4': ['claude-sonnet-4', 'claude-sonnet-4-5'],
+    'claude-haiku-4-5': ['claude-haiku-4-5'],
+    // ── GPT ──────────────────────────────────────────────
+    'gpt-5.4': ['gpt-5.4', 'gpt-5.2'],
+    'gpt-5.4-mini': ['gpt-5.4-mini', 'gpt-5.4'],
+    'gpt-5.3-codex': ['gpt-5.3-codex', 'gpt-5.2-codex'],
+    'gpt-5.2-codex': ['gpt-5.2-codex', 'gpt-5.3-codex'],
+    'gpt-5.2': ['gpt-5.2', 'gpt-5.4'],
+    'gpt-5-mini': ['gpt-5-mini', 'gpt-5.2'],
     'gpt-4.1': ['gpt-4.1', 'gpt-4o'],
-    'claude-sonnet-4-5': ['claude-sonnet-4-5', 'claude-3-5-sonnet'],
-    'claude-3-7-sonnet': ['claude-3-7-sonnet', 'claude-sonnet-4-5'],
-    'gpt-4o-mini': ['gpt-4o-mini', 'gpt-4o'],
+    'gpt-4o': ['gpt-4o', 'gpt-4.1'],
+    // ── Gemini ───────────────────────────────────────────
+    'gemini-3.1-pro': ['gemini-3.1-pro', 'gemini-2.5-pro'],
+    'gemini-3-flash': ['gemini-3-flash', 'gemini-2.5-pro'],
+    'gemini-2.5-pro': ['gemini-2.5-pro', 'gemini-3.1-pro'],
+    // ── Other ────────────────────────────────────────────
+    'grok-code-fast-1': ['grok-code-fast-1'],
+    'raptor-mini': ['raptor-mini'],
+    // ── Legacy preference aliases (backward compatibility) ────────────
+    'claude-3-7-sonnet': ['claude-sonnet-4-6', 'claude-sonnet-4-5'],
+    'claude-3-5-sonnet': ['claude-sonnet-4-5', 'claude-sonnet-4'],
+    'gpt-4o-mini': ['gpt-5-mini', 'gpt-4o'],
+  };
+
+  const rememberSelection = (model: vscode.LanguageModelChat, modelId: string) => {
+    const result = { model, modelId };
+    _modelSelectionCache = {
+      preference: pref,
+      result,
+      cachedAt: Date.now(),
+    };
+    return result;
+  };
+
+  const allModels = await vscode.lm.selectChatModels();
+  const normalizeModelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const findModelByAlias = (alias: string): vscode.LanguageModelChat | undefined => {
+    const target = normalizeModelKey(alias);
+    const exact = allModels.find(
+      (m) => normalizeModelKey(m.id) === target || normalizeModelKey(m.name ?? '') === target
+    );
+    if (exact) {
+      return exact;
+    }
+    return allModels.find((m) => {
+      const id = normalizeModelKey(m.id);
+      const name = normalizeModelKey(m.name ?? '');
+      return id.includes(target) || name.includes(target);
+    });
+  };
+
+  const tryModelAliases = (aliases: string[]) => {
+    for (const alias of aliases) {
+      const model = findModelByAlias(alias);
+      if (model) {
+        return rememberSelection(model, model.name ?? model.id);
+      }
+    }
+    return null;
   };
 
   // Preferred model requested explicitly
-  if (pref !== 'auto' && MODEL_MAP[pref]) {
-    for (const id of MODEL_MAP[pref]) {
-      const [model] = await vscode.lm.selectChatModels({ id });
-      if (model) {
-        return { model, modelId: model.name ?? id };
-      }
+  if (pref !== 'auto') {
+    const preferred = tryModelAliases(MODEL_MAP[pref] ?? [pref]);
+    if (preferred) {
+      return preferred;
     }
   }
 
-  // Auto: try quality order
+  // Auto: try quality order (best coding models first, balanced cost)
   const autoOrder = [
     'claude-sonnet-4-6',
+    'gpt-5.3-codex',
+    'gpt-5.2-codex',
     'claude-sonnet-4-5',
-    'claude-3-7-sonnet',
-    'claude-3-5-sonnet',
+    'gpt-5.4',
+    'gpt-5.2',
+    'gemini-3.1-pro',
+    'gemini-2.5-pro',
+    'claude-sonnet-4',
     'gpt-4.1',
     'gpt-4o',
-    'gpt-4o-mini',
-    'copilot-gpt-4',
-    'copilot-gpt-3.5-turbo',
+    'gpt-5-mini',
+    'gemini-3-flash',
+    'claude-haiku-4-5',
+    'gpt-5.4-mini',
+    'grok-code-fast-1',
   ];
-  for (const id of autoOrder) {
-    const [model] = await vscode.lm.selectChatModels({ id });
-    if (model) {
-      return { model, modelId: model.name ?? id };
-    }
+  const autoSelected = tryModelAliases(autoOrder);
+  if (autoSelected) {
+    return autoSelected;
   }
 
   // Absolute fallback
-  const all = await vscode.lm.selectChatModels();
-  if (all.length > 0) {
-    return { model: all[0], modelId: all[0].name ?? all[0].id };
+  if (allModels.length > 0) {
+    return rememberSelection(allModels[0], allModels[0].name ?? allModels[0].id);
   }
 
   throw new Error(
@@ -1076,6 +1508,58 @@ export interface AICreationPlan {
   suggestedModules: string[];
   description: string;
 }
+
+const VALID_PROFILES = new Set<AICreateProfile>([
+  'minimal',
+  'python-only',
+  'node-only',
+  'go-only',
+  'polyglot',
+  'enterprise',
+]);
+
+const VALID_INSTALL_METHODS = new Set<AICreationPlan['installMethod']>([
+  'auto',
+  'poetry',
+  'venv',
+  'pipx',
+]);
+
+const FRAMEWORK_TO_KITS: Record<AICreateFramework, string[]> = {
+  fastapi: ['fastapi.standard', 'fastapi.ddd'],
+  nestjs: ['nestjs.standard'],
+  go: ['gofiber.standard', 'gogin.standard'],
+};
+
+const STATIC_MODULE_SLUGS = new Set<string>([
+  'free/essentials/settings',
+  'free/essentials/logging',
+  'free/essentials/middleware',
+  'free/essentials/deployment',
+  'free/auth/core',
+  'free/auth/oauth',
+  'free/auth/session',
+  'free/auth/passwordless',
+  'free/auth/api_keys',
+  'free/database/db_postgres',
+  'free/database/db_mongo',
+  'free/database/db_sqlite',
+  'free/cache/redis',
+  'free/security/cors',
+  'free/security/security_headers',
+  'free/security/rate_limiting',
+  'free/observability/core',
+  'free/users/users_core',
+  'free/users/users_profiles',
+  'free/business/storage',
+  'free/billing/stripe_payment',
+  'free/billing/cart',
+  'free/billing/inventory',
+  'free/communication/notifications',
+  'free/communication/email',
+  'free/tasks/celery',
+  'free/ai/ai_assistant',
+]);
 
 /**
  * Extract the first JSON object from a potentially markdown-wrapped LLM response.
@@ -1108,6 +1592,135 @@ function defaultProfile(fw: string): AICreateProfile {
   return 'python-only';
 }
 
+function isCreateFramework(value: unknown): value is AICreateFramework {
+  return value === 'fastapi' || value === 'nestjs' || value === 'go';
+}
+
+function normalizeCreationFramework(value: unknown, frameworkHint?: string): AICreateFramework {
+  if (isCreateFramework(value)) {
+    return value;
+  }
+  if (isCreateFramework(frameworkHint)) {
+    return frameworkHint;
+  }
+  return 'fastapi';
+}
+
+function defaultKitForFramework(framework: AICreateFramework): string {
+  if (framework === 'nestjs') {
+    return 'nestjs.standard';
+  }
+  if (framework === 'go') {
+    return 'gofiber.standard';
+  }
+  return 'fastapi.standard';
+}
+
+function normalizeCreationKit(kit: unknown, framework: AICreateFramework): string {
+  if (typeof kit === 'string' && FRAMEWORK_TO_KITS[framework].includes(kit)) {
+    return kit;
+  }
+  return defaultKitForFramework(framework);
+}
+
+function normalizeCreationProfile(profile: unknown, framework: AICreateFramework): AICreateProfile {
+  if (typeof profile === 'string' && VALID_PROFILES.has(profile as AICreateProfile)) {
+    return profile as AICreateProfile;
+  }
+  return defaultProfile(framework);
+}
+
+function normalizeInstallMethod(value: unknown): AICreationPlan['installMethod'] {
+  if (
+    typeof value === 'string' &&
+    VALID_INSTALL_METHODS.has(value as AICreationPlan['installMethod'])
+  ) {
+    return value as AICreationPlan['installMethod'];
+  }
+  return 'auto';
+}
+
+function normalizeSuggestedModules(
+  modules: unknown,
+  liveModules: LiveModuleEntry[] | null
+): string[] {
+  const allowedSet = liveModules?.length
+    ? new Set(liveModules.map((m) => m.slug))
+    : STATIC_MODULE_SLUGS;
+  const allowedList = [...allowedSet];
+
+  const normalized = Array.isArray(modules)
+    ? modules
+        .filter((m): m is string => typeof m === 'string')
+        .map((m) => m.trim().toLowerCase())
+        .filter((m) => /^(?:[a-z0-9-]+)\/[a-z0-9_-]+\/[a-z0-9_-]+$/.test(m))
+        .map((m) => {
+          if (allowedSet.has(m)) {
+            return m;
+          }
+          return findClosestModuleSlug(m, allowedList);
+        })
+        .filter((m): m is string => Boolean(m))
+    : [];
+
+  const unique = [...new Set(normalized)].slice(0, 6);
+  if (!unique.includes('free/essentials/settings')) {
+    unique.unshift('free/essentials/settings');
+  }
+  return unique.slice(0, 6);
+}
+
+function findClosestModuleSlug(input: string, allowed: string[]): string | null {
+  if (allowed.length === 0) {
+    return null;
+  }
+
+  let bestSlug: string | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of allowed) {
+    const distance = levenshteinDistance(input, candidate);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestSlug = candidate;
+    }
+  }
+
+  // Keep correction conservative: only near-miss typos are auto-corrected.
+  return bestDistance <= 4 ? bestSlug : null;
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+  if (!a.length) {
+    return b.length;
+  }
+  if (!b.length) {
+    return a.length;
+  }
+
+  const prev = new Array<number>(b.length + 1);
+  const curr = new Array<number>(b.length + 1);
+
+  for (let j = 0; j <= b.length; j++) {
+    prev[j] = j;
+  }
+
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) {
+      prev[j] = curr[j];
+    }
+  }
+
+  return prev[b.length];
+}
+
 /**
  * Parse the user's natural-language description into a structured creation plan.
  * Uses the LLM API (non-streaming) with a strict JSON system prompt.
@@ -1116,9 +1729,10 @@ export async function parseCreationIntent(
   prompt: string,
   mode: 'workspace' | 'project',
   frameworkHint?: string,
+  workspacePath?: string,
   token?: vscode.CancellationToken
 ): Promise<{ plan: AICreationPlan; modelId: string }> {
-  const liveModules = fetchLiveModules();
+  const liveModules = await getWorkspaceAwareLiveModules(workspacePath);
   const modulesSection = buildModuleListForPrompt(liveModules);
 
   const SYSTEM = `You are a Workspai project scaffolding assistant. Parse the user description and respond with ONLY a valid JSON object — no markdown, no explanation.
@@ -1210,22 +1824,20 @@ Rules:
     };
   }
 
-  const fw =
-    (parsed.framework as AICreateFramework) ?? (frameworkHint as AICreateFramework) ?? 'fastapi';
+  const fw = normalizeCreationFramework(parsed.framework, frameworkHint);
   const plan: AICreationPlan = {
     type: mode,
     workspaceName: addWspSuffix(sanitizeKebab(parsed.workspaceName ?? 'my-workspace')),
-    profile: parsed.profile ?? defaultProfile(fw),
-    installMethod: parsed.installMethod ?? 'auto',
+    profile: normalizeCreationProfile(parsed.profile, fw),
+    installMethod: normalizeInstallMethod(parsed.installMethod),
     framework: fw,
-    kit:
-      parsed.kit ??
-      (fw === 'nestjs' ? 'nestjs.standard' : fw === 'go' ? 'gofiber.standard' : 'fastapi.standard'),
+    kit: normalizeCreationKit(parsed.kit, fw),
     projectName: sanitizeKebab(parsed.projectName ?? 'api'),
-    suggestedModules: Array.isArray(parsed.suggestedModules)
-      ? parsed.suggestedModules
-      : ['free/essentials/settings'],
-    description: parsed.description ?? prompt,
+    suggestedModules: normalizeSuggestedModules(parsed.suggestedModules, liveModules),
+    description:
+      typeof parsed.description === 'string' && parsed.description.trim()
+        ? parsed.description.trim().slice(0, 240)
+        : prompt.trim().slice(0, 240),
   };
 
   return { plan, modelId };

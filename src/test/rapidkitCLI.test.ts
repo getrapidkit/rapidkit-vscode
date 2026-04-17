@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, vi, beforeEach } from 'vitest';
-import { RapidKitCLI } from '../core/rapidkitCLI';
+import { WorkspaiCLI } from '../core/rapidkitCLI';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -25,11 +25,11 @@ vi.mock('../utils/exec', () => ({
 
 import { run } from '../utils/exec';
 
-describe('RapidKitCLI', () => {
-  let cli: RapidKitCLI;
+describe('WorkspaiCLI', () => {
+  let cli: WorkspaiCLI;
 
   beforeAll(() => {
-    cli = new RapidKitCLI();
+    cli = new WorkspaiCLI();
   });
 
   beforeEach(() => {

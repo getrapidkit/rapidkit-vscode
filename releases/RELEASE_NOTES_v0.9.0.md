@@ -292,7 +292,7 @@ Looking ahead to v0.10.0:
 - **GitHub:** [getrapidkit/rapidkit-vscode](https://github.com/getrapidkit/rapidkit-vscode)
 - **Issues:** [Report bugs](https://github.com/getrapidkit/rapidkit-vscode/issues)
 - **Discussions:** [Ask questions](https://github.com/getrapidkit/rapidkit-vscode/discussions)
-- **Website:** [getrapidkit.com](https://www.getrapidkit.com)
+- **Website:** [getrapidkit.com](https://getrapidkit.com)
 
 ---
 

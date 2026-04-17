@@ -104,13 +104,21 @@ const MODULE_LABELS: Record<string, string> = {
     'free/essentials/logging': 'Logging',
     'free/essentials/middleware': 'Middleware',
     'free/essentials/deployment': 'Deployment',
-    'free/observability/prometheus': 'Prometheus',
-    'free/billing/stripe': 'Stripe',
+    'free/observability/core': 'Observability',
+    'free/billing/stripe_payment': 'Stripe',
     'free/users/users_core': 'Users',
     'free/tasks/celery': 'Celery Jobs',
     'free/ai/ai_assistant': 'AI Assistant',
     'free/security/cors': 'CORS',
     'free/security/security_headers': 'Sec Headers',
+    'free/auth/passwordless': 'Passwordless',
+    'free/security/rate_limiting': 'Rate Limiting',
+    'free/users/users_profiles': 'Profiles',
+    'free/business/storage': 'Storage',
+    'free/billing/cart': 'Cart',
+    'free/billing/inventory': 'Inventory',
+    'free/communication/notifications': 'Notifications',
+    'free/communication/email': 'Email',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { vscode } from '@/vscode';
 import type {
@@ -43,6 +43,7 @@ export function App() {
     const [aiIsStreaming, setAIIsStreaming] = useState(false);
     const [aiStreamError, setAIStreamError] = useState<string | null>(null);
     const [aiModelId, setAIModelId] = useState<string | null>(null);
+    const [aiConversationHistory, setAIConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
     // AI Create state
     const [showAICreateModal, setShowAICreateModal] = useState(false);
     const [aiCreateMode, setAICreateMode] = useState<'workspace' | 'project'>('workspace');
@@ -73,6 +74,7 @@ export function App() {
     const [installStatusChecked, setInstallStatusChecked] = useState(false);
     const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
     const [isSetupCardHidden, setIsSetupCardHidden] = useState(false);
+    const aiRequestIdRef = useRef(0);
 
     const activeWorkspace =
         recentWorkspaces.find((workspace) => workspace.path === workspaceStatus.workspacePath) || null;
@@ -92,6 +94,8 @@ export function App() {
     useEffect(() => {
         const messageHandler = (event: MessageEvent) => {
             const message = event.data;
+            const messageRequestId =
+                typeof message?.data?.requestId === 'number' ? message.data.requestId : undefined;
 
             console.log('[React Webview] Received message:', message.command, message.data);
 
@@ -189,23 +193,43 @@ export function App() {
                 case 'openAIModal':
                     // Triggered from tree view AI inline button
                     console.log('[React Webview] openAIModal:', message.data);
+                    aiRequestIdRef.current = 0;
                     setAIModalContext(message.data);
                     setAIStreamContent('');
                     setAIStreamError(null);
                     setAIIsStreaming(false);
                     setAIModelId(null);
+                    setAIConversationHistory([]);
                     setShowAIModal(true);
                     break;
                 case 'aiChunkUpdate':
+                    if (
+                        typeof messageRequestId === 'number' &&
+                        messageRequestId !== aiRequestIdRef.current
+                    ) {
+                        break;
+                    }
                     setAIStreamContent((prev) => prev + (message.data?.text || ''));
                     break;
                 case 'aiStreamDone':
+                    if (
+                        typeof messageRequestId === 'number' &&
+                        messageRequestId !== aiRequestIdRef.current
+                    ) {
+                        break;
+                    }
                     setAIIsStreaming(false);
                     if (message.data?.error) {
                         setAIStreamError(message.data.error);
                     }
                     break;
                 case 'aiModelUsed':
+                    if (
+                        typeof messageRequestId === 'number' &&
+                        messageRequestId !== aiRequestIdRef.current
+                    ) {
+                        break;
+                    }
                     if (message.data?.modelId) setAIModelId(message.data.modelId);
                     break;
                 // ── AI Create events ────────────────────────────────────────
@@ -319,10 +343,22 @@ export function App() {
     };
 
     const handleAIQuery = (mode: 'debug' | 'ask', question: string, ctx: AIModalContext) => {
+        const requestId = aiRequestIdRef.current + 1;
+        aiRequestIdRef.current = requestId;
+        // Snapshot current content as previous assistant response before clearing
+        if (aiStreamContent.trim()) {
+            setAIConversationHistory(prev => [...prev, { role: 'assistant', content: aiStreamContent }]);
+        }
+        setAIConversationHistory(prev => [...prev, { role: 'user', content: question }]);
         setAIStreamContent('');
         setAIStreamError(null);
         setAIIsStreaming(true);
-        vscode.postMessage('aiQuery', { mode, question, context: ctx });
+        setAIModelId(null);
+        vscode.postMessage('aiQuery', { mode, question, context: ctx, requestId, history: aiConversationHistory });
+    };
+
+    const handleAICancelQuery = () => {
+        vscode.postMessage('aiCancelQuery', { requestId: aiRequestIdRef.current });
     };
 
     const handleConfirmInstall = () => {
@@ -506,12 +542,15 @@ export function App() {
                 modelId={aiModelId}
                 onClose={() => {
                     if (!aiIsStreaming) {
+                        aiRequestIdRef.current = 0;
                         setShowAIModal(false);
                         setAIStreamContent('');
                         setAIStreamError(null);
                         setAIModelId(null);
+                        setAIConversationHistory([]);
                     }
                 }}
+                onCancel={handleAICancelQuery}
                 onQuery={handleAIQuery}
             />
             <CommandReference

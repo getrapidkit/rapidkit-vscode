@@ -37,6 +37,15 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
         }
     }, [isOpen, framework, availableKits]);
 
+    useEffect(() => {
+        return () => {
+            if (suggestListenerRef.current) {
+                window.removeEventListener('message', suggestListenerRef.current);
+                suggestListenerRef.current = null;
+            }
+        };
+    }, []);
+
     const handleAISuggest = () => {
         setAiSuggestLoading(true);
         setAiSuggestions([]);
@@ -55,6 +64,7 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                     if (err) setAiSuggestError(err);
                     else setAiSuggestions(suggestions ?? []);
                     window.removeEventListener('message', listener);
+                    suggestListenerRef.current = null;
                 }
             }
         };

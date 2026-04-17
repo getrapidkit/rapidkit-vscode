@@ -29,6 +29,8 @@ export class WelcomePanel {
   public static currentPanel: WelcomePanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
+  private _aiQueryTokenSource?: vscode.CancellationTokenSource;
+  private _activeAIQueryRequestId?: number;
   private static _selectedProject: { name: string; path: string } | null = null;
   private _modulesCatalog: ModuleData[] = MODULES;
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
@@ -423,24 +425,32 @@ export class WelcomePanel {
             }
             const panel = this._panel;
             try {
-              const { selectModelWithPreference, fetchLiveModules } =
-                await import('../../core/aiService.js');
+              const { selectModelWithPreference } = await import('../../core/aiService.js');
               const { model, modelId } = await selectModelWithPreference();
               panel.webview.postMessage({
                 command: 'aiModuleSuggestions',
                 data: { loading: true, modelId },
               });
 
-              const liveModules = fetchLiveModules();
-              const moduleList = liveModules
-                ? liveModules.map((m: any) => `- ${m.slug}: ${m.description ?? ''}`).join('\n')
+              if (!this._modulesCatalog.length) {
+                await this._refreshModulesCatalog();
+              }
+              const moduleList = this._modulesCatalog.length
+                ? this._modulesCatalog
+                    .map((m) => {
+                      const tags =
+                        m.tags && m.tags.length ? ` | tags: ${m.tags.slice(0, 4).join(', ')}` : '';
+                      return `- ${m.slug}: ${m.description || m.name} | category: ${m.category} | status: ${m.status}${tags}`;
+                    })
+                    .join('\n')
                 : '(module list not available)';
 
               const prompt = `You are a Workspai assistant. Recommend the top 5 most useful Workspai modules for a ${fw} project named "${pn || 'my-project'}".
 Available modules:
 ${moduleList}
 
-Reply ONLY with a JSON array of objects like: [{"slug": "free/auth/jwt", "reason": "short reason"}]
+Reply ONLY with a JSON array of objects like: [{"slug": "free/auth/core", "reason": "short reason"}]
+Use ONLY slugs from the list above. Prefer modules that fit the framework and avoid deprecated or invented slugs.
 No markdown, no explanation outside the JSON.`;
 
               const token = new vscode.CancellationTokenSource().token;
@@ -455,9 +465,26 @@ No markdown, no explanation outside the JSON.`;
                 raw += chunk;
               }
 
-              // Extract JSON from response
+              // Extract and sanitize JSON from response
               const jsonMatch = raw.match(/\[[\s\S]*\]/);
-              const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+              const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+              const allowedSlugs = new Set(this._modulesCatalog.map((m) => m.slug));
+              const suggestions = Array.isArray(parsed)
+                ? parsed
+                    .filter(
+                      (item): item is { slug: string; reason?: string } =>
+                        item && typeof item === 'object' && typeof item.slug === 'string'
+                    )
+                    .map((item) => ({
+                      slug: item.slug.trim(),
+                      reason:
+                        typeof item.reason === 'string' && item.reason.trim()
+                          ? item.reason.trim().slice(0, 180)
+                          : 'Recommended for this project',
+                    }))
+                    .filter((item) => allowedSlugs.has(item.slug))
+                    .slice(0, 5)
+                : [];
               panel.webview.postMessage({
                 command: 'aiModuleSuggestions',
                 data: { loading: false, modelId, suggestions },
@@ -470,61 +497,112 @@ No markdown, no explanation outside the JSON.`;
             }
             break;
           }
+          case 'aiCancelQuery': {
+            const cancelRequestId =
+              typeof message?.data?.requestId === 'number' ? message.data.requestId : undefined;
+            if (
+              typeof cancelRequestId === 'number' &&
+              typeof this._activeAIQueryRequestId === 'number' &&
+              cancelRequestId !== this._activeAIQueryRequestId
+            ) {
+              break;
+            }
+            this._aiQueryTokenSource?.cancel();
+            this._aiQueryTokenSource?.dispose();
+            this._aiQueryTokenSource = undefined;
+            const doneRequestId =
+              typeof cancelRequestId === 'number' ? cancelRequestId : this._activeAIQueryRequestId;
+            if (typeof doneRequestId === 'number') {
+              this._panel.webview.postMessage({
+                command: 'aiStreamDone',
+                data: { requestId: doneRequestId },
+              });
+            } else {
+              this._panel.webview.postMessage({ command: 'aiStreamDone' });
+            }
+            this._activeAIQueryRequestId = undefined;
+            break;
+          }
           case 'aiQuery': {
             // Stream AI response for the AI modal queries
-            const { mode, question, context: aiCtx } = message.data || {};
+            const { mode, question, context: aiCtx, requestId, history } = message.data || {};
             if (!question || !aiCtx) {
               break;
             }
             const panel = this._panel;
+            const queryRequestId = typeof requestId === 'number' ? requestId : Date.now();
+            this._aiQueryTokenSource?.cancel();
+            this._aiQueryTokenSource?.dispose();
+            const tokenSource = new vscode.CancellationTokenSource();
+            this._aiQueryTokenSource = tokenSource;
+            this._activeAIQueryRequestId = queryRequestId;
             try {
-              const {
-                streamAIResponse,
-                buildWorkspaiSystemPrompt,
-                buildAIModalUserMessage,
-                scanProjectContext,
-              } = await import('../../core/aiService.js');
+              const { streamAIResponse, prepareAIConversation } =
+                await import('../../core/aiService.js');
 
-              // Scan the real project for rich context
-              const scanned = aiCtx.path
-                ? await scanProjectContext(aiCtx.path, aiCtx.framework).catch(() => null)
-                : null;
+              const conversationHistory = Array.isArray(history)
+                ? history
+                    .filter(
+                      (h: any): h is { role: 'user' | 'assistant'; content: string } =>
+                        h &&
+                        typeof h === 'object' &&
+                        (h.role === 'user' || h.role === 'assistant') &&
+                        typeof h.content === 'string'
+                    )
+                    .slice(-8)
+                : [];
 
-              const systemPrompt = buildWorkspaiSystemPrompt(aiCtx, scanned ?? undefined);
-              const userMessage = buildAIModalUserMessage(
+              const prepared = await prepareAIConversation(
                 mode,
                 question,
                 aiCtx,
-                scanned ?? undefined
+                conversationHistory
               );
 
               const { modelId } = await streamAIResponse(
-                [
-                  { role: 'user', content: systemPrompt },
-                  {
-                    role: 'assistant',
-                    content:
-                      'Understood. I will follow Workspai standards and real project context.',
-                  },
-                  { role: 'user', content: userMessage },
-                ],
+                prepared.messages,
                 (chunk) => {
                   if (chunk.text) {
                     panel.webview.postMessage({
                       command: 'aiChunkUpdate',
-                      data: { text: chunk.text },
+                      data: { text: chunk.text, requestId: queryRequestId },
                     });
                   }
                   if (chunk.done) {
-                    panel.webview.postMessage({ command: 'aiStreamDone' });
+                    panel.webview.postMessage({
+                      command: 'aiStreamDone',
+                      data: { requestId: queryRequestId },
+                    });
                   }
-                }
+                },
+                tokenSource.token
               );
               // Notify the webview which model was used
-              panel.webview.postMessage({ command: 'aiModelUsed', data: { modelId } });
+              panel.webview.postMessage({
+                command: 'aiModelUsed',
+                data: { modelId, requestId: queryRequestId },
+              });
             } catch (err) {
+              if (tokenSource.token.isCancellationRequested) {
+                panel.webview.postMessage({
+                  command: 'aiStreamDone',
+                  data: { requestId: queryRequestId },
+                });
+                break;
+              }
               const errMsg = err instanceof Error ? err.message : String(err);
-              panel.webview.postMessage({ command: 'aiStreamDone', data: { error: errMsg } });
+              panel.webview.postMessage({
+                command: 'aiStreamDone',
+                data: { error: errMsg, requestId: queryRequestId },
+              });
+            } finally {
+              if (this._aiQueryTokenSource === tokenSource) {
+                this._aiQueryTokenSource = undefined;
+              }
+              if (this._activeAIQueryRequestId === queryRequestId) {
+                this._activeAIQueryRequestId = undefined;
+              }
+              tokenSource.dispose();
             }
             break;
           }
@@ -543,10 +621,22 @@ No markdown, no explanation outside the JSON.`;
             panel.webview.postMessage({ command: 'aiCreationThinking', data: { thinking: true } });
             try {
               const { parseCreationIntent } = await import('../../core/aiService.js');
+              let workspacePath: string | undefined;
+              if (WelcomePanel._selectedProject) {
+                workspacePath = path.dirname(WelcomePanel._selectedProject.path);
+              } else if (WelcomePanel._workspaceExplorer) {
+                workspacePath = WelcomePanel._workspaceExplorer.getSelectedWorkspace()?.path;
+              } else if (
+                vscode.workspace.workspaceFolders &&
+                vscode.workspace.workspaceFolders.length > 0
+              ) {
+                workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+              }
               const { plan, modelId } = await parseCreationIntent(
                 creationPrompt,
                 creationMode ?? 'workspace',
-                creationFw
+                creationFw,
+                workspacePath
               );
               panel.webview.postMessage({ command: 'aiCreationPlan', data: { plan, modelId } });
             } catch (err) {
@@ -1818,6 +1908,11 @@ No markdown, no explanation outside the JSON.`;
 
   public dispose() {
     WelcomePanel.currentPanel = undefined;
+
+    this._aiQueryTokenSource?.cancel();
+    this._aiQueryTokenSource?.dispose();
+    this._aiQueryTokenSource = undefined;
+    this._activeAIQueryRequestId = undefined;
 
     this._panel.dispose();
 

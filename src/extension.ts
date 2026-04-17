@@ -122,9 +122,9 @@ export async function activate(context: vscode.ExtensionContext) {
           return;
         }
         const memSvc = WorkspaceMemoryService.getInstance();
-        if (!memSvc.hasMemory(ws.path)) {
+        if (!(await memSvc.hasMemory(ws.path))) {
           // Seed with a template so the user has something to start from
-          memSvc.writeTemplate(ws.path);
+          await memSvc.writeTemplate(ws.path);
         }
         const memUri = vscode.Uri.file(
           require('path').join(ws.path, '.rapidkit', 'workspace-memory.json')

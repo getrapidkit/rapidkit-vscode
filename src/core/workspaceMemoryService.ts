@@ -8,6 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+const fsp = fs.promises;
+
 export interface WorkspaceMemory {
   /** One-line project overview shown at the top of every AI prompt. */
   context: string;
@@ -57,9 +59,9 @@ export class WorkspaceMemoryService {
   }
 
   /** Returns true when a memory file exists for the workspace. */
-  hasMemory(workspacePath: string): boolean {
+  async hasMemory(workspacePath: string): Promise<boolean> {
     try {
-      fs.accessSync(this.memoryPath(workspacePath));
+      await fsp.access(this.memoryPath(workspacePath));
       return true;
     } catch {
       return false;
@@ -70,9 +72,9 @@ export class WorkspaceMemoryService {
    * Read the workspace memory file.
    * Returns DEFAULT_MEMORY (all empty) when the file does not exist or is unreadable.
    */
-  read(workspacePath: string): WorkspaceMemory {
+  async read(workspacePath: string): Promise<WorkspaceMemory> {
     try {
-      const raw = fs.readFileSync(this.memoryPath(workspacePath), 'utf8');
+      const raw = await fsp.readFile(this.memoryPath(workspacePath), 'utf8');
       const parsed = JSON.parse(raw) as Partial<WorkspaceMemory>;
       return { ...DEFAULT_MEMORY, ...parsed };
     } catch {
@@ -84,19 +86,19 @@ export class WorkspaceMemoryService {
    * Persist workspace memory to disk.
    * Creates .rapidkit/ directory if it doesn't already exist.
    */
-  write(workspacePath: string, memory: WorkspaceMemory): void {
+  async write(workspacePath: string, memory: WorkspaceMemory): Promise<void> {
     const filePath = this.memoryPath(workspacePath);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
     const data: WorkspaceMemory = { ...memory, lastUpdated: new Date().toISOString() };
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    await fsp.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
   }
 
   /**
    * Write the template memory file (called on first "Edit Memory" for a workspace
    * that has no memory yet).
    */
-  writeTemplate(workspacePath: string): void {
-    this.write(workspacePath, TEMPLATE_MEMORY);
+  async writeTemplate(workspacePath: string): Promise<void> {
+    await this.write(workspacePath, TEMPLATE_MEMORY);
   }
 
   /**

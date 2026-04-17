@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Bug, BrainCircuit, Sparkles, Send, Loader2 } from 'lucide-react';
+import { X, Bug, BrainCircuit, Sparkles, Send, Loader2, Square } from 'lucide-react';
 
 export interface AIModalContext {
     type: 'workspace' | 'project' | 'module';
@@ -19,6 +19,7 @@ interface AIModalProps {
     streamError: string | null;
     modelId?: string | null;
     onClose: () => void;
+    onCancel: () => void;
     onQuery: (mode: 'debug' | 'ask', question: string, context: AIModalContext) => void;
 }
 
@@ -64,9 +65,9 @@ function getQuickPrompts(ctx: AIModalContext, mode: Mode): string[] {
             'How do I add a new Workspai module to this project?',
         ];
         if (fw === 'go') return [
-            'How do I add a new HTTP handler following the ports-and-adapters pattern?',
-            'How should I add a new repository interface and implementation here?',
-            'How do I organise a new domain entity in this project?',
+            'How do I add a new HTTP handler in internal/handlers following this project\'s conventions?',
+            'How should I add a new service function with dependency injection here?',
+            'How do I add a new Workspai module to this Go project?',
         ];
         return [
             'How do I add a feature to this project following its conventions?',
@@ -91,6 +92,7 @@ export function AIModal({
     streamError,
     modelId,
     onClose,
+    onCancel,
     onQuery,
 }: AIModalProps) {
     const [mode, setMode] = useState<Mode>('ask');
@@ -136,7 +138,11 @@ export function AIModal({
             handleSubmit();
         }
         if (e.key === 'Escape') {
-            onClose();
+            if (isStreaming) {
+                onCancel();
+            } else {
+                onClose();
+            }
         }
     };
 
@@ -187,6 +193,7 @@ export function AIModal({
                             onClick={onClose}
                             title="Close"
                             aria-label="Close AI modal"
+                            disabled={isStreaming}
                         >
                             <X size={16} />
                         </button>
@@ -283,16 +290,16 @@ export function AIModal({
                         <button
                             type="button"
                             className="ai-modal-send"
-                            onClick={handleSubmit}
-                            disabled={!input.trim() || isStreaming}
-                            title="Send query"
+                            onClick={isStreaming ? onCancel : handleSubmit}
+                            disabled={!isStreaming && !input.trim()}
+                            title={isStreaming ? 'Stop generation' : 'Send query'}
                         >
                             {isStreaming ? (
-                                <Loader2 size={14} className="ai-modal-spinner" />
+                                <Square size={14} />
                             ) : (
                                 <Send size={14} />
                             )}
-                            {isStreaming ? 'Thinking…' : 'Send'}
+                            {isStreaming ? 'Stop' : 'Send'}
                         </button>
                     </div>
                 </div>

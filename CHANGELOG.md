@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-04-17
+
+### Added
+
+- 🧠 **Deep AI project context** in `aiService` for FastAPI/NestJS/Go workspaces with richer framework and file-signal extraction before generation and debugging.
+- ✅ **New AI regression coverage** with dedicated tests for alias/model handling and AI debugger command flow.
+
+### Changed
+
+- 🤖 **Model selection hardening** for GitHub Models/Copilot chat models, including robust alias resolution and safer fallback ordering.
+- 🧵 **Workspace memory I/O migrated to async flow** to avoid blocking extension interactions.
+- 🎛️ **AI interaction consistency** by routing legacy debug/brain entry points through the shared Workspai AI modal pipeline.
+
+### Fixed
+
+- 🛡️ **Prompt budget safeguards** to prevent oversized AI prompts and reduce timeout/failure risk on large repositories.
+- 🧩 **Module slug typo auto-correction** with conservative matching to reduce failed module operations from minor naming mistakes.
+- 🔁 **Webview AI request lifecycle stability** with stronger request correlation/cancel behavior across panel and modal flows.
+
 ## [0.17.1] - 2026-04-17
 
 ### Performance
@@ -1512,7 +1531,8 @@ Thank you for using RapidKit! 🚀
 
 ---
 
-[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/getrapidkit/rapidkit-vscode/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.18.0
 [0.12.0]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.12.0
 [0.6.1]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.6.1
 [0.4.5]: https://github.com/getrapidkit/rapidkit-vscode/releases/tag/v0.4.5
