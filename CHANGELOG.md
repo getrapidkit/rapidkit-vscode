@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.17.0] - 2026-04-16
+## [0.17.1] - 2026-04-17
+
+### Performance
+
+- **WORKSPACES sidebar — two-phase rendering** (`workspaceExplorer`) — `getChildren()` previously blocked on three per-workspace async ops: `versionService.getVersionInfo()` (subprocess + pip network call, 5 s timeout), `getBootstrapProfile()` (disk read), and `_countInstalledModules()` (recursive registry.json scan). Items now render instantly from cache; metadata (version badge, profile, module count) loads in background via `_scheduleBackgroundMetadataLoad` and fills in without user action.
+- **PROJECTS sidebar — two-phase rendering** (`projectExplorer`) — `getChildren()` now returns items immediately from `this.projects` cache and schedules `_scheduleProjectLoad()` in background; `loadProjects()` uses `Promise.all` for parallel `pathExists` checks per project instead of a sequential if/else chain.
+- **AVAILABLE MODULES — two-phase rendering** (`moduleExplorer`) — `getChildren()` immediately returns a `loading~spin` spinner item and fires `_scheduleBackgroundCatalogLoad()` instead of `await`-ing `_ensureCatalogLoaded()` (which ran a subprocess on cache miss). Catalog fills in when background load completes.
+- **Extension activation** — `workspaceDetector.detectRapidKitProjects()` is no longer `await`-ed at activation; fires in background with `.catch()` — extension activates without blocking on workspace detection.
+- **`coreVersionService` TTL** — version cache TTL extended from 5 min → 30 min. Python package version changes rarely; the subprocess version check runs far less often.
+- **`examplesService` timeout** — axios request timeout reduced from 10 s → 5 s.
+
+### Fixed
+
+- **AVAILABLE MODULES empty state** — `getChildren()` now returns `[]` when no project is selected, allowing the VS Code `viewsWelcome` rich empty state to show (icon + heading + description + button) instead of a bare placeholder tree item.
+- **Removed fragile `setTimeout` for doctor refresh** — two `setTimeout(5000)` / `setTimeout(8000)` calls after doctor re-run and autofix have been removed. The file watcher on `doctor-last-run.json` already handles refresh automatically.
+- **`HeroAction.tsx` badge alignment** — `$(sparkle)` icon inside `.hero-badge` span now aligns inline with text (`inline-flex items-center gap-1` / `display: inline-flex`).
+- **Dead code removed** — `_ensureCatalogLoaded()` in `moduleExplorer` deleted; it was no longer called after two-phase refactor.
+
+### Changed
+
+- `package.json` — `viewsWelcome` for `rapidkitModules` updated with icon `$(package)`, heading, description, and an "Open Projects" link button (shown when `!rapidkit:projectSelected`).
+- `package.json` — `concurrently` added to `devDependencies` (was used in `dev` script but missing from declared deps).
 
 ### Added
 

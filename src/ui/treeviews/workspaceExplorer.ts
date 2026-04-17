@@ -24,6 +24,8 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
   private fileWatcher?: vscode.FileSystemWatcher;
   private versionInfoCache: Map<string, CoreVersionInfo> = new Map();
   private profileCache: Map<string, string | undefined> = new Map();
+  private moduleCountCache: Map<string, number> = new Map();
+  private _backgroundLoadInProgress = false;
 
   constructor() {
     this.loadWorkspaces();
@@ -52,6 +54,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     this.versionService.clearCache();
     this.versionInfoCache.clear();
     this.profileCache.clear();
+    this.moduleCountCache.clear();
     await this.loadWorkspaces();
     this._onDidChangeTreeData.fire();
   }
@@ -62,52 +65,97 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
 
   async getChildren(element?: WorkspaceTreeItem): Promise<WorkspaceTreeItem[]> {
     if (!element) {
-      const items = await Promise.all(
-        this.workspaces.map(async (ws) => {
-          const isActive = this.selectedWorkspace?.path === ws.path;
+      // Phase 1: Return items immediately using only cached data — no blocking I/O.
+      // The sidebar appears instantly; metadata fills in via background load.
+      const items = this.workspaces.map((ws) => {
+        const isActive = this.selectedWorkspace?.path === ws.path;
 
-          // Fetch version info (async but cached)
-          const versionInfo = await this.versionService.getVersionInfo(ws.path);
-          this.versionInfoCache.set(ws.path, versionInfo);
-          const profile = await this.getBootstrapProfile(ws.path);
+        // Use cached version info (undefined on first load — fine)
+        const versionInfo = this.versionInfoCache.get(ws.path);
+        const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
 
-          // Count installed modules across all projects in this workspace
-          const moduleCount = await this._countInstalledModules(ws.path);
+        const descParts: string[] = [];
+        const profile = this.profileCache.get(ws.path);
+        if (profile) {
+          descParts.push(`[${profile}]`);
+        }
 
-          const item = new WorkspaceTreeItem(ws, 'workspace', isActive, versionInfo);
+        const moduleCount = this.moduleCountCache.get(ws.path);
+        if (moduleCount && moduleCount > 0) {
+          descParts.push(`[${moduleCount} mod]`);
+        }
 
-          const descParts: string[] = [];
-          if (profile) {
-            descParts.push(`[${profile}]`);
+        if (isActive) {
+          descParts.push('🟢 Active');
+        } else {
+          const lastOpened = this.getLastOpenedTime(ws);
+          if (lastOpened) {
+            descParts.push(lastOpened);
           }
+        }
 
-          if (moduleCount > 0) {
-            descParts.push(`[${moduleCount} mod]`);
-          }
+        if (descParts.length > 0) {
+          item.description = descParts.join(' • ');
+        }
 
-          // Show active status with icon or time since last opened
-          if (isActive) {
-            descParts.push('🟢 Active');
-          } else {
-            // Calculate time since last opened
-            const lastOpened = this.getLastOpenedTime(ws);
-            if (lastOpened) {
-              descParts.push(lastOpened);
-            }
-          }
+        return item;
+      });
 
-          if (descParts.length > 0) {
-            item.description = descParts.join(' • ');
-          }
-
-          return item;
-        })
-      );
+      // Phase 2: Kick off background metadata load for any uncached workspaces.
+      // Once loaded, fires a full tree refresh so descriptions update automatically.
+      this._scheduleBackgroundMetadataLoad();
 
       return items;
     }
 
     return [];
+  }
+
+  /**
+   * Background load: fetches version info, profile, and module count for workspaces
+   * that are not yet in cache.  Triggers a tree refresh when done.
+   * Never blocks the initial `getChildren` call.
+   */
+  private _scheduleBackgroundMetadataLoad(): void {
+    const pending = this.workspaces.filter(
+      (ws) =>
+        !this.versionInfoCache.has(ws.path) ||
+        !this.profileCache.has(ws.path) ||
+        !this.moduleCountCache.has(ws.path)
+    );
+
+    if (pending.length === 0 || this._backgroundLoadInProgress) {
+      return;
+    }
+
+    this._backgroundLoadInProgress = true;
+
+    Promise.all(
+      pending.map(async (ws) => {
+        const [versionInfo, profile, moduleCount] = await Promise.all([
+          this.versionInfoCache.has(ws.path)
+            ? Promise.resolve(this.versionInfoCache.get(ws.path)!)
+            : this.versionService.getVersionInfo(ws.path),
+          this.profileCache.has(ws.path)
+            ? Promise.resolve(this.profileCache.get(ws.path))
+            : this.getBootstrapProfile(ws.path),
+          this.moduleCountCache.has(ws.path)
+            ? Promise.resolve(this.moduleCountCache.get(ws.path)!)
+            : this._countInstalledModules(ws.path),
+        ]);
+        this.versionInfoCache.set(ws.path, versionInfo);
+        this.profileCache.set(ws.path, profile);
+        this.moduleCountCache.set(ws.path, moduleCount);
+      })
+    )
+      .then(() => {
+        this._backgroundLoadInProgress = false;
+        this._onDidChangeTreeData.fire();
+      })
+      .catch(() => {
+        this._backgroundLoadInProgress = false;
+        // Metadata is cosmetic — description badges missing is acceptable
+      });
   }
 
   private async _countInstalledModules(workspacePath: string): Promise<number> {

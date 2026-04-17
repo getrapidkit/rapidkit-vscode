@@ -115,7 +115,7 @@ export class ExamplesService {
       // Fetch from GitHub
       console.log('[ExamplesService] Fetching metadata from GitHub...');
       const response = await axios.get<ExamplesMetadata>(this.metadataUrl, {
-        timeout: 10000,
+        timeout: 5000,
         headers: {
           Accept: 'application/json',
         },

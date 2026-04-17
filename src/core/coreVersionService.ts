@@ -28,7 +28,7 @@ export class CoreVersionService {
   private static instance: CoreVersionService | null = null;
   private logger: Logger;
   private cache: Map<string, { info: CoreVersionInfo; timestamp: number }> = new Map();
-  private cacheTtl = 5 * 60 * 1000; // 5 minutes
+  private cacheTtl = 30 * 60 * 1000; // 30 minutes — Python package version changes rarely
   private globalInstalledCache: {
     version?: string;
     location?: string;

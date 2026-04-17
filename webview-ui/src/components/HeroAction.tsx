@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Rocket, Loader2 } from 'lucide-react';
+import { Rocket, Loader2, Sparkles } from 'lucide-react';
 
 interface HeroActionProps {
     onClick: () => void;
@@ -24,7 +24,10 @@ export function HeroAction({ onClick, isLoading = false }: HeroActionProps) {
                 <p className="hero-description">
                     Describe your project — AI picks the kit, selects modules, and scaffolds everything
                 </p>
-                <span className="hero-badge">{isLoading ? 'CREATING...' : 'BUILD WITH AI'}</span>
+                <span className="hero-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    {isLoading ? 'CREATING...' : 'BUILD WITH AI'}
+                    <Sparkles size={13} style={{ color: '#ffffff' }} />
+                </span>
             </div>
         </div>
     );

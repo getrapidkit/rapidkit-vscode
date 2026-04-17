@@ -189,7 +189,7 @@
   }
 
   .hero-badge {
-    @apply inline-block px-4 py-1.5 text-xs font-bold rounded-full;
+    @apply inline-flex items-center gap-1 px-4 py-1.5 text-xs font-bold rounded-full;
     background: linear-gradient(135deg, #6C5CE7, #8B7CF8);
     color: white;
     letter-spacing: 0.5px;

@@ -90,6 +90,8 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   private selectedWorkspace: WorkspaiWorkspace | null = null;
   private projects: WorkspaiProject[] = [];
   private selectedProject: WorkspaiProject | null = null;
+  private _projectsLoaded = false;
+  private _projectsLoadInProgress = false;
 
   constructor() {
     // NOTE: 'rapidkit.workspaceSelected' is registered once in extension.ts
@@ -112,13 +114,17 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   }
 
   refresh(): void {
-    // Don't load projects here - getChildren will do it
-    // Just fire the change event to trigger getChildren
+    // Clear cached project list so next render triggers a fresh background load
+    this._projectsLoaded = false;
     this._onDidChangeTreeData.fire();
   }
 
   setWorkspace(workspace: WorkspaiWorkspace | null): void {
     this.selectedWorkspace = workspace;
+
+    // Reset project cache so next render triggers a fresh load for the new workspace
+    this._projectsLoaded = false;
+    this.projects = [];
 
     // Clear selected project when workspace changes
     if (this.selectedProject) {
@@ -175,35 +181,15 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
         return [];
       }
 
-      await this.loadProjects();
-      await this.updateProjectsContext();
+      // Phase 1: Return cached items immediately — no blocking I/O.
+      const cachedItems = this._buildProjectItems();
 
-      return this.projects.map((project) => {
-        // Check if server is running for this project
-        const isRunning = runningServers.has(project.path);
-        const isSelected = this.selectedProject?.path === project.path;
+      // Phase 2: If projects not yet loaded for this workspace, kick off background load.
+      if (!this._projectsLoaded) {
+        this._scheduleProjectLoad();
+      }
 
-        // Extract port from terminal name if running
-        let runningPort: number | undefined;
-        if (isRunning) {
-          const terminal = runningServers.get(project.path);
-          if (terminal) {
-            const match = terminal.name.match(/:([0-9]+)/);
-            if (match) {
-              runningPort = parseInt(match[1], 10);
-            }
-          }
-        }
-
-        return new ProjectTreeItem(
-          project,
-          isRunning ? 'project-running' : 'project',
-          isSelected,
-          undefined,
-          undefined,
-          runningPort
-        );
-      });
+      return cachedItems;
     }
 
     // Project level - show file tree
@@ -220,6 +206,56 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     }
 
     return [];
+  }
+
+  private _buildProjectItems(): ProjectTreeItem[] {
+    return this.projects.map((project) => {
+      const isRunning = runningServers.has(project.path);
+      const isSelected = this.selectedProject?.path === project.path;
+
+      let runningPort: number | undefined;
+      if (isRunning) {
+        const terminal = runningServers.get(project.path);
+        if (terminal) {
+          const match = terminal.name.match(/:([0-9]+)/);
+          if (match) {
+            runningPort = parseInt(match[1], 10);
+          }
+        }
+      }
+
+      return new ProjectTreeItem(
+        project,
+        isRunning ? 'project-running' : 'project',
+        isSelected,
+        undefined,
+        undefined,
+        runningPort
+      );
+    });
+  }
+
+  /**
+   * Background project load: scans workspace directory in parallel and fires tree refresh.
+   * Never blocks the initial getChildren call.
+   */
+  private _scheduleProjectLoad(): void {
+    if (this._projectsLoadInProgress) {
+      return;
+    }
+
+    this._projectsLoadInProgress = true;
+
+    this.loadProjects()
+      .then(async () => {
+        this._projectsLoaded = true;
+        this._projectsLoadInProgress = false;
+        await this.updateProjectsContext();
+        this._onDidChangeTreeData.fire();
+      })
+      .catch(() => {
+        this._projectsLoadInProgress = false;
+      });
   }
 
   private async getFileChildren(
@@ -274,66 +310,52 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
     try {
       const entries = await fs.readdir(wsPath, { withFileTypes: true });
+      const projectDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
 
-      for (const entry of entries) {
-        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+      // Detect all projects in parallel — no sequential pathExists chains
+      const detected = await Promise.all(
+        projectDirs.map(async (entry) => {
           const projectPath = path.join(wsPath, entry.name);
-          const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-          const packageJsonPath = path.join(projectPath, 'package.json');
 
-          // Check for FastAPI project (pyproject.toml)
-          if (await fs.pathExists(pyprojectPath)) {
-            const project: WorkspaiProject = {
-              name: entry.name,
-              path: projectPath,
-              type: 'fastapi',
-              kit: 'standard',
-              modules: [],
-              isValid: true,
-              workspacePath: wsPath,
-            };
+          const [hasPyproject, hasPackageJson, hasGoMod] = await Promise.all([
+            fs.pathExists(path.join(projectPath, 'pyproject.toml')),
+            fs.pathExists(path.join(projectPath, 'package.json')),
+            fs.pathExists(path.join(projectPath, 'go.mod')),
+          ]);
 
-            this.projects.push(project);
+          const base: Omit<WorkspaiProject, 'type'> = {
+            name: entry.name,
+            path: projectPath,
+            kit: 'standard',
+            modules: [],
+            isValid: true,
+            workspacePath: wsPath,
+          };
+
+          if (hasPyproject) {
+            return { ...base, type: 'fastapi' } as WorkspaiProject;
           }
-          // Check for NestJS project (package.json with @nestjs/core)
-          else if (await fs.pathExists(packageJsonPath)) {
-            try {
-              const packageJson = await fs.readJSON(packageJsonPath);
-              if (packageJson.dependencies?.['@nestjs/core']) {
-                const project: WorkspaiProject = {
-                  name: entry.name,
-                  path: projectPath,
-                  type: 'nestjs',
-                  kit: 'standard',
-                  modules: [],
-                  isValid: true,
-                  workspacePath: wsPath,
-                };
 
-                this.projects.push(project);
+          if (hasPackageJson) {
+            try {
+              const packageJson = await fs.readJSON(path.join(projectPath, 'package.json'));
+              if (packageJson.dependencies?.['@nestjs/core']) {
+                return { ...base, type: 'nestjs' } as WorkspaiProject;
               }
             } catch {
-              // Invalid package.json, skip
+              // Invalid package.json — skip
             }
           }
-          // Check for Go project (go.mod)
-          else {
-            const goModPath = path.join(projectPath, 'go.mod');
-            if (await fs.pathExists(goModPath)) {
-              const project: WorkspaiProject = {
-                name: entry.name,
-                path: projectPath,
-                type: 'go',
-                kit: 'standard',
-                modules: [],
-                isValid: true,
-                workspacePath: wsPath,
-              };
-              this.projects.push(project);
-            }
+
+          if (hasGoMod) {
+            return { ...base, type: 'go' } as WorkspaiProject;
           }
-        }
-      }
+
+          return null;
+        })
+      );
+
+      this.projects = detected.filter((p): p is WorkspaiProject => p !== null);
     } catch (error) {
       console.error('Error loading projects:', error);
     }

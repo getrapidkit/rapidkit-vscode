@@ -1,6 +1,31 @@
 # Release Notes
 
-## Latest Release: v0.17.0 (April 16, 2026)
+## Latest Release: v0.17.1 (April 17, 2026)
+
+### ⚡ Deep Performance Audit — All Sidebars + UI Polish
+
+**Summary:** Every sidebar panel now renders instantly. Six performance bottlenecks were identified and fixed across `workspaceExplorer`, `projectExplorer`, `moduleExplorer`, `extension.ts`, `coreVersionService`, and `examplesService`. Two-phase rendering is now consistent across all three tree views. Additionally, the Available Modules empty state was upgraded to a rich VS Code `viewsWelcome` panel, the HeroAction badge alignment was corrected, and a missing `devDependency` was added.
+
+#### Performance
+
+- **WORKSPACES — two-phase rendering** — items render instantly from cache; version badge, profile tag, and module count load in background via `_scheduleBackgroundMetadataLoad`
+- **PROJECTS — two-phase rendering** — tree appears immediately from `this.projects`; `_scheduleProjectLoad()` runs in background; `loadProjects()` uses `Promise.all` for parallel `pathExists` checks per project
+- **AVAILABLE MODULES — two-phase rendering** — `loading~spin` spinner shown immediately; catalog fetched in background via `_scheduleBackgroundCatalogLoad()`; never blocks `getChildren()`
+- **Extension activation** — `workspaceDetector.detectRapidKitProjects()` deferred to background (was blocking entire activation with `await`)
+- **`coreVersionService` TTL** — 5 min → 30 min — subprocess version check runs far less often
+- **`examplesService` timeout** — 10 s → 5 s
+
+#### Fixed
+
+- **AVAILABLE MODULES empty state** — returns `[]` when no project selected; VS Code `viewsWelcome` shows rich empty state with `$(package)` icon, heading, description, and "Open Projects" button
+- **Doctor refresh `setTimeout` removed** — fragile `setTimeout(5000/8000)` after doctor re-run and autofix deleted; file watcher on `doctor-last-run.json` handles refresh automatically
+- **`HeroAction.tsx` badge alignment** — Sparkles icon now sits inline with badge text via `inline-flex items-center gap-1`
+- **Dead code** — `_ensureCatalogLoaded()` removed from `moduleExplorer` (unused after two-phase refactor)
+- **`concurrently` added to `devDependencies`** — was used in `dev` script but missing from declared deps
+
+---
+
+## v0.17.0 (April 16, 2026)
 
 ### ✦ AI Assistant, Doctor Fix with AI, Code Actions & Minimizable Modal
 
@@ -84,7 +109,8 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
-| [v0.16.0](releases/RELEASE_NOTES_v0.16.0.md) | Mar 22, 2026 | 🩺 Doctor Evidence Viewer sidebar, 📦 module install modal from sidebar, 🔄 live workspace-switch health refresh |
+| [v0.17.1](releases/RELEASE_NOTES_v0.17.1.md) | Apr 17, 2026 | ⚡ Instant sidebar render — two-phase async loading for WORKSPACES panel |
+| [v0.17.0](releases/RELEASE_NOTES_v0.17.0.md) | Apr 16, 2026 | ✦ AI Assistant, Doctor Fix with AI, Code Actions, minimizable modal |
 | [v0.15.0](releases/RELEASE_NOTES_v0.15.0.md) | Feb 27, 2026 | 🚀 platform-safe command layer, 🪟 tool-aware workspace modal, ⚡ workspace list performance, 🩺 doctor path clarity |
 | [v0.14.0](releases/RELEASE_NOTES_v0.14.0.md) | Feb 25, 2026 | 🎯 Workspace-vs-project correctness, 👁️ persisted setup toggle, 🌐 example link/clone fixes, 🏷️ profile tags |
 | [v0.13.0](releases/RELEASE_NOTES_v0.13.0.md) | Feb 21, 2026 | 🐹 Go framework support, 🪟 Workspace modal routing, 🔧 @latest fix, 🚫 Modules disabled for Go |

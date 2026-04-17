@@ -28,6 +28,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   private _installedModules: Map<string, InstalledModule> = new Map();
   private _modulesCatalog: ModuleData[] = MODULES;
   private _catalogLoaded = false;
+  private _catalogLoadInProgress = false;
 
   // Static instance for external access
   public static instance: ModuleExplorerProvider | null = null;
@@ -53,6 +54,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
     this._currentProjectType = projectType ?? null;
     // Reset catalog loaded flag so catalog is re-fetched for the new project/workspace
     this._catalogLoaded = false;
+    this._catalogLoadInProgress = false;
     this._loadInstalledModules();
     this.refresh();
   }
@@ -62,20 +64,13 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   async getChildren(element?: ModuleTreeItem): Promise<ModuleTreeItem[]> {
-    await this._ensureCatalogLoaded();
     if (!element) {
-      // If no project selected, show a placeholder message
+      // No project selected — return empty array so viewsWelcome shows the rich empty state
       if (!this._currentProjectPath) {
-        const item = new vscode.TreeItem('📌 Select a project to browse modules');
-        item.contextValue = 'placeholder';
-        item.description = 'Click on a project in the Projects panel';
-        item.tooltip = 'You need to select a project first to see available modules';
-        item.collapsibleState = vscode.TreeItemCollapsibleState.None;
-        item.iconPath = new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.yellow'));
-        return [new ModuleTreeItem(item, 'placeholder')];
+        return [];
       }
 
-      // Modules not supported for Go projects
+      // Go projects don’t support modules
       if (this._currentProjectType === 'go') {
         const item = new vscode.TreeItem('Modules not available for Go projects');
         item.contextValue = 'placeholder';
@@ -87,14 +82,44 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
         return [new ModuleTreeItem(item, 'placeholder')];
       }
 
-      // Root level - show module categories
+      // Phase 1: If catalog not loaded yet, show loading state immediately and kick off background load.
+      if (!this._catalogLoaded) {
+        this._scheduleBackgroundCatalogLoad();
+        const item = new vscode.TreeItem('Loading modules…');
+        item.contextValue = 'placeholder';
+        item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+        item.iconPath = new vscode.ThemeIcon('loading~spin');
+        return [new ModuleTreeItem(item, 'placeholder')];
+      }
+
+      // Phase 2: catalog ready — show categories
       return this.getModuleCategories();
     } else if (element.contextValue === 'category') {
-      // Show modules in category
       return this.getModulesInCategory(element.label as string);
     }
 
     return [];
+  }
+
+  /**
+   * Background catalog load: runs subprocess / reads disk cache without blocking getChildren.
+   * Fires a tree refresh once done.
+   */
+  private _scheduleBackgroundCatalogLoad(): void {
+    if (this._catalogLoadInProgress) {
+      return;
+    }
+    this._catalogLoadInProgress = true;
+
+    this._refreshModulesCatalog()
+      .then(() => {
+        this._catalogLoadInProgress = false;
+        this._onDidChangeTreeData.fire();
+      })
+      .catch(() => {
+        this._catalogLoadInProgress = false;
+        this._onDidChangeTreeData.fire(); // show fallback catalog
+      });
   }
 
   private getModuleCategories(): ModuleTreeItem[] {
@@ -250,13 +275,6 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
       }
     }
     return false;
-  }
-
-  private async _ensureCatalogLoaded(): Promise<void> {
-    if (this._catalogLoaded) {
-      return;
-    }
-    await this._refreshModulesCatalog();
   }
 
   private async _refreshModulesCatalog(): Promise<void> {

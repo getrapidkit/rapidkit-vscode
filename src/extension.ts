@@ -175,10 +175,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const configManager = ConfigurationManager.getInstance();
     await configManager.initialize(context);
 
-    // Initialize workspace detector
-    logger.info('Step 3: Initializing workspace detector...');
-    const workspaceDetector = WorkspaceDetector.getInstance();
-    await workspaceDetector.detectRapidKitProjects();
+    // Initialize workspace detector — deferred to background so sidebar renders immediately
+    WorkspaceDetector.getInstance()
+      .detectRapidKitProjects()
+      .catch((err) => logger.warn('Workspace detection failed (non-critical):', err));
 
     // Initialize modules catalog service
     ModulesCatalogService.initialize(context);
@@ -256,8 +256,7 @@ export async function activate(context: vscode.ExtensionContext) {
           cwd: ws.path,
           commands: [['doctor', 'workspace']],
         });
-        // Refresh evidence panel after a short delay so the new file is picked up
-        setTimeout(() => doctorEvidenceExplorer.refresh(), 5000);
+        // File watcher on doctor-last-run.json triggers refresh automatically
       }),
       vscode.commands.registerCommand('rapidkit.doctorEvidence.autofix', async () => {
         const ws = workspaceExplorer.getSelectedWorkspace();
@@ -270,7 +269,7 @@ export async function activate(context: vscode.ExtensionContext) {
           cwd: ws.path,
           commands: [['doctor', 'workspace', '--fix']],
         });
-        setTimeout(() => doctorEvidenceExplorer.refresh(), 8000);
+        // File watcher on doctor-last-run.json triggers refresh automatically
       }),
       vscode.commands.registerCommand(
         'rapidkit.doctorEvidence.fixIssueWithAI',

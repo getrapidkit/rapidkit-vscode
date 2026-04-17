@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "Workspai (by RapidKit)",
   "description": "Build backend systems with AI that knows your workspace. Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -513,7 +513,13 @@
       },
       {
         "view": "rapidkitModules",
-        "contents": "Available modules will appear here once you select a project."
+        "contents": "$(package)\n\n**Select a Project**\n\nChoose a project from the Projects panel to browse and install available modules.\n\n[$(list-tree) Open Projects](command:rapidkitProjects.focus)",
+        "when": "!rapidkit:projectSelected"
+      },
+      {
+        "view": "rapidkitModules",
+        "contents": "$(sync~spin) Loading available modules…",
+        "when": "rapidkit:projectSelected"
       }
     ],
     "menus": {
@@ -1071,6 +1077,7 @@
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^3.6.2",
+    "concurrently": "^9.1.2",
     "esbuild": "^0.25.12",
     "eslint": "^8.57.0",
     "husky": "^9.1.7",
