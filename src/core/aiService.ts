@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { Logger } from '../utils/logger';
+import { WorkspaceMemoryService } from './workspaceMemoryService';
 
 export interface AIMessage {
   role: 'user' | 'assistant';
@@ -127,6 +128,10 @@ export interface ScannedProjectContext {
   topLevelSrcDirs: string[]; // e.g. ['modules', 'health', 'routing']
   configFiles: string[]; // config/*.yaml found
   envFile: string | null;
+  // ── v0.18 rich context ─────────────────────────────────────────────────
+  dirTree: string; // formatted src/ directory tree
+  relevantFiles: Array<{ relPath: string; content: string }>; // key entry-point files
+  gitDiff: string | null; // recent uncommitted changes (stat only, truncated)
 }
 
 /**
@@ -151,6 +156,9 @@ export async function scanProjectContext(
     topLevelSrcDirs: [],
     configFiles: [],
     envFile: null,
+    dirTree: '',
+    relevantFiles: [],
+    gitDiff: null,
   };
 
   if (!projectPath) {
@@ -242,7 +250,90 @@ export async function scanProjectContext(
     ctx.kit = gomod.toLowerCase().includes('gofiber') ? 'gofiber.standard' : 'gogin.standard';
   }
 
+  // ── v0.18: rich context ──────────────────────────────────────────────────
+  ctx.dirTree = _buildDirTree(projectPath, ctx.topLevelSrcDirs);
+  ctx.relevantFiles = _readRelevantFiles(projectPath, ctx.kit);
+  ctx.gitDiff = _getGitDiffStat(projectPath);
+
   return ctx;
+}
+
+/**
+ * Build a first-level directory tree under src/ for prompt context.
+ * Limits depth to avoid token bloat.
+ */
+function _buildDirTree(projectPath: string, topDirs: string[]): string {
+  if (topDirs.length === 0) {
+    return '';
+  }
+  const lines: string[] = ['src/'];
+  for (const dir of topDirs.slice(0, 8)) {
+    lines.push(`  ${dir}/`);
+    try {
+      const children = fs
+        .readdirSync(path.join(projectPath, 'src', dir))
+        .filter((n) => !n.startsWith('_') && !n.startsWith('.'))
+        .slice(0, 6);
+      for (const child of children) {
+        lines.push(`    ${child}`);
+      }
+    } catch {
+      /* skip unreadable dirs */
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Read key entry-point files for the detected kit.
+ * Limits each file to 1 500 chars to stay within token budgets.
+ */
+function _readRelevantFiles(
+  projectPath: string,
+  kit: string
+): Array<{ relPath: string; content: string }> {
+  const candidates: string[] = [];
+
+  if (kit.startsWith('fastapi')) {
+    candidates.push('src/main.py', 'src/routing/__init__.py');
+  } else if (kit.startsWith('nestjs')) {
+    candidates.push('src/main.ts', 'src/app.module.ts');
+  } else if (kit.startsWith('gofiber') || kit.startsWith('gogin')) {
+    candidates.push('cmd/server/main.go', 'internal/config/config.go');
+  }
+
+  const result: Array<{ relPath: string; content: string }> = [];
+  for (const relPath of candidates) {
+    try {
+      const raw = fs.readFileSync(path.join(projectPath, relPath), 'utf8');
+      if (raw) {
+        result.push({ relPath, content: raw.slice(0, 1500) });
+      }
+    } catch {
+      /* file missing — skip silently */
+    }
+  }
+  return result;
+}
+
+/**
+ * Run `git diff --stat HEAD` in the project directory.
+ * Returns a truncated string, or null when git is unavailable / not a repo.
+ */
+function _getGitDiffStat(projectPath: string): string | null {
+  try {
+    const output = execSync('git diff --stat HEAD', {
+      cwd: projectPath,
+      timeout: 3000,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .trim()
+      .slice(0, 800);
+    return output || null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Live module registry (fetched from installed rapidkit engine) ──────────
@@ -417,7 +508,10 @@ export function buildWorkspaiSystemPrompt(
   // ─── 5. Current project state ─────────────────────────────────────────
   const stateSection = buildStateSection(ctx, scanned);
 
-  // ─── 6. Instructions ──────────────────────────────────────────────────
+  // ─── 6. Workspace memory (team conventions + project context) ──────────
+  const memorySection = _buildMemorySection(ctx);
+
+  // ─── 7. Instructions ──────────────────────────────────────────────────
   const instructions = `INSTRUCTIONS:
 - Always generate code that fits exactly into the layer described above.
 - When adding a FastAPI endpoint, put the router in the correct layer (presentation/api/routes/ for DDD, routing/ for Standard).
@@ -428,7 +522,15 @@ export function buildWorkspaiSystemPrompt(
 - For migrations: use "alembic revision --autogenerate && alembic upgrade head".
 - Response language: match the user's query language (Persian → Persian, English → English).`;
 
-  return [identity, kitSection, moduleSection, stdSection, stateSection, instructions]
+  return [
+    identity,
+    kitSection,
+    moduleSection,
+    stdSection,
+    stateSection,
+    memorySection,
+    instructions,
+  ]
     .filter(Boolean)
     .join('\n\n' + '─'.repeat(60) + '\n\n');
 }
@@ -785,7 +887,62 @@ function buildStateSection(ctx: AIModalContext, scanned?: ScannedProjectContext)
     }
   }
 
+  // ─ v0.18: directory tree ────────────────────────────────────────────
+  if (scanned.dirTree) {
+    parts.push(
+      `\n  Directory layout:\n${scanned.dirTree
+        .split('\n')
+        .map((l) => '  ' + l)
+        .join('\n')}`
+    );
+  }
+
+  // ─ v0.18: key entry-point files ─────────────────────────────────
+  for (const file of scanned.relevantFiles) {
+    parts.push(
+      `\n  [${file.relPath}]\n${file.content
+        .split('\n')
+        .slice(0, 25)
+        .map((l) => '  ' + l)
+        .join('\n')}`
+    );
+  }
+
+  // ─ v0.18: recent git changes ──────────────────────────────────
+  if (scanned.gitDiff) {
+    parts.push(
+      `\n  Recent uncommitted changes (git diff --stat HEAD):\n${scanned.gitDiff
+        .split('\n')
+        .map((l) => '  ' + l)
+        .join('\n')}`
+    );
+  }
+
   return parts.join('\n');
+}
+
+/**
+ * Inject workspace memory (team conventions + decisions) into the system prompt.
+ * Returns an empty string when the project has no memory file.
+ */
+function _buildMemorySection(ctx: AIModalContext): string {
+  if (!ctx.path) {
+    return '';
+  }
+  try {
+    const memSvc = WorkspaceMemoryService.getInstance();
+    if (!memSvc.hasMemory(ctx.path)) {
+      return '';
+    }
+    const memory = memSvc.read(ctx.path);
+    const formatted = memSvc.formatForPrompt(memory);
+    if (!formatted) {
+      return '';
+    }
+    return `WORKSPACE MEMORY (team-defined conventions and decisions — follow these exactly):\n${formatted}`;
+  } catch {
+    return '';
+  }
 }
 
 // ─── buildAIModalUserMessage ────────────────────────────────────────────────

@@ -41,6 +41,7 @@ import { ExamplesService } from './core/examplesService';
 import { KitsService } from './core/kitsService';
 import { registerAIDebuggerCommand } from './commands/aiDebugger';
 import { registerWorkspaceBrainCommand } from './commands/workspaceBrain';
+import { WorkspaceMemoryService } from './core/workspaceMemoryService';
 
 let statusBar: WorkspaiStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -112,6 +113,27 @@ export async function activate(context: vscode.ExtensionContext) {
           name: ws.name,
           path: ws.path,
         });
+      }),
+      // Edit / create workspace memory — opens .rapidkit/workspace-memory.json
+      vscode.commands.registerCommand('rapidkit.editWorkspaceMemory', async (item?: any) => {
+        const ws = item?.workspace || workspaceExplorer?.getSelectedWorkspace();
+        if (!ws) {
+          vscode.window.showWarningMessage('Select a workspace first.');
+          return;
+        }
+        const memSvc = WorkspaceMemoryService.getInstance();
+        if (!memSvc.hasMemory(ws.path)) {
+          // Seed with a template so the user has something to start from
+          memSvc.writeTemplate(ws.path);
+        }
+        const memUri = vscode.Uri.file(
+          require('path').join(ws.path, '.rapidkit', 'workspace-memory.json')
+        );
+        await vscode.window.showTextDocument(memUri, { preview: false });
+        vscode.window.showInformationMessage(
+          'Edit your workspace memory — the AI will include it in every prompt.',
+          'OK'
+        );
       }),
       vscode.commands.registerCommand('rapidkit.aiForProject', (item?: any) => {
         const project = item?.project || projectExplorer?.getSelectedProject();
