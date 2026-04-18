@@ -138,6 +138,29 @@ describe('aiService', () => {
         2
       )
     );
+    fs.mkdirSync(path.join(tempProjectPath, '.rapidkit', 'reports'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempProjectPath, '.rapidkit', 'reports', 'doctor-last-run.json'),
+      JSON.stringify(
+        {
+          generatedAt: '2026-04-18T00:00:00.000Z',
+          healthScore: {
+            total: 8,
+            passed: 7,
+            warnings: 1,
+            errors: 0,
+          },
+          system: {
+            versions: {
+              core: '0.3.9',
+              npm: '0.25.4',
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
 
     const prepared = await prepareAIConversation('ask', 'Where should I add auth?', {
       type: 'workspace',
@@ -151,6 +174,17 @@ describe('aiService', () => {
     expect(prepared.messages[0].content).toContain('WORKSPACE MEMORY');
     expect(prepared.messages[0].content).toContain('Use services through interfaces only');
     expect(prepared.messages[0].content).toContain('src/');
+    expect(prepared.messages[0].content).toContain('python_version: ^3.12');
+    expect(prepared.messages[0].content).toContain('workspace_health: {"total":8,"passed":7');
+    expect(prepared.messages[0].content).toContain('rapidkit_cli_version: 0.25.4');
+    expect(prepared.messages[0].content).toContain('rapidkit_core_version: 0.3.9');
+    expect(prepared.messages.at(-1)?.content).toContain('python_version: ^3.12');
+    expect(prepared.messages.at(-1)?.content).toContain('workspace_health: {"total":8,"passed":7');
+    expect(prepared.messages.at(-1)?.content).toContain('rapidkit_cli_version: 0.25.4');
+    expect(prepared.messages.at(-1)?.content).toContain('rapidkit_core_version: 0.3.9');
+    expect(prepared.messages.at(-1)?.content).toContain(
+      'context_packet: {"project_type":"fastapi.ddd"'
+    );
     expect(prepared.messages.at(-1)?.content).toContain('Installed modules: free/auth/core');
   });
 
@@ -306,6 +340,85 @@ describe('aiService', () => {
     const systemPrompt = model.sendRequest.mock.calls[0][0][0].content;
     expect(systemPrompt).toContain('pro/billing/invoices');
     expect(systemPrompt).toContain('v2.3.0');
+  });
+
+  it('injects workspace-installed module signals into AI creation prompt', async () => {
+    const model = {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      sendRequest: vi.fn(async () => ({
+        stream: (async function* () {
+          yield new vscode.LanguageModelTextPart(
+            JSON.stringify({
+              workspaceName: 'reuse-suite',
+              profile: 'python-only',
+              installMethod: 'auto',
+              framework: 'fastapi',
+              kit: 'fastapi.standard',
+              projectName: 'reuse-api',
+              suggestedModules: ['free/cache/redis', 'free/essentials/settings'],
+              description: 'Reuse redis module from sibling projects.',
+            })
+          );
+        })(),
+      })),
+    };
+
+    const sibling = path.join(tempProjectPath, 'billing-api');
+    fs.mkdirSync(sibling, { recursive: true });
+    fs.writeFileSync(
+      path.join(sibling, 'registry.json'),
+      JSON.stringify(
+        {
+          installed_modules: [
+            {
+              slug: 'free/cache/redis',
+              version: '1.0.0',
+              display_name: 'Redis',
+            },
+          ],
+        },
+        null,
+        2
+      )
+    );
+
+    mockGetModulesCatalog.mockResolvedValue({
+      modules: [
+        {
+          id: 'redis',
+          name: 'Redis',
+          version: '1.0.0',
+          category: 'cache',
+          icon: 'x',
+          description: 'Redis cache',
+          status: 'stable',
+          tags: ['cache'],
+          slug: 'free/cache/redis',
+        },
+        {
+          id: 'settings',
+          name: 'Settings',
+          version: '1.0.0',
+          category: 'essentials',
+          icon: 'x',
+          description: 'Settings module',
+          status: 'stable',
+          tags: ['config'],
+          slug: 'free/essentials/settings',
+        },
+      ],
+      source: 'live',
+      catalog: null,
+    });
+    mockSelectChatModels.mockResolvedValue([model]);
+
+    await parseCreationIntent('Create a redis-backed api', 'workspace', 'fastapi', tempProjectPath);
+
+    const systemPrompt = model.sendRequest.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('Installed modules already present in this workspace');
+    expect(systemPrompt).toContain('free/cache/redis');
+    expect(systemPrompt).toContain('billing-api');
   });
 
   it('sanitizes invalid AI creation fields and keeps only allowed module slugs', async () => {

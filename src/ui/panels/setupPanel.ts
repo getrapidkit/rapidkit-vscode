@@ -264,9 +264,59 @@ export class SetupPanel {
             break;
           }
           case 'verifyCore': {
+            const fs = await import('fs-extra');
+            const path = await import('path');
+            const quoteExecutable = (value: string) => (value.includes(' ') ? `"${value}"` : value);
+            const coreVerifyCommands: string[] = [];
+
+            const workspaceFolders = vscode.workspace.workspaceFolders || [];
+            for (const folder of workspaceFolders) {
+              const workspacePath = folder.uri.fsPath;
+              const workspacePython =
+                process.platform === 'win32'
+                  ? path.join(workspacePath, '.venv', 'Scripts', 'python.exe')
+                  : path.join(workspacePath, '.venv', 'bin', 'python');
+              const workspaceRapidkit =
+                process.platform === 'win32'
+                  ? path.join(workspacePath, '.venv', 'Scripts', 'rapidkit.exe')
+                  : path.join(workspacePath, '.venv', 'bin', 'rapidkit');
+
+              if (await fs.pathExists(workspacePython)) {
+                const pythonExe = quoteExecutable(workspacePython);
+                coreVerifyCommands.push(
+                  `${pythonExe} -m rapidkit --version --json`,
+                  `${pythonExe} -c "import rapidkit_core, sys; print(f'rapidkit-core {rapidkit_core.__version__} ({sys.executable})')"`
+                );
+              }
+
+              if (await fs.pathExists(workspaceRapidkit)) {
+                const rapidkitExe = quoteExecutable(workspaceRapidkit);
+                coreVerifyCommands.push(`${rapidkitExe} --version --json`);
+              }
+            }
+
+            if (process.platform === 'win32') {
+              coreVerifyCommands.push(
+                'python -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
+                'py -3 -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
+                'python -m pip show rapidkit-core',
+                'py -3 -m pip show rapidkit-core',
+                'python -m pipx list'
+              );
+            } else {
+              coreVerifyCommands.push(
+                'python3 -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
+                'python -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
+                'python3 -m pip show rapidkit-core',
+                'python -m pip show rapidkit-core',
+                'pipx list'
+              );
+            }
+
+            const dedupedCoreVerifyCommands = [...new Set(coreVerifyCommands)];
             runCommandsInTerminal({
               name: 'Verify RapidKit Core',
-              commands: ['rapidkit --version'],
+              commands: dedupedCoreVerifyCommands,
             });
             break;
           }
@@ -278,17 +328,40 @@ export class SetupPanel {
             break;
           }
           case 'verifyPoetry': {
+            const path = await import('path');
+            const quoteExecutable = (value: string) =>
+              value && value.includes(' ') ? `"${value}"` : value;
+            const windowsPoetryCandidates = [
+              path.join(process.env.APPDATA || '', 'Python', 'Scripts', 'poetry.exe'),
+              path.join(
+                process.env.USERPROFILE || '',
+                'AppData',
+                'Roaming',
+                'Python',
+                'Scripts',
+                'poetry.exe'
+              ),
+              path.join(process.env.USERPROFILE || '', '.local', 'bin', 'poetry.exe'),
+            ]
+              .filter((candidate) => !!candidate && !candidate.startsWith('Python'))
+              .map((candidate) => `${quoteExecutable(candidate)} --version`);
             const poetryVerifyCommands =
               process.platform === 'win32'
-                ? ['python -m poetry --version', 'poetry --version']
+                ? [
+                    'poetry --version',
+                    'python -m poetry --version',
+                    'py -3 -m poetry --version',
+                    ...windowsPoetryCandidates,
+                  ]
                 : [
                     'poetry --version',
                     '~/.local/bin/poetry --version',
                     'python3 -m poetry --version',
+                    'python -m poetry --version',
                   ];
             runCommandsInTerminal({
               name: 'Verify Poetry',
-              commands: poetryVerifyCommands,
+              commands: [...new Set(poetryVerifyCommands)],
             });
             break;
           }

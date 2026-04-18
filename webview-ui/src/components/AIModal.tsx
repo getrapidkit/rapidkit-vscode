@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Bug, BrainCircuit, Sparkles, Send, Loader2, Square } from 'lucide-react';
+import { X, Bug, BrainCircuit, Sparkles, Send, Square } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export interface AIModalContext {
     type: 'workspace' | 'project' | 'module';
@@ -9,6 +10,7 @@ export interface AIModalContext {
     moduleSlug?: string;
     moduleDescription?: string;
     prefillQuestion?: string;
+    prefillMode?: 'debug' | 'ask';
 }
 
 interface AIModalProps {
@@ -18,6 +20,9 @@ interface AIModalProps {
     streamContent: string;
     streamError: string | null;
     modelId?: string | null;
+    availableModels?: { id: string; name: string; vendor: string }[];
+    selectedModelId?: string | null;
+    onModelChange?: (modelId: string | null) => void;
     onClose: () => void;
     onCancel: () => void;
     onQuery: (mode: 'debug' | 'ask', question: string, context: AIModalContext) => void;
@@ -91,6 +96,9 @@ export function AIModal({
     streamContent,
     streamError,
     modelId,
+    availableModels = [],
+    selectedModelId,
+    onModelChange,
     onClose,
     onCancel,
     onQuery,
@@ -104,7 +112,7 @@ export function AIModal({
         if (isOpen) {
             document.body.style.overflow = 'hidden';
             if (context?.prefillQuestion) {
-                setMode('debug');
+                setMode(context.prefillMode ?? 'debug');
                 setInput(context.prefillQuestion);
             } else {
                 setMode('ask');
@@ -182,10 +190,22 @@ export function AIModal({
                         </div>
                     </div>
                     <div className="ai-modal-header-right">
-                        {modelId && (
-                            <span className="ai-modal-model-badge" title="Active AI model">
-                                ✦ {modelId}
-                            </span>
+                        {availableModels.length > 0 && (
+                            <select
+                                className="ai-model-selector-inline"
+                                value={selectedModelId ?? ''}
+                                onChange={(e) => onModelChange?.(e.target.value || null)}
+                                disabled={isStreaming}
+                                title="Choose AI model"
+                                aria-label="AI model"
+                            >
+                                <option value="">Auto</option>
+                                {availableModels.map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name}
+                                    </option>
+                                ))}
+                            </select>
                         )}
                         <button
                             type="button"
@@ -222,8 +242,8 @@ export function AIModal({
 
                 {/* Body */}
                 <div className="ai-modal-body">
-                    {/* Quick prompts (only when no response yet) */}
-                    {!hasResponse && quickPrompts.length > 0 && (
+                    {/* Quick prompts (only when idle — hidden while thinking/streaming) */}
+                    {!hasResponse && !isStreaming && quickPrompts.length > 0 && (
                         <div className="ai-modal-chips">
                             {quickPrompts.map((prompt) => (
                                 <button
@@ -231,11 +251,22 @@ export function AIModal({
                                     type="button"
                                     className="ai-modal-chip"
                                     onClick={() => setInput(prompt)}
-                                    disabled={isStreaming}
                                 >
                                     {prompt}
                                 </button>
                             ))}
+                        </div>
+                    )}
+
+                    {/* Thinking indicator — context scan phase before first chunk */}
+                    {isStreaming && !hasResponse && (
+                        <div className="ai-modal-thinking">
+                            <span className="ai-thinking-dots">
+                                <span className="ai-thinking-dot" />
+                                <span className="ai-thinking-dot" />
+                                <span className="ai-thinking-dot" />
+                            </span>
+                            <span className="ai-thinking-label">Analyzing context…</span>
                         </div>
                     )}
 
@@ -247,12 +278,10 @@ export function AIModal({
                                     <span>⚠ {streamError}</span>
                                 </div>
                             ) : (
-                                <pre className="ai-modal-response-text">
-                                    {streamContent}
-                                    {isStreaming && (
-                                        <span className="ai-modal-cursor" aria-hidden="true">▍</span>
-                                    )}
-                                </pre>
+                                <MarkdownRenderer
+                                    content={streamContent}
+                                    isStreaming={isStreaming}
+                                />
                             )}
                         </div>
                     )}

@@ -32,11 +32,8 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
       actions.push(...this.getModuleQuickFixes(document, range, context));
     }
 
-    // AI debug action for Python / TypeScript / Go source files with errors or selection
-    const ext = document.fileName.split('.').pop()?.toLowerCase();
-    if (ext && ['py', 'ts', 'go', 'js'].includes(ext)) {
-      actions.push(...this.getAIDebugActions(document, range, context));
-    }
+    // AI debug actions are available for any editable document that has diagnostics or selection.
+    actions.push(...this.getAIDebugActions(document, range, context));
 
     return actions.length > 0 ? actions : undefined;
   }
@@ -78,8 +75,9 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         vscode.CodeActionKind.QuickFix
       );
       explainAction.command = {
-        command: 'rapidkit.debugWithAI',
+        command: 'rapidkit.explainErrorWithAI',
         title: 'Explain error with AI',
+        arguments: [errorMessages],
       };
       actions.push(explainAction);
     }

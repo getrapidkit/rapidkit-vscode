@@ -1645,14 +1645,6 @@
     @apply flex items-center gap-2 flex-shrink-0;
   }
 
-  .ai-modal-model-badge {
-    @apply text-[10px] font-medium px-2 py-0.5 rounded-full select-none;
-    background: rgba(167, 139, 250, 0.12);
-    color: #a78bfa;
-    border: 1px solid rgba(167, 139, 250, 0.25);
-    white-space: nowrap;
-  }
-
   .ai-modal-sparkle {
     @apply mt-0.5 flex-shrink-0;
     color: #a78bfa;
@@ -1726,10 +1718,40 @@
     color: #a78bfa;
   }
 
+  /* ── Model selector (inline in header) ─────────────────────────────────── */
+  .ai-model-selector-inline {
+    font-size: 10.5px;
+    padding: 2px 20px 2px 7px;
+    border-radius: 5px;
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    background: rgba(167, 139, 250, 0.08);
+    color: #a78bfa;
+    cursor: pointer;
+    outline: none;
+    max-width: 140px;
+    appearance: auto;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .ai-model-selector-inline:hover:not(:disabled) {
+    border-color: rgba(167, 139, 250, 0.6);
+    background: rgba(167, 139, 250, 0.14);
+  }
+
+  .ai-model-selector-inline:focus {
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.3);
+  }
+
+  .ai-model-selector-inline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .ai-modal-body {
     @apply flex-1 overflow-y-auto px-5 py-4;
     min-height: 80px;
-    max-height: 280px;
+    max-height: 440px;
   }
 
   .ai-modal-chips {
@@ -1773,6 +1795,185 @@
     animation: blink 0.9s step-end infinite;
     color: #a78bfa;
     font-weight: bold;
+  }
+
+  /* Thinking animation — shown while context is being scanned (before first chunk) */
+  .ai-modal-thinking {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0 8px;
+  }
+
+  .ai-thinking-dots {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .ai-thinking-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #a78bfa;
+    opacity: 0.4;
+    animation: thinking-bounce 1.2s ease-in-out infinite;
+  }
+
+  .ai-thinking-dots>.ai-thinking-dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .ai-thinking-dots>.ai-thinking-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .ai-thinking-dots>.ai-thinking-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes thinking-bounce {
+
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+
+    30% {
+      transform: translateY(-4px);
+      opacity: 1;
+    }
+  }
+
+  .ai-thinking-label {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+  }
+
+  /* ══════════════════════════════════════════════════
+     Markdown response renderer
+  ══════════════════════════════════════════════════ */
+
+  .md-body {
+    font-family: var(--vscode-font-family);
+    font-size: 12.5px;
+    color: var(--vscode-foreground);
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  /* Raw text view during streaming — no parse overhead */
+  .md-streaming {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .md-body>*:first-child {
+    margin-top: 0;
+  }
+
+  .md-body>*:last-child {
+    margin-bottom: 0;
+  }
+
+  .md-h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--vscode-foreground);
+    margin: 0.85em 0 0.45em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    line-height: 1.3;
+  }
+
+  .md-h2 {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--vscode-foreground);
+    margin: 0.8em 0 0.4em;
+    line-height: 1.3;
+  }
+
+  .md-h3 {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #a78bfa;
+    margin: 0.65em 0 0.3em;
+    line-height: 1.3;
+  }
+
+  .md-p {
+    margin: 0 0 0.75em;
+    line-height: 1.7;
+  }
+
+  .md-ul {
+    margin: 0.2em 0 0.75em;
+    padding-left: 1.4em;
+    list-style-type: disc;
+  }
+
+  .md-ol {
+    margin: 0.2em 0 0.75em;
+    padding-left: 1.4em;
+    list-style-type: decimal;
+  }
+
+  .md-li {
+    margin-bottom: 0.3em;
+    line-height: 1.6;
+    padding-left: 0.15em;
+  }
+
+  .md-hr {
+    border: none;
+    border-top: 1px solid var(--vscode-panel-border);
+    margin: 0.9em 0;
+    opacity: 0.6;
+  }
+
+  .md-inline-code {
+    font-family: var(--vscode-editor-font-family, 'Fira Code', monospace);
+    font-size: 11px;
+    background: rgba(167, 139, 250, 0.1);
+    color: #c4b5fd;
+    padding: 0.1em 0.38em;
+    border-radius: 4px;
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    white-space: nowrap;
+  }
+
+  .md-code-block {
+    margin: 0.6em 0 0.9em;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  .md-code-lang {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 10px;
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.08);
+    padding: 5px 12px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  .md-code-pre {
+    margin: 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family, 'Fira Code', monospace);
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--vscode-editor-foreground, var(--vscode-foreground));
+    background: transparent;
   }
 
   .ai-modal-error {

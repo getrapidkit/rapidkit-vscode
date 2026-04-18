@@ -43,6 +43,8 @@ export function App() {
     const [aiIsStreaming, setAIIsStreaming] = useState(false);
     const [aiStreamError, setAIStreamError] = useState<string | null>(null);
     const [aiModelId, setAIModelId] = useState<string | null>(null);
+    const [aiAvailableModels, setAIAvailableModels] = useState<{ id: string; name: string; vendor: string }[]>([]);
+    const [aiSelectedModelId, setAISelectedModelId] = useState<string | null>(null);
     const [aiConversationHistory, setAIConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
     // AI Create state
     const [showAICreateModal, setShowAICreateModal] = useState(false);
@@ -201,6 +203,8 @@ export function App() {
                     setAIModelId(null);
                     setAIConversationHistory([]);
                     setShowAIModal(true);
+                    // Fetch available models for the selector
+                    vscode.postMessage('aiGetModels');
                     break;
                 case 'aiChunkUpdate':
                     if (
@@ -231,6 +235,11 @@ export function App() {
                         break;
                     }
                     if (message.data?.modelId) setAIModelId(message.data.modelId);
+                    break;
+                case 'aiModelsList':
+                    if (Array.isArray(message.data?.models)) {
+                        setAIAvailableModels(message.data.models);
+                    }
                     break;
                 // ── AI Create events ────────────────────────────────────────
                 case 'aiCreationThinking':
@@ -354,7 +363,7 @@ export function App() {
         setAIStreamError(null);
         setAIIsStreaming(true);
         setAIModelId(null);
-        vscode.postMessage('aiQuery', { mode, question, context: ctx, requestId, history: aiConversationHistory });
+        vscode.postMessage('aiQuery', { mode, question, context: ctx, requestId, history: aiConversationHistory, modelId: aiSelectedModelId ?? undefined });
     };
 
     const handleAICancelQuery = () => {
@@ -540,6 +549,9 @@ export function App() {
                 streamContent={aiStreamContent}
                 streamError={aiStreamError}
                 modelId={aiModelId}
+                availableModels={aiAvailableModels}
+                selectedModelId={aiSelectedModelId}
+                onModelChange={setAISelectedModelId}
                 onClose={() => {
                     if (!aiIsStreaming) {
                         aiRequestIdRef.current = 0;

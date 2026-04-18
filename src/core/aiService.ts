@@ -34,23 +34,61 @@ export interface PreparedAIConversation {
   messages: AIMessage[];
 }
 
+export interface AvailableModel {
+  id: string;
+  name: string;
+  vendor: string;
+}
+
+/**
+ * Return all language models currently registered in VS Code.
+ * Safe to call repeatedly — results stream directly from the LM registry.
+ */
+export async function listAvailableModels(): Promise<AvailableModel[]> {
+  const all = await vscode.lm.selectChatModels();
+  return all.map((m) => ({
+    id: m.id,
+    name: m.name ?? m.id,
+    vendor: m.vendor ?? '',
+  }));
+}
+
 /**
  * Send messages to the LM and stream back text.
- * @param messages – conversation history
- * @param onChunk  – called with each streamed chunk
- * @param token    – cancellation token
+ * @param messages        – conversation history
+ * @param onChunk         – called with each streamed chunk
+ * @param token           – cancellation token
+ * @param preferredModelId – when provided, use this exact model id instead of the workspace preference
  */
 export async function streamAIResponse(
   messages: AIMessage[],
   onChunk: (chunk: AIStreamChunk) => void,
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  preferredModelId?: string
 ): Promise<{ modelId: string }> {
   const logger = Logger.getInstance();
 
   let model: vscode.LanguageModelChat;
   let modelId: string;
   try {
-    ({ model, modelId } = await selectModelWithPreference());
+    if (preferredModelId) {
+      const all = await vscode.lm.selectChatModels();
+      const found = all.find(
+        (m) => m.id === preferredModelId || (m.name ?? '') === preferredModelId
+      );
+      if (found) {
+        model = found;
+        modelId = found.name ?? found.id;
+        logger.info(`[AI] Using user-selected model: ${model.id}`);
+      } else {
+        logger.warn(
+          `[AI] Requested model "${preferredModelId}" not found, falling back to preference`
+        );
+        ({ model, modelId } = await selectModelWithPreference());
+      }
+    } else {
+      ({ model, modelId } = await selectModelWithPreference());
+    }
     logger.info(`[AI] Using model: ${model.id} (${modelId})`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -114,6 +152,20 @@ export interface AIModalContext {
   moduleSlug?: string;
   moduleDescription?: string;
   prefillQuestion?: string;
+  prefillMode?: AIConversationMode;
+}
+
+interface AIWorkspaceHealthSummary {
+  generatedAt: string | null;
+  total: number;
+  passed: number;
+  warnings: number;
+  errors: number;
+}
+
+interface AIWorkspaceVersions {
+  core: string | null;
+  npm: string | null;
 }
 
 // ─── Kit types detected at runtime ─────────────────────────────────────────
@@ -152,6 +204,10 @@ export interface ScannedProjectContext {
   gitDiff: string | null; // recent uncommitted changes (stat only, truncated)
   runtime: string | null;
   engine: string | null;
+  pythonVersion: string | null;
+  rapidkitCoreVersion: string | null;
+  rapidkitCliVersion: string | null;
+  workspaceHealth: AIWorkspaceHealthSummary | null;
   detectionConfidence: 'strong' | 'weak' | 'none';
 }
 
@@ -213,6 +269,10 @@ export async function scanProjectContext(
     gitDiff: null,
     runtime: null,
     engine: null,
+    pythonVersion: null,
+    rapidkitCoreVersion: null,
+    rapidkitCliVersion: null,
+    workspaceHealth: null,
     detectionConfidence: 'none',
   };
 
@@ -375,6 +435,11 @@ export async function scanProjectContext(
   }
 
   // ── v0.18: rich context ──────────────────────────────────────────────────
+  ctx.pythonVersion = await _resolvePythonVersion(scanRoot, inferredFramework, resolved.runtime);
+  ctx.workspaceHealth = await _readWorkspaceHealthSummary(scanRoot);
+  const versions = await _readWorkspaceVersions(scanRoot);
+  ctx.rapidkitCoreVersion = versions.core;
+  ctx.rapidkitCliVersion = versions.npm;
   ctx.dirTree = await _buildDirTree(scanRoot, ctx.topLevelSrcDirs);
   ctx.relevantFiles = await _readRelevantFiles(scanRoot, ctx.kit);
   ctx.gitDiff = await _getGitDiffStat(scanRoot);
@@ -439,6 +504,110 @@ async function resolveProjectScanRoot(projectPath: string): Promise<ProjectScanR
 async function safeReadJson<T>(filePath: string): Promise<T | null> {
   try {
     return JSON.parse(await fs.promises.readFile(filePath, 'utf8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function _resolvePythonVersion(
+  scanRoot: string,
+  inferredFramework: string | undefined,
+  runtime: string | null
+): Promise<string | null> {
+  const isPythonProject = inferredFramework === 'fastapi' || runtime === 'python';
+  if (!isPythonProject) {
+    return null;
+  }
+
+  // 1) Most explicit source for Python projects managed with pyenv.
+  const dotPythonVersion = await safeReadText(path.join(scanRoot, '.python-version'));
+  if (dotPythonVersion) {
+    const fromDotFile = dotPythonVersion.trim();
+    if (fromDotFile) {
+      return fromDotFile;
+    }
+  }
+
+  // 2) Fallback to pyproject constraints when available.
+  const pyproject = await safeReadText(path.join(scanRoot, 'pyproject.toml'));
+  if (pyproject) {
+    const fromPoetry = _extractPythonConstraintFromPyproject(pyproject);
+    if (fromPoetry) {
+      return fromPoetry;
+    }
+  }
+
+  return null;
+}
+
+function _extractPythonConstraintFromPyproject(pyproject: string): string | null {
+  const depSection = pyproject.split('[tool.poetry.dependencies]')[1]?.split('[')[0] ?? '';
+  const pythonInDependencies = depSection.match(/^python\s*=\s*["']([^"']+)["']/m);
+  if (pythonInDependencies?.[1]) {
+    return pythonInDependencies[1].trim();
+  }
+
+  const requiresPython = pyproject.match(/^requires-python\s*=\s*["']([^"']+)["']/m);
+  if (requiresPython?.[1]) {
+    return requiresPython[1].trim();
+  }
+
+  return null;
+}
+
+async function _readWorkspaceHealthSummary(
+  scanRoot: string
+): Promise<AIWorkspaceHealthSummary | null> {
+  const evidence = await _readDoctorEvidence(scanRoot);
+  const score = evidence?.healthScore;
+  if (!score) {
+    return null;
+  }
+
+  const total = Number(score.total ?? 0);
+  const passed = Number(score.passed ?? 0);
+  const warnings = Number(score.warnings ?? 0);
+  const errors = Number(score.errors ?? 0);
+
+  return {
+    generatedAt: typeof evidence?.generatedAt === 'string' ? evidence.generatedAt : null,
+    total,
+    passed,
+    warnings,
+    errors,
+  };
+}
+
+async function _readWorkspaceVersions(scanRoot: string): Promise<AIWorkspaceVersions> {
+  const evidence = await _readDoctorEvidence(scanRoot);
+  const versions = evidence?.system?.versions;
+  return {
+    core: typeof versions?.core === 'string' ? versions.core : null,
+    npm: typeof versions?.npm === 'string' ? versions.npm : null,
+  };
+}
+
+async function _readDoctorEvidence(scanRoot: string): Promise<{
+  generatedAt?: string;
+  healthScore?: {
+    total?: number;
+    passed?: number;
+    warnings?: number;
+    errors?: number;
+  };
+  system?: {
+    versions?: {
+      core?: string;
+      npm?: string;
+    };
+  };
+} | null> {
+  return await safeReadJson(path.join(scanRoot, '.rapidkit', 'reports', 'doctor-last-run.json'));
+}
+
+async function safeReadText(filePath: string): Promise<string | null> {
+  try {
+    return await fs.promises.readFile(filePath, 'utf8');
   } catch {
     return null;
   }
@@ -733,6 +902,73 @@ function buildModuleListForPrompt(liveModules: LiveModuleEntry[] | null): string
     `  Tasks:        free/tasks/celery\n` +
     `  AI:           free/ai/ai_assistant`
   );
+}
+
+async function collectWorkspaceInstalledModules(
+  workspacePath?: string
+): Promise<Array<{ slug: string; projects: string[] }>> {
+  if (!workspacePath) {
+    return [];
+  }
+
+  const root = path.resolve(workspacePath);
+  const moduleProjects = new Map<string, Set<string>>();
+
+  const projectCandidates = new Set<string>([root]);
+  try {
+    const topLevel = await fs.promises.readdir(root, { withFileTypes: true });
+    for (const entry of topLevel) {
+      if (entry.isDirectory()) {
+        projectCandidates.add(path.join(root, entry.name));
+      }
+    }
+  } catch {
+    return [];
+  }
+
+  for (const candidate of projectCandidates) {
+    const projectName = path.basename(candidate);
+    const registryPaths = [
+      path.join(candidate, 'registry.json'),
+      path.join(candidate, '.rapidkit', 'registry.json'),
+    ];
+    for (const registryPath of registryPaths) {
+      try {
+        const parsed = JSON.parse(await fs.promises.readFile(registryPath, 'utf8')) as {
+          installed_modules?: Array<{ slug?: string }>;
+        };
+        for (const mod of parsed.installed_modules ?? []) {
+          const slug = typeof mod.slug === 'string' ? mod.slug.trim().toLowerCase() : '';
+          if (!slug) {
+            continue;
+          }
+          if (!moduleProjects.has(slug)) {
+            moduleProjects.set(slug, new Set<string>());
+          }
+          moduleProjects.get(slug)!.add(projectName);
+        }
+      } catch {
+        // Not every directory is a project; ignore missing/invalid registry files.
+      }
+    }
+  }
+
+  return [...moduleProjects.entries()]
+    .map(([slug, projects]) => ({ slug, projects: [...projects].sort() }))
+    .sort((a, b) => b.projects.length - a.projects.length || a.slug.localeCompare(b.slug));
+}
+
+function buildWorkspaceInstalledModulesSection(
+  installedElsewhere: Array<{ slug: string; projects: string[] }>
+): string {
+  if (installedElsewhere.length === 0) {
+    return 'No installed-module signals from sibling projects were detected in this workspace.';
+  }
+  const lines = installedElsewhere.slice(0, 20).map((entry) => {
+    const scope = entry.projects.slice(0, 4).join(', ');
+    return `  - ${entry.slug} (seen in ${entry.projects.length} project(s): ${scope})`;
+  });
+  return `Installed modules already present in this workspace (prefer reuse when relevant):\n${lines.join('\n')}`;
 }
 
 // ─── Module knowledge base (slugs → what AI needs to know) ─────────────────
@@ -1175,8 +1411,35 @@ function buildStateSection(ctx: AIModalContext, scanned?: ScannedProjectContext)
   if (scanned.engine) {
     parts.push(`  Engine:      ${scanned.engine}`);
   }
+  if (scanned.pythonVersion) {
+    parts.push(`  Python:      ${scanned.pythonVersion}`);
+    parts.push(`  python_version: ${scanned.pythonVersion}`);
+  }
+  if (scanned.rapidkitCliVersion) {
+    parts.push(`  RapidKit CLI: ${scanned.rapidkitCliVersion}`);
+    parts.push(`  rapidkit_cli_version: ${scanned.rapidkitCliVersion}`);
+  }
+  if (scanned.rapidkitCoreVersion) {
+    parts.push(`  RapidKit Core: ${scanned.rapidkitCoreVersion}`);
+    parts.push(`  rapidkit_core_version: ${scanned.rapidkitCoreVersion}`);
+  }
   if (scanned.detectionConfidence !== 'none') {
     parts.push(`  Detection:   ${scanned.detectionConfidence}`);
+  }
+  if (scanned.workspaceHealth) {
+    const health = scanned.workspaceHealth;
+    parts.push(
+      `  Workspace health: ${health.passed}/${health.total} passed (${health.warnings} warn, ${health.errors} error)`
+    );
+    parts.push(
+      `  workspace_health: ${JSON.stringify({
+        total: health.total,
+        passed: health.passed,
+        warnings: health.warnings,
+        errors: health.errors,
+        generated_at: health.generatedAt,
+      })}`
+    );
   }
   parts.push(`  Modules:     ${scanned.installedModules.length} installed`);
   if (scanned.hasAlembic) {
@@ -1286,10 +1549,34 @@ export function buildAIModalUserMessage(
 ): string {
   const kitLabel = scanned?.kit ?? ctx.framework ?? ctx.type;
   const installedList = scanned?.installedModules.map((m) => m.slug).join(', ');
+  const contextPacket = scanned
+    ? {
+        project_type: scanned.kit,
+        python_version: scanned.pythonVersion,
+        rapidkit_cli_version: scanned.rapidkitCliVersion,
+        rapidkit_core_version: scanned.rapidkitCoreVersion,
+        installed_modules: scanned.installedModules.map((m) => m.slug),
+        workspace_health: scanned.workspaceHealth,
+        runtime: scanned.runtime,
+        engine: scanned.engine,
+      }
+    : null;
   const ctxHeader = [
     `[${ctx.type.toUpperCase()}] ${ctx.name}`,
     kitLabel && `Kit: ${kitLabel}`,
     ctx.path && `Path: ${ctx.path}`,
+    scanned?.pythonVersion && `python_version: ${scanned.pythonVersion}`,
+    scanned?.rapidkitCliVersion && `rapidkit_cli_version: ${scanned.rapidkitCliVersion}`,
+    scanned?.rapidkitCoreVersion && `rapidkit_core_version: ${scanned.rapidkitCoreVersion}`,
+    scanned?.workspaceHealth &&
+      `workspace_health: ${JSON.stringify({
+        total: scanned.workspaceHealth.total,
+        passed: scanned.workspaceHealth.passed,
+        warnings: scanned.workspaceHealth.warnings,
+        errors: scanned.workspaceHealth.errors,
+        generated_at: scanned.workspaceHealth.generatedAt,
+      })}`,
+    contextPacket && `context_packet: ${JSON.stringify(contextPacket)}`,
     installedList && `Installed modules: ${installedList}`,
   ]
     .filter(Boolean)
@@ -1734,6 +2021,8 @@ export async function parseCreationIntent(
 ): Promise<{ plan: AICreationPlan; modelId: string }> {
   const liveModules = await getWorkspaceAwareLiveModules(workspacePath);
   const modulesSection = buildModuleListForPrompt(liveModules);
+  const installedElsewhere = await collectWorkspaceInstalledModules(workspacePath);
+  const installedElsewhereSection = buildWorkspaceInstalledModulesSection(installedElsewhere);
 
   const SYSTEM = `You are a Workspai project scaffolding assistant. Parse the user description and respond with ONLY a valid JSON object — no markdown, no explanation.
 
@@ -1755,6 +2044,8 @@ Available kits (use EXACT names):
   "gogin.standard"    — Go + Gin HTTP (classic REST)
 
 ${modulesSection}
+
+${installedElsewhereSection}
 
 IMPORTANT — slugs shown above are the ONLY valid values. Do NOT invent slugs. If unsure, omit.
 LEGACY REMOVED — old slugs like free/users/users, free/observability/observability_core are invalid; use the exact slugs listed above.

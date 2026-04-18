@@ -1,6 +1,26 @@
 # Release Notes
 
-## Latest Release: v0.18.0 (April 17, 2026)
+## Latest Release: v0.19.0 (April 18, 2026)
+
+### ✦ AI Streaming UX + Model Selector
+
+**Summary:** This release fixes the core AI streaming experience — responses now appear token-by-token in real time instead of all at once after a delay. Users can also choose which AI model answers their queries from a compact inline dropdown in the modal header.
+
+#### Added
+
+- **AI model selector** in the modal header — choose Claude, GPT, Gemini, or any other Copilot-registered model per query; premium users see their full roster, free users see their available models; defaults to "Auto" (workspace preference)
+- **Thinking indicator** — animated bouncing dots shown during the context-scan phase before the first token arrives, replacing the blank-cursor wait state
+- **MarkdownRenderer** — a new zero-dependency markdown renderer for AI responses: headings, bold/italic, inline code, fenced code blocks, lists, HR
+
+#### Fixed
+
+- **Real-time streaming** — resolved the "response appears all at once" problem; the extension host now time-slices postMessage calls via a 50 ms flush interval, breaking VS Code IPC batching that held all tokens until stream end
+- **Streaming render overhead** — `MarkdownRenderer` no longer re-parses the full response on every animation frame during streaming; raw text is shown live, then formatted in a single pass on completion
+- **Menu item warning** — removed invalid `collapseAll` menu reference; uses native `showCollapseAll: true` on the Projects tree view instead
+
+---
+
+## v0.18.0 (April 17, 2026)
 
 ### ✦ AI Stability + Context Intelligence Upgrade
 

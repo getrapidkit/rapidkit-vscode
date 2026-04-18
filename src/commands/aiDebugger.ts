@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import type { AIModalContext } from '../core/aiService';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 // ──────────────────────────────────────────────
@@ -56,19 +57,68 @@ export function collectDebugPrefillQuestion(
   return getEditorSelection(editor) ?? getActiveDiagnostics(editor, diagnostics);
 }
 
+export function collectExplainPrefillQuestion(
+  issueSummary?: string,
+  editor = vscode.window.activeTextEditor,
+  diagnostics = editor ? vscode.languages.getDiagnostics(editor.document.uri) : []
+): string | undefined {
+  const selected = getEditorSelection(editor);
+  if (selected) {
+    return selected;
+  }
+  if (issueSummary?.trim()) {
+    return issueSummary.trim();
+  }
+  return getActiveDiagnostics(editor, diagnostics);
+}
+
+function resolveAIModalContext(editor = vscode.window.activeTextEditor): AIModalContext {
+  if (editor) {
+    const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+    if (folder) {
+      return {
+        type: 'project',
+        name: folder.name,
+        path: folder.uri.fsPath,
+      };
+    }
+  }
+
+  const firstWorkspace = vscode.workspace.workspaceFolders?.[0];
+  return {
+    type: 'workspace',
+    name: firstWorkspace?.name ?? 'Workspace',
+    path: firstWorkspace?.uri.fsPath,
+  };
+}
+
 // ──────────────────────────────────────────────
 // Command registration
 // ──────────────────────────────────────────────
 
 export function registerAIDebuggerCommand(context: vscode.ExtensionContext): vscode.Disposable {
-  return vscode.commands.registerCommand('rapidkit.debugWithAI', () => {
+  const debugCommand = vscode.commands.registerCommand('rapidkit.debugWithAI', () => {
     const prefillQuestion = collectDebugPrefillQuestion();
-    const folder = vscode.workspace.workspaceFolders?.[0];
+    const baseContext = resolveAIModalContext();
     WelcomePanel.showAIModal(context, {
-      type: 'workspace',
-      name: folder?.name ?? 'Workspace',
-      path: folder?.uri.fsPath,
+      ...baseContext,
       prefillQuestion,
+      prefillMode: 'debug',
     });
   });
+
+  const explainCommand = vscode.commands.registerCommand(
+    'rapidkit.explainErrorWithAI',
+    (issueSummary?: string) => {
+      const prefillQuestion = collectExplainPrefillQuestion(issueSummary);
+      const baseContext = resolveAIModalContext();
+      WelcomePanel.showAIModal(context, {
+        ...baseContext,
+        prefillQuestion,
+        prefillMode: 'ask',
+      });
+    }
+  );
+
+  return vscode.Disposable.from(debugCommand, explainCommand);
 }

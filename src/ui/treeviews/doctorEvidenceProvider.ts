@@ -16,6 +16,10 @@ interface SystemCheck {
   details?: string;
 }
 
+type SystemToolCheck = SystemCheck & {
+  paths?: { location: string; path: string; version: string }[];
+};
+
 export interface ProjectEvidence {
   name: string;
   path: string;
@@ -32,17 +36,29 @@ interface HealthScore {
   errors: number;
 }
 
-interface DoctorEvidence {
+export interface DoctorEvidence {
   generatedAt: string;
   workspacePath: string;
   workspaceName: string;
   projectScanCached?: boolean;
   healthScore: HealthScore;
-  system: Record<
-    string,
-    SystemCheck & { paths?: { location: string; path: string; version: string }[] }
-  >;
+  system: Record<string, SystemToolCheck> & {
+    versions?: {
+      core?: string;
+      npm?: string;
+    };
+  };
   projects: ProjectEvidence[];
+}
+
+export interface DoctorIssueAIContext {
+  workspaceName?: string;
+  generatedAt?: string;
+  healthScore?: HealthScore;
+  systemVersions?: {
+    core?: string;
+    npm?: string;
+  };
 }
 
 // ─── Item kinds ─────────────────────────────────────────────────────────────
@@ -296,7 +312,7 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
     if (element.kind === 'section' && element.label?.toString().startsWith('System')) {
       const ev = element.evidenceData!;
       return Object.entries(ev.system)
-        .filter(([k]) => k !== 'versions')
+        .filter((entry): entry is [string, SystemToolCheck] => entry[0] !== 'versions')
         .map(([key, check]) => {
           const item = new DoctorEvidenceItem(
             `${this.statusIcon(check.status)}  ${this.systemLabel(key)}`,
@@ -341,10 +357,24 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
         item.iconPath = new vscode.ThemeIcon('circle-filled');
         item.tooltip = issue;
         item.contextValue = 'doctorIssue';
+        const evidence = element.evidenceData;
+        const versions = evidence?.system?.versions;
+        const aiContext: DoctorIssueAIContext = {
+          workspaceName: evidence?.workspaceName,
+          generatedAt: evidence?.generatedAt,
+          healthScore: evidence?.healthScore,
+          systemVersions:
+            versions && (versions.core || versions.npm)
+              ? {
+                  core: typeof versions.core === 'string' ? versions.core : undefined,
+                  npm: typeof versions.npm === 'string' ? versions.npm : undefined,
+                }
+              : undefined,
+        };
         item.command = {
           command: 'rapidkit.doctorEvidence.fixIssueWithAI',
           title: 'Fix with AI',
-          arguments: [issue, element.projectData],
+          arguments: [issue, element.projectData, aiContext],
         };
         return item;
       });

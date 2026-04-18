@@ -497,6 +497,18 @@ No markdown, no explanation outside the JSON.`;
             }
             break;
           }
+          case 'aiGetModels': {
+            // Return the list of language models available in this VS Code instance
+            const panel = this._panel;
+            try {
+              const { listAvailableModels } = await import('../../core/aiService.js');
+              const models = await listAvailableModels();
+              panel.webview.postMessage({ command: 'aiModelsList', data: { models } });
+            } catch (err: any) {
+              panel.webview.postMessage({ command: 'aiModelsList', data: { models: [] } });
+            }
+            break;
+          }
           case 'aiCancelQuery': {
             const cancelRequestId =
               typeof message?.data?.requestId === 'number' ? message.data.requestId : undefined;
@@ -525,7 +537,14 @@ No markdown, no explanation outside the JSON.`;
           }
           case 'aiQuery': {
             // Stream AI response for the AI modal queries
-            const { mode, question, context: aiCtx, requestId, history } = message.data || {};
+            const {
+              mode,
+              question,
+              context: aiCtx,
+              requestId,
+              history,
+              modelId: requestedModelId,
+            } = message.data || {};
             if (!question || !aiCtx) {
               break;
             }
@@ -561,21 +580,50 @@ No markdown, no explanation outside the JSON.`;
 
               const { modelId } = await streamAIResponse(
                 prepared.messages,
-                (chunk) => {
-                  if (chunk.text) {
-                    panel.webview.postMessage({
-                      command: 'aiChunkUpdate',
-                      data: { text: chunk.text, requestId: queryRequestId },
-                    });
-                  }
-                  if (chunk.done) {
-                    panel.webview.postMessage({
-                      command: 'aiStreamDone',
-                      data: { requestId: queryRequestId },
-                    });
-                  }
-                },
-                tokenSource.token
+                (() => {
+                  // Buffer chunks and flush to webview every 50 ms.
+                  // Without this, the extension host calls postMessage hundreds of
+                  // times per second inside the same event-loop tick, causing VS Code's
+                  // IPC layer to batch ALL messages into one delivery — the webview
+                  // receives nothing until streaming finishes, then sees the full text
+                  // appear all at once.  Explicit time-slicing breaks that batching.
+                  let chunkBuffer = '';
+                  let flushTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
+                    if (chunkBuffer && !tokenSource.token.isCancellationRequested) {
+                      panel.webview.postMessage({
+                        command: 'aiChunkUpdate',
+                        data: { text: chunkBuffer, requestId: queryRequestId },
+                      });
+                      chunkBuffer = '';
+                    }
+                  }, 50);
+
+                  return (chunk: { text: string; done: boolean }) => {
+                    if (chunk.text) {
+                      chunkBuffer += chunk.text;
+                    }
+                    if (chunk.done) {
+                      // Clear the timer and flush any remaining buffered text
+                      if (flushTimer !== null) {
+                        clearInterval(flushTimer);
+                        flushTimer = null;
+                      }
+                      if (chunkBuffer && !tokenSource.token.isCancellationRequested) {
+                        panel.webview.postMessage({
+                          command: 'aiChunkUpdate',
+                          data: { text: chunkBuffer, requestId: queryRequestId },
+                        });
+                        chunkBuffer = '';
+                      }
+                      panel.webview.postMessage({
+                        command: 'aiStreamDone',
+                        data: { requestId: queryRequestId },
+                      });
+                    }
+                  };
+                })(),
+                tokenSource.token,
+                typeof requestedModelId === 'string' ? requestedModelId : undefined
               );
               // Notify the webview which model was used
               panel.webview.postMessage({

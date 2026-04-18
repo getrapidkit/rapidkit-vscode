@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-04-18
+
+### Added
+
+- 🤖 **AI model selector** in the AI modal header — users can choose any Copilot-registered language model (Claude, GPT, Gemini, etc.) from a compact inline dropdown before sending a query. Premium users see their full model list; free-tier users see what's available to them.
+- 🧠 **Thinking indicator** while the AI context-scan phase runs — animated bouncing dots replace the blank waiting state so users have clear feedback before the first token arrives.
+- 📝 **MarkdownRenderer component** (`webview-ui/src/components/MarkdownRenderer.tsx`) — lightweight zero-dependency markdown renderer for AI responses supporting headings, bold/italic, inline code, fenced code blocks, ordered/unordered lists, and HR rules.
+
+### Changed
+
+- ⚡ **Real-time AI streaming** — fixed the "all at once" delivery problem. Extension host now flushes chunk batches every 50 ms via `setInterval`, breaking VS Code IPC batching that was holding tokens until stream completion.
+- 🎨 **Streaming render path** — `MarkdownRenderer` no longer runs `parseBlocks` on every animation frame during streaming. Raw text is displayed instantly during the stream; a single parse pass runs after completion for formatted output.
+- 🗂️ **Quick-prompt chips** hidden while streaming/thinking to reduce visual noise.
+- 🔧 **`collapseAll` tree view** switched to native `showCollapseAll: true` on the `rapidkitProjects` view contribution — removes the invalid `workbench.actions.treeView.rapidkitProjects.collapseAll` menu entry warning.
+
+### Fixed
+
+- 🐛 **Menu item warning** — `workbench.actions.treeView.rapidkitProjects.collapseAll` was referenced in `menus` but not registered in `commands`; resolved by using VS Code's built-in `showCollapseAll` view property.
+
 ## [0.18.0] - 2026-04-17
 
 ### Added

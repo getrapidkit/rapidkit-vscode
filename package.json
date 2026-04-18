@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "Workspai (by RapidKit)",
   "description": "Build backend systems with AI that knows your workspace. Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -428,6 +428,12 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "rapidkit.explainErrorWithAI",
+        "title": "Explain Error with AI",
+        "category": "Workspai",
+        "icon": "$(lightbulb)"
+      },
+      {
         "command": "rapidkit.workspaceBrain",
         "title": "Ask Workspace Brain",
         "category": "Workspai",
@@ -486,7 +492,8 @@
           "id": "rapidkitProjects",
           "name": "Projects",
           "icon": "media/icons/icon-128.png",
-          "contextualTitle": "Projects in Workspace"
+          "contextualTitle": "Projects in Workspace",
+          "showCollapseAll": true
         },
         {
           "id": "rapidkitModules",
@@ -599,6 +606,9 @@
           "command": "rapidkit.debugWithAI"
         },
         {
+          "command": "rapidkit.explainErrorWithAI"
+        },
+        {
           "command": "rapidkit.workspaceBrain"
         },
         {
@@ -652,11 +662,6 @@
           "command": "rapidkit.refreshProjects",
           "when": "view == rapidkitProjects",
           "group": "navigation@2"
-        },
-        {
-          "command": "workbench.actions.treeView.rapidkitProjects.collapseAll",
-          "when": "view == rapidkitProjects",
-          "group": "navigation@3"
         },
         {
           "command": "rapidkit.doctorEvidence.rerun",

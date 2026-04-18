@@ -20,6 +20,7 @@ vi.mock('../ui/panels/welcomePanel', () => ({
 }));
 
 import {
+  collectExplainPrefillQuestion,
   collectDebugPrefillQuestion,
   formatDiagnostics,
   getEditorSelection,
@@ -65,5 +66,22 @@ describe('aiDebugger helpers', () => {
         ] as never
       )
     ).toBe('Traceback: boom');
+  });
+
+  it('uses explicit issue summary for explain flow when there is no selection', () => {
+    const editor = {
+      selection: { isEmpty: true },
+      document: {
+        getText: vi.fn(() => ''),
+      },
+    };
+
+    expect(
+      collectExplainPrefillQuestion(
+        'TypeError: Cannot read properties of undefined',
+        editor as never,
+        [] as never
+      )
+    ).toBe('TypeError: Cannot read properties of undefined');
   });
 });

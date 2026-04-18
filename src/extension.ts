@@ -15,6 +15,7 @@ import { setSelectedProjectPath } from './core/selectedProject';
 import { ModuleExplorerProvider } from './ui/treeviews/moduleExplorer';
 import {
   DoctorEvidenceProvider,
+  type DoctorIssueAIContext,
   type ProjectEvidence,
 } from './ui/treeviews/doctorEvidenceProvider';
 import { checkAndNotifyUpdates } from './utils/updateChecker';
@@ -295,12 +296,28 @@ export async function activate(context: vscode.ExtensionContext) {
       }),
       vscode.commands.registerCommand(
         'rapidkit.doctorEvidence.fixIssueWithAI',
-        async (issue: string, project: ProjectEvidence) => {
+        async (issue: string, project: ProjectEvidence, aiContext?: DoctorIssueAIContext) => {
           if (!issue) {
             return;
           }
           const framework = project?.framework ?? 'unknown';
           const projectName = project?.name ?? 'project';
+          const structuredContext = {
+            issue,
+            project: {
+              name: projectName,
+              path: project?.path,
+              framework,
+              depsInstalled: project?.depsInstalled,
+              fixCommands: project?.fixCommands ?? [],
+            },
+            workspace: {
+              name: aiContext?.workspaceName,
+              generatedAt: aiContext?.generatedAt,
+              healthScore: aiContext?.healthScore,
+              versions: aiContext?.systemVersions,
+            },
+          };
           const prefillQuestion = [
             `Project: ${projectName} (${framework})`,
             `Issue detected by Workspai Doctor:`,
@@ -308,6 +325,7 @@ export async function activate(context: vscode.ExtensionContext) {
             project?.fixCommands?.length
               ? `Suggested fix commands:\n${project.fixCommands.map((c) => `  ${c}`).join('\n')}`
               : '',
+            `Doctor evidence (structured JSON):\n${JSON.stringify(structuredContext, null, 2)}`,
           ]
             .filter(Boolean)
             .join('\n');
@@ -315,8 +333,10 @@ export async function activate(context: vscode.ExtensionContext) {
           WelcomePanel.showAIModal(context, {
             type: 'project',
             name: projectName,
+            path: project?.path,
             framework: framework === 'unknown' ? undefined : framework,
             prefillQuestion,
+            prefillMode: 'debug',
           });
         }
       ),
@@ -340,6 +360,13 @@ export async function activate(context: vscode.ExtensionContext) {
           { language: 'typescript' },
           { language: 'javascript' },
           { language: 'go' },
+          { language: 'typescriptreact' },
+          { language: 'javascriptreact' },
+          { language: 'json' },
+          { language: 'yaml' },
+          { language: 'markdown' },
+          { language: 'shellscript' },
+          { language: 'plaintext' },
         ],
         new WorkspaiCodeActionsProvider(),
         {
