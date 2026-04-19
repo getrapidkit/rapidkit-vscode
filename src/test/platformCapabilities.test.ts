@@ -46,13 +46,13 @@ describe('platformCapabilities', () => {
 
   it('builds rapidkit commands consistently across platforms', () => {
     expect(buildRapidkitCommand(['doctor', 'workspace'], 'linux')).toBe(
-      'npx rapidkit doctor workspace'
+      'npx --yes --package rapidkit rapidkit doctor workspace'
     );
     expect(buildRapidkitCommand(['doctor', 'workspace'], 'win32')).toBe(
-      'npx rapidkit doctor workspace'
+      'npx --yes --package rapidkit rapidkit doctor workspace'
     );
     expect(buildRapidkitCommand(['create', 'workspace', 'my folder'], 'linux')).toBe(
-      "npx rapidkit create workspace 'my folder'"
+      "npx --yes --package rapidkit rapidkit create workspace 'my folder'"
     );
   });
 
@@ -81,18 +81,20 @@ describe('platformCapabilities', () => {
 
     for (const scenario of noSpaceScenarios) {
       for (const platform of platforms) {
-        expect(buildRapidkitCommand(scenario, platform)).toBe(`npx rapidkit ${scenario.join(' ')}`);
+        expect(buildRapidkitCommand(scenario, platform)).toBe(
+          `npx --yes --package rapidkit rapidkit ${scenario.join(' ')}`
+        );
       }
     }
 
     expect(
       buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'linux')
-    ).toBe("npx rapidkit workspace policy set 'team name' strict");
+    ).toBe("npx --yes --package rapidkit rapidkit workspace policy set 'team name' strict");
     expect(
       buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'darwin')
-    ).toBe("npx rapidkit workspace policy set 'team name' strict");
+    ).toBe("npx --yes --package rapidkit rapidkit workspace policy set 'team name' strict");
     expect(
       buildRapidkitCommand(['workspace', 'policy', 'set', 'team name', 'strict'], 'win32')
-    ).toBe('npx rapidkit workspace policy set "team name" strict');
+    ).toBe('npx --yes --package rapidkit rapidkit workspace policy set "team name" strict');
   });
 });

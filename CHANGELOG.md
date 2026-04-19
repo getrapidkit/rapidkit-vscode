@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-04-19
+
+### Changed
+
+- 🧭 **Workspai positioning sync** across the extension README, Marketplace description, and webview header so public-facing messaging consistently uses the canonical product line: "The AI workspace for backend teams"
+- 🐹 **Go AI guidance** in `aiService` now explains the current Go support boundary more clearly: supported kits are `gofiber.standard` and `gogin.standard`, and Go projects should be extended with native Go packages and internal adapters rather than RapidKit marketplace modules
+- 🏷️ **Go kit metadata cleanup** — removed misleading `modular` tags from Go/Fiber and Go/Gin kit descriptors
+
+### Fixed
+
+- 🧠 **Workspace memory action icon restored** — `rapidkit.editWorkspaceMemory` now uses a valid codicon so the inline edit-memory action renders visibly in the WORKSPACES sidebar instead of leaving only an empty clickable area
+- 🪟 **Platform-safe npm wrapper execution** — `buildRapidkitCommand()` now forces package resolution through `npx --yes --package rapidkit rapidkit ...`, preventing local launcher shadowing from the current working directory
+- 🐹 **Go framework detection** — `workspaceDetector` now detects `gofiber.standard` and `gogin.standard` from real `go.mod` dependencies instead of RapidKit-specific package strings, with regression tests added for both frameworks
+- 🩺 **`rapidkit-core` verification reliability** — setup panel checks now use `pip show` / `pipx list` based verification paths that are more stable across Windows and Linux environments
+- 🎼 **Poetry verification robustness** — setup panel now probes real Poetry executable candidates only when they actually exist, reducing noisy or misleading verification failures
+
 ## [0.19.0] - 2026-04-18
 
 ### Added

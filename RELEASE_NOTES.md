@@ -1,5 +1,27 @@
 # Release Notes
 
+## Latest Release: v0.19.1 (April 19, 2026)
+
+### ✦ Toolchain Reliability + Go Context + Workspai Positioning
+
+**Summary:** This release hardens cross-platform tool verification, improves how Go workspaces are detected and explained inside the AI experience, and aligns public-facing Workspai positioning across the extension. The result is more reliable doctor/setup flows, more accurate Go guidance, and cleaner product messaging in the editor and Marketplace surfaces.
+
+#### Changed
+
+- **Workspai product positioning sync** — extension README, Marketplace description, and webview header now consistently present Workspai as "The AI workspace for backend teams"
+- **Go AI guidance** — AI module/context messaging now clearly explains that Go kits use `gofiber.standard` and `gogin.standard`, and that Go projects should be extended with native Go packages and internal adapters rather than RapidKit marketplace modules
+- **Go kit metadata cleanup** — removed misleading `modular` tag from Go/Fiber and Go/Gin kit descriptors
+
+#### Fixed
+
+- **Workspace memory inline action icon** — the sidebar action for editing workspace memory now uses a valid codicon, so the button glyph is visible again next to each workspace instead of showing only an empty clickable slot
+- **Cross-platform `rapidkit` command execution** — all generated wrapper commands now use explicit npm package resolution via `npx --yes --package rapidkit rapidkit ...`, preventing cwd launcher shadowing on Windows and other shell environments
+- **Go workspace detection** — `go.mod` analysis now detects Go/Fiber and Go/Gin projects from real framework dependencies instead of relying on RapidKit-specific strings
+- **Toolchain verification stability** — setup checks now verify `rapidkit-core` using `pip show` / `pipx list` paths that are more reliable across Windows and Linux environments
+- **Poetry verification discovery** — setup flow now checks real Poetry executable candidates only when present, reducing false negatives and noisy verification attempts
+
+---
+
 ## Latest Release: v0.19.0 (April 18, 2026)
 
 ### ✦ AI Streaming UX + Model Selector
@@ -154,6 +176,7 @@
 
 | Version | Release Date | Highlights |
 |---------|--------------|-----------|
+| [v0.19.1](releases/RELEASE_NOTES_v0.19.1.md) | Apr 19, 2026 | ✦ toolchain reliability, 🐹 Go context clarity, 🧭 Workspai positioning sync |
 | [v0.18.0](releases/RELEASE_NOTES_v0.18.0.md) | Apr 17, 2026 | ✦ AI stability hardening, richer context extraction, stronger prompt safety |
 | [v0.17.1](releases/RELEASE_NOTES_v0.17.1.md) | Apr 17, 2026 | ⚡ Instant sidebar render — two-phase async loading for WORKSPACES panel |
 | [v0.17.0](releases/RELEASE_NOTES_v0.17.0.md) | Apr 16, 2026 | ✦ AI Assistant, Doctor Fix with AI, Code Actions, minimizable modal |

@@ -2,8 +2,9 @@
 
 <div align="center">
 
-**Build backend systems with AI that knows your workspace.**
+**The AI workspace for backend teams.**
 
+Build backend systems with AI that knows your workspace.
 Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code.
 FastAPI · NestJS · Go/Fiber · Go/Gin · Clean architecture · 27+ free modules
 

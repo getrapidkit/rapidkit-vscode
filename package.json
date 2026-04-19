@@ -1,8 +1,8 @@
 {
   "name": "rapidkit-vscode",
   "displayName": "Workspai (by RapidKit)",
-  "description": "Build backend systems with AI that knows your workspace. Generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
-  "version": "0.19.0",
+  "description": "The AI workspace for backend teams. Build backend systems with AI that knows your workspace, generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
+  "version": "0.19.1",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -227,7 +227,7 @@
         "command": "rapidkit.editWorkspaceMemory",
         "title": "Edit Workspace Memory",
         "category": "Workspai",
-        "icon": "$(brain)"
+        "icon": "$(edit)"
       },
       {
         "command": "rapidkit.quickSwitchWorkspace",

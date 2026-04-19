@@ -11,7 +11,7 @@ export function Header({ version }: HeaderProps) {
                 {/* <span className="kit">ai</span> */}
             </h1>
             <p className="tagline">
-                Build backend systems with AI that knows your workspace.
+                The AI workspace for backend teams.
             </p>
             {/* <span className="version">v{version}</span> */}
         </div>

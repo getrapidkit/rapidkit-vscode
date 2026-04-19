@@ -134,15 +134,13 @@ export class WorkspaceDetector {
         type = 'go';
         try {
           if (await fs.pathExists(goModPath)) {
-            const content = await fs.readFile(goModPath, 'utf-8');
-            if (content.includes('github.com/getrapidkit') || content.includes('rapidkit')) {
-              if (content.includes('gofiber')) {
-                kit = 'gofiber.standard';
-              } else if (content.includes('gogin')) {
-                kit = 'gogin.standard';
-              } else {
-                kit = 'go.standard';
-              }
+            const content = (await fs.readFile(goModPath, 'utf-8')).toLowerCase();
+
+            // Detect by real framework dependencies in go.mod.
+            if (content.includes('github.com/gofiber/fiber')) {
+              kit = 'gofiber.standard';
+            } else if (content.includes('github.com/gin-gonic/gin')) {
+              kit = 'gogin.standard';
             } else {
               kit = 'go.standard';
             }

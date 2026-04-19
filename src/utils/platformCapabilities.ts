@@ -54,7 +54,13 @@ export function buildRapidkitCommand(
   args: string[] = [],
   platform: NodeJS.Platform = process.platform
 ): string {
-  return buildShellCommand('npx', ['rapidkit', ...args], platform);
+  // Force npm package resolution so a local rapidkit/rapidkit.cmd launcher in cwd
+  // cannot shadow the npm wrapper command (notably on Windows PowerShell).
+  return buildShellCommand(
+    'npx',
+    ['--yes', '--package', 'rapidkit', 'rapidkit', ...args],
+    platform
+  );
 }
 
 export function getWorkspaceVenvRapidkitCandidates(workspacePath: string): string[] {

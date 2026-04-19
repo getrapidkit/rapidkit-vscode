@@ -1240,6 +1240,15 @@ KEY PATTERNS:
 }
 
 function buildModuleSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
+  const fw = resolveFrameworkFamily(ctx, scanned);
+  if (fw === 'go') {
+    return `WORKSPAI GO KITS:
+- Go kits currently do not support the RapidKit module marketplace.
+- Supported kits: gofiber.standard, gogin.standard.
+- Extend functionality by adding native Go packages + internal adapters in your project.
+- For scaffolding updates, use the npm wrapper commands (rapidkit create/init/dev/docs).`;
+  }
+
   const installed = scanned?.installedModules ?? [];
 
   // Always provide the full module system reference

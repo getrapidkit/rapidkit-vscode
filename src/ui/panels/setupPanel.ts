@@ -285,7 +285,7 @@ export class SetupPanel {
                 const pythonExe = quoteExecutable(workspacePython);
                 coreVerifyCommands.push(
                   `${pythonExe} -m rapidkit --version --json`,
-                  `${pythonExe} -c "import rapidkit_core, sys; print(f'rapidkit-core {rapidkit_core.__version__} ({sys.executable})')"`
+                  `${pythonExe} -m pip show rapidkit-core`
                 );
               }
 
@@ -297,18 +297,15 @@ export class SetupPanel {
 
             if (process.platform === 'win32') {
               coreVerifyCommands.push(
-                'python -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
-                'py -3 -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
                 'python -m pip show rapidkit-core',
                 'py -3 -m pip show rapidkit-core',
                 'python -m pipx list'
               );
             } else {
               coreVerifyCommands.push(
-                'python3 -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
-                'python -c "import rapidkit_core, sys; print(f\'rapidkit-core {rapidkit_core.__version__} ({sys.executable})\')"',
                 'python3 -m pip show rapidkit-core',
                 'python -m pip show rapidkit-core',
+                'python3 -m pipx list',
                 'pipx list'
               );
             }
@@ -329,8 +326,10 @@ export class SetupPanel {
           }
           case 'verifyPoetry': {
             const path = await import('path');
+            const fs = await import('fs-extra');
             const quoteExecutable = (value: string) =>
               value && value.includes(' ') ? `"${value}"` : value;
+
             const windowsPoetryCandidates = [
               path.join(process.env.APPDATA || '', 'Python', 'Scripts', 'poetry.exe'),
               path.join(
@@ -342,20 +341,45 @@ export class SetupPanel {
                 'poetry.exe'
               ),
               path.join(process.env.USERPROFILE || '', '.local', 'bin', 'poetry.exe'),
-            ]
-              .filter((candidate) => !!candidate && !candidate.startsWith('Python'))
-              .map((candidate) => `${quoteExecutable(candidate)} --version`);
+            ].filter((candidate) => !!candidate && !candidate.startsWith('Python'));
+
+            const existingWindowsPoetryCommands: string[] = [];
+            for (const candidate of windowsPoetryCandidates) {
+              try {
+                if (await fs.pathExists(candidate)) {
+                  existingWindowsPoetryCommands.push(`${quoteExecutable(candidate)} --version`);
+                }
+              } catch {
+                // ignore filesystem check errors; we'll rely on standard commands below
+              }
+            }
+
+            const linuxPoetryCandidate = path.join(
+              process.env.HOME || '',
+              '.local',
+              'bin',
+              'poetry'
+            );
+            const linuxPoetryCommands: string[] = [];
+            try {
+              if (await fs.pathExists(linuxPoetryCandidate)) {
+                linuxPoetryCommands.push(`${quoteExecutable(linuxPoetryCandidate)} --version`);
+              }
+            } catch {
+              // ignore filesystem check errors
+            }
+
             const poetryVerifyCommands =
               process.platform === 'win32'
                 ? [
+                    ...existingWindowsPoetryCommands,
                     'poetry --version',
                     'python -m poetry --version',
                     'py -3 -m poetry --version',
-                    ...windowsPoetryCandidates,
                   ]
                 : [
+                    ...linuxPoetryCommands,
                     'poetry --version',
-                    '~/.local/bin/poetry --version',
                     'python3 -m poetry --version',
                     'python -m poetry --version',
                   ];

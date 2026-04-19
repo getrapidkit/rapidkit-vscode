@@ -206,7 +206,7 @@ export class KitsService {
         display_name: 'Go/Fiber Standard Kit',
         category: 'go',
         version: '0.1.0',
-        tags: ['go', 'fiber', 'high-performance', 'modular', 'standard'],
+        tags: ['go', 'fiber', 'high-performance', 'standard'],
         description: 'High-performance Go web service built with the Fiber framework.',
       },
       {
@@ -214,7 +214,7 @@ export class KitsService {
         display_name: 'Go/Gin Standard Kit',
         category: 'go',
         version: '0.1.0',
-        tags: ['go', 'gin', 'high-performance', 'modular', 'standard'],
+        tags: ['go', 'gin', 'high-performance', 'standard'],
         description: 'Lightweight Go web service built with the Gin framework.',
       },
     ];
