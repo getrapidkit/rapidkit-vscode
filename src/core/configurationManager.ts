@@ -53,9 +53,9 @@ export class ConfigurationManager {
    */
   private watchConfiguration(): void {
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('rapidkit')) {
+      if (e.affectsConfiguration('workspai')) {
         this.logger.info('Workspai configuration changed');
-        vscode.commands.executeCommand('rapidkit.refreshProjects');
+        vscode.commands.executeCommand('workspai.refreshProjects');
       }
     });
   }
@@ -66,7 +66,7 @@ export class ConfigurationManager {
    */
   public get<T>(key: string, defaultValue?: T): T {
     // Try VS Code settings first
-    const vsConfig = vscode.workspace.getConfiguration('rapidkit');
+    const vsConfig = vscode.workspace.getConfiguration('workspai');
     const vsValue = vsConfig.get<T>(key);
     if (vsValue !== undefined) {
       return vsValue;
@@ -91,7 +91,7 @@ export class ConfigurationManager {
     value: any,
     target: vscode.ConfigurationTarget = vscode.ConfigurationTarget.Global
   ): Promise<void> {
-    const config = vscode.workspace.getConfiguration('rapidkit');
+    const config = vscode.workspace.getConfiguration('workspai');
     await config.update(key, value, target);
   }
 
@@ -99,7 +99,7 @@ export class ConfigurationManager {
    * Get all configuration as object
    */
   public getAll(): any {
-    const vsConfig = vscode.workspace.getConfiguration('rapidkit');
+    const vsConfig = vscode.workspace.getConfiguration('workspai');
     return {
       ...this.userConfig,
       pythonPath: vsConfig.get('pythonPath'),

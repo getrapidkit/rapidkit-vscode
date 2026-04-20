@@ -79,6 +79,22 @@ export function parseRapidKitError(stderr: string, stdout: string = ''): ParsedE
     };
   }
 
+  // Check for directory-already-exists (idempotent scenario, not a real error)
+  // Note: this is kept as informational — callers should check workspace existence
+  // themselves before calling parseRapidKitError in idempotent flows.
+  if (fullOutput.includes('already exists') && fullOutput.includes('director')) {
+    return {
+      type: 'unknown',
+      title: 'Workspace Already Exists',
+      message: extractErrorMessage(stderr, stdout) || 'A workspace with this name already exists.',
+      suggestion:
+        '• Choose a different workspace name\n' +
+        '• Or open the existing workspace from the sidebar',
+      canRetry: false,
+      canFallback: false,
+    };
+  }
+
   // Check for permission errors
   if (
     fullOutput.includes('eacces') ||

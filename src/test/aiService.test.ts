@@ -188,6 +188,38 @@ describe('aiService', () => {
     expect(prepared.messages.at(-1)?.content).toContain('Installed modules: free/auth/core');
   });
 
+  it('injects ancestor workspace memory when AI runs at project scope', async () => {
+    const workspaceRoot = path.join(tempProjectPath, 'workspace-root');
+    const projectRoot = path.join(workspaceRoot, 'apps', 'orders-api');
+
+    fs.mkdirSync(path.join(projectRoot, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(workspaceRoot, '.rapidkit'), { recursive: true });
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.rapidkit', 'workspace-memory.json'),
+      JSON.stringify(
+        {
+          context: 'Orders platform with strict API contracts',
+          conventions: ['Use DTO mapping in application layer'],
+          decisions: ['Kafka is used for integration events'],
+          lastUpdated: '2026-04-20T00:00:00.000Z',
+        },
+        null,
+        2
+      )
+    );
+
+    const prepared = await prepareAIConversation('ask', 'Where should I add new order endpoints?', {
+      type: 'project',
+      name: 'orders-api',
+      path: projectRoot,
+      framework: 'fastapi',
+    });
+
+    expect(prepared.messages[0].content).toContain('WORKSPACE MEMORY');
+    expect(prepared.messages[0].content).toContain('Use DTO mapping in application layer');
+    expect(prepared.messages[0].content).toContain('Kafka is used for integration events');
+  });
+
   it('caches model selection for repeated AI requests', async () => {
     const model = {
       id: 'gpt-4o',

@@ -11,6 +11,7 @@ import { Logger } from '../utils/logger';
 import { ModulesCatalogService } from './modulesCatalogService';
 import { WorkspaceMemoryService } from './workspaceMemoryService';
 import { detectRapidkitProject } from './bridge/pythonRapidkit';
+import { run } from '../utils/exec';
 
 export interface AIMessage {
   role: 'user' | 'assistant';
@@ -141,6 +142,7 @@ export async function askAI(
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const execFileAsync = promisify(execFile);
 
@@ -233,7 +235,7 @@ interface ModelSelectionCacheEntry {
   cachedAt: number;
 }
 
-const PROJECT_CONTEXT_TTL_MS = 15 * 1000;
+const PROJECT_CONTEXT_TTL_MS = 60 * 1000;
 const MODEL_SELECTION_TTL_MS = 5 * 60 * 1000;
 const MAX_SYSTEM_PROMPT_CHARS = 28_000;
 
@@ -827,22 +829,30 @@ export async function fetchLiveModules(): Promise<LiveModuleEntry[] | null> {
     return _liveModulesCache.modules;
   }
   try {
-    const { stdout: raw } = await execFileAsync(
-      'rapidkit',
-      ['modules', 'list', '--json-schema', '1'],
+    const res = await run(
+      'npx',
+      ['--yes', '--package', 'rapidkit', 'rapidkit', 'modules', 'list', '--json-schema', '1'],
       {
         timeout: 8000,
-        encoding: 'utf8',
-        windowsHide: true,
-        maxBuffer: 1024 * 1024,
       }
     );
-    // The CLI prints a preamble line ("🚀 RapidKit") before the JSON — strip it
-    const jsonStart = raw.indexOf('{');
-    if (jsonStart === -1) {
+    if (res.exitCode !== 0) {
       return null;
     }
-    const parsed = JSON.parse(raw.slice(jsonStart)) as { modules?: LiveModuleEntry[] };
+
+    const raw = res.stdout ?? '';
+    // The CLI prints a preamble line ("🚀 RapidKit") before the JSON — strip it
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd <= jsonStart) {
+      return null;
+    }
+    let parsed: { modules?: LiveModuleEntry[] };
+    try {
+      parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { modules?: LiveModuleEntry[] };
+    } catch {
+      return null;
+    }
     const modules = parsed.modules ?? [];
     _liveModulesCache = { modules, fetchedAt: now };
     return modules;
@@ -1531,10 +1541,7 @@ async function _buildMemorySection(ctx: AIModalContext): Promise<string> {
   }
   try {
     const memSvc = WorkspaceMemoryService.getInstance();
-    if (!(await memSvc.hasMemory(ctx.path))) {
-      return '';
-    }
-    const memory = await memSvc.read(ctx.path);
+    const memory = await memSvc.readNearest(ctx.path);
     const formatted = memSvc.formatForPrompt(memory);
     if (!formatted) {
       return '';
@@ -1938,8 +1945,14 @@ function normalizeInstallMethod(value: unknown): AICreationPlan['installMethod']
 
 function normalizeSuggestedModules(
   modules: unknown,
-  liveModules: LiveModuleEntry[] | null
+  liveModules: LiveModuleEntry[] | null,
+  framework?: AICreateFramework
 ): string[] {
+  // Go kits do not support the RapidKit module marketplace.
+  if (framework === 'go') {
+    return [];
+  }
+
   const allowedSet = liveModules?.length
     ? new Set(liveModules.map((m) => m.slug))
     : STATIC_MODULE_SLUGS;
@@ -2125,15 +2138,17 @@ Rules:
   }
 
   const fw = normalizeCreationFramework(parsed.framework, frameworkHint);
+  const rawName = addWspSuffix(sanitizeKebab(parsed.workspaceName ?? 'my-workspace'));
+  const uniqueName = await resolveUniqueWorkspaceName(rawName);
   const plan: AICreationPlan = {
     type: mode,
-    workspaceName: addWspSuffix(sanitizeKebab(parsed.workspaceName ?? 'my-workspace')),
+    workspaceName: uniqueName,
     profile: normalizeCreationProfile(parsed.profile, fw),
     installMethod: normalizeInstallMethod(parsed.installMethod),
     framework: fw,
     kit: normalizeCreationKit(parsed.kit, fw),
     projectName: sanitizeKebab(parsed.projectName ?? 'api'),
-    suggestedModules: normalizeSuggestedModules(parsed.suggestedModules, liveModules),
+    suggestedModules: normalizeSuggestedModules(parsed.suggestedModules, liveModules, fw),
     description:
       typeof parsed.description === 'string' && parsed.description.trim()
         ? parsed.description.trim().slice(0, 240)
@@ -2141,6 +2156,32 @@ Rules:
   };
 
   return { plan, modelId };
+}
+
+/**
+ * Resolve a unique workspace name by checking if the default installation
+ * directory (~Workspai/rapidkits/<name>) already exists on disk.
+ * If it does, append -2, -3, ... until a free slot is found.
+ */
+async function resolveUniqueWorkspaceName(name: string): Promise<string> {
+  const base = path.join(os.homedir(), 'Workspai', 'rapidkits');
+  let candidate = name;
+  let counter = 2;
+  // Safety cap: stop after 99 attempts to avoid infinite loop.
+  while (counter <= 99) {
+    try {
+      await fs.promises.access(path.join(base, candidate));
+      // Directory exists — try next suffix.
+      // Strip any previous numeric suffix (-2, -3 …) before appending new one.
+      const baseName = name.replace(/-\d+(-wsp)?$/, '').replace(/-wsp$/, '');
+      candidate = `${baseName}-${counter}-wsp`;
+      counter++;
+    } catch {
+      // access() threw → path does not exist → candidate is free.
+      break;
+    }
+  }
+  return candidate;
 }
 
 /** Ensure workspace name always ends with -wsp (convention across all RapidKit workspaces). */

@@ -76,7 +76,7 @@ export async function deleteProject(projectPath: string): Promise<void> {
         progress.report({ increment: 100, message: 'Done!' });
 
         // Refresh project list
-        await vscode.commands.executeCommand('rapidkit.refreshProjects');
+        await vscode.commands.executeCommand('workspai.refreshProjects');
 
         vscode.window.showInformationMessage(`🗑️ Project "${projectName}" deleted successfully`, {
           modal: false,

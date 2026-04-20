@@ -21,7 +21,7 @@ export function registerProjectLifecycleCommands(options: {
   const { logger, runningServers, getProjectExplorer } = options;
 
   return [
-    vscode.commands.registerCommand('rapidkit.projectTerminal', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectTerminal', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       if (projectPath) {
         openTerminal({
@@ -32,7 +32,7 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.projectInit', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectInit', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectName = item?.project?.name || 'Project';
 
@@ -47,7 +47,7 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.projectDev', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectDev', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectName = item?.project?.name || 'Project';
       const projectType = item?.project?.type || 'fastapi';
@@ -222,7 +222,7 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.projectStop', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectStop', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectName = item?.project?.name || 'Project';
       if (projectPath) {
@@ -244,7 +244,7 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.projectTest', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectTest', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectName = item?.project?.name || 'Project';
 
@@ -259,7 +259,7 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.projectBrowser', async (item: any) => {
+    vscode.commands.registerCommand('workspai.projectBrowser', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectType = item?.project?.type || 'fastapi';
       const isFastAPI = projectType === 'fastapi';

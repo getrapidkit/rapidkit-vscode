@@ -10,6 +10,14 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
     vscode.CodeActionKind.QuickFix,
     vscode.CodeActionKind.Refactor,
   ];
+  private static readonly AI_DEBUG_LANGUAGES = new Set([
+    'python',
+    'typescript',
+    'javascript',
+    'go',
+    'typescriptreact',
+    'javascriptreact',
+  ]);
 
   provideCodeActions(
     document: vscode.TextDocument,
@@ -44,6 +52,10 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
     range: vscode.Range,
     context: vscode.CodeActionContext
   ): vscode.CodeAction[] {
+    if (!WorkspaiCodeActionsProvider.AI_DEBUG_LANGUAGES.has(document.languageId)) {
+      return [];
+    }
+
     const actions: vscode.CodeAction[] = [];
 
     const hasErrors = context.diagnostics.some(
@@ -57,7 +69,7 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         vscode.CodeActionKind.QuickFix
       );
       action.command = {
-        command: 'rapidkit.debugWithAI',
+        command: 'workspai.debugWithAI',
         title: 'Debug with Workspai AI',
       };
       action.isPreferred = false;
@@ -75,7 +87,7 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         vscode.CodeActionKind.QuickFix
       );
       explainAction.command = {
-        command: 'rapidkit.explainErrorWithAI',
+        command: 'workspai.explainErrorWithAI',
         title: 'Explain error with AI',
         arguments: [errorMessages],
       };

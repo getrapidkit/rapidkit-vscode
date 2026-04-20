@@ -50,6 +50,8 @@ export function App() {
     const [showAICreateModal, setShowAICreateModal] = useState(false);
     const [aiCreateMode, setAICreateMode] = useState<'workspace' | 'project'>('workspace');
     const [aiCreateFramework, setAICreateFramework] = useState<AICreateFramework | undefined>(undefined);
+    const [aiCreateTargetWorkspaceName, setAICreateTargetWorkspaceName] = useState<string | undefined>(undefined);
+    const [aiCreateTargetWorkspacePath, setAICreateTargetWorkspacePath] = useState<string | undefined>(undefined);
     const [aiCreationPlan, setAICreationPlan] = useState<AICreationPlan | null>(null);
     const [aiCreationThinking, setAICreationThinking] = useState(false);
     const [aiCreationCreating, setAICreationCreating] = useState(false);
@@ -190,6 +192,8 @@ export function App() {
                     setAICreationCreating(false);
                     setAICreationStage(null);
                     setAICreateModelId(null);
+                    setAICreateTargetWorkspaceName(message.data?.targetWorkspaceName ?? undefined);
+                    setAICreateTargetWorkspacePath(message.data?.targetWorkspacePath ?? undefined);
                     setShowAICreateModal(true);
                     break;
                 case 'openAIModal':
@@ -269,9 +273,24 @@ export function App() {
                 case 'aiCreationDone':
                     setAICreationCreating(false);
                     setAICreationStage(null);
-                    setShowAICreateModal(false);
-                    setAICreationPlan(null);
-                    setAICreationError(null);
+                    if (message.data?.projectError && message.data?.workspaceCreated) {
+                        const workspacePath =
+                            typeof message.data?.workspacePath === 'string'
+                                ? message.data.workspacePath
+                                : 'the selected location';
+                        setAICreationError(
+                            `Workspace created successfully at ${workspacePath}, but project creation failed: ${message.data.projectError}`
+                        );
+                        if (message.data?.plan) {
+                            setAICreationPlan(message.data.plan);
+                        }
+                    } else {
+                        setShowAICreateModal(false);
+                        setAICreationPlan(null);
+                        setAICreationError(null);
+                        setAICreateTargetWorkspaceName(undefined);
+                        setAICreateTargetWorkspacePath(undefined);
+                    }
                     break;
                 case 'workspaceToolStatus':
                     setWorkspaceToolStatus(message.data);
@@ -318,6 +337,8 @@ export function App() {
         setAICreationCreating(false);
         setAICreationStage(null);
         setAICreateModelId(null);
+        setAICreateTargetWorkspaceName(activeWorkspaceName ?? undefined);
+        setAICreateTargetWorkspacePath(workspaceStatus.workspacePath ?? undefined);
         setShowAICreateModal(true);
     };
 
@@ -330,6 +351,8 @@ export function App() {
         setAICreationCreating(false);
         setAICreationStage(null);
         setAICreateModelId(null);
+        setAICreateTargetWorkspaceName(undefined);
+        setAICreateTargetWorkspacePath(undefined);
         setShowAICreateModal(true);
     };
 
@@ -338,7 +361,12 @@ export function App() {
     };
 
     const handleAICreateConfirm = (plan: AICreationPlan) => {
-        vscode.postMessage('aiCreateConfirm', plan);
+        vscode.postMessage('aiCreateConfirm', {
+            ...plan,
+            // Pass the workspace path captured at modal-open time so the backend
+            // uses the workspace the user saw in the modal (not the current selection).
+            targetWorkspacePath: aiCreateMode === 'project' ? aiCreateTargetWorkspacePath : undefined,
+        });
     };
 
     const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => {
@@ -491,6 +519,8 @@ export function App() {
                     setAICreationCreating(false);
                     setAICreationStage(null);
                     setAICreateModelId(null);
+                    setAICreateTargetWorkspaceName(activeWorkspaceName ?? undefined);
+                    setAICreateTargetWorkspacePath(workspaceStatus.workspacePath ?? undefined);
                     setShowAICreateModal(true);
                 }}
             />
@@ -498,6 +528,7 @@ export function App() {
                 isOpen={showAICreateModal}
                 mode={aiCreateMode}
                 framework={aiCreateFramework}
+                targetWorkspaceName={aiCreateMode === 'project' ? aiCreateTargetWorkspaceName : undefined}
                 plan={aiCreationPlan}
                 isThinking={aiCreationThinking}
                 isCreating={aiCreationCreating}
@@ -509,6 +540,8 @@ export function App() {
                         setShowAICreateModal(false);
                         setAICreationPlan(null);
                         setAICreationError(null);
+                        setAICreateTargetWorkspaceName(undefined);
+                        setAICreateTargetWorkspacePath(undefined);
                     }
                 }}
                 onPromptSubmit={handleAICreatePromptSubmit}

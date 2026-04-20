@@ -43,6 +43,7 @@ import { KitsService } from './core/kitsService';
 import { registerAIDebuggerCommand } from './commands/aiDebugger';
 import { registerWorkspaceBrainCommand } from './commands/workspaceBrain';
 import { WorkspaceMemoryService } from './core/workspaceMemoryService';
+import { registerWorkspaiChatParticipant } from './commands/chatParticipant';
 
 let statusBar: WorkspaiStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -101,9 +102,12 @@ export async function activate(context: vscode.ExtensionContext) {
       registerWorkspaceBrainCommand(context)
     );
 
+    // Chat participant — @workspai in the VS Code Chat panel
+    registerWorkspaiChatParticipant(context);
+
     // AI context commands — triggered from tree view inline buttons
     context.subscriptions.push(
-      vscode.commands.registerCommand('rapidkit.aiForWorkspace', (item?: any) => {
+      vscode.commands.registerCommand('workspai.aiForWorkspace', (item?: any) => {
         const ws = item?.workspace || workspaceExplorer?.getSelectedWorkspace();
         if (!ws) {
           vscode.window.showWarningMessage('Select a workspace first.');
@@ -116,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
         });
       }),
       // Edit / create workspace memory — opens .rapidkit/workspace-memory.json
-      vscode.commands.registerCommand('rapidkit.editWorkspaceMemory', async (item?: any) => {
+      vscode.commands.registerCommand('workspai.editWorkspaceMemory', async (item?: any) => {
         const ws = item?.workspace || workspaceExplorer?.getSelectedWorkspace();
         if (!ws) {
           vscode.window.showWarningMessage('Select a workspace first.');
@@ -136,7 +140,7 @@ export async function activate(context: vscode.ExtensionContext) {
           'OK'
         );
       }),
-      vscode.commands.registerCommand('rapidkit.aiForProject', (item?: any) => {
+      vscode.commands.registerCommand('workspai.aiForProject', (item?: any) => {
         const project = item?.project || projectExplorer?.getSelectedProject();
         if (!project) {
           vscode.window.showWarningMessage('Select a project first.');
@@ -149,7 +153,7 @@ export async function activate(context: vscode.ExtensionContext) {
           framework: project.type,
         });
       }),
-      vscode.commands.registerCommand('rapidkit.aiForModule', (item?: any) => {
+      vscode.commands.registerCommand('workspai.aiForModule', (item?: any) => {
         const mod = item?.module;
         const project = projectExplorer?.getSelectedProject();
         WelcomePanel.showAIModal(context, {
@@ -162,15 +166,15 @@ export async function activate(context: vscode.ExtensionContext) {
         });
       }),
       // AI-powered workspace creation — triggered from sidebar Quick Actions panel
-      vscode.commands.registerCommand('rapidkit.openAICreateWorkspace', () => {
+      vscode.commands.registerCommand('workspai.openAICreateWorkspace', () => {
         WelcomePanel.openAICreateModal(context, 'workspace');
       }),
       // AI-powered project creation — triggered from Projects panel title button
-      vscode.commands.registerCommand('rapidkit.aiCreateProject', () => {
+      vscode.commands.registerCommand('workspai.aiCreateProject', () => {
         WelcomePanel.openAICreateModal(context, 'project');
       }),
       // Quick switch workspace via QuickPick
-      vscode.commands.registerCommand('rapidkit.quickSwitchWorkspace', () => {
+      vscode.commands.registerCommand('workspai.quickSwitchWorkspace', () => {
         workspaceExplorer.quickSwitch();
       })
     );
@@ -265,10 +269,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Doctor Evidence commands
     context.subscriptions.push(
-      vscode.commands.registerCommand('rapidkit.doctorEvidence.refresh', () => {
+      vscode.commands.registerCommand('workspai.doctorEvidence.refresh', () => {
         doctorEvidenceExplorer.refresh();
       }),
-      vscode.commands.registerCommand('rapidkit.doctorEvidence.rerun', async () => {
+      vscode.commands.registerCommand('workspai.doctorEvidence.rerun', async () => {
         const ws = workspaceExplorer.getSelectedWorkspace();
         if (!ws) {
           vscode.window.showWarningMessage('Select a workspace first.');
@@ -281,7 +285,7 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         // File watcher on doctor-last-run.json triggers refresh automatically
       }),
-      vscode.commands.registerCommand('rapidkit.doctorEvidence.autofix', async () => {
+      vscode.commands.registerCommand('workspai.doctorEvidence.autofix', async () => {
         const ws = workspaceExplorer.getSelectedWorkspace();
         if (!ws) {
           vscode.window.showWarningMessage('Select a workspace first.');
@@ -295,7 +299,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // File watcher on doctor-last-run.json triggers refresh automatically
       }),
       vscode.commands.registerCommand(
-        'rapidkit.doctorEvidence.fixIssueWithAI',
+        'workspai.doctorEvidence.fixIssueWithAI',
         async (issue: string, project: ProjectEvidence, aiContext?: DoctorIssueAIContext) => {
           if (!issue) {
             return;
@@ -341,7 +345,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       ),
       // Refresh evidence panel whenever workspace selection changes
-      vscode.commands.registerCommand('rapidkit.workspaceSelected', (workspace: any) => {
+      vscode.commands.registerCommand('workspai.workspaceSelected', (workspace: any) => {
         projectExplorer?.setWorkspace(workspace);
         doctorEvidenceExplorer.refresh();
       })
@@ -362,11 +366,6 @@ export async function activate(context: vscode.ExtensionContext) {
           { language: 'go' },
           { language: 'typescriptreact' },
           { language: 'javascriptreact' },
-          { language: 'json' },
-          { language: 'yaml' },
-          { language: 'markdown' },
-          { language: 'shellscript' },
-          { language: 'plaintext' },
         ],
         new WorkspaiCodeActionsProvider(),
         {
@@ -421,7 +420,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Show welcome page on first activation
         logger.info('Step 10: Checking welcome page settings...');
-        const config = vscode.workspace.getConfiguration('rapidkit');
+        const config = vscode.workspace.getConfiguration('workspai');
 
         // Always show welcome page on first activation or if configured
         // Setup wizard is now integrated into welcome page

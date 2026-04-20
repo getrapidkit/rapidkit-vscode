@@ -72,12 +72,12 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
         )
         .then((choice) => {
           if (choice === 'Open Setup') {
-            vscode.commands.executeCommand('rapidkit.openSetup');
+            vscode.commands.executeCommand('workspai.openSetup');
           }
         });
 
       // Also auto-open Setup Panel
-      await vscode.commands.executeCommand('rapidkit.openSetup');
+      await vscode.commands.executeCommand('workspai.openSetup');
       return;
     }
 
@@ -94,11 +94,11 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
         )
         .then((choice) => {
           if (choice === 'Open Setup') {
-            vscode.commands.executeCommand('rapidkit.openSetup');
+            vscode.commands.executeCommand('workspai.openSetup');
           }
         });
 
-      await vscode.commands.executeCommand('rapidkit.openSetup');
+      await vscode.commands.executeCommand('workspai.openSetup');
       return;
     }
 
@@ -114,11 +114,11 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
         )
         .then((choice) => {
           if (choice === 'Open Setup') {
-            vscode.commands.executeCommand('rapidkit.openSetup');
+            vscode.commands.executeCommand('workspai.openSetup');
           }
         });
 
-      await vscode.commands.executeCommand('rapidkit.openSetup');
+      await vscode.commands.executeCommand('workspai.openSetup');
       return;
     }
 
@@ -280,7 +280,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
           logger.info('User selected venv install method');
         } else {
           // Open Setup Panel and abort workspace creation
-          vscode.commands.executeCommand('rapidkit.openSetup');
+          vscode.commands.executeCommand('workspai.openSetup');
           return;
         }
       }
@@ -370,6 +370,31 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
           await fs.ensureDir(parentDir);
           logger.info('Parent directory ensured:', parentDir);
 
+          // Pre-flight: detect partial/broken workspace (dir exists but no marker).
+          // A partial workspace would cause the CLI to fail with "already exists" without
+          // creating a valid workspace — give the user a clear choice.
+          const dirAlreadyExists = await fs.pathExists(config.path);
+          const markerAlreadyExists = await fs.pathExists(
+            path.join(config.path, '.rapidkit-workspace')
+          );
+          if (dirAlreadyExists && !markerAlreadyExists) {
+            const choice = await vscode.window.showWarningMessage(
+              `⚠️ Directory "${config.name}" already exists but is not a valid Workspai workspace.\n\n` +
+                `This may be a partial or failed previous creation.\n\n` +
+                `What would you like to do?`,
+              { modal: true },
+              'Replace (delete & recreate)',
+              'Cancel'
+            );
+            if (choice === 'Replace (delete & recreate)') {
+              await fs.remove(config.path);
+              logger.info(`Removed partial directory: ${config.path}`);
+            } else {
+              logger.info('User cancelled workspace creation at partial-dir prompt');
+              return;
+            }
+          }
+
           // Check if it's a default location (~/Workspai/rapidkits/<name>)
           const homeDir = require('os').homedir();
           const defaultWorkspacePath = path.join(homeDir, 'Workspai', 'rapidkits', config.name);
@@ -382,13 +407,25 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
               message: 'Setting up RapidKit CLI (downloading if needed)...',
             });
 
-            const createResult = await cli.createWorkspace({
-              name: config.name,
-              parentPath: path.dirname(config.path),
-              skipGit: !config.initGit,
-              installMethod: chosenInstallMethod,
-              profile: config.profile,
-            });
+            // Idempotency: if the workspace marker already exists (prior run or
+            // Windows 'directory already exists' false-positive), skip the CLI
+            // call entirely and treat this as a silent success.
+            const preexistingMarker = path.join(config.path, '.rapidkit-workspace');
+            const workspacePreexists = await fs.pathExists(preexistingMarker);
+            if (workspacePreexists) {
+              logger.info(
+                `Workspace "${config.name}" already exists — skipping CLI creation (idempotent)`
+              );
+            }
+            const createResult = workspacePreexists
+              ? { exitCode: 0, stdout: '', stderr: '' }
+              : await cli.createWorkspace({
+                  name: config.name,
+                  parentPath: path.dirname(config.path),
+                  skipGit: !config.initGit,
+                  installMethod: chosenInstallMethod,
+                  profile: config.profile,
+                });
 
             // Check if creation was successful
             if (createResult.exitCode !== 0) {
@@ -513,13 +550,21 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
 
             // Check if creation was successful
             if (createResult.exitCode !== 0) {
-              const stderr = createResult.stderr || createResult.stdout || '';
-              logger.error('Workspace creation failed', {
-                exitCode: createResult.exitCode,
-                stderr,
-              });
+              // Idempotency: same pre-flight check for custom paths.
+              const customMarker = path.join(config.path, '.rapidkit-workspace');
+              if (await fs.pathExists(customMarker)) {
+                logger.info(
+                  `Workspace "${config.name}" already exists at custom path — idempotent success`
+                );
+              } else {
+                const stderr = createResult.stderr || createResult.stdout || '';
+                logger.error('Workspace creation failed', {
+                  exitCode: createResult.exitCode,
+                  stderr,
+                });
 
-              throw new Error(`Workspace creation failed: ${stderr || 'Unknown error'}`);
+                throw new Error(`Workspace creation failed: ${stderr || 'Unknown error'}`);
+              }
             }
 
             logger.info('Workspace created directly at custom path (no move needed)');
@@ -645,7 +690,7 @@ export async function createWorkspaceCommand(workspaceName?: string | Record<str
           await new Promise((resolve) => setTimeout(resolve, 500));
 
           // Refresh workspace explorer
-          await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
+          await vscode.commands.executeCommand('workspai.refreshWorkspaces');
 
           progress.report({ increment: 100, message: 'Complete!' });
 

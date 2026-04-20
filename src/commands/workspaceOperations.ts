@@ -18,7 +18,7 @@ export function registerWorkspaceOperationsCommands(options: {
   const { logger, getWorkspaceExplorer, context } = options;
 
   return [
-    vscode.commands.registerCommand('rapidkit.workspaceBootstrap', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.workspaceBootstrap', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -91,7 +91,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.workspaceSetup', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.workspaceSetup', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -139,7 +139,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.workspaceInit', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.workspaceInit', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -157,7 +157,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.workspacePolicyShow', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.workspacePolicyShow', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -174,7 +174,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.workspacePolicySet', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.workspacePolicySet', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -268,7 +268,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.cacheStatus', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.cacheStatus', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -283,7 +283,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.cacheClear', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.cacheClear', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -307,7 +307,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.cachePrune', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.cachePrune', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -322,7 +322,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.cacheRepair', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.cacheRepair', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -337,7 +337,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.mirrorStatus', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.mirrorStatus', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -352,7 +352,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.mirrorSync', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.mirrorSync', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -367,7 +367,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.mirrorVerify', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.mirrorVerify', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -382,7 +382,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.mirrorRotate', async (item?: any) => {
+    vscode.commands.registerCommand('workspai.mirrorRotate', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
         item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
@@ -407,7 +407,7 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
-    vscode.commands.registerCommand('rapidkit.checkWorkspaceHealth', async (item: any) => {
+    vscode.commands.registerCommand('workspai.checkWorkspaceHealth', async (item: any) => {
       let workspacePath: string | undefined;
       let workspaceName: string | undefined;
 
@@ -534,7 +534,7 @@ export function registerWorkspaceOperationsCommands(options: {
                 'Bootstrap Now'
               );
               if (choice === 'Bootstrap Now') {
-                vscode.commands.executeCommand('rapidkit.workspaceBootstrap', {
+                vscode.commands.executeCommand('workspai.workspaceBootstrap', {
                   workspace: { path: workspacePath },
                 });
               }
@@ -698,7 +698,7 @@ export function registerWorkspaceOperationsCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.checkForUpdates', async () => {
+    vscode.commands.registerCommand('workspai.checkForUpdates', async () => {
       const { forceCheckForUpdates } = await import('../utils/updateChecker.js');
       await forceCheckForUpdates(context);
     }),

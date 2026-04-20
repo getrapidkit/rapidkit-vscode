@@ -20,7 +20,7 @@ export class TemplatePreviewPanel {
       (message) => {
         switch (message.command) {
           case 'useTemplate':
-            vscode.commands.executeCommand('rapidkit.createProject');
+            vscode.commands.executeCommand('workspai.createProject');
             break;
         }
       },

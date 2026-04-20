@@ -191,7 +191,7 @@ export async function createProjectCommand(
             logger.info('User chose to create workspace first');
 
             // Execute create workspace command
-            await vscode.commands.executeCommand('rapidkit.createWorkspace');
+            await vscode.commands.executeCommand('workspai.createWorkspace');
 
             // After workspace creation, ask if they want to continue with project
             const continueWithProject = await vscode.window.showInformationMessage(
@@ -322,7 +322,7 @@ export async function createProjectCommand(
           progress.report({ increment: 90, message: 'Refreshing workspace...' });
 
           // Refresh views
-          await vscode.commands.executeCommand('rapidkit.refreshProjects');
+          await vscode.commands.executeCommand('workspai.refreshProjects');
 
           // Update workspace in manager only if not standalone mode
           if (!isStandaloneMode) {
@@ -339,7 +339,7 @@ export async function createProjectCommand(
               await manager.updateWorkspace(workspaceRoot);
             }
 
-            await vscode.commands.executeCommand('rapidkit.refreshWorkspaces');
+            await vscode.commands.executeCommand('workspai.refreshWorkspaces');
           } else {
             logger.info('Standalone project created - skipping workspace registration');
           }
@@ -375,7 +375,7 @@ export async function createProjectCommand(
             });
           } else if (selected === addModulesAction) {
             // Set project path context then trigger add module
-            await vscode.commands.executeCommand('rapidkit.addModule', projectPath);
+            await vscode.commands.executeCommand('workspai.addModule', projectPath);
           } else if (selected === docsAction) {
             await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
           }

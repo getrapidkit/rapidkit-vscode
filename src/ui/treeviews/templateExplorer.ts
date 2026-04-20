@@ -90,7 +90,7 @@ export class TemplateExplorerProvider implements vscode.TreeDataProvider<Templat
       item.contextValue = 'template';
       item.iconPath = new vscode.ThemeIcon('file-code');
       item.command = {
-        command: 'rapidkit.previewTemplate',
+        command: 'workspai.previewTemplate',
         title: 'Preview Template',
         arguments: [template],
       };

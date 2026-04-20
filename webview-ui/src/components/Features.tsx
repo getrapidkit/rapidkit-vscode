@@ -3,7 +3,7 @@ import { Zap, Target, Wrench, BookOpen, TestTube, Package } from 'lucide-react';
 
 export function Features() {
     const features = [
-        { icon: Zap, label: '5x faster project setup' },
+        { icon: Zap, label: 'AI-powered scaffolding' },
         { icon: Target, label: 'Clean Architecture' },
         { icon: Wrench, label: 'Auto dev server' },
         { icon: BookOpen, label: 'Swagger docs built-in' },

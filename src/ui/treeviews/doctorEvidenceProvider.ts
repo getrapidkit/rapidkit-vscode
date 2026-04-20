@@ -240,10 +240,10 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
         );
         item.iconPath = new vscode.ThemeIcon('pulse');
         item.command = {
-          command: 'rapidkit.doctorEvidence.rerun',
+          command: 'workspai.doctorEvidence.rerun',
           title: 'Run Doctor',
         };
-        item.tooltip = 'Click to run: npx rapidkit doctor workspace';
+        item.tooltip = 'Click to run: npx workspai.doctor workspace';
         return [item];
       }
 
@@ -372,7 +372,7 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
               : undefined,
         };
         item.command = {
-          command: 'rapidkit.doctorEvidence.fixIssueWithAI',
+          command: 'workspai.doctorEvidence.fixIssueWithAI',
           title: 'Fix with AI',
           arguments: [issue, element.projectData, aiContext],
         };

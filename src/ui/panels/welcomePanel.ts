@@ -144,9 +144,15 @@ export class WelcomePanel {
     setTimeout(() => {
       if (WelcomePanel._pendingModal === '__ai_create__' && WelcomePanel.currentPanel) {
         WelcomePanel._pendingModal = null;
+        const selectedWs =
+          mode === 'project' ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace() : undefined;
         WelcomePanel.currentPanel._panel.webview.postMessage({
           command: 'openAICreateModal',
-          data: { mode },
+          data: {
+            mode,
+            targetWorkspaceName: selectedWs?.name,
+            targetWorkspacePath: selectedWs?.path,
+          },
         });
       }
     }, 350);
@@ -316,9 +322,17 @@ export class WelcomePanel {
                 if (pending === '__workspace__') {
                   this._panel.webview.postMessage({ command: 'openWorkspaceModal' });
                 } else if (pending === '__ai_create__') {
+                  const selectedWs =
+                    WelcomePanel._pendingAICreateMode === 'project'
+                      ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace()
+                      : undefined;
                   this._panel.webview.postMessage({
                     command: 'openAICreateModal',
-                    data: { mode: WelcomePanel._pendingAICreateMode },
+                    data: {
+                      mode: WelcomePanel._pendingAICreateMode,
+                      targetWorkspaceName: selectedWs?.name,
+                      targetWorkspacePath: selectedWs?.path,
+                    },
                   });
                 } else {
                   this._panel.webview.postMessage({
@@ -359,27 +373,27 @@ export class WelcomePanel {
             });
             // Fire and forget — notifications/progress run in background
             if (message.data?.name) {
-              vscode.commands.executeCommand('rapidkit.createWorkspace', message.data);
+              vscode.commands.executeCommand('workspai.createWorkspace', message.data);
             } else {
-              vscode.commands.executeCommand('rapidkit.createWorkspace');
+              vscode.commands.executeCommand('workspai.createWorkspace');
             }
             break;
           case 'createFastAPIProject':
             // Close project modal immediately
             this._panel.webview.postMessage({ command: 'closeProjectModal' });
             if (message.data?.name) {
-              vscode.commands.executeCommand('rapidkit.createFastAPIProject', message.data.name);
+              vscode.commands.executeCommand('workspai.createFastAPIProject', message.data.name);
             } else {
-              vscode.commands.executeCommand('rapidkit.createFastAPIProject');
+              vscode.commands.executeCommand('workspai.createFastAPIProject');
             }
             break;
           case 'createNestJSProject':
             // Close project modal immediately
             this._panel.webview.postMessage({ command: 'closeProjectModal' });
             if (message.data?.name) {
-              vscode.commands.executeCommand('rapidkit.createNestJSProject', message.data.name);
+              vscode.commands.executeCommand('workspai.createNestJSProject', message.data.name);
             } else {
-              vscode.commands.executeCommand('rapidkit.createNestJSProject');
+              vscode.commands.executeCommand('workspai.createNestJSProject');
             }
             break;
           case 'createProjectWithKit':
@@ -409,13 +423,13 @@ export class WelcomePanel {
             }
             break;
           case 'openSetup':
-            await vscode.commands.executeCommand('rapidkit.openSetup');
+            await vscode.commands.executeCommand('workspai.openSetup');
             break;
           case 'debugWithAI':
-            await vscode.commands.executeCommand('rapidkit.debugWithAI');
+            await vscode.commands.executeCommand('workspai.debugWithAI');
             break;
           case 'workspaceBrain':
-            await vscode.commands.executeCommand('rapidkit.workspaceBrain');
+            await vscode.commands.executeCommand('workspai.workspaceBrain');
             break;
           case 'aiSuggestModules': {
             // AI module recommendation based on framework + project name
@@ -504,7 +518,7 @@ No markdown, no explanation outside the JSON.`;
               const { listAvailableModels } = await import('../../core/aiService.js');
               const models = await listAvailableModels();
               panel.webview.postMessage({ command: 'aiModelsList', data: { models } });
-            } catch (err: any) {
+            } catch {
               panel.webview.postMessage({ command: 'aiModelsList', data: { models: [] } });
             }
             break;
@@ -717,7 +731,7 @@ No markdown, no explanation outside the JSON.`;
                   policyMode: 'warn',
                   dependencySharing: 'isolated',
                 };
-                await vscode.commands.executeCommand('rapidkit.createWorkspace', wsConfig);
+                await vscode.commands.executeCommand('workspai.createWorkspace', wsConfig);
 
                 // Compute the expected workspace path (always created under ~/Workspai/rapidkits/<name>)
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -726,22 +740,50 @@ No markdown, no explanation outside the JSON.`;
                 const wsExists = await fs.pathExists(wsPath);
 
                 if (wsExists && plan.projectName) {
-                  // Workspace was created — now create the first project inside it
+                  // Workspace was created — now create the first project inside it.
+                  // Notify the UI that the workspace stage is complete BEFORE attempting
+                  // project creation so the user always knows their workspace exists even
+                  // if the project step fails.
                   panel.webview.postMessage({
                     command: 'aiCreationProgress',
-                    data: { stage: 'workspace_done' },
+                    data: { stage: 'workspace_done', workspacePath: wsPath },
                   });
-                  const { createProjectCommand } = await import('../../commands/createProject.js');
-                  await createProjectCommand(wsPath, plan.framework, plan.projectName, plan.kit);
+                  try {
+                    const { createProjectCommand } =
+                      await import('../../commands/createProject.js');
+                    await createProjectCommand(wsPath, plan.framework, plan.projectName, plan.kit);
+                  } catch (projErr) {
+                    // Workspace is intact — only project creation failed.
+                    // Send a partial-success rather than a generic top-level error so the
+                    // user knows exactly what happened and can retry from the sidebar.
+                    const projErrMsg = projErr instanceof Error ? projErr.message : String(projErr);
+                    panel.webview.postMessage({
+                      command: 'aiCreationDone',
+                      data: {
+                        plan,
+                        workspaceCreated: true,
+                        projectError: projErrMsg,
+                        workspacePath: wsPath,
+                      },
+                    });
+                    return;
+                  }
                 }
 
-                panel.webview.postMessage({ command: 'aiCreationDone', data: { plan } });
+                panel.webview.postMessage({
+                  command: 'aiCreationDone',
+                  data: { plan, workspaceCreated: wsExists },
+                });
               } else {
-                // Project-only creation (inside existing selected workspace)
-                let workspacePath: string | undefined;
-                if (WelcomePanel._workspaceExplorer) {
-                  workspacePath = WelcomePanel._workspaceExplorer.getSelectedWorkspace()?.path;
-                }
+                // Project-only creation (inside existing selected workspace).
+                // Prefer the workspace path that was captured when the modal opened (passed from
+                // the webview via plan.targetWorkspacePath) so we don't silently create in a
+                // different workspace if the user changed the sidebar selection while the modal
+                // was open.
+                const workspacePath: string | undefined =
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (plan as any).targetWorkspacePath ||
+                  WelcomePanel._workspaceExplorer?.getSelectedWorkspace()?.path;
                 const { createProjectCommand } = await import('../../commands/createProject.js');
                 await createProjectCommand(
                   workspacePath,
@@ -813,7 +855,7 @@ No markdown, no explanation outside the JSON.`;
                 break;
               }
               if (openPick.value === 'select') {
-                await vscode.commands.executeCommand('rapidkit.selectWorkspace', message.data.path);
+                await vscode.commands.executeCommand('workspai.selectWorkspace', message.data.path);
               } else {
                 const uri = vscode.Uri.file(message.data.path);
                 await vscode.commands.executeCommand('vscode.openFolder', uri, {
@@ -824,14 +866,14 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'selectWorkspace':
             if (message.data) {
-              await vscode.commands.executeCommand('rapidkit.selectWorkspace', message.data);
+              await vscode.commands.executeCommand('workspai.selectWorkspace', message.data);
               // Send updated workspace status
               await this._sendWorkspaceStatus();
             }
             break;
           case 'removeWorkspace':
             if (message.data) {
-              await vscode.commands.executeCommand('rapidkit.removeWorkspace', message.data);
+              await vscode.commands.executeCommand('workspai.removeWorkspace', message.data);
             }
             break;
           case 'refreshModules':
@@ -855,7 +897,7 @@ No markdown, no explanation outside the JSON.`;
                 installed: false,
                 slug: moduleData.slug || `unknown/${moduleData.id}`,
               };
-              await vscode.commands.executeCommand('rapidkit.addModule', moduleObj);
+              await vscode.commands.executeCommand('workspai.addModule', moduleObj);
             }
             break;
           }
@@ -913,7 +955,7 @@ No markdown, no explanation outside the JSON.`;
           case 'checkWorkspaceHealth':
             console.log('[WelcomePanel] Check Workspace Health requested for:', message.data?.path);
             if (message.data?.path) {
-              vscode.commands.executeCommand('rapidkit.checkWorkspaceHealth', {
+              vscode.commands.executeCommand('workspai.checkWorkspaceHealth', {
                 path: message.data.path,
               });
             }
@@ -922,7 +964,7 @@ No markdown, no explanation outside the JSON.`;
           case 'exportWorkspace':
             console.log('[WelcomePanel] Export Workspace requested for:', message.data?.path);
             if (message.data?.path) {
-              vscode.commands.executeCommand('rapidkit.exportWorkspace', {
+              vscode.commands.executeCommand('workspai.exportWorkspace', {
                 path: message.data.path,
               });
             }
@@ -943,42 +985,42 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'projectTerminal':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectTerminal', {
+              await vscode.commands.executeCommand('workspai.projectTerminal', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
             break;
           case 'projectInit':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectInit', {
+              await vscode.commands.executeCommand('workspai.projectInit', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
             break;
           case 'projectDev':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectDev', {
+              await vscode.commands.executeCommand('workspai.projectDev', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
             break;
           case 'projectStop':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectStop', {
+              await vscode.commands.executeCommand('workspai.projectStop', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
             break;
           case 'projectTest':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectTest', {
+              await vscode.commands.executeCommand('workspai.projectTest', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
             break;
           case 'projectBrowser':
             if (WelcomePanel._selectedProject) {
-              await vscode.commands.executeCommand('rapidkit.projectBrowser', {
+              await vscode.commands.executeCommand('workspai.projectBrowser', {
                 projectPath: WelcomePanel._selectedProject.path,
               });
             }
@@ -1028,7 +1070,7 @@ No markdown, no explanation outside the JSON.`;
       }
     );
 
-    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg');
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'workspai.svg');
 
     WelcomePanel.currentPanel = new WelcomePanel(panel, context);
   }
@@ -1800,7 +1842,7 @@ No markdown, no explanation outside the JSON.`;
       vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview.css')
     );
     const iconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'workspai.svg')
     );
     const fontUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'fonts', 'MuseoModerno-Bold.ttf')

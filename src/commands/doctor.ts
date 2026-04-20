@@ -363,7 +363,7 @@ export async function doctorCommand() {
       );
 
       if (selected === viewReportAction) {
-        await vscode.commands.executeCommand('rapidkit.doctor');
+        await vscode.commands.executeCommand('workspai.doctor');
       }
     } else {
       const fixIssuesAction = '🔧 View Issues';
@@ -374,7 +374,7 @@ export async function doctorCommand() {
       );
 
       if (selected === fixIssuesAction) {
-        await vscode.commands.executeCommand('rapidkit.doctor');
+        await vscode.commands.executeCommand('workspai.doctor');
       }
     }
   } catch (error) {

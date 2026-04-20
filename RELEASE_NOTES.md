@@ -1,5 +1,33 @@
 # Release Notes
 
+## Latest Release: v0.20.0 (April 20, 2026)
+
+### ✦ @workspai Chat Participant + AI Create Presets + Workspace Hardening
+
+**Summary:** This release ships the `@workspai` participant directly in the VS Code Chat panel (with `/ask` and `/debug` slash commands), adds smart categorised prompt presets to the AI Create modal, hardens workspace memory with full sanitisation, makes workspace creation idempotent, and enriches AI context with live module data from the CLI.
+
+#### Added
+
+- **`@workspai` Chat Participant** — use `@workspai /ask` for full-context Q&A scoped to your active project, or `@workspai /debug` for a structured root-cause + fix + prevention debug flow. Both commands run through the same AI pipeline as the Workspai modal.
+- **AI Create presets** — categorised quick-fill options (SaaS & commerce, core backend, microservices, data & ML, internal tools) surface in the AI Create modal. Smart scoring shows the most relevant presets as you type.
+- **"Which backend next?" poll** — vote for Django, Express, or Spring directly from the sidebar; result acknowledged inline.
+- **New workspace commands** — bootstrap, setup, init, policy (show/set), cache (status/clear/prune/repair), mirror (status/sync/verify/rotate), and `checkForUpdates` all registered and palette-accessible.
+- **WorkspaceMemoryService tests** — new unit tests covering read/write round-trips, sanitisation, timestamp validation, and concurrent-access paths.
+
+#### Changed
+
+- **Workspace memory hardening** — all memory fields are now validated and sanitised on every read; corrupt entries are auto-corrected and written back
+- **Live module catalogue in AI context** — AI responses now reference the actual current module list fetched from the CLI (60-second TTL cache) instead of a static snapshot
+- **Idempotent workspace creation** — partial directories trigger a "Replace or Cancel" prompt; fully complete workspaces skip the CLI call silently
+- **Brand icons updated** — `workspai.png` / `workspai.svg` refreshed; stale `rapidkits.svg` removed
+
+#### Fixed
+
+- **AI module slug validation** — slugs from AI are cross-checked against the live module list and a `vendor/category/slug` regex before reaching the CLI
+- **Richer AI project context** — payloads now include Python version, CLI/core versions, installed modules list, workspace health stats, runtime, and engine
+
+---
+
 ## Latest Release: v0.19.1 (April 19, 2026)
 
 ### ✦ Toolchain Reliability + Go Context + Workspai Positioning

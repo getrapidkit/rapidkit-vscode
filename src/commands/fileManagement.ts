@@ -12,7 +12,7 @@ export function registerFileManagementCommands(options: {
   const { logger, getProjectExplorer } = options;
 
   return [
-    vscode.commands.registerCommand('rapidkit.newFile', async (item: any) => {
+    vscode.commands.registerCommand('workspai.newFile', async (item: any) => {
       const targetPath = item?.filePath || item?.project?.path;
       if (!targetPath) {
         vscode.window.showErrorMessage('No target path selected');
@@ -50,7 +50,7 @@ export function registerFileManagementCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.newFolder', async (item: any) => {
+    vscode.commands.registerCommand('workspai.newFolder', async (item: any) => {
       const targetPath = item?.filePath || item?.project?.path;
       if (!targetPath) {
         vscode.window.showErrorMessage('No target path selected');
@@ -87,7 +87,7 @@ export function registerFileManagementCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.deleteFile', async (item: any) => {
+    vscode.commands.registerCommand('workspai.deleteFile', async (item: any) => {
       const targetPath = item?.filePath;
       if (!targetPath) {
         vscode.window.showErrorMessage('No file/folder selected');
@@ -120,7 +120,7 @@ export function registerFileManagementCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.renameFile', async (item: any) => {
+    vscode.commands.registerCommand('workspai.renameFile', async (item: any) => {
       const targetPath = item?.filePath;
       if (!targetPath) {
         vscode.window.showErrorMessage('No file/folder selected');
@@ -158,7 +158,7 @@ export function registerFileManagementCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.revealInExplorer', async (item: any) => {
+    vscode.commands.registerCommand('workspai.revealInExplorer', async (item: any) => {
       const targetPath = item?.filePath || item?.project?.path;
       if (targetPath) {
         vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(targetPath));

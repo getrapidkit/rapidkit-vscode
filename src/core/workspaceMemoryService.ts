@@ -58,14 +58,140 @@ export class WorkspaceMemoryService {
     return path.join(workspacePath, '.rapidkit', 'workspace-memory.json');
   }
 
-  /** Returns true when a memory file exists for the workspace. */
-  async hasMemory(workspacePath: string): Promise<boolean> {
+  private async pathExists(targetPath: string): Promise<boolean> {
     try {
-      await fsp.access(this.memoryPath(workspacePath));
+      await fsp.access(targetPath);
       return true;
     } catch {
       return false;
     }
+  }
+
+  private isValidIsoTimestamp(value: string): boolean {
+    return !Number.isNaN(Date.parse(value));
+  }
+
+  private sanitizeStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private sanitizeMemory(input: unknown): { memory: WorkspaceMemory; changed: boolean } {
+    const source = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+
+    const contextRaw = typeof source.context === 'string' ? source.context : '';
+    const context = contextRaw.trim();
+
+    const conventions = this.sanitizeStringList(source.conventions);
+    const decisions = this.sanitizeStringList(source.decisions);
+
+    const lastUpdatedRaw = typeof source.lastUpdated === 'string' ? source.lastUpdated.trim() : '';
+    const lastUpdated =
+      lastUpdatedRaw && this.isValidIsoTimestamp(lastUpdatedRaw) ? lastUpdatedRaw : '';
+
+    const memory: WorkspaceMemory = {
+      context,
+      conventions,
+      decisions,
+      lastUpdated,
+    };
+
+    const changed =
+      context !== contextRaw ||
+      JSON.stringify(conventions) !== JSON.stringify(source.conventions ?? []) ||
+      JSON.stringify(decisions) !== JSON.stringify(source.decisions ?? []) ||
+      lastUpdated !== (typeof source.lastUpdated === 'string' ? source.lastUpdated : '');
+
+    return { memory, changed };
+  }
+
+  private async writeAtPath(
+    filePath: string,
+    memory: WorkspaceMemory,
+    touchTimestamp: boolean
+  ): Promise<void> {
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+    const data: WorkspaceMemory = {
+      ...memory,
+      lastUpdated: touchTimestamp ? new Date().toISOString() : memory.lastUpdated,
+    };
+    await fsp.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+  }
+
+  private async readFromPath(filePath: string, selfHeal: boolean): Promise<WorkspaceMemory> {
+    let raw: string;
+    try {
+      raw = await fsp.readFile(filePath, 'utf8');
+    } catch {
+      return { ...DEFAULT_MEMORY };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      if (selfHeal) {
+        const backupPath = path.join(
+          path.dirname(filePath),
+          `workspace-memory.corrupt-${Date.now()}.json`
+        );
+        await fsp.writeFile(backupPath, raw, 'utf8').catch(() => undefined);
+        await this.writeAtPath(filePath, { ...DEFAULT_MEMORY }, true).catch(() => undefined);
+      }
+      return { ...DEFAULT_MEMORY };
+    }
+
+    const { memory, changed } = this.sanitizeMemory(parsed);
+    if (selfHeal && changed) {
+      await this.writeAtPath(filePath, memory, true).catch(() => undefined);
+    }
+    return memory;
+  }
+
+  /**
+   * Resolve the closest workspace-memory.json from startPath upward.
+   * Useful when AI is invoked at project/module scope but memory is stored at workspace root.
+   */
+  async resolveNearestMemoryPath(startPath: string): Promise<string | null> {
+    if (!startPath) {
+      return null;
+    }
+
+    let currentPath = path.resolve(startPath);
+    try {
+      const stat = await fsp.stat(currentPath);
+      if (!stat.isDirectory()) {
+        currentPath = path.dirname(currentPath);
+      }
+    } catch {
+      return null;
+    }
+
+    let keepSearching = true;
+    while (keepSearching) {
+      const candidate = path.join(currentPath, '.rapidkit', 'workspace-memory.json');
+      if (await this.pathExists(candidate)) {
+        return candidate;
+      }
+      const parent = path.dirname(currentPath);
+      if (parent === currentPath) {
+        keepSearching = false;
+      } else {
+        currentPath = parent;
+      }
+    }
+
+    return null;
+  }
+
+  /** Returns true when a memory file exists for the workspace. */
+  async hasMemory(workspacePath: string): Promise<boolean> {
+    return this.pathExists(this.memoryPath(workspacePath));
   }
 
   /**
@@ -73,13 +199,19 @@ export class WorkspaceMemoryService {
    * Returns DEFAULT_MEMORY (all empty) when the file does not exist or is unreadable.
    */
   async read(workspacePath: string): Promise<WorkspaceMemory> {
-    try {
-      const raw = await fsp.readFile(this.memoryPath(workspacePath), 'utf8');
-      const parsed = JSON.parse(raw) as Partial<WorkspaceMemory>;
-      return { ...DEFAULT_MEMORY, ...parsed };
-    } catch {
+    return this.readFromPath(this.memoryPath(workspacePath), true);
+  }
+
+  /**
+   * Read memory by walking up parent directories from startPath.
+   * Returns DEFAULT_MEMORY when no workspace memory file is found.
+   */
+  async readNearest(startPath: string): Promise<WorkspaceMemory> {
+    const resolvedPath = await this.resolveNearestMemoryPath(startPath);
+    if (!resolvedPath) {
       return { ...DEFAULT_MEMORY };
     }
+    return this.readFromPath(resolvedPath, true);
   }
 
   /**
@@ -88,9 +220,7 @@ export class WorkspaceMemoryService {
    */
   async write(workspacePath: string, memory: WorkspaceMemory): Promise<void> {
     const filePath = this.memoryPath(workspacePath);
-    await fsp.mkdir(path.dirname(filePath), { recursive: true });
-    const data: WorkspaceMemory = { ...memory, lastUpdated: new Date().toISOString() };
-    await fsp.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+    await this.writeAtPath(filePath, memory, true);
   }
 
   /**

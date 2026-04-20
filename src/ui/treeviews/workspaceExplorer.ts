@@ -240,12 +240,12 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     // Auto-select first workspace if none selected
     if (!this.selectedWorkspace && this.workspaces.length > 0) {
       this.selectedWorkspace = this.workspaces[0];
-      vscode.commands.executeCommand('rapidkit.workspaceSelected', this.selectedWorkspace);
+      vscode.commands.executeCommand('workspai.workspaceSelected', this.selectedWorkspace);
       // Set context key for toolbar buttons
-      vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+      vscode.commands.executeCommand('setContext', 'workspai.workspaceSelected', true);
     } else if (this.workspaces.length === 0) {
       // No workspaces - clear context
-      vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', false);
+      vscode.commands.executeCommand('setContext', 'workspai.workspaceSelected', false);
     }
   }
 
@@ -624,10 +624,10 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
     this._onDidChangeTreeData.fire();
 
     // Set context for toolbar buttons
-    await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
+    await vscode.commands.executeCommand('setContext', 'workspai.workspaceSelected', true);
 
     // Fire event for other views to update
-    await vscode.commands.executeCommand('rapidkit.workspaceSelected', workspace);
+    await vscode.commands.executeCommand('workspai.workspaceSelected', workspace);
   }
 
   public getSelectedWorkspace(): WorkspaiWorkspace | null {
@@ -707,7 +707,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
 
       // Make workspace selectable
       this.command = {
-        command: 'rapidkit.selectWorkspace',
+        command: 'workspai.selectWorkspace',
         title: 'Select Workspace',
         arguments: [workspace.path], // Pass only the path, not the entire object
       };

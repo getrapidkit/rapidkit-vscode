@@ -213,7 +213,7 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
         // Normalize to webview ModuleData shape (adds display_name required by InstallModuleModal)
         const modalData = { ...moduleData, display_name: moduleData.name };
         item.command = {
-          command: 'rapidkit.showModuleInstallModal',
+          command: 'workspai.showModuleInstallModal',
           title: installed && hasUpdate ? 'Update Module' : 'Install Module',
           arguments: [modalData],
         };

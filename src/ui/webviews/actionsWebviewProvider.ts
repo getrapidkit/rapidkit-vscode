@@ -29,22 +29,22 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage((message) => {
       switch (message.command) {
         case 'createWithAI':
-          vscode.commands.executeCommand('rapidkit.openAICreateWorkspace');
+          vscode.commands.executeCommand('workspai.openAICreateWorkspace');
           break;
         case 'openWorkspaceModal':
-          vscode.commands.executeCommand('rapidkit.openWorkspaceModal');
+          vscode.commands.executeCommand('workspai.openWorkspaceModal');
           break;
         case 'doctor':
-          vscode.commands.executeCommand('rapidkit.doctor');
+          vscode.commands.executeCommand('workspai.doctor');
           break;
         case 'showLogs':
-          vscode.commands.executeCommand('rapidkit.showLogs');
+          vscode.commands.executeCommand('workspai.showLogs');
           break;
         case 'openDocs':
           vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
           break;
         case 'openWelcome':
-          vscode.commands.executeCommand('rapidkit.showWelcome');
+          vscode.commands.executeCommand('workspai.showWelcome');
           break;
       }
     });

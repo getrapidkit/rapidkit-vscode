@@ -40,11 +40,11 @@ export function registerWorkspaceSelectionCommands(options: {
   const { logger, getWorkspaceExplorer, getProjectExplorer, getModuleExplorer } = options;
 
   return [
-    vscode.commands.registerCommand('rapidkit.refreshWorkspaces', () => {
+    vscode.commands.registerCommand('workspai.refreshWorkspaces', () => {
       getWorkspaceExplorer()?.refresh();
     }),
 
-    vscode.commands.registerCommand('rapidkit.refreshProjects', () => {
+    vscode.commands.registerCommand('workspai.refreshProjects', () => {
       const projectExplorer = getProjectExplorer();
       const moduleExplorer = getModuleExplorer();
 
@@ -59,7 +59,7 @@ export function registerWorkspaceSelectionCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.selectWorkspace', async (workspacePath: string) => {
+    vscode.commands.registerCommand('workspai.selectWorkspace', async (workspacePath: string) => {
       logger.info('selectWorkspace command with path:', workspacePath);
 
       if (!workspacePath) {
@@ -94,8 +94,8 @@ export function registerWorkspaceSelectionCommands(options: {
         void error;
       }
 
-      await vscode.commands.executeCommand('setContext', 'rapidkit:workspaceSelected', true);
-      await vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
+      await vscode.commands.executeCommand('setContext', 'workspai.workspaceSelected', true);
+      await vscode.commands.executeCommand('setContext', 'workspai:noProjects', false);
 
       if (WelcomePanel.currentPanel) {
         await WelcomePanel.refreshWorkspaceStatus();
@@ -103,15 +103,15 @@ export function registerWorkspaceSelectionCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.addWorkspace', async () => {
+    vscode.commands.registerCommand('workspai.addWorkspace', async () => {
       await getWorkspaceExplorer()?.addWorkspace();
     }),
 
-    vscode.commands.registerCommand('rapidkit.importWorkspace', async () => {
+    vscode.commands.registerCommand('workspai.importWorkspace', async () => {
       await getWorkspaceExplorer()?.importWorkspace();
     }),
 
-    vscode.commands.registerCommand('rapidkit.removeWorkspace', async (item: any) => {
+    vscode.commands.registerCommand('workspai.removeWorkspace', async (item: any) => {
       const workspacePath = item?.path || item?.workspace?.path || item;
       if (workspacePath && typeof workspacePath === 'string') {
         const workspaceExplorer = getWorkspaceExplorer();
@@ -125,7 +125,7 @@ export function registerWorkspaceSelectionCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.exportWorkspace', async (item: any) => {
+    vscode.commands.registerCommand('workspai.exportWorkspace', async (item: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       let workspace = item?.workspace;
 
@@ -138,11 +138,11 @@ export function registerWorkspaceSelectionCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.discoverWorkspaces', async () => {
+    vscode.commands.registerCommand('workspai.discoverWorkspaces', async () => {
       await getWorkspaceExplorer()?.autoDiscover();
     }),
 
-    vscode.commands.registerCommand('rapidkit.selectProject', async (item: any) => {
+    vscode.commands.registerCommand('workspai.selectProject', async (item: any) => {
       const projectExplorer = getProjectExplorer();
       const moduleExplorer = getModuleExplorer();
 
@@ -155,14 +155,14 @@ export function registerWorkspaceSelectionCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.openWorkspaceFolder', async (item: any) => {
+    vscode.commands.registerCommand('workspai.openWorkspaceFolder', async (item: any) => {
       const workspacePath = item?.workspace?.path || item;
       if (workspacePath && typeof workspacePath === 'string') {
         await openWorkspaceFolder(workspacePath);
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.copyWorkspacePath', async (item: any) => {
+    vscode.commands.registerCommand('workspai.copyWorkspacePath', async (item: any) => {
       const workspacePath = item?.workspace?.path || item;
       if (workspacePath && typeof workspacePath === 'string') {
         await copyWorkspacePath(workspacePath);

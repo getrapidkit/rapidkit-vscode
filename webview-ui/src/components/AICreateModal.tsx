@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Sparkles, Wand2, ArrowLeft, Check, ChevronRight, Loader2, Minus } from 'lucide-react';
 import type { Kit } from '@/types';
 
@@ -30,6 +30,7 @@ interface AICreateModalProps {
     isOpen: boolean;
     mode: 'workspace' | 'project';
     framework?: AICreateFramework;
+    targetWorkspaceName?: string;
     plan: AICreationPlan | null;
     isThinking: boolean;
     isCreating: boolean;
@@ -43,38 +44,290 @@ interface AICreateModalProps {
 }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
-const WORKSPACE_PRESETS = [
-    'SaaS product with auth + payments + database',
-    'REST API backend with user management',
-    'Microservice with caching + observability',
-    'Admin dashboard API with role-based access',
-    'E-commerce API with product catalog + orders',
-    'AI assistant backend with LLM integration',
+interface PresetOption {
+    id: string;
+    text: string;
+    tags: string[];
+}
+
+interface PresetCategory {
+    id: string;
+    label: string;
+    options: PresetOption[];
+}
+
+interface ResolvedPresetOption {
+    id: string;
+    text: string;
+    score: number;
+}
+
+interface ResolvedPresetCategory {
+    id: string;
+    label: string;
+    options: ResolvedPresetOption[];
+    maxScore: number;
+}
+
+const WORKSPACE_PRESET_CATEGORIES: PresetCategory[] = [
+    {
+        id: 'saas',
+        label: 'SaaS and commerce',
+        options: [
+            {
+                id: 'ws-saas-auth-payments',
+                text: 'SaaS product with auth + payments + database',
+                tags: ['saas', 'auth', 'payment', 'billing', 'database'],
+            },
+            {
+                id: 'ws-ecommerce',
+                text: 'E-commerce API with product catalog + orders',
+                tags: ['ecommerce', 'catalog', 'orders', 'shop', 'commerce'],
+            },
+        ],
+    },
+    {
+        id: 'core-backend',
+        label: 'Core backend',
+        options: [
+            {
+                id: 'ws-rest-users',
+                text: 'REST API backend with user management',
+                tags: ['rest', 'api', 'users', 'backend'],
+            },
+            {
+                id: 'ws-admin-rbac',
+                text: 'Admin dashboard API with role-based access',
+                tags: ['admin', 'rbac', 'roles', 'permissions', 'dashboard'],
+            },
+        ],
+    },
+    {
+        id: 'platform',
+        label: 'Platform and AI',
+        options: [
+            {
+                id: 'ws-microservice-observability',
+                text: 'Microservice with caching + observability',
+                tags: ['microservice', 'cache', 'observability', 'metrics'],
+            },
+            {
+                id: 'ws-ai-assistant',
+                text: 'AI assistant backend with LLM integration',
+                tags: ['ai', 'assistant', 'llm', 'chat', 'inference'],
+            },
+        ],
+    },
 ];
 
-const PROJECT_PRESETS: Record<AICreateFramework, string[]> = {
+const PROJECT_GENERIC_PRESET_CATEGORIES: PresetCategory[] = [
+    {
+        id: 'project-general',
+        label: 'General API',
+        options: [
+            {
+                id: 'pg-crud-auth',
+                text: 'CRUD API with authentication and relational database',
+                tags: ['crud', 'auth', 'database', 'api'],
+            },
+            {
+                id: 'pg-rbac-admin',
+                text: 'Admin API with role-based access and audit logs',
+                tags: ['admin', 'rbac', 'roles', 'audit'],
+            },
+            {
+                id: 'pg-webhook',
+                text: 'Webhook processor with retries and idempotency',
+                tags: ['webhook', 'retry', 'idempotency', 'events'],
+            },
+        ],
+    },
+    {
+        id: 'project-domain',
+        label: 'Domain specific',
+        options: [
+            {
+                id: 'pg-commerce',
+                text: 'E-commerce backend with products, cart, and orders',
+                tags: ['ecommerce', 'products', 'cart', 'orders'],
+            },
+            {
+                id: 'pg-ai',
+                text: 'AI assistant service with retrieval and chat sessions',
+                tags: ['ai', 'assistant', 'retrieval', 'chat', 'rag'],
+            },
+        ],
+    },
+];
+
+const PROJECT_PRESET_CATEGORIES: Record<AICreateFramework, PresetCategory[]> = {
     fastapi: [
-        'CRUD API with PostgreSQL + JWT auth',
-        'Clean architecture DDD service with layered design',
-        'Auth service with OAuth + social login',
-        'Background task processor with Redis queue',
-        'File upload + processing service',
+        {
+            id: 'fastapi-core',
+            label: 'FastAPI core',
+            options: [
+                {
+                    id: 'fa-crud',
+                    text: 'CRUD API with PostgreSQL + JWT auth',
+                    tags: ['crud', 'postgres', 'jwt', 'auth', 'fastapi'],
+                },
+                {
+                    id: 'fa-ddd',
+                    text: 'Clean architecture DDD service with layered design',
+                    tags: ['ddd', 'clean-architecture', 'layers', 'fastapi'],
+                },
+                {
+                    id: 'fa-oauth',
+                    text: 'Auth service with OAuth + social login',
+                    tags: ['auth', 'oauth', 'social-login', 'fastapi'],
+                },
+            ],
+        },
+        {
+            id: 'fastapi-platform',
+            label: 'Background and files',
+            options: [
+                {
+                    id: 'fa-jobs',
+                    text: 'Background task processor with Redis queue',
+                    tags: ['background', 'jobs', 'redis', 'queue', 'fastapi'],
+                },
+                {
+                    id: 'fa-files',
+                    text: 'File upload + processing service',
+                    tags: ['file', 'upload', 'processing', 'storage', 'fastapi'],
+                },
+            ],
+        },
     ],
     nestjs: [
-        'REST API with TypeORM + authentication',
-        'Real-time WebSocket service with rooms',
-        'GraphQL-like REST API with module architecture',
-        'Email notification service with templates',
-        'Admin API with role-based permissions',
+        {
+            id: 'nestjs-core',
+            label: 'NestJS core',
+            options: [
+                {
+                    id: 'ne-rest',
+                    text: 'REST API with TypeORM + authentication',
+                    tags: ['rest', 'typeorm', 'auth', 'nestjs'],
+                },
+                {
+                    id: 'ne-realtime',
+                    text: 'Real-time WebSocket service with rooms',
+                    tags: ['websocket', 'realtime', 'rooms', 'nestjs'],
+                },
+                {
+                    id: 'ne-modular',
+                    text: 'GraphQL-like REST API with module architecture',
+                    tags: ['graphql', 'module', 'architecture', 'nestjs'],
+                },
+            ],
+        },
+        {
+            id: 'nestjs-business',
+            label: 'Operations',
+            options: [
+                {
+                    id: 'ne-email',
+                    text: 'Email notification service with templates',
+                    tags: ['email', 'notifications', 'templates', 'nestjs'],
+                },
+                {
+                    id: 'ne-admin',
+                    text: 'Admin API with role-based permissions',
+                    tags: ['admin', 'rbac', 'permissions', 'nestjs'],
+                },
+            ],
+        },
     ],
     go: [
-        'High-performance CRUD API with Postgres',
-        'Microservice with health checks + metrics',
-        'Auth proxy service with JWT validation',
-        'Rate-limited API gateway',
-        'Stream processing service with concurrency',
+        {
+            id: 'go-core',
+            label: 'Go services',
+            options: [
+                {
+                    id: 'go-crud',
+                    text: 'High-performance CRUD API with Postgres',
+                    tags: ['go', 'crud', 'postgres', 'performance'],
+                },
+                {
+                    id: 'go-micro',
+                    text: 'Microservice with health checks + metrics',
+                    tags: ['go', 'microservice', 'health', 'metrics'],
+                },
+                {
+                    id: 'go-auth-proxy',
+                    text: 'Auth proxy service with JWT validation',
+                    tags: ['go', 'auth', 'proxy', 'jwt'],
+                },
+            ],
+        },
+        {
+            id: 'go-platform',
+            label: 'Traffic and streaming',
+            options: [
+                {
+                    id: 'go-gateway',
+                    text: 'Rate-limited API gateway',
+                    tags: ['go', 'gateway', 'rate-limit', 'api'],
+                },
+                {
+                    id: 'go-stream',
+                    text: 'Stream processing service with concurrency',
+                    tags: ['go', 'stream', 'concurrency', 'workers'],
+                },
+            ],
+        },
     ],
 };
+
+function tokenizeContextHint(raw: string): string[] {
+    return raw
+        .toLowerCase()
+        .replace(/[^a-z0-9\s_-]/g, ' ')
+        .split(/[\s_-]+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 1);
+}
+
+function rankPresetCategories(
+    categories: PresetCategory[],
+    contextHint: string
+): ResolvedPresetCategory[] {
+    const hintTokens = tokenizeContextHint(contextHint);
+    const tokenSet = new Set(hintTokens);
+
+    const scoreOption = (option: PresetOption, index: number): ResolvedPresetOption => {
+        const tagsScore = option.tags.reduce((acc, tag) => {
+            return acc + (tokenSet.has(tag.toLowerCase()) ? 3 : 0);
+        }, 0);
+        const textForMatch = option.text.toLowerCase();
+        const textScore = hintTokens.reduce((acc, token) => {
+            if (token.length < 3) {
+                return acc;
+            }
+            return acc + (textForMatch.includes(token) ? 1 : 0);
+        }, 0);
+        return {
+            id: option.id,
+            text: option.text,
+            score: tagsScore + textScore + (1000 - index) * 0.00001,
+        };
+    };
+
+    return categories
+        .map((category) => {
+            const resolved = category.options.map((option, index) => scoreOption(option, index));
+            resolved.sort((a, b) => b.score - a.score);
+            const maxScore = resolved.length > 0 ? resolved[0].score : 0;
+            return {
+                id: category.id,
+                label: category.label,
+                options: resolved,
+                maxScore,
+            };
+        })
+        .sort((a, b) => b.maxScore - a.maxScore);
+}
 
 const PROFILE_META: Record<AICreateProfile, { icon: string; label: string; color: string }> = {
     minimal: { icon: '⚡', label: 'Minimal', color: '#6b7280' },
@@ -126,6 +379,7 @@ export function AICreateModal({
     isOpen,
     mode,
     framework,
+    targetWorkspaceName,
     plan,
     isThinking,
     isCreating,
@@ -141,7 +395,24 @@ export function AICreateModal({
     const [editedWorkspaceName, setEditedWorkspaceName] = useState('');
     const [editedProjectName, setEditedProjectName] = useState('');
     const [isMinimized, setIsMinimized] = useState(false);
+    const [showAllPresets, setShowAllPresets] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const copy = {
+        modeWorkspace: 'Workspace',
+        modeProject: 'Project',
+        title: 'Create with AI',
+        describe: 'Describe what you want to build',
+        quickStart: 'Quick start',
+        targetWorkspace: 'Target workspace:',
+        noWorkspace: "none selected - you'll be prompted",
+        showAll: 'Show all options',
+        showLess: 'Show fewer',
+        inputHint: 'Cmd+Enter or Ctrl+Enter to submit',
+        submit: 'Plan with AI',
+        manual: 'Switch to manual form',
+        thinking: 'AI is planning your',
+    };
 
     // Derive current step from props
     const step: 'prompt' | 'thinking' | 'preview' | 'creating' =
@@ -170,6 +441,7 @@ export function AICreateModal({
             setEditedWorkspaceName('');
             setEditedProjectName('');
             setIsMinimized(false);
+            setShowAllPresets(false);
             document.body.style.overflow = 'hidden';
             setTimeout(() => textareaRef.current?.focus(), 150);
         } else {
@@ -177,6 +449,31 @@ export function AICreateModal({
         }
         return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
+
+    const basePresetCategories = useMemo<PresetCategory[]>(() => {
+        if (mode === 'workspace') {
+            return WORKSPACE_PRESET_CATEGORIES;
+        }
+        if (framework) {
+            return PROJECT_PRESET_CATEGORIES[framework];
+        }
+        return PROJECT_GENERIC_PRESET_CATEGORIES;
+    }, [mode, framework]);
+
+    const rankedPresetCategories = useMemo(() => {
+        const contextHint = [targetWorkspaceName ?? '', framework ?? '', mode].join(' ').trim();
+        return rankPresetCategories(basePresetCategories, contextHint);
+    }, [basePresetCategories, framework, mode, targetWorkspaceName]);
+
+    const presetLimit = showAllPresets ? Number.MAX_SAFE_INTEGER : 3;
+    const visiblePresetCategories = rankedPresetCategories
+        .map((category) => ({
+            ...category,
+            options: category.options.slice(0, presetLimit),
+        }))
+        .filter((category) => category.options.length > 0);
+
+    const hasExtraPresets = rankedPresetCategories.some((category) => category.options.length > 3);
 
     if (!isOpen) return null;
 
@@ -191,10 +488,6 @@ export function AICreateModal({
             </div>
         );
     }
-
-    const presets = mode === 'project' && framework
-        ? PROJECT_PRESETS[framework]
-        : WORKSPACE_PRESETS;
 
     const handleSubmit = () => {
         if (!prompt.trim() || isThinking) return;
@@ -222,12 +515,13 @@ export function AICreateModal({
 
     const handleStartOver = () => {
         setPrompt('');
+        setShowAllPresets(false);
         // Trigger reset by calling with empty plan signal
         onPromptSubmit('__reset__', mode, framework);
     };
 
     const fwMeta = framework ? FRAMEWORK_META[framework] : null;
-    const modeLabel = mode === 'workspace' ? 'Workspace' : 'Project';
+    const modeLabel = mode === 'workspace' ? copy.modeWorkspace : copy.modeProject;
 
     return (
         <>
@@ -242,7 +536,7 @@ export function AICreateModal({
                 className="ai-create-modal"
                 role="dialog"
                 aria-modal="true"
-                aria-label={`Create ${modeLabel} with AI`}
+                aria-label={`${copy.title} ${modeLabel}`}
             >
                 {/* ── Header ── */}
                 <div className="ai-create-header">
@@ -252,16 +546,16 @@ export function AICreateModal({
                         </div>
                         <div>
                             <div className="ai-create-header-title">
-                                Create {modeLabel} with AI
+                                {copy.title} {modeLabel}
                             </div>
                             <div className="ai-create-header-sub">
                                 {fwMeta ? (
                                     <>
                                         <span style={{ color: fwMeta.color }}>{fwMeta.icon}</span>
-                                        &nbsp;{fwMeta.label} &bull; Describe what you want to build
+                                        &nbsp;{fwMeta.label} &bull; {copy.describe}
                                     </>
                                 ) : (
-                                    'Describe what you want to build'
+                                    copy.describe
                                 )}
                             </div>
                         </div>
@@ -303,20 +597,46 @@ export function AICreateModal({
                             </div>
                         )}
 
-                        {/* Preset chips */}
-                        <div className="ai-create-presets-label">Quick start</div>
+                        {mode === 'project' && (
+                            <div className="ai-create-workspace-target">
+                                <span className="ai-create-workspace-target-label">{copy.targetWorkspace}</span>
+                                {targetWorkspaceName ? (
+                                    <strong className="ai-create-workspace-target-name">{targetWorkspaceName}</strong>
+                                ) : (
+                                    <span className="ai-create-workspace-target-none">{copy.noWorkspace}</span>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="ai-create-presets-label">{copy.quickStart}</div>
                         <div className="ai-create-presets">
-                            {presets.map((p) => (
-                                <button
-                                    key={p}
-                                    type="button"
-                                    className={`ai-create-preset ${prompt === p ? 'ai-create-preset--active' : ''}`}
-                                    onClick={() => setPrompt(p)}
-                                >
-                                    {p}
-                                </button>
+                            {visiblePresetCategories.map((category) => (
+                                <div key={category.id} className="ai-create-preset-group">
+                                    <div className="ai-create-preset-group-label">{category.label}</div>
+                                    <div className="ai-create-preset-group-items">
+                                        {category.options.map((option) => (
+                                            <button
+                                                key={option.id}
+                                                type="button"
+                                                className={`ai-create-preset ${prompt === option.text ? 'ai-create-preset--active' : ''}`}
+                                                onClick={() => setPrompt(option.text)}
+                                            >
+                                                {option.text}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
                         </div>
+                        {hasExtraPresets && (
+                            <button
+                                type="button"
+                                className="ai-create-presets-toggle"
+                                onClick={() => setShowAllPresets((prev) => !prev)}
+                            >
+                                {showAllPresets ? copy.showLess : copy.showAll}
+                            </button>
+                        )}
 
                         {/* Textarea */}
                         <div className="ai-create-input-wrap">
@@ -333,7 +653,7 @@ export function AICreateModal({
                                 onKeyDown={handleKeyDown}
                                 rows={3}
                             />
-                            <div className="ai-create-input-hint">⌘↵ or Ctrl+Enter to submit</div>
+                            <div className="ai-create-input-hint">{copy.inputHint}</div>
                         </div>
 
                         {/* Actions */}
@@ -345,14 +665,14 @@ export function AICreateModal({
                                 disabled={!prompt.trim()}
                             >
                                 <Wand2 size={14} />
-                                Plan with AI
+                                {copy.submit}
                                 <ChevronRight size={14} />
                             </button>
                         </div>
 
                         <div className="ai-create-manual-link">
                             <button type="button" onClick={onManualFallback}>
-                                Switch to manual form
+                                {copy.manual}
                             </button>
                         </div>
                     </div>
@@ -369,7 +689,7 @@ export function AICreateModal({
                                 <Sparkles size={22} className="ai-create-thinking-icon" />
                             </div>
                             <div className="ai-create-thinking-label">
-                                AI is planning your {modeLabel.toLowerCase()}…
+                                {copy.thinking} {modeLabel.toLowerCase()}…
                             </div>
                             <div className="ai-create-thinking-prompt">
                                 "{prompt}"
@@ -435,7 +755,12 @@ export function AICreateModal({
                         </div>
 
                         {/* Suggested modules */}
-                        {plan.suggestedModules.length > 0 && (
+                        {plan.framework === 'go' ? (
+                            <div className="ai-create-go-no-modules">
+                                <span>ℹ️</span>
+                                <span>Go projects don't use the RapidKit module system. Extend functionality with native Go packages and internal adapters after creation.</span>
+                            </div>
+                        ) : plan.suggestedModules.length > 0 && (
                             <div className="ai-create-modules">
                                 <div className="ai-create-modules-label">
                                     Modules to install after creation

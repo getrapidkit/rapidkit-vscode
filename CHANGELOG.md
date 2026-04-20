@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.19.1] - 2026-04-19
+## [0.20.0] - 2026-04-20
+
+### Added
+
+- 🤖 **`@workspai` Chat Participant** — register `@workspai` in the VS Code Chat panel with two slash commands: `/ask` (full-context Q&A scoped to the active project) and `/debug` (structured debug flow: root cause + fix + prevention). Reuses the same `prepareAIConversation → streamAIResponse` pipeline as the Workspai modal for identical AI quality.
+- ✦ **AI Create presets** — the AI Create modal now ships with categorised quick-fill prompt options (SaaS & commerce, core backend, microservices, data & ML, internal tools). Smart scoring surfaces the most relevant presets based on partial user input.
+- 📊 **"Which backend next?" poll** — in-sidebar quick poll lets users vote for the next supported framework (Django / Express / Spring); result is acknowledged inline.
+- 🔧 **Workspace bootstrap, setup, init, policy, cache, mirror commands** — new `workspai.workspaceBootstrap`, `workspai.workspaceSetup`, `workspai.workspaceInit`, `workspai.workspacePolicyShow/Set`, `workspai.cacheStatus/Clear/Prune/Repair`, `workspai.mirrorStatus/Sync/Verify/Rotate`, and `workspai.checkForUpdates` commands registered and palette-accessible.
+- 🧪 **WorkspaceMemoryService unit tests** — new `src/test/workspaceMemoryService.test.ts` covering read/write, sanitisation, timestamp validation, and concurrent-access paths.
+
+### Changed
+
+- 🧠 **Workspace memory hardening** — `WorkspaceMemoryService` now validates and sanitises all `context`, `conventions`, `decisions`, and `lastUpdated` fields on every read, auto-corrects corrupt entries, and writes back only the cleaned structure.
+- ⚡ **Live module list in AI context** — `aiService` now fetches the available module catalogue directly from the CLI (`rapidkit modules list --json-schema 1`) with a 60-second in-process TTL cache, so AI responses reference the real current module set rather than a static snapshot.
+- 🔁 **Idempotent workspace creation** — `createWorkspace` now detects partial directories (directory exists, no `.rapidkit-workspace` marker) and offers a "Replace (delete & recreate)" prompt; if the workspace marker already exists the CLI call is skipped entirely for a silent success.
+- 🎨 **Brand icons updated** — `workspai.png` and `workspai.svg` updated to current Workspai identity; stale `rapidkits.svg` removed.
+
+### Fixed
+
+- 🛡️ **AI module slug validation** — module slugs returned by AI are validated against the live module list and the `vendor/category/slug` regex before being applied, preventing hallucinated module names from reaching the CLI.
+- 📐 **AI project context enrichment** — context payload now includes `python_version`, `rapidkit_cli_version`, `rapidkit_core_version`, `installed_modules`, `workspace_health`, `runtime`, and `engine` fields so the model has complete environment awareness.
+
+
 
 ### Changed
 

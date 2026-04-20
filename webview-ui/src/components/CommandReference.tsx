@@ -37,7 +37,7 @@ function buildWorkspaceCommands(profile: WorkspaceProfile): Command[] {
             description: 'Initialize workspace dependencies and projects'
         },
         {
-            code: 'npx rapidkit doctor workspace',
+            code: 'npx workspai.doctor workspace',
             description: 'Run workspace health checks (canonical doctor contract)'
         },
         {
@@ -123,7 +123,7 @@ export function CommandReference({
     const workspaceCommands = buildWorkspaceCommands(workspaceProfile);
     const devCommands: Command[] = [
         {
-            code: 'npx rapidkit doctor workspace --fix',
+            code: 'npx workspai.doctor workspace --fix',
             description: 'Run doctor with safe auto-fixes for workspace issues'
         },
         {

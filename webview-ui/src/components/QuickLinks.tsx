@@ -1,8 +1,15 @@
+import { useState } from 'react';
+import { MessageSquarePlus } from 'lucide-react';
+
 interface QuickLinksProps {
     onOpenProjectModal: (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => void;
 }
 
+const POLL_OPTIONS = ['Django', 'Express', 'Spring'] as const;
+
 export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
+    const [voted, setVoted] = useState<string | null>(null);
+
     const links: Array<{
         framework: 'fastapi' | 'nestjs' | 'go';
         className: string;
@@ -59,6 +66,33 @@ export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
                         <div className="quick-link-subtitle">{link.subtitle}</div>
                     </button>
                 ))}
+            </div>
+            <div className="quick-link-poll">
+                {voted ? (
+                    <>
+                        <MessageSquarePlus size={11} className="quick-link-poll-icon" />
+                        <span className="quick-link-poll-thanks">Got it! We'll work on</span>
+                        <span className="quick-link-poll-winner">{voted}</span>
+                        <span className="quick-link-poll-thanks">next.</span>
+                    </>
+                ) : (
+                    <>
+                        <MessageSquarePlus size={11} className="quick-link-poll-icon" />
+                        <span className="quick-link-poll-question">Which backend next?</span>
+                        <div className="quick-link-poll-options">
+                            {POLL_OPTIONS.map((opt) => (
+                                <button
+                                    key={opt}
+                                    type="button"
+                                    className="quick-link-poll-option"
+                                    onClick={() => setVoted(opt)}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
         </>
     );

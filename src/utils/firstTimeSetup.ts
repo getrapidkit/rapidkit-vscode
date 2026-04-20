@@ -33,7 +33,7 @@ export async function isFirstTimeSetup(): Promise<boolean> {
  * Show first-time setup welcome message
  */
 export async function showFirstTimeSetupMessage(): Promise<boolean> {
-  const config = vscode.workspace.getConfiguration('rapidkit');
+  const config = vscode.workspace.getConfiguration('workspai');
   const dontShowAgain = config.get<boolean>('dontShowFirstTimeSetup', false);
 
   if (dontShowAgain) {
@@ -144,7 +144,7 @@ export async function showFirstTimeSetupComplete(): Promise<void> {
   );
 
   if (selected === createWorkspaceAction) {
-    await vscode.commands.executeCommand('rapidkit.createWorkspace');
+    await vscode.commands.executeCommand('workspai.createWorkspace');
   } else if (selected === viewDocsAction) {
     await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
   }

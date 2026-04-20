@@ -221,7 +221,7 @@ export async function addModuleCommand(
           );
 
           // Refresh all project views and module states
-          await vscode.commands.executeCommand('rapidkit.refreshProjects');
+          await vscode.commands.executeCommand('workspai.refreshProjects');
           await refreshModuleExplorerStates();
 
           // Refresh Welcome Panel to update installed modules list
@@ -233,7 +233,7 @@ export async function addModuleCommand(
               vscode.Uri.parse(`https://getrapidkit.com/docs/modules/${module!.id}`)
             );
           } else if (selected === addMoreAction) {
-            await vscode.commands.executeCommand('rapidkit.addModule', projectPath);
+            await vscode.commands.executeCommand('workspai.addModule', projectPath);
           }
         } catch (error) {
           logger.error('Failed to add module', error);
@@ -265,7 +265,7 @@ async function resolveProjectPath(givenPath?: string): Promise<string | undefine
 
   // First check if user has selected a project in the tree view
   const selectedProject = (await vscode.commands.executeCommand(
-    'rapidkit.getSelectedProject'
+    'workspai.getSelectedProject'
   )) as any;
   if (selectedProject?.path && (await fs.pathExists(selectedProject.path))) {
     return selectedProject.path;

@@ -231,9 +231,9 @@ describe('contract drift guard', () => {
     const projectLifecycleSource = read('src/commands/projectLifecycle.ts');
     const lifecycleSource = `${extensionSource}\n${projectLifecycleSource}`;
 
-    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectInit'");
-    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectDev'");
-    expect(lifecycleSource).toContain("registerCommand('rapidkit.projectTest'");
+    expect(lifecycleSource).toContain("registerCommand('workspai.projectInit'");
+    expect(lifecycleSource).toContain("registerCommand('workspai.projectDev'");
+    expect(lifecycleSource).toContain("registerCommand('workspai.projectTest'");
 
     expect(lifecycleSource).toContain("commands: [['init']]");
     expect(lifecycleSource).toContain("commands: [['test']]");
@@ -281,7 +281,7 @@ describe('contract drift guard', () => {
 
     expect(operationsSource).not.toContain('npx rapidkit cache status');
     expect(operationsSource).not.toContain('npx rapidkit mirror status');
-    expect(operationsSource).not.toContain('npx rapidkit doctor workspace');
+    expect(operationsSource).not.toContain('npx workspai.doctor workspace');
     expect(operationsSource).not.toContain('RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1 npx rapidkit setup');
   });
 

@@ -10,7 +10,7 @@ export class WorkspaiStatusBar implements vscode.Disposable {
 
   constructor() {
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    this.statusBarItem.command = 'rapidkit.showWelcome';
+    this.statusBarItem.command = 'workspai.showWelcome';
     this.updateStatus('ready');
     this.statusBarItem.show();
   }

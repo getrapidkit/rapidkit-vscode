@@ -30,12 +30,12 @@ export function registerCoreCommands(options: {
   const { context, logger, getWorkspaceExplorer, getProjectExplorer } = options;
 
   return [
-    vscode.commands.registerCommand('rapidkit.test', () => {
+    vscode.commands.registerCommand('workspai.test', () => {
       vscode.window.showInformationMessage('✅ Workspai commands are working!');
     }),
 
     vscode.commands.registerCommand(
-      'rapidkit.createWorkspace',
+      'workspai.createWorkspace',
       async (workspaceInput?: string | Record<string, unknown>) => {
         try {
           logger.info(
@@ -54,7 +54,7 @@ export function registerCoreCommands(options: {
     ),
 
     vscode.commands.registerCommand(
-      'rapidkit.createProject',
+      'workspai.createProject',
       async (workspacePathOrUri?: string | vscode.Uri) => {
         try {
           logger.info('Executing createProject command');
@@ -88,7 +88,7 @@ export function registerCoreCommands(options: {
     ),
 
     vscode.commands.registerCommand(
-      'rapidkit.createFastAPIProject',
+      'workspai.createFastAPIProject',
       async (projectName?: string) => {
         try {
           logger.info('Executing createFastAPIProject command', { projectName });
@@ -111,7 +111,7 @@ export function registerCoreCommands(options: {
     ),
 
     vscode.commands.registerCommand(
-      'rapidkit.createNestJSProject',
+      'workspai.createNestJSProject',
       async (projectName?: string) => {
         try {
           logger.info('Executing createNestJSProject command', { projectName });
@@ -133,19 +133,19 @@ export function registerCoreCommands(options: {
       }
     ),
 
-    vscode.commands.registerCommand('rapidkit.openDocs', async () => {
+    vscode.commands.registerCommand('workspai.openDocs', async () => {
       await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
     }),
 
-    vscode.commands.registerCommand('rapidkit.addModule', addModuleCommand),
-    vscode.commands.registerCommand('rapidkit.showModuleInstallModal', (moduleData: any) => {
+    vscode.commands.registerCommand('workspai.addModule', addModuleCommand),
+    vscode.commands.registerCommand('workspai.showModuleInstallModal', (moduleData: any) => {
       WelcomePanel.showModuleInstallModal(moduleData);
     }),
-    vscode.commands.registerCommand('rapidkit.previewTemplate', previewTemplateCommand),
-    vscode.commands.registerCommand('rapidkit.doctor', doctorCommand),
-    vscode.commands.registerCommand('rapidkit.checkSystem', checkSystemCommand),
+    vscode.commands.registerCommand('workspai.previewTemplate', previewTemplateCommand),
+    vscode.commands.registerCommand('workspai.doctor', doctorCommand),
+    vscode.commands.registerCommand('workspai.checkSystem', checkSystemCommand),
 
-    vscode.commands.registerCommand('rapidkit.clearRequirementCache', async () => {
+    vscode.commands.registerCommand('workspai.clearRequirementCache', async () => {
       try {
         const { requirementCache } = await import('../utils/requirementCache.js');
         requirementCache.invalidateAll();
@@ -159,19 +159,19 @@ export function registerCoreCommands(options: {
       }
     }),
 
-    vscode.commands.registerCommand('rapidkit.showWelcome', () => showWelcomeCommand(context)),
+    vscode.commands.registerCommand('workspai.showWelcome', () => showWelcomeCommand(context)),
 
     vscode.commands.registerCommand(
-      'rapidkit.openProjectModal',
+      'workspai.openProjectModal',
       (framework: 'fastapi' | 'nestjs' | 'go') => {
         WelcomePanel.openProjectModal(context, framework);
       }
     ),
 
-    vscode.commands.registerCommand('rapidkit.openWorkspaceModal', () => {
+    vscode.commands.registerCommand('workspai.openWorkspaceModal', () => {
       WelcomePanel.openWorkspaceModal(context);
     }),
 
-    vscode.commands.registerCommand('rapidkit.openSetup', () => SetupPanel.show(context)),
+    vscode.commands.registerCommand('workspai.openSetup', () => SetupPanel.show(context)),
   ];
 }

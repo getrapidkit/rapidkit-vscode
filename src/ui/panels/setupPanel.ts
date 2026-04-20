@@ -39,10 +39,10 @@ export class SetupPanel {
             break;
           }
           case 'doctor':
-            vscode.commands.executeCommand('rapidkit.doctor');
+            vscode.commands.executeCommand('workspai.doctor');
             break;
           case 'showWelcome':
-            vscode.commands.executeCommand('rapidkit.showWelcome');
+            vscode.commands.executeCommand('workspai.showWelcome');
             break;
           case 'openUrl':
             vscode.env.openExternal(vscode.Uri.parse(message.url));
@@ -1153,7 +1153,7 @@ export class SetupPanel {
 
   private _getHtmlContent(context: vscode.ExtensionContext): string {
     const rapidkitIconUri = this._panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkits.svg')
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'rapidkit.svg')
     );
     const fontUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'fonts', 'MuseoModerno-Bold.ttf')

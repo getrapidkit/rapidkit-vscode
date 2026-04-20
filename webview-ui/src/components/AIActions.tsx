@@ -1,33 +1,47 @@
-import { Sparkles, Wand2, MessageSquare, FolderKanban, Package } from 'lucide-react';
+import { Sparkles, Wand2, MessageSquare, FolderKanban, Package, Bug, Lightbulb } from 'lucide-react';
 
 const CARDS = [
     {
         icon: <Wand2 size={14} />,
         label: 'Create with AI',
-        desc: 'Describe your idea → AI plans workspace + project',
+        desc: 'Describe your idea → AI picks kit, modules, and scaffolds workspace + project',
         color: '#6C5CE7',
         accent: 'teal',
     },
     {
-        icon: <MessageSquare size={14} />,
-        label: 'Project Assistant',
-        desc: 'Context-aware Q&A and code help per project',
-        color: '#a78bfa',
-        accent: 'purple',
+        icon: <Bug size={14} />,
+        label: 'AI Debugger',
+        desc: 'Explain errors and get fix suggestions with full workspace context (⌨ Ctrl+Shift+R D)',
+        color: '#e17055',
+        accent: 'orange',
     },
     {
         icon: <FolderKanban size={14} />,
         label: 'Workspace Brain',
-        desc: 'AI inline on every workspace & project item',
+        desc: 'Ask AI anything about your workspace — architecture, decisions, next steps (⌨ Ctrl+Shift+R B)',
         color: '#6c5ce7',
         accent: 'violet',
     },
     {
+        icon: <MessageSquare size={14} />,
+        label: 'Project Assistant',
+        desc: 'Per-project AI Q&A with scanned code context — click ✦ on any project item',
+        color: '#a78bfa',
+        accent: 'purple',
+    },
+    {
         icon: <Package size={14} />,
         label: 'Module Advisor',
-        desc: 'Smart suggestions for modules in the catalog',
+        desc: 'AI recommends which modules to install based on your project description',
         color: '#00b894',
         accent: 'green',
+    },
+    {
+        icon: <Lightbulb size={14} />,
+        label: 'Explain Error',
+        desc: 'Select any error in the editor → right-click → Explain Error with AI',
+        color: '#fdcb6e',
+        accent: 'yellow',
     },
 ];
 

@@ -97,7 +97,7 @@ function resolveAIModalContext(editor = vscode.window.activeTextEditor): AIModal
 // ──────────────────────────────────────────────
 
 export function registerAIDebuggerCommand(context: vscode.ExtensionContext): vscode.Disposable {
-  const debugCommand = vscode.commands.registerCommand('rapidkit.debugWithAI', () => {
+  const debugCommand = vscode.commands.registerCommand('workspai.debugWithAI', () => {
     const prefillQuestion = collectDebugPrefillQuestion();
     const baseContext = resolveAIModalContext();
     WelcomePanel.showAIModal(context, {
@@ -108,7 +108,7 @@ export function registerAIDebuggerCommand(context: vscode.ExtensionContext): vsc
   });
 
   const explainCommand = vscode.commands.registerCommand(
-    'rapidkit.explainErrorWithAI',
+    'workspai.explainErrorWithAI',
     (issueSummary?: string) => {
       const prefillQuestion = collectExplainPrefillQuestion(issueSummary);
       const baseContext = resolveAIModalContext();

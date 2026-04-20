@@ -94,23 +94,23 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   private _projectsLoadInProgress = false;
 
   constructor() {
-    // NOTE: 'rapidkit.workspaceSelected' is registered once in extension.ts
+    // NOTE: 'workspai.workspaceSelected' is registered once in extension.ts
     // and calls setWorkspace() on this instance via projectExplorer reference.
     // Do NOT register it here to avoid "command already exists" on re-activation.
 
     // Register command to get selected workspace
-    vscode.commands.registerCommand('rapidkit.getSelectedWorkspace', () => {
+    vscode.commands.registerCommand('workspai.getSelectedWorkspace', () => {
       return this.selectedWorkspace;
     });
 
     // Register command to get selected project
-    vscode.commands.registerCommand('rapidkit.getSelectedProject', () => {
+    vscode.commands.registerCommand('workspai.getSelectedProject', () => {
       return this.selectedProject;
     });
 
     // Initialize context
-    vscode.commands.executeCommand('setContext', 'rapidkit:noProjects', false);
-    vscode.commands.executeCommand('setContext', 'rapidkit:hasProjects', false);
+    vscode.commands.executeCommand('setContext', 'workspai:noProjects', false);
+    vscode.commands.executeCommand('setContext', 'workspai:hasProjects', false);
   }
 
   refresh(): void {
@@ -152,7 +152,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
   setSelectedProject(project: WorkspaiProject | null): void {
     this.selectedProject = project;
     // Update context for UI elements that depend on selection
-    vscode.commands.executeCommand('setContext', 'rapidkit:projectSelected', project !== null);
+    vscode.commands.executeCommand('setContext', 'workspai:projectSelected', project !== null);
     this._onDidChangeTreeData.fire();
   }
 
@@ -164,10 +164,10 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     const hasProjects = this.projects.length > 0;
     await vscode.commands.executeCommand(
       'setContext',
-      'rapidkit:noProjects',
+      'workspai:noProjects',
       !hasProjects && this.selectedWorkspace !== null
     );
-    await vscode.commands.executeCommand('setContext', 'rapidkit:hasProjects', hasProjects);
+    await vscode.commands.executeCommand('setContext', 'workspai:hasProjects', hasProjects);
   }
 
   getTreeItem(element: ProjectTreeItem): vscode.TreeItem {
@@ -416,7 +416,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
 
       // Add click command to select project
       this.command = {
-        command: 'rapidkit.selectProject',
+        command: 'workspai.selectProject',
         title: 'Select Project',
         arguments: [this],
       };
@@ -445,7 +445,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
 
       // Add click command to select project
       this.command = {
-        command: 'rapidkit.selectProject',
+        command: 'workspai.selectProject',
         title: 'Select Project',
         arguments: [this],
       };
