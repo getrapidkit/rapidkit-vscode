@@ -11,6 +11,16 @@ export function registerFileManagementCommands(options: {
 }): vscode.Disposable[] {
   const { logger, getProjectExplorer } = options;
 
+  const isValidName = (value: string, type: 'File' | 'Folder' | 'Name'): string | null => {
+    if (!value || value.trim() === '') {
+      return `${type} cannot be empty`;
+    }
+    if (/[<>:"/\\|?*]/.test(value)) {
+      return `${type} contains invalid characters`;
+    }
+    return null;
+  };
+
   return [
     vscode.commands.registerCommand('workspai.newFile', async (item: any) => {
       const targetPath = item?.filePath || item?.project?.path;
@@ -22,24 +32,16 @@ export function registerFileManagementCommands(options: {
       const fileName = await vscode.window.showInputBox({
         prompt: 'Enter file name',
         placeHolder: 'example.py',
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'File name cannot be empty';
-          }
-          if (/[<>:"/\\|?*]/.test(value)) {
-            return 'File name contains invalid characters';
-          }
-          return null;
-        },
+        validateInput: (value) => isValidName(value, 'File'),
       });
 
       if (fileName) {
-        const fs = await import('fs');
+        const fs = await import('fs/promises');
         const path = await import('path');
         const filePath = path.join(targetPath, fileName);
 
         try {
-          fs.writeFileSync(filePath, '', 'utf-8');
+          await fs.writeFile(filePath, '', 'utf-8');
           const doc = await vscode.workspace.openTextDocument(filePath);
           await vscode.window.showTextDocument(doc);
           getProjectExplorer()?.refresh();
@@ -60,24 +62,16 @@ export function registerFileManagementCommands(options: {
       const folderName = await vscode.window.showInputBox({
         prompt: 'Enter folder name',
         placeHolder: 'new_folder',
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'Folder name cannot be empty';
-          }
-          if (/[<>:"/\\|?*]/.test(value)) {
-            return 'Folder name contains invalid characters';
-          }
-          return null;
-        },
+        validateInput: (value) => isValidName(value, 'Folder'),
       });
 
       if (folderName) {
-        const fs = await import('fs');
+        const fs = await import('fs/promises');
         const path = await import('path');
         const folderPath = path.join(targetPath, folderName);
 
         try {
-          fs.mkdirSync(folderPath, { recursive: true });
+          await fs.mkdir(folderPath, { recursive: true });
           getProjectExplorer()?.refresh();
           logger.info(`Created new folder: ${folderPath}`);
           vscode.window.showInformationMessage(`Created folder: ${folderName}`, 'OK');
@@ -94,7 +88,7 @@ export function registerFileManagementCommands(options: {
         return;
       }
 
-      const fs = await import('fs');
+      const fs = await import('fs/promises');
       const path = await import('path');
       const name = path.basename(targetPath);
 
@@ -106,11 +100,11 @@ export function registerFileManagementCommands(options: {
 
       if (confirm === 'Delete') {
         try {
-          const stats = fs.statSync(targetPath);
+          const stats = await fs.stat(targetPath);
           if (stats.isDirectory()) {
-            fs.rmSync(targetPath, { recursive: true, force: true });
+            await fs.rm(targetPath, { recursive: true, force: true });
           } else {
-            fs.unlinkSync(targetPath);
+            await fs.unlink(targetPath);
           }
           getProjectExplorer()?.refresh();
           logger.info(`Deleted: ${targetPath}`);
@@ -128,28 +122,20 @@ export function registerFileManagementCommands(options: {
       }
 
       const path = await import('path');
-      const fs = await import('fs');
+      const fs = await import('fs/promises');
       const oldName = path.basename(targetPath);
       const dirPath = path.dirname(targetPath);
 
       const newName = await vscode.window.showInputBox({
         prompt: 'Enter new name',
         value: oldName,
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'Name cannot be empty';
-          }
-          if (/[<>:"/\\|?*]/.test(value)) {
-            return 'Name contains invalid characters';
-          }
-          return null;
-        },
+        validateInput: (value) => isValidName(value, 'Name'),
       });
 
       if (newName && newName !== oldName) {
         const newPath = path.join(dirPath, newName);
         try {
-          fs.renameSync(targetPath, newPath);
+          await fs.rename(targetPath, newPath);
           getProjectExplorer()?.refresh();
           logger.info(`Renamed: ${oldName} → ${newName}`);
         } catch (err) {

@@ -999,6 +999,20 @@
           "default": true,
           "description": "Check for RapidKit npm package updates"
         },
+        "workspai.networkTimeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "Network timeout in milliseconds for examples and kits fetching"
+        },
+        "workspai.commandTimeoutMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "Timeout in milliseconds for local CLI and git commands used by the extension (AI scanning, module discovery, and diagnostics)"
+        },
         "workspai.preferredModel": {
           "type": "string",
           "default": "auto",

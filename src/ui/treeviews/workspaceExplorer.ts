@@ -11,6 +11,8 @@ import { WorkspaiWorkspace } from '../../types';
 import { WorkspaceManager } from '../../core/workspaceManager';
 import { CoreVersionService, CoreVersionInfo } from '../../core/coreVersionService';
 
+const WATCHER_REFRESH_DEBOUNCE_MS = 250;
+
 export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<WorkspaceTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void> =
     new vscode.EventEmitter<WorkspaceTreeItem | undefined | null | void>();
@@ -26,6 +28,7 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
   private profileCache: Map<string, string | undefined> = new Map();
   private moduleCountCache: Map<string, number> = new Map();
   private _backgroundLoadInProgress = false;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.loadWorkspaces();
@@ -41,13 +44,28 @@ export class WorkspaceExplorerProvider implements vscode.TreeDataProvider<Worksp
       false
     );
 
-    this.fileWatcher.onDidCreate(() => this.refresh());
-    this.fileWatcher.onDidChange(() => this.refresh());
-    this.fileWatcher.onDidDelete(() => this.refresh());
+    this.fileWatcher.onDidCreate(() => this.scheduleRefresh());
+    this.fileWatcher.onDidChange(() => this.scheduleRefresh());
+    this.fileWatcher.onDidDelete(() => this.scheduleRefresh());
+  }
+
+  private scheduleRefresh(): void {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+    }
+
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      void this.refresh();
+    }, WATCHER_REFRESH_DEBOUNCE_MS);
   }
 
   dispose(): void {
     this.fileWatcher?.dispose();
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   async refresh(): Promise<void> {

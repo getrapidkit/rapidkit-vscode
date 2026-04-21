@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
+const EVIDENCE_RELOAD_DEBOUNCE_MS = 200;
+
 // ─── Evidence JSON shape (matches npm doctor output) ────────────────────────
 
 interface SystemCheck {
@@ -99,6 +101,7 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
   private _overridePath: string | null = null;
   private fileWatcher?: vscode.FileSystemWatcher;
   private evidence: DoctorEvidence | null = null;
+  private reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(workspacePathResolver: () => string | null = () => null) {
     this.workspacePathResolver = workspacePathResolver;
@@ -134,12 +137,27 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
       false,
       true
     );
-    this.fileWatcher.onDidCreate(() => this.reload());
-    this.fileWatcher.onDidChange(() => this.reload());
+    this.fileWatcher.onDidCreate(() => this.scheduleReload());
+    this.fileWatcher.onDidChange(() => this.scheduleReload());
+  }
+
+  private scheduleReload(): void {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+    }
+
+    this.reloadTimer = setTimeout(() => {
+      this.reloadTimer = null;
+      void this.reload();
+    }, EVIDENCE_RELOAD_DEBOUNCE_MS);
   }
 
   dispose(): void {
     this.fileWatcher?.dispose();
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
+    }
     this._onDidChangeTreeData.dispose();
   }
 

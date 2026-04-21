@@ -67,6 +67,11 @@ interface ExamplesCache {
   timestamp: number;
 }
 
+const DEFAULT_EXAMPLES_METADATA_TIMEOUT_MS = 5000;
+const DEFAULT_EXAMPLES_UPDATES_TIMEOUT_MS = 10000;
+const MIN_NETWORK_TIMEOUT_MS = 1000;
+const MAX_NETWORK_TIMEOUT_MS = 60000;
+
 export class ExamplesService {
   private static instance: ExamplesService | null = null;
   private readonly storagePath: string;
@@ -100,6 +105,18 @@ export class ExamplesService {
     return ExamplesService.instance;
   }
 
+  private getNetworkTimeoutMs(fallback: number): number {
+    const configured = vscode.workspace
+      .getConfiguration('workspai')
+      .get<number>('networkTimeoutMs', fallback);
+
+    if (!Number.isFinite(configured)) {
+      return fallback;
+    }
+
+    return Math.max(MIN_NETWORK_TIMEOUT_MS, Math.min(MAX_NETWORK_TIMEOUT_MS, configured));
+  }
+
   /**
    * Get examples metadata (with caching)
    */
@@ -115,7 +132,7 @@ export class ExamplesService {
       // Fetch from GitHub
       console.log('[ExamplesService] Fetching metadata from GitHub...');
       const response = await axios.get<ExamplesMetadata>(this.metadataUrl, {
-        timeout: 5000,
+        timeout: this.getNetworkTimeoutMs(DEFAULT_EXAMPLES_METADATA_TIMEOUT_MS),
         headers: {
           Accept: 'application/json',
         },
@@ -263,7 +280,7 @@ export class ExamplesService {
       // Get latest commit hash from GitHub API
       const apiUrl = `https://api.github.com/repos/getrapidkit/rapidkit-examples/commits/main`;
       const response = await axios.get(apiUrl, {
-        timeout: 10000,
+        timeout: this.getNetworkTimeoutMs(DEFAULT_EXAMPLES_UPDATES_TIMEOUT_MS),
         headers: {
           Accept: 'application/vnd.github.v3+json',
         },

@@ -53,6 +53,8 @@ let moduleExplorer: ModuleExplorerProvider;
 let doctorEvidenceExplorer: DoctorEvidenceProvider;
 // templateExplorer removed
 
+const PROJECT_WATCHER_REFRESH_DEBOUNCE_MS = 250;
+
 // Track running dev servers per project (exported for ProjectExplorer)
 export const runningServers: Map<string, vscode.Terminal> = new Map();
 
@@ -443,22 +445,31 @@ export async function activate(context: vscode.ExtensionContext) {
           false
         );
 
-        fileWatcher.onDidCreate(() => {
-          if (config.get('autoRefresh', true)) {
-            projectExplorer.refresh();
+        let projectRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleProjectRefresh = () => {
+          if (!config.get('autoRefresh', true)) {
+            return;
           }
-        });
+          if (projectRefreshTimer) {
+            clearTimeout(projectRefreshTimer);
+          }
+          projectRefreshTimer = setTimeout(() => {
+            projectRefreshTimer = null;
+            projectExplorer.refresh();
+          }, PROJECT_WATCHER_REFRESH_DEBOUNCE_MS);
+        };
 
-        fileWatcher.onDidChange(() => {
-          if (config.get('autoRefresh', true)) {
-            projectExplorer.refresh();
-          }
-        });
+        fileWatcher.onDidCreate(scheduleProjectRefresh);
+        fileWatcher.onDidChange(scheduleProjectRefresh);
+        fileWatcher.onDidDelete(scheduleProjectRefresh);
 
-        fileWatcher.onDidDelete(() => {
-          if (config.get('autoRefresh', true)) {
-            projectExplorer.refresh();
-          }
+        context.subscriptions.push({
+          dispose: () => {
+            if (projectRefreshTimer) {
+              clearTimeout(projectRefreshTimer);
+              projectRefreshTimer = null;
+            }
+          },
         });
 
         context.subscriptions.push(fileWatcher);

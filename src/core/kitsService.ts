@@ -35,6 +35,10 @@ interface KitsCache {
   timestamp: number;
 }
 
+const DEFAULT_KITS_FETCH_TIMEOUT_MS = 15000;
+const MIN_COMMAND_TIMEOUT_MS = 1000;
+const MAX_COMMAND_TIMEOUT_MS = 60000;
+
 export class KitsService {
   private static instance: KitsService | null = null;
   private readonly storagePath: string;
@@ -60,6 +64,18 @@ export class KitsService {
     return KitsService.instance;
   }
 
+  private getCommandTimeoutMs(fallback: number): number {
+    const configured = vscode.workspace
+      .getConfiguration('workspai')
+      .get<number>('commandTimeoutMs', fallback);
+
+    if (!Number.isFinite(configured)) {
+      return fallback;
+    }
+
+    return Math.max(MIN_COMMAND_TIMEOUT_MS, Math.min(MAX_COMMAND_TIMEOUT_MS, configured));
+  }
+
   /**
    * Get available kits (with caching)
    */
@@ -75,7 +91,7 @@ export class KitsService {
       // Fetch from CLI
       console.log('[KitsService] Fetching kits from CLI...');
       const result = await run('npx', ['rapidkit', 'list', '--json'], {
-        timeout: 15000,
+        timeout: this.getCommandTimeoutMs(DEFAULT_KITS_FETCH_TIMEOUT_MS),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
