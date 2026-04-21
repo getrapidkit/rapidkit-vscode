@@ -5,13 +5,26 @@
  */
 
 import * as vscode from 'vscode';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { Logger } from '../utils/logger';
 import { ModulesCatalogService } from './modulesCatalogService';
-import { WorkspaceMemoryService } from './workspaceMemoryService';
-import { detectRapidkitProject } from './bridge/pythonRapidkit';
 import { run } from '../utils/exec';
+import {
+  buildDirTree,
+  getGitDiffStat,
+  normalizeFrameworkHint,
+  normalizeKitName,
+  readRelevantFiles,
+  readWorkspaceHealthSummary,
+  readWorkspaceVersions,
+  resolveProjectScanRoot,
+  resolvePythonVersion,
+} from './aiProjectContextUtils';
+import {
+  resetModelSelectionCache,
+  selectModelWithPreference as selectModelWithPreferenceInternal,
+} from './aiModelSelection';
+import { buildAIModalUserMessage as buildAIModalUserMessageInternal } from './aiPromptMessageBuilder';
+import { buildWorkspaiSystemPrompt as buildWorkspaiSystemPromptInternal } from './aiSystemPromptBuilder';
 
 export interface AIMessage {
   role: 'user' | 'assistant';
@@ -85,10 +98,10 @@ export async function streamAIResponse(
         logger.warn(
           `[AI] Requested model "${preferredModelId}" not found, falling back to preference`
         );
-        ({ model, modelId } = await selectModelWithPreference());
+        ({ model, modelId } = await selectModelWithPreferenceInternal());
       }
     } else {
-      ({ model, modelId } = await selectModelWithPreference());
+      ({ model, modelId } = await selectModelWithPreferenceInternal());
     }
     logger.info(`[AI] Using model: ${model.id} (${modelId})`);
   } catch (err) {
@@ -144,8 +157,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-const execFileAsync = promisify(execFile);
-
 export interface AIModalContext {
   type: 'workspace' | 'project' | 'module';
   name: string;
@@ -163,11 +174,6 @@ interface AIWorkspaceHealthSummary {
   passed: number;
   warnings: number;
   errors: number;
-}
-
-interface AIWorkspaceVersions {
-  core: string | null;
-  npm: string | null;
 }
 
 // ─── Kit types detected at runtime ─────────────────────────────────────────
@@ -213,34 +219,31 @@ export interface ScannedProjectContext {
   detectionConfidence: 'strong' | 'weak' | 'none';
 }
 
-interface ProjectScanResolution {
-  scanRoot: string;
-  runtime: string | null;
-  engine: string | null;
-  detectionConfidence: 'strong' | 'weak' | 'none';
-  kitName: string | null;
-}
-
 interface ProjectContextCacheEntry {
   value: ScannedProjectContext;
   cachedAt: number;
 }
 
-interface ModelSelectionCacheEntry {
-  preference: string;
-  result: {
-    model: vscode.LanguageModelChat;
-    modelId: string;
-  };
-  cachedAt: number;
-}
-
 const PROJECT_CONTEXT_TTL_MS = 60 * 1000;
-const MODEL_SELECTION_TTL_MS = 5 * 60 * 1000;
-const MAX_SYSTEM_PROMPT_CHARS = 28_000;
+const DEFAULT_PROJECT_DETECTION_TIMEOUT_MS = 2000;
+const DEFAULT_GIT_DIFF_TIMEOUT_MS = 3000;
+const DEFAULT_LIVE_MODULES_TIMEOUT_MS = 8000;
+const MIN_COMMAND_TIMEOUT_MS = 1000;
+const MAX_COMMAND_TIMEOUT_MS = 60000;
 
 const _projectContextCache = new Map<string, ProjectContextCacheEntry>();
-let _modelSelectionCache: ModelSelectionCacheEntry | null = null;
+
+function getCommandTimeoutMs(fallback: number): number {
+  const configured = vscode.workspace
+    .getConfiguration('workspai')
+    .get<number>('commandTimeoutMs', fallback);
+
+  if (!Number.isFinite(configured)) {
+    return fallback;
+  }
+
+  return Math.max(MIN_COMMAND_TIMEOUT_MS, Math.min(MAX_COMMAND_TIMEOUT_MS, configured));
+}
 
 /**
  * Scan a project directory and return rich context for the AI prompt.
@@ -288,7 +291,10 @@ export async function scanProjectContext(
     return cached.value;
   }
 
-  const resolved = await resolveProjectScanRoot(resolvedInputPath);
+  const resolved = await resolveProjectScanRoot(
+    resolvedInputPath,
+    getCommandTimeoutMs(DEFAULT_PROJECT_DETECTION_TIMEOUT_MS)
+  );
   const scanRoot = resolved.scanRoot;
   const ctx: ScannedProjectContext = {
     ...empty,
@@ -437,14 +443,14 @@ export async function scanProjectContext(
   }
 
   // ── v0.18: rich context ──────────────────────────────────────────────────
-  ctx.pythonVersion = await _resolvePythonVersion(scanRoot, inferredFramework, resolved.runtime);
-  ctx.workspaceHealth = await _readWorkspaceHealthSummary(scanRoot);
-  const versions = await _readWorkspaceVersions(scanRoot);
+  ctx.pythonVersion = await resolvePythonVersion(scanRoot, inferredFramework, resolved.runtime);
+  ctx.workspaceHealth = await readWorkspaceHealthSummary(scanRoot);
+  const versions = await readWorkspaceVersions(scanRoot);
   ctx.rapidkitCoreVersion = versions.core;
   ctx.rapidkitCliVersion = versions.npm;
-  ctx.dirTree = await _buildDirTree(scanRoot, ctx.topLevelSrcDirs);
-  ctx.relevantFiles = await _readRelevantFiles(scanRoot, ctx.kit);
-  ctx.gitDiff = await _getGitDiffStat(scanRoot);
+  ctx.dirTree = await buildDirTree(scanRoot, ctx.topLevelSrcDirs);
+  ctx.relevantFiles = await readRelevantFiles(scanRoot, ctx.kit);
+  ctx.gitDiff = await getGitDiffStat(scanRoot, getCommandTimeoutMs(DEFAULT_GIT_DIFF_TIMEOUT_MS));
 
   _projectContextCache.set(cacheKey, {
     value: ctx,
@@ -452,326 +458,6 @@ export async function scanProjectContext(
   });
 
   return ctx;
-}
-
-async function resolveProjectScanRoot(projectPath: string): Promise<ProjectScanResolution> {
-  let scanRoot = projectPath;
-  let runtime: string | null = null;
-  let engine: string | null = null;
-  let detectionConfidence: 'strong' | 'weak' | 'none' = 'none';
-  let kitName: string | null = null;
-
-  try {
-    const detected = await detectRapidkitProject(projectPath, {
-      cwd: path.dirname(projectPath),
-      timeoutMs: 2000,
-    });
-    if (detected.ok && detected.data) {
-      detectionConfidence = detected.data.confidence;
-      engine = typeof detected.data.engine === 'string' ? detected.data.engine : null;
-      if (detected.data.projectRoot) {
-        scanRoot = path.resolve(detected.data.projectRoot);
-      }
-    }
-  } catch {
-    // Ignore contract bridge failures and fall back to direct file inspection.
-  }
-
-  const projectJson = await safeReadJson<Record<string, unknown>>(
-    path.join(scanRoot, '.rapidkit', 'project.json')
-  );
-  const contextJson = await safeReadJson<Record<string, unknown>>(
-    path.join(scanRoot, '.rapidkit', 'context.json')
-  );
-
-  if (typeof projectJson?.kit_name === 'string') {
-    kitName = projectJson.kit_name;
-  }
-  if (typeof projectJson?.runtime === 'string') {
-    runtime = projectJson.runtime;
-  }
-  if (typeof contextJson?.engine === 'string' && !engine) {
-    engine = contextJson.engine;
-  }
-
-  return {
-    scanRoot,
-    runtime,
-    engine,
-    detectionConfidence,
-    kitName,
-  };
-}
-
-async function safeReadJson<T>(filePath: string): Promise<T | null> {
-  try {
-    return JSON.parse(await fs.promises.readFile(filePath, 'utf8')) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function _resolvePythonVersion(
-  scanRoot: string,
-  inferredFramework: string | undefined,
-  runtime: string | null
-): Promise<string | null> {
-  const isPythonProject = inferredFramework === 'fastapi' || runtime === 'python';
-  if (!isPythonProject) {
-    return null;
-  }
-
-  // 1) Most explicit source for Python projects managed with pyenv.
-  const dotPythonVersion = await safeReadText(path.join(scanRoot, '.python-version'));
-  if (dotPythonVersion) {
-    const fromDotFile = dotPythonVersion.trim();
-    if (fromDotFile) {
-      return fromDotFile;
-    }
-  }
-
-  // 2) Fallback to pyproject constraints when available.
-  const pyproject = await safeReadText(path.join(scanRoot, 'pyproject.toml'));
-  if (pyproject) {
-    const fromPoetry = _extractPythonConstraintFromPyproject(pyproject);
-    if (fromPoetry) {
-      return fromPoetry;
-    }
-  }
-
-  return null;
-}
-
-function _extractPythonConstraintFromPyproject(pyproject: string): string | null {
-  const depSection = pyproject.split('[tool.poetry.dependencies]')[1]?.split('[')[0] ?? '';
-  const pythonInDependencies = depSection.match(/^python\s*=\s*["']([^"']+)["']/m);
-  if (pythonInDependencies?.[1]) {
-    return pythonInDependencies[1].trim();
-  }
-
-  const requiresPython = pyproject.match(/^requires-python\s*=\s*["']([^"']+)["']/m);
-  if (requiresPython?.[1]) {
-    return requiresPython[1].trim();
-  }
-
-  return null;
-}
-
-async function _readWorkspaceHealthSummary(
-  scanRoot: string
-): Promise<AIWorkspaceHealthSummary | null> {
-  const evidence = await _readDoctorEvidence(scanRoot);
-  const score = evidence?.healthScore;
-  if (!score) {
-    return null;
-  }
-
-  const total = Number(score.total ?? 0);
-  const passed = Number(score.passed ?? 0);
-  const warnings = Number(score.warnings ?? 0);
-  const errors = Number(score.errors ?? 0);
-
-  return {
-    generatedAt: typeof evidence?.generatedAt === 'string' ? evidence.generatedAt : null,
-    total,
-    passed,
-    warnings,
-    errors,
-  };
-}
-
-async function _readWorkspaceVersions(scanRoot: string): Promise<AIWorkspaceVersions> {
-  const evidence = await _readDoctorEvidence(scanRoot);
-  const versions = evidence?.system?.versions;
-  return {
-    core: typeof versions?.core === 'string' ? versions.core : null,
-    npm: typeof versions?.npm === 'string' ? versions.npm : null,
-  };
-}
-
-async function _readDoctorEvidence(scanRoot: string): Promise<{
-  generatedAt?: string;
-  healthScore?: {
-    total?: number;
-    passed?: number;
-    warnings?: number;
-    errors?: number;
-  };
-  system?: {
-    versions?: {
-      core?: string;
-      npm?: string;
-    };
-  };
-} | null> {
-  return await safeReadJson(path.join(scanRoot, '.rapidkit', 'reports', 'doctor-last-run.json'));
-}
-
-async function safeReadText(filePath: string): Promise<string | null> {
-  try {
-    return await fs.promises.readFile(filePath, 'utf8');
-  } catch {
-    return null;
-  }
-}
-
-function normalizeKitName(value: string | null | undefined): RapidKitType {
-  switch (value) {
-    case 'fastapi.ddd':
-      return 'fastapi.ddd';
-    case 'fastapi.standard':
-      return 'fastapi.standard';
-    case 'nestjs.standard':
-      return 'nestjs.standard';
-    case 'gofiber.standard':
-      return 'gofiber.standard';
-    case 'gogin.standard':
-      return 'gogin.standard';
-    default:
-      return 'unknown';
-  }
-}
-
-function normalizeFrameworkHint(
-  framework: string | undefined,
-  resolved: ProjectScanResolution
-): string | undefined {
-  if (framework) {
-    return framework;
-  }
-  const normalizedKit = normalizeKitName(resolved.kitName);
-  if (normalizedKit.startsWith('fastapi')) {
-    return 'fastapi';
-  }
-  if (normalizedKit.startsWith('nestjs')) {
-    return 'nestjs';
-  }
-  if (normalizedKit.startsWith('go')) {
-    return 'go';
-  }
-  if (resolved.runtime === 'node' || resolved.engine === 'node' || resolved.engine === 'npm') {
-    return 'nestjs';
-  }
-  if (resolved.runtime === 'go' || resolved.engine === 'go') {
-    return 'go';
-  }
-  if (resolved.runtime === 'python' || resolved.engine === 'python' || resolved.engine === 'pip') {
-    return 'fastapi';
-  }
-  return undefined;
-}
-
-function resolveFrameworkFamily(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  const fw = scanned?.kit ?? ctx.framework ?? '';
-  if (fw.startsWith('fastapi') || fw === 'fastapi') {
-    return 'fastapi';
-  }
-  if (fw.startsWith('nestjs') || fw === 'nestjs') {
-    return 'nestjs';
-  }
-  if (fw.startsWith('go') || fw.startsWith('gofiber') || fw.startsWith('gogin') || fw === 'go') {
-    return 'go';
-  }
-  return fw;
-}
-
-/**
- * Build a first-level directory tree under src/ for prompt context.
- * Limits depth to avoid token bloat.
- */
-async function _buildDirTree(projectPath: string, topDirs: string[]): Promise<string> {
-  if (topDirs.length === 0) {
-    return '';
-  }
-  const lines: string[] = ['src/'];
-  for (const dir of topDirs.slice(0, 8)) {
-    lines.push(`  ${dir}/`);
-    try {
-      const children = (await fs.promises.readdir(path.join(projectPath, 'src', dir)))
-        .filter((n) => !n.startsWith('_') && !n.startsWith('.'))
-        .slice(0, 6);
-      for (const child of children) {
-        lines.push(`    ${child}`);
-      }
-    } catch {
-      /* skip unreadable dirs */
-    }
-  }
-  return lines.join('\n');
-}
-
-/**
- * Read key entry-point files for the detected kit.
- * Limits each file to 1 500 chars to stay within token budgets.
- */
-async function _readRelevantFiles(
-  projectPath: string,
-  kit: string
-): Promise<Array<{ relPath: string; content: string }>> {
-  const candidates: string[] = [];
-
-  if (kit === 'fastapi.ddd') {
-    candidates.push(
-      'src/main.py',
-      'src/routing/__init__.py',
-      'src/app/application/interfaces.py',
-      'src/app/presentation/api/dependencies/__init__.py',
-      'src/app/domain/models/__init__.py'
-    );
-  } else if (kit.startsWith('fastapi')) {
-    candidates.push(
-      'src/main.py',
-      'src/routing/__init__.py',
-      'src/modules/free/essentials/settings/settings.py'
-    );
-  } else if (kit.startsWith('nestjs')) {
-    candidates.push(
-      'src/main.ts',
-      'src/app.module.ts',
-      'src/modules/index.ts',
-      'src/config/configuration.ts'
-    );
-  } else if (kit.startsWith('gofiber') || kit.startsWith('gogin')) {
-    candidates.push(
-      'cmd/server/main.go',
-      'internal/config/config.go',
-      'internal/server/server.go',
-      'internal/handlers/health.go'
-    );
-  }
-
-  const result: Array<{ relPath: string; content: string }> = [];
-  for (const relPath of candidates) {
-    try {
-      const raw = await fs.promises.readFile(path.join(projectPath, relPath), 'utf8');
-      if (raw) {
-        result.push({ relPath, content: raw.slice(0, 1800) });
-      }
-    } catch {
-      /* file missing — skip silently */
-    }
-  }
-  return result;
-}
-
-/**
- * Run `git diff --stat HEAD` in the project directory.
- * Returns a short status string even when git is unavailable.
- */
-async function _getGitDiffStat(projectPath: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync('git', ['diff', '--stat', 'HEAD'], {
-      cwd: projectPath,
-      timeout: 3000,
-      encoding: 'utf8',
-      windowsHide: true,
-      maxBuffer: 1024 * 1024,
-    });
-    const output = stdout.trim().slice(0, 800);
-    return output || 'No uncommitted changes detected (git diff --stat HEAD is empty).';
-  } catch {
-    return 'Git context unavailable (not a repository or git is not installed).';
-  }
 }
 
 async function getWorkspaceAwareLiveModules(
@@ -833,7 +519,7 @@ export async function fetchLiveModules(): Promise<LiveModuleEntry[] | null> {
       'npx',
       ['--yes', '--package', 'rapidkit', 'rapidkit', 'modules', 'list', '--json-schema', '1'],
       {
-        timeout: 8000,
+        timeout: getCommandTimeoutMs(DEFAULT_LIVE_MODULES_TIMEOUT_MS),
       }
     );
     if (res.exitCode !== 0) {
@@ -868,7 +554,7 @@ export function invalidateLiveModulesCache(): void {
 
 export function resetAIServiceCaches(): void {
   _projectContextCache.clear();
-  _modelSelectionCache = null;
+  resetModelSelectionCache();
   _liveModulesCache = null;
 }
 
@@ -981,581 +667,20 @@ function buildWorkspaceInstalledModulesSection(
   return `Installed modules already present in this workspace (prefer reuse when relevant):\n${lines.join('\n')}`;
 }
 
-// ─── Module knowledge base (slugs → what AI needs to know) ─────────────────
-const MODULE_CONTEXT_HINTS: Record<string, string> = {
-  'free/essentials/settings':
-    'Pydantic-settings YAML config at src/modules/free/essentials/settings/settings.py. Use get_settings() via @lru_cache. NestJS: ConfigModule.forRoot with settingsConfiguration.',
-  'free/essentials/logging':
-    'Structured JSON logging via python-json-logger. Wraps stdlib logging. NestJS: pino-http.',
-  'free/essentials/middleware':
-    'CORS, rate-limiting, request-id, and security headers middleware at src/modules/free/essentials/middleware/.',
-  'free/essentials/deployment':
-    'Dockerfile, docker-compose.yml, and GitHub Actions CI at src/modules/free/essentials/deployment/.',
-  'free/auth/core':
-    'auth_core.py — PBKDF2 password hashing (sha256, 390k iterations), HMAC-SHA256 signed tokens. FastAPI deps at src/modules/free/auth/core/auth/dependencies.py. Routes at src/modules/free/auth/core/routers/auth_core.py. NestJS: AuthCoreService injected via AUTH_CORE_CONFIG token.',
-  'free/auth/oauth':
-    'OAuth 2.0 PKCE scaffolding. Provider registry in src/modules/free/auth/oauth/. Extend by adding provider configs.',
-  'free/auth/session':
-    'Signed session tokens in httpOnly cookies. Session store backed by Redis when free/cache/redis is installed.',
-  'free/auth/passwordless':
-    'Magic link and OTP helpers. Requires free/communication/* for delivery.',
-  'free/auth/api_keys':
-    'Deterministic API key issuance (slugified prefix + random suffix). HMAC verification. Audit log table.',
-  'free/database/db_postgres':
-    'SQLAlchemy 2.x async engine (asyncpg) + sync engine (psycopg[binary]). Session factory at src/modules/free/database/db_postgres/postgres.py. NestJS: PostgresService injected via TypeORM or raw pg pool.',
-  'free/database/db_mongo':
-    'Motor (async MongoDB). Repository base class at src/modules/free/database/db_mongo/.',
-  'free/database/db_sqlite':
-    'SQLite + aiosqlite for local dev. Same session interface as db_postgres.',
-  'free/cache/redis':
-    'redis-py async client. Cache helpers at src/modules/free/cache/redis/redis.py. NestJS: ioredis.',
-  'free/security/cors':
-    'CORS middleware configured from settings YAML. Reads allowed_origins, allow_credentials from config.',
-  'free/security/security_headers':
-    'Security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options) via starlette/NestJS middleware.',
-  'free/observability/core':
-    'Prometheus metrics at /metrics, OpenTelemetry tracing, structured health checks. Counter + histogram helpers in src/modules/free/observability/core/.',
-  'free/users/users_core':
-    'User entity (UUID PK, email, hashed_password, role). CRUD use-cases + FastAPI routes at /api/users. Integrates auth_core. NestJS: UsersModule with UsersService.',
-  'free/users/users_profiles':
-    'Extended user profile: avatar, bio, social links. Foreign key to users table. Separate profile router/service.',
-  'free/business/storage':
-    'File storage abstraction (local disk + S3/GCS/Azure blob). Key-based upload/download/delete. MIME type validation.',
-  'free/billing/cart':
-    'Shopping cart with item management, quantity, price calculation. Requires free/database/* and free/users/users_core.',
-  'free/billing/stripe_payment':
-    'Stripe Payment Intents + webhook handler + subscription lifecycle. Requires free/users/users_core. Checkout session builder.',
-  'free/communication/notifications':
-    'Notification system: email (SMTP + template), push (FCM), in-app websocket events. Notification preferences per user.',
-  'free/tasks/celery':
-    'Celery worker setup with Redis broker. Task discovery via autodiscover_tasks. Beat scheduler support.',
-  'free/security/rate_limiting':
-    'Production-grade rate limiting. Configurable rules per route/client. Integrates with free/cache/redis for distributed counters.',
-  'free/billing/inventory':
-    'Inventory and pricing service backing Cart + Stripe. Product/SKU catalog, stock tracking.',
-  'free/communication/email':
-    'Email delivery (SMTP + SendGrid). Template-based transactional email. Async task-friendly.',
-  'free/ai/ai_assistant':
-    'Provider-agnostic LLM client (OpenAI / Anthropic). Streaming responses. Prompt template registry.',
-};
-
 /**
- * Build the richest possible system prompt, combining static architecture
- * knowledge with live-scanned project context.
+ * Backward-compatible export that delegates to the extracted system prompt builder.
  */
 export async function buildWorkspaiSystemPrompt(
   ctx: AIModalContext,
   scanned?: ScannedProjectContext
 ): Promise<string> {
-  // ─── 1. Core identity ──────────────────────────────────────────────────
-  const identity = `You are the Workspai AI assistant — a principal backend engineer who authored the Workspai/RapidKit platform. You know every file path, naming convention, inject point, and code pattern by heart.`;
-
-  // ─── 2. True kit layout (based on actual templates / scanned files) ────
-  const kitSection = buildKitSection(ctx, scanned);
-
-  // ─── 3. Module context (installed in THIS project) ─────────────────────
-  const moduleSection = buildModuleSection(ctx, scanned);
-
-  // ─── 4. Coding standards (exact patterns from the real codebase) ───────
-  const stdSection = buildStandardsSection(ctx, scanned);
-
-  // ─── 5. Current project state ─────────────────────────────────────────
-  const stateSection = buildStateSection(ctx, scanned);
-
-  // ─── 6. Workspace memory (team conventions + project context) ──────────
-  const memorySection = await _buildMemorySection(ctx);
-
-  // ─── 7. Instructions ──────────────────────────────────────────────────
-  const instructions = `INSTRUCTIONS:
-- Always generate code that fits exactly into the layer described above.
-- When adding a FastAPI endpoint, put the router in the correct layer (presentation/api/routes/ for DDD, routing/ for Standard).
-- When suggesting module installation: rapidkit add module <name>  (e.g. rapidkit add module redis  OR  npx rapidkit add module free/cache/redis)
-- Inject points in FastAPI pyproject.toml: # <<<inject:poetry-dependencies>>>
-- Inject points in NestJS AppModule: // <<<inject:module-imports>>>
-- Never suggest raw HTTP exceptions inside domain or application layers — raise domain exceptions and map them in the presentation layer.
-- For migrations: use "alembic revision --autogenerate && alembic upgrade head".
-- Response language: match the user's query language (Persian → Persian, English → English).`;
-
-  const prompt = [
-    identity,
-    clampPromptSection(kitSection, 9000),
-    clampPromptSection(moduleSection, 8000),
-    clampPromptSection(stdSection, 6000),
-    clampPromptSection(stateSection, 7000),
-    clampPromptSection(memorySection, 3000),
-    instructions,
-  ]
-    .filter(Boolean)
-    .join('\n\n' + '─'.repeat(60) + '\n\n');
-
-  return clampPromptSection(prompt, MAX_SYSTEM_PROMPT_CHARS);
-}
-
-function clampPromptSection(section: string, maxChars: number): string {
-  if (!section || section.length <= maxChars) {
-    return section;
-  }
-  return `${section.slice(0, maxChars)}\n... [truncated for context budget]`;
-}
-
-function buildKitSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  const fw = scanned?.kit ?? ctx.framework;
-
-  if (fw === 'fastapi.ddd' || (ctx.framework === 'fastapi' && scanned?.hasDomainLayer)) {
-    return `PROJECT ARCHITECTURE: FastAPI DDD Kit (fastapi.ddd)
-
-Real directory layout (generated by rapidkit create):
-  src/
-    app/
-      config/            ← Pydantic-settings config loader (__init__.py)
-      domain/
-        models/          ← Dataclasses with @dataclass(slots=True, frozen=True)
-                           e.g. Note, NoteDraft (value object)
-      application/
-        interfaces.py    ← Protocol-based repository contracts + ServiceContext dataclass
-                           ServiceContext aggregates ALL infrastructure adapters
-        use_cases/       ← Pure Python functions: def create_note(ctx: ServiceContext, draft: NoteDraft) → Note
-      infrastructure/
-        repositories/    ← Concrete SQLAlchemy 2.x / in-memory impls of domain interfaces
-      presentation/
-        api/
-          routes/        ← APIRouter + Pydantic v2 schemas (e.g. NotePayload, NoteResponse)
-          dependencies/
-            __init__.py  ← @lru_cache def get_service_context() → ServiceContext
-      shared/
-        result.py        ← Result[T, E] generic wrapper
-      main.py            ← create_app() factory (FastAPI + CORSMiddleware + /api prefix)
-    cli.py               ← poetry scripts (dev, test, lint, format)
-    modules/free/        ← Installed RapidKit modules
-    routing/             ← src/routing/__init__.py re-exports api_router (legacy mount path)
-  pyproject.toml         ← poetry; fastapi^0.128, pydantic^2.12, uvicorn[standard]^0.40
-  alembic/               ← DB migrations (if db_postgres installed)
-  registry.json          ← Installed modules manifest
-  config/                ← Per-module YAML configs (e.g. config/database/postgres.yaml)
-
-KEY PATTERNS:
-  • AppRouter prefix: /api
-  • Domain entities: @dataclass(slots=True) — NO SQLAlchemy mixins in domain
-  • Repos: use Protocol in interfaces.py, concrete in infrastructure/repositories/
-  • DI wiring: @lru_cache get_service_context() in presentation/api/dependencies/__init__.py
-  • Modules install to: src/modules/free/{category}/{slug}/`;
-  }
-
-  if (fw === 'fastapi.standard' || ctx.framework === 'fastapi') {
-    return `PROJECT ARCHITECTURE: FastAPI Standard Kit (fastapi.standard)
-
-Real directory layout (generated by rapidkit create):
-  src/
-    modules/free/        ← Installed RapidKit modules (main feature code lives here)
-    routing/             ← Root router; src/routing/__init__.py re-exports api_router
-    main.py              ← create_app() factory
-    cli.py               ← poetry scripts (dev, test, lint, format)
-  pyproject.toml         ← poetry; fastapi^0.128, pydantic^2.12, uvicorn[standard]^0.40
-  registry.json          ← Installed modules manifest
-  config/                ← Per-module YAML configs
-
-KEY PATTERNS:
-  • Module path: src/modules/free/{category}/{slug}/
-  • Each module exposes a router registered in src/routing/
-  • Use pydantic-settings (YAML extras) for all configuration
-  • Settings module at: src/modules/free/essentials/settings/settings.py → get_settings()`;
-  }
-
-  if (fw === 'nestjs.standard' || ctx.framework === 'nestjs') {
-    return `PROJECT ARCHITECTURE: NestJS Standard Kit (nestjs.standard)
-
-Real directory layout (generated by rapidkit create):
-  src/
-    app.module.ts        ← Root module; imports ConfigModule.forRoot({ isGlobal: true })
-    app.controller.ts / app.service.ts
-    main.ts              ← NestFactory.create; helmet, compression, Swagger at /docs
-    config/
-      configuration.ts   ← settingsConfiguration loader
-      validation.ts      ← Joi validationSchema
-    modules/
-      index.ts           ← re-exports as rapidkitModules[]
-    modules/free/
-      {category}/{slug}/ ← Installed RapidKit modules
-        {slug}.module.ts
-        {slug}.service.ts
-        {slug}.controller.ts
-        {slug}.routes.ts
-        config/{slug}.validation.ts
-    auth/                ← Built-in auth scaffold (auth.module.ts, auth.service.ts, auth.controller.ts)
-    examples/            ← Example feature module (examples.module.ts, examples.service.ts, etc.)
-  test/                  ← E2E specs (app.e2e-spec.ts, jest-e2e.json)
-  package.json           ← @nestjs/core, helmet, compression, @nestjs/swagger
-  registry.json          ← Installed modules manifest
-
-KEY PATTERNS:
-  • Module inject point in AppModule: // <<<inject:module-imports>>>
-  • rapidkitModules[] in src/modules/index.ts aggregates all installed module classes
-  • All modules are globally scoped via ConfigModule.forRoot isGlobal: true
-  • Auth injection: AUTH_CORE_CONFIG token → @Inject(AUTH_CORE_CONFIG)
-  • NestJS modules export providers so other modules can use DI normally`;
-  }
-
-  if (
-    fw === 'go.fiber' ||
-    fw === 'go.gin' ||
-    fw === 'gofiber.standard' ||
-    fw === 'gogin.standard' ||
-    ctx.framework === 'go'
-  ) {
-    const router = fw === 'gogin.standard' || fw === 'go.gin' ? 'Gin' : 'Fiber v2';
-    const kitName =
-      fw === 'gogin.standard' || fw === 'go.gin' ? 'gogin.standard' : 'gofiber.standard';
-    return `PROJECT ARCHITECTURE: Go Standard Kit (${fw ?? 'go.fiber'})
-
-Real directory layout (generated by rapidkit-npm):
-  cmd/server/
-    main.go              ← Entry; config.Load(), server.NewRouter(cfg), graceful shutdown, version ldflags
-  internal/
-    config/
-      config.go          ← 12-factor env config: Load() → *Config{Port, Env, GinMode/FiberEnv, LogLevel}
-      config_test.go
-    server/
-      server.go          ← ${router} router factory with all middleware + routes registered
-      server_test.go
-    handlers/            ← HTTP handlers: health.go, example.go (add one file per domain aggregate)
-    middleware/
-      requestid.go       ← X-Request-ID header + structured slog Logger
-      cors.go            ← CORS via CORS_ALLOW_ORIGINS env var
-      ratelimit.go       ← Per-IP fixed-window rate limiter (RATE_LIMIT_RPS env var)
-    apierr/
-      apierr.go          ← JSON error envelope: {error, code, request_id}
-  docs/
-    doc.go               ← swaggo package-level OpenAPI annotations
-  go.mod                 ← module declaration
-  Makefile               ← dev (air), test, build, docs (swag), lint, docker-up
-  .air.toml              ← hot reload; pre_cmd regenerates swagger on each reload
-  .golangci.yml
-  .env.example           ← PORT, APP_ENV, GIN_MODE, LOG_LEVEL, CORS_ALLOW_ORIGINS, RATE_LIMIT_RPS
-  Dockerfile             ← Multi-stage alpine with HEALTHCHECK
-  rapidkit / rapidkit.cmd ← project launcher (init, dev, start, build, docs, test)
-
-KEY PATTERNS:
-  • Structured logging via slog (stdlib, JSON handler; debug level in dev, info in prod)
-  • Config via os.LookupEnv with fallback; config.Load() returns typed *Config struct
-  • Graceful shutdown: signal.Notify + srv.Shutdown(ctx) with 5s timeout
-  • API docs: /docs → /docs/index.html via ${router === 'Fiber v2' ? 'fiber-swagger' : 'gin-swagger'}
-  • JSON error envelope: apierr.BadRequest/NotFound/Unauthorized/InternalError(c, msg)
-  • Build-time version injection via ldflags: -X main.version -X main.commit -X main.date
-  • Kit name: ${kitName}
-  • No module system (module_support=false in .rapidkit/project.json)
-  • Launcher: rapidkit init → rapidkit dev (hot reload via air)`;
-  }
-
-  return '';
-}
-
-function buildModuleSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  const fw = resolveFrameworkFamily(ctx, scanned);
-  if (fw === 'go') {
-    return `WORKSPAI GO KITS:
-- Go kits currently do not support the RapidKit module marketplace.
-- Supported kits: gofiber.standard, gogin.standard.
-- Extend functionality by adding native Go packages + internal adapters in your project.
-- For scaffolding updates, use the npm wrapper commands (rapidkit create/init/dev/docs).`;
-  }
-
-  const installed = scanned?.installedModules ?? [];
-
-  // Always provide the full module system reference
-  const ref = `WORKSPAI MODULE SYSTEM:
-- Install command:  rapidkit add module <name>   (e.g. rapidkit add module redis)
-                   rapidkit add module <slug>    (e.g. rapidkit add module free/cache/redis)
-                   npx rapidkit add module redis  (npm CLI form)
-- Remove command:   rapidkit uninstall <slug>
-- List installed:   registry.json at project root
-- Module path FastAPI: src/modules/free/{category}/{slug}/
-- Module path NestJS:  src/modules/free/{category}/{slug}/{slug}.module.ts
-- After install: FastAPI → registered in src/routing/; NestJS → added to rapidkitModules[]
-- Module inject points: pyproject.toml has # <<<inject:module-dependencies>>>; NestJS AppModule has // <<<inject:module-imports>>>
-
-AVAILABLE CATEGORIES: ai | auth | billing | business | cache | communication | database | essentials | observability | security | tasks | users`;
-
-  if (installed.length === 0 && ctx.type !== 'module') {
-    return ref;
-  }
-
-  // Module-specific query context
-  if (ctx.type === 'module' && ctx.moduleSlug) {
-    const hint = MODULE_CONTEXT_HINTS[ctx.moduleSlug] ?? '';
-    return `${ref}
-
-MODULE IN FOCUS: ${ctx.name} (${ctx.moduleSlug})
-${ctx.moduleDescription ? `Description: ${ctx.moduleDescription}` : ''}
-${hint ? `\nDetailed knowledge:\n${hint}` : ''}`;
-  }
-
-  // Installed modules for this project
-  const moduleLines = installed.map((m) => {
-    const hint = MODULE_CONTEXT_HINTS[m.slug];
-    return `  • ${m.display_name} (${m.slug} v${m.version})${hint ? '\n    ' + hint : ''}`;
-  });
-
-  return `${ref}
-
-INSTALLED IN THIS PROJECT (${installed.length} modules):
-${moduleLines.join('\n')}`;
-}
-
-function buildStandardsSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  const fw = resolveFrameworkFamily(ctx, scanned);
-
-  if (fw === 'fastapi') {
-    return `FASTAPI / PYTHON CODING STANDARDS (exact Workspai patterns):
-
-Domain entities:
-  @dataclass(slots=True, frozen=True)
-  class NoteDraft:
-      title: str
-      body: str
-
-Repository protocol (interfaces.py):
-  class NoteRepository(Protocol):
-      def create(self, draft: NoteDraft) -> Note: ...
-      def list(self) -> list[Note]: ...
-
-Use-case (pure function, no FastAPI):
-  def create_note(ctx: ServiceContext, draft: NoteDraft) -> Note:
-      return ctx.note_repository.create(draft)
-
-APIRouter route:
-  @router.post("/notes", response_model=NoteResponse, status_code=201)
-  async def create_note_route(payload: NotePayload, ctx = Depends(get_service_context)):
-      note = create_note(ctx, NoteDraft(title=payload.title, body=payload.body))
-      return NoteResponse(**note.to_dict())
-
-DI wiring (dependencies/__init__.py):
-  @lru_cache(maxsize=1)
-  def get_service_context() -> ServiceContext:
-      return ServiceContext(note_repository=InMemoryNoteRepository())
-
-Pydantic v2 schema:
-  class NotePayload(BaseModel):
-      title: str = Field(..., max_length=80)
-      body: str = Field(..., max_length=500)
-
-Settings (pydantic-settings):
-  from src.modules.free.essentials.settings.settings import get_settings
-  # get_settings() → Settings (cached, YAML-backed)
-
-Error handling: raise domain exceptions in use-cases, map to HTTPException in routes.
-Migrations: alembic revision --autogenerate -m "description" && alembic upgrade head`;
-  }
-
-  if (fw === 'nestjs') {
-    const hasPg = scanned?.installedModules.some((m) => m.slug.includes('db_postgres'));
-    return `NESTJS / TYPESCRIPT CODING STANDARDS (exact Workspai patterns):
-
-Module structure:
-  @Module({ imports: [...], controllers: [AuthController], providers: [AuthService] })
-  export class AuthModule {}
-
-Service:
-  @Injectable()
-  export class AuthService {
-    constructor(@Inject(AUTH_CORE_CONFIG) private readonly config: AuthCoreConfig) {}
-  }
-
-Controller:
-  @Controller('/api/auth')
-  @ApiTags('auth')
-  export class AuthController {
-    constructor(private readonly authService: AuthService) {}
-    @Post('/login') @HttpCode(200)
-    async login(@Body() dto: LoginDto): Promise<TokenResponse> { ... }
-  }
-
-DTO (class-validator):
-  export class LoginDto {
-    @IsEmail() @IsNotEmpty() email: string;
-    @IsString() @MinLength(12) password: string;
-  }
-
-Config (settingsConfiguration):
-  export const settingsConfiguration = () => ({ port: parseInt(process.env.PORT ?? '8000', 10) });
-  // Validated by Joi schema in config/validation.ts
-
-${hasPg ? 'PostgreSQL (TypeORM): use @Entity() for ORM models, inject DataSource for raw queries.' : ''}
-Error handling: throw NestJS HttpException in controllers; services throw domain errors.
-Testing: Jest, @nestjs/testing TestingModule, supertest for e2e.`;
-  }
-
-  if (fw === 'go') {
-    return `GO CODING STANDARDS (exact Workspai patterns):
-
-Handler:
-  func (h *NoteHandler) Create(c *fiber.Ctx) error {
-      var req CreateNoteRequest
-      if err := c.BodyParser(&req); err != nil { return fiber.ErrBadRequest }
-      note, err := h.svc.Create(c.Context(), req)
-      if err != nil { return err }
-      return c.Status(201).JSON(note)
-  }
-
-Service interface:
-  type NoteService interface {
-      Create(ctx context.Context, req CreateNoteRequest) (Note, error)
-      List(ctx context.Context) ([]Note, error)
-  }
-
-Config:
-  func Load() Config {
-      return Config{ Port: getEnv("PORT", "8000"), DBUrl: getEnv("DATABASE_URL", "") }
-  }
-
-Error wrapping: fmt.Errorf("create note: %w", err)
-Logging: slog.InfoContext(ctx, "note created", "id", note.ID)
-Testing: table-driven, testify/assert, mock interfaces with testify/mock.`;
-  }
-
-  return '';
-}
-
-function buildStateSection(ctx: AIModalContext, scanned?: ScannedProjectContext): string {
-  if (!scanned || !ctx.path) {
-    return '';
-  }
-
-  const scopeLabel = ctx.type === 'workspace' ? 'WORKSPACE' : 'PROJECT';
-  const parts: string[] = [`CURRENT ${scopeLabel} STATE: ${scanned.projectName}`];
-  parts.push(`  Root:        ${scanned.projectRoot}`);
-  parts.push(`  Kit:         ${scanned.kit}`);
-  if (scanned.runtime) {
-    parts.push(`  Runtime:     ${scanned.runtime}`);
-  }
-  if (scanned.engine) {
-    parts.push(`  Engine:      ${scanned.engine}`);
-  }
-  if (scanned.pythonVersion) {
-    parts.push(`  Python:      ${scanned.pythonVersion}`);
-    parts.push(`  python_version: ${scanned.pythonVersion}`);
-  }
-  if (scanned.rapidkitCliVersion) {
-    parts.push(`  RapidKit CLI: ${scanned.rapidkitCliVersion}`);
-    parts.push(`  rapidkit_cli_version: ${scanned.rapidkitCliVersion}`);
-  }
-  if (scanned.rapidkitCoreVersion) {
-    parts.push(`  RapidKit Core: ${scanned.rapidkitCoreVersion}`);
-    parts.push(`  rapidkit_core_version: ${scanned.rapidkitCoreVersion}`);
-  }
-  if (scanned.detectionConfidence !== 'none') {
-    parts.push(`  Detection:   ${scanned.detectionConfidence}`);
-  }
-  if (scanned.workspaceHealth) {
-    const health = scanned.workspaceHealth;
-    parts.push(
-      `  Workspace health: ${health.passed}/${health.total} passed (${health.warnings} warn, ${health.errors} error)`
-    );
-    parts.push(
-      `  workspace_health: ${JSON.stringify({
-        total: health.total,
-        passed: health.passed,
-        warnings: health.warnings,
-        errors: health.errors,
-        generated_at: health.generatedAt,
-      })}`
-    );
-  }
-  parts.push(`  Modules:     ${scanned.installedModules.length} installed`);
-  if (scanned.hasAlembic) {
-    parts.push('  Migrations:  Alembic (alembic/)');
-  }
-  if (scanned.hasDocker) {
-    parts.push('  Docker:      Dockerfile + docker-compose.yml present');
-  }
-  if (scanned.hasHealthDir) {
-    parts.push('  Health dir:  src/health/ (module health endpoints registered)');
-  }
-  if (scanned.envFile) {
-    parts.push(`  Env file:    ${scanned.envFile}`);
-  }
-  if (scanned.configFiles.length > 0) {
-    parts.push(`  Config YAMLs: ${scanned.configFiles.join(', ')}`);
-  }
-  if (scanned.productionDeps.length > 0) {
-    const notable = scanned.productionDeps
-      .filter((d) =>
-        [
-          'sqlalchemy',
-          'asyncpg',
-          'redis',
-          'boto3',
-          'stripe',
-          'celery',
-          'alembic',
-          'typeorm',
-          'prisma',
-        ].includes(d)
-      )
-      .slice(0, 8);
-    if (notable.length > 0) {
-      parts.push(`  Notable deps: ${notable.join(', ')}`);
-    }
-  }
-
-  // ─ v0.18: directory tree ────────────────────────────────────────────
-  if (scanned.dirTree) {
-    parts.push(
-      `\n  Directory layout:\n${scanned.dirTree
-        .split('\n')
-        .map((l) => '  ' + l)
-        .join('\n')}`
-    );
-  }
-
-  // ─ v0.18: key entry-point files ─────────────────────────────────
-  for (const file of scanned.relevantFiles) {
-    parts.push(
-      `\n  [${file.relPath}]\n${file.content
-        .split('\n')
-        .slice(0, 25)
-        .map((l) => '  ' + l)
-        .join('\n')}`
-    );
-  }
-
-  // ─ v0.18: recent git changes ──────────────────────────────────
-  if (scanned.gitDiff) {
-    parts.push(
-      `\n  Recent uncommitted changes (git diff --stat HEAD):\n${scanned.gitDiff
-        .split('\n')
-        .map((l) => '  ' + l)
-        .join('\n')}`
-    );
-  }
-
-  return parts.join('\n');
-}
-
-/**
- * Inject workspace memory (team conventions + decisions) into the system prompt.
- * Returns an empty string when the project has no memory file.
- */
-async function _buildMemorySection(ctx: AIModalContext): Promise<string> {
-  if (!ctx.path) {
-    return '';
-  }
-  try {
-    const memSvc = WorkspaceMemoryService.getInstance();
-    const memory = await memSvc.readNearest(ctx.path);
-    const formatted = memSvc.formatForPrompt(memory);
-    if (!formatted) {
-      return '';
-    }
-    return `WORKSPACE MEMORY (team-defined conventions and decisions — follow these exactly):\n${formatted}`;
-  } catch {
-    return '';
-  }
+  return buildWorkspaiSystemPromptInternal(ctx, scanned);
 }
 
 // ─── buildAIModalUserMessage ────────────────────────────────────────────────
 
 /**
- * Build the user-facing message for an AI modal query.
+ * Backward-compatible export that delegates to the extracted prompt message builder.
  */
 export function buildAIModalUserMessage(
   mode: AIConversationMode,
@@ -1563,66 +688,7 @@ export function buildAIModalUserMessage(
   ctx: AIModalContext,
   scanned?: ScannedProjectContext
 ): string {
-  const kitLabel = scanned?.kit ?? ctx.framework ?? ctx.type;
-  const installedList = scanned?.installedModules.map((m) => m.slug).join(', ');
-  const contextPacket = scanned
-    ? {
-        project_type: scanned.kit,
-        python_version: scanned.pythonVersion,
-        rapidkit_cli_version: scanned.rapidkitCliVersion,
-        rapidkit_core_version: scanned.rapidkitCoreVersion,
-        installed_modules: scanned.installedModules.map((m) => m.slug),
-        workspace_health: scanned.workspaceHealth,
-        runtime: scanned.runtime,
-        engine: scanned.engine,
-      }
-    : null;
-  const ctxHeader = [
-    `[${ctx.type.toUpperCase()}] ${ctx.name}`,
-    kitLabel && `Kit: ${kitLabel}`,
-    ctx.path && `Path: ${ctx.path}`,
-    scanned?.pythonVersion && `python_version: ${scanned.pythonVersion}`,
-    scanned?.rapidkitCliVersion && `rapidkit_cli_version: ${scanned.rapidkitCliVersion}`,
-    scanned?.rapidkitCoreVersion && `rapidkit_core_version: ${scanned.rapidkitCoreVersion}`,
-    scanned?.workspaceHealth &&
-      `workspace_health: ${JSON.stringify({
-        total: scanned.workspaceHealth.total,
-        passed: scanned.workspaceHealth.passed,
-        warnings: scanned.workspaceHealth.warnings,
-        errors: scanned.workspaceHealth.errors,
-        generated_at: scanned.workspaceHealth.generatedAt,
-      })}`,
-    contextPacket && `context_packet: ${JSON.stringify(contextPacket)}`,
-    installedList && `Installed modules: ${installedList}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  if (mode === 'debug') {
-    return `${ctxHeader}
-
-Error / Issue to debug:
-${question}
-
-Structure your response as:
-## Root Cause
-(Precise diagnosis, referencing actual Workspai file paths)
-
-## Fix
-\`\`\`  ← include exact code matching this project's kit and installed modules
-…
-\`\`\`
-Step-by-step instructions.
-
-## Prevention
-(Workspai patterns or module configurations to prevent recurrence)`;
-  }
-
-  return `${ctxHeader}
-
-Question: ${question}
-
-Answer precisely using the project's actual kit (${kitLabel}), installed modules, and Workspai coding standards. Include working code examples.`;
+  return buildAIModalUserMessageInternal(mode, question, ctx, scanned);
 }
 
 export async function prepareAIConversation(
@@ -1654,7 +720,7 @@ export async function prepareAIConversation(
       ...historyMessages,
       {
         role: 'user',
-        content: buildAIModalUserMessage(mode, question, ctx, scanned),
+        content: buildAIModalUserMessageInternal(mode, question, ctx, scanned),
       },
     ],
   };
@@ -1663,130 +729,13 @@ export async function prepareAIConversation(
 // ─── selectModel: respects workspai.preferredModel VS Code setting ──────────
 
 /**
- * Select the language model according to the user's VS Code preference.
- * Falls back to auto-detection when set to "auto" or unrecognised.
+ * Backward-compatible export that delegates to the extracted model selector.
  */
 export async function selectModelWithPreference(): Promise<{
   model: vscode.LanguageModelChat;
   modelId: string;
 }> {
-  const pref = vscode.workspace.getConfiguration('workspai').get<string>('preferredModel', 'auto');
-
-  if (
-    _modelSelectionCache &&
-    _modelSelectionCache.preference === pref &&
-    Date.now() - _modelSelectionCache.cachedAt < MODEL_SELECTION_TTL_MS
-  ) {
-    return _modelSelectionCache.result;
-  }
-
-  const MODEL_MAP: Record<string, string[]> = {
-    // ── Claude ────────────────────────────────────────────
-    'claude-opus-4-6': ['claude-opus-4-6', 'claude-opus-4-5'],
-    'claude-opus-4-5': ['claude-opus-4-5', 'claude-opus-4-6'],
-    'claude-sonnet-4-6': ['claude-sonnet-4-6', 'claude-sonnet-4-5'],
-    'claude-sonnet-4-5': ['claude-sonnet-4-5', 'claude-sonnet-4-6'],
-    'claude-sonnet-4': ['claude-sonnet-4', 'claude-sonnet-4-5'],
-    'claude-haiku-4-5': ['claude-haiku-4-5'],
-    // ── GPT ──────────────────────────────────────────────
-    'gpt-5.4': ['gpt-5.4', 'gpt-5.2'],
-    'gpt-5.4-mini': ['gpt-5.4-mini', 'gpt-5.4'],
-    'gpt-5.3-codex': ['gpt-5.3-codex', 'gpt-5.2-codex'],
-    'gpt-5.2-codex': ['gpt-5.2-codex', 'gpt-5.3-codex'],
-    'gpt-5.2': ['gpt-5.2', 'gpt-5.4'],
-    'gpt-5-mini': ['gpt-5-mini', 'gpt-5.2'],
-    'gpt-4.1': ['gpt-4.1', 'gpt-4o'],
-    'gpt-4o': ['gpt-4o', 'gpt-4.1'],
-    // ── Gemini ───────────────────────────────────────────
-    'gemini-3.1-pro': ['gemini-3.1-pro', 'gemini-2.5-pro'],
-    'gemini-3-flash': ['gemini-3-flash', 'gemini-2.5-pro'],
-    'gemini-2.5-pro': ['gemini-2.5-pro', 'gemini-3.1-pro'],
-    // ── Other ────────────────────────────────────────────
-    'grok-code-fast-1': ['grok-code-fast-1'],
-    'raptor-mini': ['raptor-mini'],
-    // ── Legacy preference aliases (backward compatibility) ────────────
-    'claude-3-7-sonnet': ['claude-sonnet-4-6', 'claude-sonnet-4-5'],
-    'claude-3-5-sonnet': ['claude-sonnet-4-5', 'claude-sonnet-4'],
-    'gpt-4o-mini': ['gpt-5-mini', 'gpt-4o'],
-  };
-
-  const rememberSelection = (model: vscode.LanguageModelChat, modelId: string) => {
-    const result = { model, modelId };
-    _modelSelectionCache = {
-      preference: pref,
-      result,
-      cachedAt: Date.now(),
-    };
-    return result;
-  };
-
-  const allModels = await vscode.lm.selectChatModels();
-  const normalizeModelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const findModelByAlias = (alias: string): vscode.LanguageModelChat | undefined => {
-    const target = normalizeModelKey(alias);
-    const exact = allModels.find(
-      (m) => normalizeModelKey(m.id) === target || normalizeModelKey(m.name ?? '') === target
-    );
-    if (exact) {
-      return exact;
-    }
-    return allModels.find((m) => {
-      const id = normalizeModelKey(m.id);
-      const name = normalizeModelKey(m.name ?? '');
-      return id.includes(target) || name.includes(target);
-    });
-  };
-
-  const tryModelAliases = (aliases: string[]) => {
-    for (const alias of aliases) {
-      const model = findModelByAlias(alias);
-      if (model) {
-        return rememberSelection(model, model.name ?? model.id);
-      }
-    }
-    return null;
-  };
-
-  // Preferred model requested explicitly
-  if (pref !== 'auto') {
-    const preferred = tryModelAliases(MODEL_MAP[pref] ?? [pref]);
-    if (preferred) {
-      return preferred;
-    }
-  }
-
-  // Auto: try quality order (best coding models first, balanced cost)
-  const autoOrder = [
-    'claude-sonnet-4-6',
-    'gpt-5.3-codex',
-    'gpt-5.2-codex',
-    'claude-sonnet-4-5',
-    'gpt-5.4',
-    'gpt-5.2',
-    'gemini-3.1-pro',
-    'gemini-2.5-pro',
-    'claude-sonnet-4',
-    'gpt-4.1',
-    'gpt-4o',
-    'gpt-5-mini',
-    'gemini-3-flash',
-    'claude-haiku-4-5',
-    'gpt-5.4-mini',
-    'grok-code-fast-1',
-  ];
-  const autoSelected = tryModelAliases(autoOrder);
-  if (autoSelected) {
-    return autoSelected;
-  }
-
-  // Absolute fallback
-  if (allModels.length > 0) {
-    return rememberSelection(allModels[0], allModels[0].name ?? allModels[0].id);
-  }
-
-  throw new Error(
-    'No AI language model available. Please install GitHub Copilot or another compatible Copilot extension.'
-  );
+  return selectModelWithPreferenceInternal();
 }
 
 // ─── AI-powered Workspace / Project Creation ────────────────────────────────
@@ -2100,7 +1049,7 @@ Rules:
     : `Mode: ${mode}\nDescription: ${prompt}`;
 
   // Call the LLM
-  const { model, modelId } = await selectModelWithPreference();
+  const { model, modelId } = await selectModelWithPreferenceInternal();
   const lmMessages = [
     vscode.LanguageModelChatMessage.User(SYSTEM),
     vscode.LanguageModelChatMessage.Assistant('I will respond with only the JSON object.'),
