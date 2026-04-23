@@ -28,11 +28,26 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     // Handle messages from webview
     webviewView.webview.onDidReceiveMessage((message) => {
       switch (message.command) {
+        case 'aiQuickActions':
+          vscode.commands.executeCommand('workspai.aiQuickActions');
+          break;
         case 'createWithAI':
           vscode.commands.executeCommand('workspai.openAICreateWorkspace');
           break;
         case 'openWorkspaceModal':
           vscode.commands.executeCommand('workspai.openWorkspaceModal');
+          break;
+        case 'showTelemetry':
+          vscode.commands.executeCommand('workspai.showTelemetrySummary');
+          break;
+        case 'resetTelemetry':
+          vscode.commands.executeCommand('workspai.resetTelemetry');
+          break;
+        case 'showOnboarding':
+          vscode.commands.executeCommand('workspai.showAIFeatureOnboarding');
+          break;
+        case 'showOnboardingStats':
+          vscode.commands.executeCommand('workspai.showOnboardingExperimentStats');
           break;
         case 'doctor':
           vscode.commands.executeCommand('workspai.doctor');
@@ -66,6 +81,12 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
       doctor:
         '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 2H8L7 3v2H2.5l-.5.5v9l.5.5h11l.5-.5v-9L13.5 5H9V3.5l.5-.5H14V2zM7 5h6v1H7V5zm6 9H3V7h5v1.5l.5.5H13v5zm0-6H9V7h4v1z"/><path d="M5 9H4v1h1V9zm0 2H4v1h1v-1zm2-2H6v1h1V9zm0 2H6v1h1v-1z"/></svg>',
       logs: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2zm1 1v10h10V3H3zm1 2h8v1H4V5zm0 2h8v1H4V7zm0 2h5v1H4V9z"/></svg>',
+      ai: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.2 3.3L12.5 5.5l-3.3 1.2L8 10 6.8 6.7 3.5 5.5l3.3-1.2L8 1zm5 7l.7 1.8 1.8.7-1.8.7L13 13l-.7-1.8-1.8-.7 1.8-.7L13 8zM3 9l.5 1.3 1.3.5-1.3.5L3 12.5l-.5-1.3-1.3-.5 1.3-.5L3 9z"/></svg>',
+      telemetry:
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 13h12v1H1V2h1v11zm2-2h1V7H4v4zm3 0h1V4H7v7zm3 0h1V9h-1v2zm3 0h1V6h-1v5z"/></svg>',
+      tip: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a5 5 0 0 0-3 9v2.5l.5.5h5l.5-.5V10A5 5 0 0 0 8 1zm2 8.1-.3.2-.2.4V12H6.5V9.7l-.2-.4-.3-.2A4 4 0 1 1 12 6a4 4 0 0 1-2 3.1zM7 13h2v1H7v-1z"/></svg>',
+      experiment:
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 1v1h1v3.2L3.3 11a2 2 0 0 0 1.7 3h6a2 2 0 0 0 1.7-3L9 5.2V2h1V1H6zm2 4.8 3.6 5.6a1 1 0 0 1-.8 1.6H5a1 1 0 0 1-.8-1.6L8 5.8zM6.8 9h2.4l.8 1.2H6z"/></svg>',
       docs: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1H4v14h1V1zm7 0h-1v14h1V1zM3 3H1v10h2V3zm12 0h-2v10h2V3zM7 4H6v8h1V4zm3 0H9v8h1V4z"/></svg>',
       home: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4.5a.5.5 0 0 0 .5-.5v-4h2v4a.5.5 0 0 0 .5.5H14a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146zM2.5 14V7.707l5.5-5.5 5.5 5.5V14H10v-4a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v4H2.5z"/></svg>',
     };
@@ -105,6 +126,11 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
         .doctor  { --c: var(--vscode-editorWarning-foreground, #FF9800); }
         .welcome { --c: var(--vscode-textLink-foreground,  #00cfc1); }
         .docs    { --c: var(--vscode-terminal-ansiBlue,    #2196F3); }
+        .ai      { --c: #00cfc1; }
+        .telemetry { --c: #7aa2f7; }
+        .tip     { --c: #f2cc60; }
+        .experiment { --c: #8bcf7f; }
+        .danger  { --c: var(--vscode-errorForeground, #f14c4c); }
         .manual  { --c: var(--vscode-descriptionForeground, #888); }
 
         /* ── Primary AI CTA ─────────────────────────────── */
@@ -280,6 +306,10 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     <!-- ③ Quick tools -->
     <div class="section-label">Quick Actions</div>
     <div class="tool-grid">
+        <button class="tool-btn ai" onclick="send('aiQuickActions')" title="Open categorized AI workflows">
+            <span class="t-icon">${icons.ai}</span>
+            <span class="t-text">AI Flows</span>
+        </button>
         <button class="tool-btn welcome" onclick="send('openWelcome')" title="Open Workspai dashboard">
             <span class="t-icon">${icons.home}</span>
             <span class="t-text">Dashboard</span>
@@ -287,6 +317,14 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
         <button class="tool-btn doctor" onclick="send('doctor')" title="Run workspace health check">
             <span class="t-icon">${icons.doctor}</span>
             <span class="t-text">Health</span>
+        </button>
+        <button class="tool-btn telemetry" onclick="send('showTelemetry')" title="Open AI usage telemetry summary">
+            <span class="t-icon">${icons.telemetry}</span>
+            <span class="t-text">Telemetry</span>
+        </button>
+        <button class="tool-btn manual" onclick="send('showLogs')" title="Open extension output logs">
+            <span class="t-icon">${icons.logs}</span>
+            <span class="t-text">Logs</span>
         </button>
         <button class="tool-btn docs" onclick="send('openDocs')" title="Open documentation">
             <span class="t-icon">${icons.docs}</span>

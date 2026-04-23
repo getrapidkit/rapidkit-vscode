@@ -1,14 +1,14 @@
 
-import { Zap, Target, Wrench, BookOpen, TestTube, Package } from 'lucide-react';
+import { Zap, Target, Wrench, BookOpen, GitBranch, Layers } from 'lucide-react';
 
 export function Features() {
     const features = [
         { icon: Zap, label: 'AI-powered scaffolding' },
         { icon: Target, label: 'Clean Architecture' },
         { icon: Wrench, label: 'Auto dev server' },
-        { icon: BookOpen, label: 'Swagger docs built-in' },
-        { icon: TestTube, label: 'Test ready' },
-        { icon: Package, label: 'Modular design' },
+        { icon: BookOpen, label: 'Workspace memory' },
+        { icon: GitBranch, label: 'AI impact analysis' },
+        { icon: Layers, label: 'Modular design' },
     ];
 
     return (

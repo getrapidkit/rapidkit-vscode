@@ -42,6 +42,7 @@ import { ExamplesService } from './core/examplesService';
 import { KitsService } from './core/kitsService';
 import { registerAIDebuggerCommand } from './commands/aiDebugger';
 import { registerWorkspaceBrainCommand } from './commands/workspaceBrain';
+import { registerAIFreeFeatureCommands } from './commands/aiFreeFeatures';
 import { WorkspaceMemoryService } from './core/workspaceMemoryService';
 import { registerWorkspaiChatParticipant } from './commands/chatParticipant';
 
@@ -54,9 +55,154 @@ let doctorEvidenceExplorer: DoctorEvidenceProvider;
 // templateExplorer removed
 
 const PROJECT_WATCHER_REFRESH_DEBOUNCE_MS = 250;
+const AI_ONBOARDING_VERSION_KEY = 'workspai.aiOnboarding.versionShown';
+const AI_ONBOARDING_VERSION = '0.20.0-ai-ux-tour-1';
+const AI_ONBOARDING_TOAST_VARIANT_KEY = 'workspai.aiOnboarding.toastVariant';
+
+type AIFollowupToastVariant = 'control' | 'compact';
 
 // Track running dev servers per project (exported for ProjectExplorer)
 export const runningServers: Map<string, vscode.Terminal> = new Map();
+
+async function getFollowupToastVariant(
+  context: vscode.ExtensionContext
+): Promise<AIFollowupToastVariant> {
+  const existing = context.globalState.get<AIFollowupToastVariant>(AI_ONBOARDING_TOAST_VARIANT_KEY);
+  if (existing === 'control' || existing === 'compact') {
+    return existing;
+  }
+
+  const picked: AIFollowupToastVariant = Math.random() < 0.5 ? 'control' : 'compact';
+  await context.globalState.update(AI_ONBOARDING_TOAST_VARIANT_KEY, picked);
+  return picked;
+}
+
+async function showAIFeatureOnboarding(
+  context: vscode.ExtensionContext,
+  options?: { force?: boolean }
+): Promise<void> {
+  const force = options?.force === true;
+  const config = vscode.workspace.getConfiguration('workspai');
+
+  if (!force) {
+    const showOnboardingTips = config.get<boolean>('showOnboardingTips', true);
+    if (!showOnboardingTips) {
+      return;
+    }
+
+    const shownVersion = context.globalState.get<string>(AI_ONBOARDING_VERSION_KEY);
+    if (shownVersion === AI_ONBOARDING_VERSION) {
+      return;
+    }
+  }
+
+  const openAIFlowsAction = 'Open AI Flows';
+  const openTelemetryAction = 'Open Telemetry';
+  const openDashboardAction = 'Open Dashboard';
+  const dontShowAgainAction = "Don't show again";
+  const quickStartAction = 'Open AI Flows now';
+
+  const message =
+    'New AI workflow shortcuts are available:\n\n' +
+    '• AI Flows: smart routing into debug, planning, or memory actions\n' +
+    '• Telemetry: usage snapshot with 24h/7d/all filters\n' +
+    '• Reset Data: clear telemetry for current workspace\n\n' +
+    'You can access these from Quick Actions, Command Palette, and workspace/project context menus.';
+
+  await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+    'workspai.onboarding.primary.shown',
+    undefined,
+    { forced: force }
+  );
+
+  const selected = await vscode.window.showInformationMessage(
+    message,
+    { modal: false },
+    openAIFlowsAction,
+    openTelemetryAction,
+    openDashboardAction,
+    dontShowAgainAction
+  );
+
+  if (!force) {
+    await context.globalState.update(AI_ONBOARDING_VERSION_KEY, AI_ONBOARDING_VERSION);
+  }
+
+  if (selected === openAIFlowsAction) {
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.primary.action',
+      undefined,
+      { action: 'open-ai-flows', forced: force }
+    );
+    await vscode.commands.executeCommand('workspai.aiOrchestrate');
+    return;
+  }
+
+  if (selected === openTelemetryAction) {
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.primary.action',
+      undefined,
+      { action: 'open-telemetry', forced: force }
+    );
+    await vscode.commands.executeCommand('workspai.showTelemetrySummary');
+    return;
+  }
+
+  if (selected === openDashboardAction) {
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.primary.action',
+      undefined,
+      { action: 'open-dashboard', forced: force }
+    );
+    await vscode.commands.executeCommand('workspai.showWelcome');
+    return;
+  }
+
+  if (selected === dontShowAgainAction) {
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.primary.action',
+      undefined,
+      { action: 'dont-show-again', forced: force }
+    );
+    await config.update('showOnboardingTips', false, vscode.ConfigurationTarget.Global);
+    return;
+  }
+
+  if (selected === undefined) {
+    const variant = await getFollowupToastVariant(context);
+    const followupMessage =
+      variant === 'compact'
+        ? 'Quick start: use AI Flows to jump directly into guided workflows.'
+        : 'Tip: Start with AI Flows for the fastest path from intent to action.';
+
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.followup.shown',
+      undefined,
+      { variant, forced: force }
+    );
+
+    const quickStart = await vscode.window.showInformationMessage(
+      followupMessage,
+      quickStartAction
+    );
+
+    if (quickStart === quickStartAction) {
+      await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+        'workspai.onboarding.followup.action',
+        undefined,
+        { action: 'open-ai-flows', variant, forced: force }
+      );
+      await vscode.commands.executeCommand('workspai.aiOrchestrate');
+      return;
+    }
+
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      'workspai.onboarding.followup.action',
+      undefined,
+      { action: 'dismissed', variant, forced: force }
+    );
+  }
+}
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = Logger.getInstance();
@@ -101,7 +247,8 @@ export async function activate(context: vscode.ExtensionContext) {
         getProjectExplorer: () => projectExplorer,
       }),
       registerAIDebuggerCommand(context),
-      registerWorkspaceBrainCommand(context)
+      registerWorkspaceBrainCommand(context),
+      ...registerAIFreeFeatureCommands(context)
     );
 
     // Chat participant — @workspai in the VS Code Chat panel
@@ -178,6 +325,10 @@ export async function activate(context: vscode.ExtensionContext) {
       // Quick switch workspace via QuickPick
       vscode.commands.registerCommand('workspai.quickSwitchWorkspace', () => {
         workspaceExplorer.quickSwitch();
+      }),
+      // Manual trigger for onboarding tips/tour
+      vscode.commands.registerCommand('workspai.showAIFeatureOnboarding', async () => {
+        await showAIFeatureOnboarding(context, { force: true });
       })
     );
 
@@ -434,6 +585,10 @@ export async function activate(context: vscode.ExtensionContext) {
         logger.info('Step 11: Initializing workspace usage tracker...');
         const usageTracker = WorkspaceUsageTracker.getInstance();
         await usageTracker.initialize();
+
+        // Step 12: Show AI feature onboarding tips (once per version unless forced)
+        logger.info('Step 12: Checking AI onboarding tips...');
+        await showAIFeatureOnboarding(context);
 
         logger.info('✅ Workspai extension initialized successfully!');
 

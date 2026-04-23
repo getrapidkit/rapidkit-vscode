@@ -1,0 +1,890 @@
+import * as path from 'path';
+import * as vscode from 'vscode';
+import type { AIModalContext } from '../core/aiService';
+import { WorkspaceMemoryService, type WorkspaceMemory } from '../core/workspaceMemoryService';
+import { WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
+import { WelcomePanel } from '../ui/panels/welcomePanel';
+
+interface WorkspaceSelection {
+  name?: string;
+  path?: string;
+}
+
+interface ProjectSelection {
+  name?: string;
+  path?: string;
+  type?: string;
+}
+
+interface AIRecipe {
+  id: string;
+  label: string;
+  detail: string;
+  mode: 'ask' | 'debug';
+  prompt: string;
+  expectedOutputTemplate: string;
+  category: 'Debug' | 'Build' | 'Quality';
+}
+
+interface AIQuickAction {
+  id: 'fix-preview' | 'change-impact' | 'terminal-bridge' | 'memory-wizard' | 'recipe-packs';
+  label: string;
+  detail: string;
+  command: string;
+  category: 'Debug & Fix' | 'Planning & Safety' | 'Memory & Workflows';
+}
+
+const MAX_PREFILL_CHARS = 4000;
+const MAX_TERMINAL_CHARS = 6000;
+
+const AI_RECIPES: AIRecipe[] = [
+  {
+    id: 'fast-root-cause',
+    label: 'Fast Root-Cause',
+    detail: 'Diagnose an error and get a smallest-safe fix plan with checks.',
+    mode: 'debug',
+    category: 'Debug',
+    prompt:
+      'Run a fast root-cause analysis for this issue. Return: (1) likely cause, (2) smallest safe fix, (3) exact files likely involved, (4) verification checklist.',
+    expectedOutputTemplate: [
+      '1) Root cause summary',
+      '2) Minimal safe fix steps',
+      '3) File touch list (highest to lowest confidence)',
+      '4) Verification checklist (commands/tests)',
+    ].join('\n'),
+  },
+  {
+    id: 'add-endpoint',
+    label: 'Add Endpoint Safely',
+    detail: 'Plan route/service/schema/test changes for a new endpoint.',
+    mode: 'ask',
+    category: 'Build',
+    prompt:
+      'I need to add a new endpoint. Propose the minimal implementation plan aligned with this workspace: files to update, validation rules, auth checks, and tests.',
+    expectedOutputTemplate: [
+      '1) Endpoint contract (method/path/request/response)',
+      '2) Files to create/update',
+      '3) Validation/auth requirements',
+      '4) Test plan (unit/integration)',
+    ].join('\n'),
+  },
+  {
+    id: 'refactor-legacy',
+    label: 'Refactor Legacy Function',
+    detail: 'Refactor without breaking behavior, plus rollback plan.',
+    mode: 'ask',
+    category: 'Build',
+    prompt:
+      'Refactor the selected code for readability and maintainability while preserving behavior. Return a step-by-step plan, risk notes, and a rollback strategy.',
+    expectedOutputTemplate: [
+      '1) Refactor objective and constraints',
+      '2) Step-by-step edit plan',
+      '3) Risk and compatibility checks',
+      '4) Rollback plan',
+    ].join('\n'),
+  },
+  {
+    id: 'test-gaps',
+    label: 'Find Test Gaps',
+    detail: 'Identify missing tests and prioritize high-risk cases.',
+    mode: 'ask',
+    category: 'Quality',
+    prompt:
+      'Review this area and identify the highest-risk missing tests. Return prioritized test cases with reasons and suggested test structure.',
+    expectedOutputTemplate: [
+      '1) Missing test surfaces',
+      '2) Risk-ranked test cases',
+      '3) Suggested test structure',
+      '4) Fast smoke checks',
+    ].join('\n'),
+  },
+  {
+    id: 'ship-readiness',
+    label: 'Ship Readiness Check',
+    detail: 'Pre-release checks for regressions, config, and observability.',
+    mode: 'ask',
+    category: 'Quality',
+    prompt:
+      'Run a ship-readiness review for this workspace. Include regression risks, missing checks, config concerns, and a final go/no-go checklist.',
+    expectedOutputTemplate: [
+      '1) Release blockers',
+      '2) Risk matrix (high/medium/low)',
+      '3) Observability and config checks',
+      '4) Go / no-go recommendation',
+    ].join('\n'),
+  },
+  {
+    id: 'db-migration-safety',
+    label: 'DB Migration Safety',
+    detail: 'Plan migration with rollback and data safety checks.',
+    mode: 'ask',
+    category: 'Build',
+    prompt:
+      'Plan a safe database schema migration for this change. Include migration order, compatibility strategy, rollback path, and validation checks.',
+    expectedOutputTemplate: [
+      '1) Migration order and sequence',
+      '2) Backward compatibility strategy',
+      '3) Rollback and recovery path',
+      '4) Validation checks before/after deploy',
+    ].join('\n'),
+  },
+  {
+    id: 'api-contract-review',
+    label: 'API Contract Review',
+    detail: 'Spot breaking API changes and safe versioning path.',
+    mode: 'ask',
+    category: 'Quality',
+    prompt:
+      'Review this API change for contract risks. Identify potential breaking changes, required versioning strategy, and required consumer communication.',
+    expectedOutputTemplate: [
+      '1) Contract delta summary',
+      '2) Breaking change risks',
+      '3) Versioning / deprecation path',
+      '4) Consumer validation checklist',
+    ].join('\n'),
+  },
+  {
+    id: 'performance-hotspot',
+    label: 'Performance Hotspot Triage',
+    detail: 'Find likely bottlenecks and fastest safe optimizations.',
+    mode: 'debug',
+    category: 'Debug',
+    prompt:
+      'Analyze this performance issue and identify likely hotspots. Return fastest safe optimizations, expected trade-offs, and validation metrics.',
+    expectedOutputTemplate: [
+      '1) Likely bottlenecks',
+      '2) Top optimization candidates',
+      '3) Trade-off notes',
+      '4) Benchmark and validation plan',
+    ].join('\n'),
+  },
+  {
+    id: 'auth-hardening',
+    label: 'Auth Hardening Review',
+    detail: 'Security-focused review for auth and permission boundaries.',
+    mode: 'ask',
+    category: 'Quality',
+    prompt:
+      'Review authentication and authorization boundaries in this area. Identify likely vulnerabilities and recommend prioritized hardening actions.',
+    expectedOutputTemplate: [
+      '1) Potential auth vulnerabilities',
+      '2) Permission boundary checks',
+      '3) Priority hardening actions',
+      '4) Verification and regression tests',
+    ].join('\n'),
+  },
+  {
+    id: 'incident-postmortem-lite',
+    label: 'Incident Postmortem Lite',
+    detail: 'Produce concise postmortem with prevention actions.',
+    mode: 'debug',
+    category: 'Debug',
+    prompt:
+      'Draft a concise incident postmortem from this failure context. Include timeline, root cause, contributing factors, and prevention actions.',
+    expectedOutputTemplate: [
+      '1) Incident timeline',
+      '2) Root and contributing causes',
+      '3) Immediate remediation',
+      '4) Preventive actions and owners',
+    ].join('\n'),
+  },
+];
+
+const AI_QUICK_ACTIONS: AIQuickAction[] = [
+  {
+    id: 'fix-preview',
+    label: 'Fix Preview Lite',
+    detail: 'Root cause + patch preview without auto-apply',
+    command: 'workspai.aiFixPreviewLite',
+    category: 'Debug & Fix',
+  },
+  {
+    id: 'terminal-bridge',
+    label: 'Terminal to AI Bridge',
+    detail: 'Analyze stack traces or test output',
+    command: 'workspai.aiTerminalBridge',
+    category: 'Debug & Fix',
+  },
+  {
+    id: 'change-impact',
+    label: 'Change Impact Lite',
+    detail: 'Assess blast radius before editing',
+    command: 'workspai.aiChangeImpactLite',
+    category: 'Planning & Safety',
+  },
+  {
+    id: 'memory-wizard',
+    label: 'Workspace Memory Wizard',
+    detail: 'Capture conventions and decisions quickly',
+    command: 'workspai.aiWorkspaceMemoryWizard',
+    category: 'Memory & Workflows',
+  },
+  {
+    id: 'recipe-packs',
+    label: 'AI Recipe Packs',
+    detail: 'Run reusable prompt workflows',
+    command: 'workspai.aiRecipePacks',
+    category: 'Memory & Workflows',
+  },
+];
+
+function clampText(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxChars)}\n... [truncated]`;
+}
+
+async function executeOptionalCommand<T>(command: string): Promise<T | null> {
+  try {
+    const result = (await vscode.commands.executeCommand(command)) as T | undefined;
+    return result ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getEditorSelectionOrCurrentLine(
+  editor = vscode.window.activeTextEditor
+): string | undefined {
+  if (!editor) {
+    return undefined;
+  }
+
+  const selection = editor.selection;
+  if (!selection.isEmpty) {
+    const text = editor.document.getText(selection).trim();
+    return text || undefined;
+  }
+
+  const currentLine = editor.document.lineAt(selection.active.line).text.trim();
+  return currentLine || undefined;
+}
+
+function normalizeInputText(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return clampText(trimmed, MAX_PREFILL_CHARS);
+}
+
+function looksLikeTerminalOutput(value: string): boolean {
+  const text = value.toLowerCase();
+  const signals = [
+    'error',
+    'exception',
+    'traceback',
+    'failed',
+    'panic:',
+    'stack trace',
+    'npm err',
+    'pytest',
+    'fatal',
+  ];
+  return signals.some((signal) => text.includes(signal));
+}
+
+function hasActiveEditorErrors(editor = vscode.window.activeTextEditor): boolean {
+  if (!editor) {
+    return false;
+  }
+
+  const diagnostics = vscode.languages.getDiagnostics(editor.document.uri);
+  return diagnostics.some((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error);
+}
+
+async function resolvePreferredAIContext(): Promise<AIModalContext> {
+  const selectedProject = await executeOptionalCommand<ProjectSelection>(
+    'workspai.getSelectedProject'
+  );
+  if (selectedProject?.path) {
+    return {
+      type: 'project',
+      name: selectedProject.name ?? path.basename(selectedProject.path),
+      path: selectedProject.path,
+      framework: selectedProject.type,
+    };
+  }
+
+  const selectedWorkspace = await executeOptionalCommand<WorkspaceSelection>(
+    'workspai.getSelectedWorkspace'
+  );
+  if (selectedWorkspace?.path) {
+    return {
+      type: 'workspace',
+      name: selectedWorkspace.name ?? path.basename(selectedWorkspace.path),
+      path: selectedWorkspace.path,
+    };
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (editor) {
+    const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+    if (folder) {
+      return {
+        type: 'project',
+        name: folder.name,
+        path: folder.uri.fsPath,
+      };
+    }
+  }
+
+  const fallbackFolder = vscode.workspace.workspaceFolders?.[0];
+  return {
+    type: 'workspace',
+    name: fallbackFolder?.name ?? 'Workspace',
+    path: fallbackFolder?.uri.fsPath,
+  };
+}
+
+async function resolveWorkspaceForMemory(): Promise<{ name: string; path: string } | null> {
+  const selectedWorkspace = await executeOptionalCommand<WorkspaceSelection>(
+    'workspai.getSelectedWorkspace'
+  );
+  if (selectedWorkspace?.path) {
+    return {
+      name: selectedWorkspace.name ?? path.basename(selectedWorkspace.path),
+      path: selectedWorkspace.path,
+    };
+  }
+
+  const selectedProject = await executeOptionalCommand<ProjectSelection>(
+    'workspai.getSelectedProject'
+  );
+  if (selectedProject?.path) {
+    return {
+      name: selectedProject.name ?? path.basename(selectedProject.path),
+      path: selectedProject.path,
+    };
+  }
+
+  const fallback = vscode.workspace.workspaceFolders?.[0];
+  if (fallback) {
+    return {
+      name: fallback.name,
+      path: fallback.uri.fsPath,
+    };
+  }
+
+  return null;
+}
+
+async function shouldSuggestMemoryWizard(): Promise<boolean> {
+  const workspaceTarget = await resolveWorkspaceForMemory();
+  if (!workspaceTarget) {
+    return false;
+  }
+
+  const memoryService = WorkspaceMemoryService.getInstance();
+  const memory = await memoryService.read(workspaceTarget.path);
+
+  const hasContext = memory.context.trim().length > 0;
+  const hasConventions = memory.conventions.length > 0;
+  const hasDecisions = memory.decisions.length > 0;
+
+  return !(hasContext && hasConventions && hasDecisions);
+}
+
+async function collectListEntries(
+  label: string,
+  existing: string[],
+  guidance: string
+): Promise<string[] | undefined> {
+  const values = [...existing.filter((item) => item.trim())];
+
+  while (values.length < 12) {
+    const input = await vscode.window.showInputBox({
+      prompt: `${guidance} (${values.length + 1}/12, leave empty to finish)`,
+      placeHolder: `Add ${label}`,
+    });
+
+    if (input === undefined) {
+      return undefined;
+    }
+
+    const trimmed = input.trim();
+    if (!trimmed) {
+      break;
+    }
+
+    values.push(trimmed);
+  }
+
+  return values;
+}
+
+async function trackAIFreeCommandEvent(
+  command: string,
+  aiContext?: AIModalContext,
+  properties?: Record<string, unknown>
+): Promise<void> {
+  await WorkspaceUsageTracker.getInstance().trackCommandEvent(command, aiContext?.path, {
+    featureSet: 'ai-free-features',
+    ...properties,
+  });
+}
+
+type AIQuickPickEntry = vscode.QuickPickItem & {
+  payload?: AIQuickAction;
+};
+
+function buildCategorizedQuickPick<T extends { category: string }>(
+  items: T[],
+  mapItem: (item: T) => vscode.QuickPickItem & { payload: T }
+): Array<vscode.QuickPickItem & { payload?: T }> {
+  const categories = [...new Set(items.map((item) => item.category))];
+  const result: Array<vscode.QuickPickItem & { payload?: T }> = [];
+
+  for (const category of categories) {
+    result.push({ label: category, kind: vscode.QuickPickItemKind.Separator });
+    for (const item of items.filter((candidate) => candidate.category === category)) {
+      result.push(mapItem(item));
+    }
+  }
+
+  return result;
+}
+
+export function registerAIFreeFeatureCommands(
+  context: vscode.ExtensionContext
+): vscode.Disposable[] {
+  return [
+    vscode.commands.registerCommand('workspai.aiOrchestrate', async () => {
+      const aiContext = await resolvePreferredAIContext();
+      const selectionSnippet = normalizeInputText(getEditorSelectionOrCurrentLine());
+      const hasErrors = hasActiveEditorErrors();
+
+      const clipboardText = (await vscode.env.clipboard.readText()).trim();
+      const clipboardHasTerminalSignal =
+        clipboardText.length > 0 && looksLikeTerminalOutput(clipboardText);
+
+      const shouldGuideMemory = await shouldSuggestMemoryWizard();
+
+      let targetCommand = 'workspai.aiQuickActions';
+      let routeReason = 'fallback-quick-actions';
+      let commandArgs: unknown[] = [];
+
+      if (hasErrors) {
+        targetCommand = 'workspai.aiFixPreviewLite';
+        routeReason = 'active-editor-errors';
+        commandArgs = selectionSnippet ? [selectionSnippet] : [];
+      } else if (selectionSnippet) {
+        targetCommand = 'workspai.aiChangeImpactLite';
+        routeReason = 'selection-without-errors';
+        commandArgs = [selectionSnippet];
+      } else if (clipboardHasTerminalSignal) {
+        targetCommand = 'workspai.aiTerminalBridge';
+        routeReason = 'terminal-signal-in-clipboard';
+      } else if (shouldGuideMemory) {
+        targetCommand = 'workspai.aiWorkspaceMemoryWizard';
+        routeReason = 'memory-incomplete';
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiOrchestrate', aiContext, {
+        result: 'routed',
+        targetCommand,
+        routeReason,
+        hasErrors,
+        hasSelection: Boolean(selectionSnippet),
+      });
+
+      await vscode.commands.executeCommand(targetCommand, ...commandArgs);
+    }),
+
+    vscode.commands.registerCommand('workspai.aiQuickActions', async () => {
+      const aiContext = await resolvePreferredAIContext();
+
+      const picks = buildCategorizedQuickPick(AI_QUICK_ACTIONS, (action) => ({
+        label: action.label,
+        detail: action.detail,
+        payload: action,
+      }));
+
+      const selected = (await vscode.window.showQuickPick(picks, {
+        title: 'Workspai AI Quick Actions',
+        placeHolder: 'Pick an AI workflow',
+        ignoreFocusOut: true,
+      })) as AIQuickPickEntry | undefined;
+
+      if (!selected?.payload) {
+        await trackAIFreeCommandEvent('workspai.aiQuickActions', aiContext, {
+          result: 'cancelled',
+        });
+        return;
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiQuickActions', aiContext, {
+        result: 'selected',
+        targetAction: selected.payload.id,
+      });
+
+      await vscode.commands.executeCommand(selected.payload.command);
+    }),
+
+    vscode.commands.registerCommand('workspai.aiFixPreviewLite', async (seed?: unknown) => {
+      const aiContext = await resolvePreferredAIContext();
+      let issueContext =
+        normalizeInputText(seed) ?? normalizeInputText(getEditorSelectionOrCurrentLine());
+      let fixInputSource: 'argument' | 'editor' | 'manual-prompt' = 'editor';
+
+      if (typeof seed === 'string' && seed.trim()) {
+        fixInputSource = 'argument';
+      } else if (!issueContext) {
+        fixInputSource = 'manual-prompt';
+        const input = await vscode.window.showInputBox({
+          title: 'Fix Preview Lite',
+          prompt: 'Describe the issue or paste an error message',
+          placeHolder: 'E.g. 500 on POST /billing/invoice, or paste a stack trace',
+          ignoreFocusOut: true,
+        });
+        if (input === undefined) {
+          await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
+            result: 'cancelled',
+            inputSource: 'manual-prompt',
+          });
+          return;
+        }
+        issueContext = input.trim() || undefined;
+      }
+
+      if (!issueContext) {
+        vscode.window.showWarningMessage(
+          'No issue context provided. Open a file with errors or add a selection first.'
+        );
+        await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
+          result: 'empty-input',
+          inputSource: fixInputSource,
+        });
+        return;
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
+        result: 'opened',
+        inputSource: fixInputSource,
+      });
+
+      const prefillQuestion = [
+        'Fix Preview Lite: propose the smallest safe patch only as a preview.',
+        `Issue/context:\n${issueContext}`,
+        'Output format: Root cause, candidate file edits, patch-style snippet, and post-fix checks. Do not assume edits are applied.',
+      ].join('\n\n');
+
+      WelcomePanel.showAIModal(context, {
+        ...aiContext,
+        prefillMode: 'debug',
+        prefillQuestion,
+      });
+    }),
+
+    vscode.commands.registerCommand('workspai.aiChangeImpactLite', async (seed?: unknown) => {
+      const aiContext = await resolvePreferredAIContext();
+      let changeContext =
+        normalizeInputText(seed) ?? normalizeInputText(getEditorSelectionOrCurrentLine());
+      let impactInputSource: 'argument' | 'editor' | 'manual-prompt' = 'editor';
+
+      if (typeof seed === 'string' && seed.trim()) {
+        impactInputSource = 'argument';
+      } else if (!changeContext) {
+        impactInputSource = 'manual-prompt';
+        const input = await vscode.window.showInputBox({
+          title: 'Change Impact Lite',
+          prompt: 'Describe the change you are planning',
+          placeHolder:
+            'E.g. Replace the auth middleware, add a new DB column, extract service layer',
+          ignoreFocusOut: true,
+        });
+        if (input === undefined) {
+          await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
+            result: 'cancelled',
+            inputSource: 'manual-prompt',
+          });
+          return;
+        }
+        changeContext = input.trim() || undefined;
+      }
+
+      if (!changeContext) {
+        vscode.window.showWarningMessage(
+          'No change description provided. Select code or describe the change first.'
+        );
+        await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
+          result: 'empty-input',
+          inputSource: impactInputSource,
+        });
+        return;
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
+        result: 'opened',
+        inputSource: impactInputSource,
+      });
+
+      const prefillQuestion = [
+        'Change Impact Lite: assess what can break before I implement this change.',
+        `Planned change:\n${changeContext}`,
+        'Output format: likely impacted files/modules, risk level, required test updates, and a safe rollout checklist.',
+      ].join('\n\n');
+
+      WelcomePanel.showAIModal(context, {
+        ...aiContext,
+        prefillMode: 'ask',
+        prefillQuestion,
+      });
+    }),
+
+    vscode.commands.registerCommand('workspai.aiTerminalBridge', async () => {
+      const aiContext = await resolvePreferredAIContext();
+      const selection = normalizeInputText(getEditorSelectionOrCurrentLine());
+
+      let terminalPayload = selection;
+      let inputSource: 'selection' | 'clipboard' | 'manual' = 'selection';
+      if (!terminalPayload) {
+        const clipboardText = (await vscode.env.clipboard.readText()).trim();
+        if (clipboardText && looksLikeTerminalOutput(clipboardText)) {
+          terminalPayload = clampText(clipboardText, MAX_TERMINAL_CHARS);
+          inputSource = 'clipboard';
+        }
+      }
+
+      if (!terminalPayload) {
+        inputSource = 'manual';
+        const pasted = await vscode.window.showInputBox({
+          prompt: 'Paste terminal output, stack trace, or test failure',
+          placeHolder: 'Traceback, npm error, go panic, pytest failure, etc.',
+          ignoreFocusOut: true,
+        });
+
+        if (pasted === undefined) {
+          await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
+            result: 'cancelled',
+            inputSource,
+          });
+          return;
+        }
+
+        terminalPayload = normalizeInputText(pasted);
+      }
+
+      if (!terminalPayload) {
+        vscode.window.showWarningMessage('No terminal output provided.');
+        await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
+          result: 'empty-input',
+          inputSource,
+        });
+        return;
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
+        result: 'opened',
+        inputSource,
+      });
+
+      const prefillQuestion = [
+        'Terminal to AI Bridge: analyze this output and guide me to the fastest safe fix.',
+        `Terminal output:\n${terminalPayload}`,
+        'Output format: probable root cause, immediate fix commands, code-level follow-up, and prevention checks.',
+      ].join('\n\n');
+
+      WelcomePanel.showAIModal(context, {
+        ...aiContext,
+        prefillMode: 'debug',
+        prefillQuestion,
+      });
+    }),
+
+    vscode.commands.registerCommand('workspai.aiWorkspaceMemoryWizard', async () => {
+      const workspaceTarget = await resolveWorkspaceForMemory();
+      if (!workspaceTarget) {
+        vscode.window.showWarningMessage('Select or open a workspace first.');
+        return;
+      }
+
+      await trackAIFreeCommandEvent(
+        'workspai.aiWorkspaceMemoryWizard',
+        {
+          type: 'workspace',
+          name: workspaceTarget.name,
+          path: workspaceTarget.path,
+        },
+        { result: 'started' }
+      );
+
+      const memoryService = WorkspaceMemoryService.getInstance();
+      const currentMemory = await memoryService.read(workspaceTarget.path);
+
+      const contextLine = await vscode.window.showInputBox({
+        prompt: 'Workspace memory wizard: one-line project overview',
+        value: currentMemory.context,
+        placeHolder: 'Example: Multi-tenant billing API for B2B subscriptions',
+        ignoreFocusOut: true,
+      });
+
+      if (contextLine === undefined) {
+        await trackAIFreeCommandEvent(
+          'workspai.aiWorkspaceMemoryWizard',
+          {
+            type: 'workspace',
+            name: workspaceTarget.name,
+            path: workspaceTarget.path,
+          },
+          { result: 'cancelled-context' }
+        );
+        return;
+      }
+
+      if (!contextLine.trim()) {
+        vscode.window.showWarningMessage(
+          'Project overview cannot be empty. Memory wizard cancelled.'
+        );
+        await trackAIFreeCommandEvent(
+          'workspai.aiWorkspaceMemoryWizard',
+          {
+            type: 'workspace',
+            name: workspaceTarget.name,
+            path: workspaceTarget.path,
+          },
+          { result: 'empty-context' }
+        );
+        return;
+      }
+
+      const conventions = await collectListEntries(
+        'convention',
+        currentMemory.conventions,
+        'Add coding conventions or engineering rules'
+      );
+      if (!conventions) {
+        await trackAIFreeCommandEvent(
+          'workspai.aiWorkspaceMemoryWizard',
+          {
+            type: 'workspace',
+            name: workspaceTarget.name,
+            path: workspaceTarget.path,
+          },
+          { result: 'cancelled-conventions' }
+        );
+        return;
+      }
+
+      const decisions = await collectListEntries(
+        'decision',
+        currentMemory.decisions,
+        'Add architecture decisions (optional)'
+      );
+      if (!decisions) {
+        await trackAIFreeCommandEvent(
+          'workspai.aiWorkspaceMemoryWizard',
+          {
+            type: 'workspace',
+            name: workspaceTarget.name,
+            path: workspaceTarget.path,
+          },
+          { result: 'cancelled-decisions' }
+        );
+        return;
+      }
+
+      const nextMemory: WorkspaceMemory = {
+        context: contextLine.trim(),
+        conventions,
+        decisions,
+        lastUpdated: currentMemory.lastUpdated,
+      };
+
+      await memoryService.write(workspaceTarget.path, nextMemory);
+      await trackAIFreeCommandEvent(
+        'workspai.aiWorkspaceMemoryWizard',
+        {
+          type: 'workspace',
+          name: workspaceTarget.name,
+          path: workspaceTarget.path,
+        },
+        {
+          result: 'saved',
+          conventionsCount: conventions.length,
+          decisionsCount: decisions.length,
+        }
+      );
+
+      const memoryFile = path.join(workspaceTarget.path, '.rapidkit', 'workspace-memory.json');
+      const action = await vscode.window.showInformationMessage(
+        `Workspace memory saved for ${workspaceTarget.name}.`,
+        'Open memory file',
+        'Ask AI with memory'
+      );
+
+      if (action === 'Open memory file') {
+        const doc = await vscode.workspace.openTextDocument(memoryFile);
+        await vscode.window.showTextDocument(doc, { preview: false });
+      }
+
+      if (action === 'Ask AI with memory') {
+        const aiContext = await resolvePreferredAIContext();
+        WelcomePanel.showAIModal(context, {
+          ...aiContext,
+          prefillMode: 'ask',
+          prefillQuestion:
+            'Use the latest workspace-memory.json context in your answer. Recommend the next three highest-impact engineering actions for this workspace.',
+        });
+      }
+    }),
+
+    vscode.commands.registerCommand('workspai.aiRecipePacks', async (recipeId?: string) => {
+      let selectedRecipe =
+        typeof recipeId === 'string'
+          ? AI_RECIPES.find((recipe) => recipe.id === recipeId)
+          : undefined;
+
+      if (!selectedRecipe) {
+        const recipePicks = buildCategorizedQuickPick(AI_RECIPES, (recipe) => ({
+          label: recipe.label,
+          detail: recipe.detail,
+          payload: recipe,
+        }));
+
+        const pick = (await vscode.window.showQuickPick(recipePicks, {
+          title: 'AI Recipe Packs',
+          placeHolder: 'Choose a reusable AI workflow recipe',
+          ignoreFocusOut: true,
+        })) as (vscode.QuickPickItem & { payload?: AIRecipe }) | undefined;
+
+        if (!pick?.payload) {
+          const aiContext = await resolvePreferredAIContext();
+          await trackAIFreeCommandEvent('workspai.aiRecipePacks', aiContext, {
+            result: 'cancelled',
+          });
+          return;
+        }
+
+        selectedRecipe = pick.payload;
+      }
+
+      const aiContext = await resolvePreferredAIContext();
+      const selection = normalizeInputText(getEditorSelectionOrCurrentLine());
+      await trackAIFreeCommandEvent('workspai.aiRecipePacks', aiContext, {
+        result: 'opened',
+        recipeId: selectedRecipe.id,
+        recipeCategory: selectedRecipe.category,
+        inputSource: selection ? 'selection' : 'recipe-only',
+      });
+      const expectedOutputBlock = [
+        'Expected output template:',
+        selectedRecipe.expectedOutputTemplate,
+      ].join('\n');
+      const prefillQuestion = selection
+        ? `${selectedRecipe.prompt}\n\nSelected context:\n${selection}\n\n${expectedOutputBlock}`
+        : `${selectedRecipe.prompt}\n\n${expectedOutputBlock}`;
+
+      WelcomePanel.showAIModal(context, {
+        ...aiContext,
+        prefillMode: selectedRecipe.mode,
+        prefillQuestion,
+      });
+    }),
+  ];
+}

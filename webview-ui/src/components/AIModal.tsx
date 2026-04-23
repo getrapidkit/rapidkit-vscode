@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Bug, BrainCircuit, Sparkles, Send, Square } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
@@ -108,6 +108,13 @@ export function AIModal({
     const responseRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    const adjustTextareaHeight = useCallback(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -123,6 +130,11 @@ export function AIModal({
         }
         return () => { document.body.style.overflow = ''; };
     }, [isOpen, context]);
+
+    // Auto-grow textarea whenever input changes
+    useEffect(() => {
+        adjustTextareaHeight();
+    }, [input, adjustTextareaHeight]);
 
     // Auto-scroll streaming output
     useEffect(() => {
@@ -304,14 +316,13 @@ export function AIModal({
                         ref={textareaRef}
                         className="ai-modal-textarea"
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        onChange={(e) => { setInput(e.target.value); }}
                         onKeyDown={handleKeyDown}
                         placeholder={
                             mode === 'debug'
                                 ? 'Paste your error, stack trace, or failing test output…'
                                 : `Ask anything about "${context.name}"…`
                         }
-                        rows={3}
                         disabled={isStreaming}
                     />
                     <div className="ai-modal-input-footer">

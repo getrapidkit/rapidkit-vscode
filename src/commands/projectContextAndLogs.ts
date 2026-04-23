@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
+import { CommandTelemetryTimeWindow, WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
 import { openProjectFolder, copyProjectPath, deleteProject } from './projectContextMenu';
 
 export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
@@ -41,6 +42,264 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
 
     vscode.commands.registerCommand('workspai.clearLogs', () => {
       Logger.getInstance().clear();
+    }),
+
+    vscode.commands.registerCommand('workspai.showTelemetrySummary', async () => {
+      const timeWindowPick = await vscode.window.showQuickPick(
+        [
+          {
+            label: 'Last 24 hours',
+            detail: 'Show telemetry events captured in the last day',
+            value: 'last24h' as CommandTelemetryTimeWindow,
+          },
+          {
+            label: 'Last 7 days',
+            detail: 'Show telemetry events captured in the last week',
+            value: 'last7d' as CommandTelemetryTimeWindow,
+          },
+          {
+            label: 'All time',
+            detail: 'Use the all-time command counters from workspace marker',
+            value: 'all' as CommandTelemetryTimeWindow,
+          },
+        ],
+        {
+          title: 'Telemetry Time Window',
+          placeHolder: 'Select telemetry time range',
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!timeWindowPick) {
+        return;
+      }
+
+      const selectedWorkspace = (await vscode.commands.executeCommand(
+        'workspai.getSelectedWorkspace'
+      )) as { path?: string } | null;
+
+      const summary = await WorkspaceUsageTracker.getInstance().getCommandTelemetrySummary(
+        selectedWorkspace?.path,
+        timeWindowPick.value
+      );
+
+      if (!summary) {
+        vscode.window.showWarningMessage(
+          'No telemetry summary available. Open a Workspai workspace and run a few AI commands first.'
+        );
+        return;
+      }
+
+      const topCommands = summary.commandUsage.slice(0, 10);
+      const surfaceRows = summary.surfaceBreakdown.bySurface
+        .filter((entry) => entry.count > 0)
+        .map((entry) => `${entry.surface}: ${entry.count} (${entry.share}%)`)
+        .join('\n');
+
+      const actionVsAskLine =
+        summary.surfaceBreakdown.actionVsAskShare === null
+          ? 'Action vs Ask share: n/a'
+          : `Action vs Ask share: ${summary.surfaceBreakdown.actionVsAskShare}% action ` +
+            `(${summary.surfaceBreakdown.actionEvents} action / ${summary.surfaceBreakdown.askEvents} ask)`;
+
+      const quickSummary = [
+        `Workspace: ${summary.workspacePath}`,
+        `Time window: ${summary.timeWindow}`,
+        `Window start: ${summary.windowStartAt ?? 'n/a'}`,
+        `Window end: ${summary.windowEndAt}`,
+        `Total events: ${summary.totalEvents}`,
+        `Last command: ${summary.lastCommand ?? 'n/a'}`,
+        `Last command at: ${summary.lastCommandAt ?? 'n/a'}`,
+        actionVsAskLine,
+        `Surface mix:\n${surfaceRows || 'n/a'}`,
+      ].join('\n');
+
+      const payload = {
+        ...summary,
+        topCommands,
+      };
+
+      const doc = await vscode.workspace.openTextDocument({
+        language: 'json',
+        content: JSON.stringify(payload, null, 2),
+      });
+      await vscode.window.showTextDocument(doc, { preview: false });
+
+      const action = await vscode.window.showInformationMessage(
+        `Telemetry summary opened (${summary.timeWindow}). Total events: ${summary.totalEvents}`,
+        'Copy quick summary',
+        'Open workspace marker',
+        'Reset telemetry'
+      );
+
+      if (action === 'Copy quick summary') {
+        await vscode.env.clipboard.writeText(quickSummary);
+        vscode.window.showInformationMessage('Telemetry quick summary copied.');
+      }
+
+      if (action === 'Open workspace marker') {
+        const markerPath = vscode.Uri.file(`${summary.workspacePath}/.rapidkit-workspace`);
+        try {
+          const markerDoc = await vscode.workspace.openTextDocument(markerPath);
+          await vscode.window.showTextDocument(markerDoc, { preview: false });
+        } catch {
+          vscode.window.showWarningMessage('Workspace marker not found for this workspace.');
+        }
+      }
+
+      if (action === 'Reset telemetry') {
+        await vscode.commands.executeCommand('workspai.resetTelemetry');
+      }
+    }),
+
+    vscode.commands.registerCommand('workspai.showOnboardingExperimentStats', async () => {
+      const timeWindowPick = await vscode.window.showQuickPick(
+        [
+          {
+            label: 'Last 24 hours',
+            detail: 'Analyze onboarding experiment events from the last day',
+            value: 'last24h' as CommandTelemetryTimeWindow,
+          },
+          {
+            label: 'Last 7 days',
+            detail: 'Analyze onboarding experiment events from the last week',
+            value: 'last7d' as CommandTelemetryTimeWindow,
+          },
+          {
+            label: 'All time',
+            detail: 'Analyze all tracked onboarding experiment events',
+            value: 'all' as CommandTelemetryTimeWindow,
+          },
+        ],
+        {
+          title: 'Onboarding Experiment Time Window',
+          placeHolder: 'Select analysis range',
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!timeWindowPick) {
+        return;
+      }
+
+      const selectedWorkspace = (await vscode.commands.executeCommand(
+        'workspai.getSelectedWorkspace'
+      )) as { path?: string } | null;
+
+      const stats = await WorkspaceUsageTracker.getInstance().getOnboardingExperimentStats(
+        selectedWorkspace?.path,
+        timeWindowPick.value
+      );
+
+      if (!stats) {
+        vscode.window.showWarningMessage(
+          'No onboarding experiment stats available. Open a Workspai workspace and trigger onboarding flows first.'
+        );
+        return;
+      }
+
+      const variantSummary =
+        stats.variants.length > 0
+          ? stats.variants
+              .map(
+                (item) =>
+                  `${item.variant}: shown=${item.shown}, clicked=${item.clicked}, ctr=${item.clickThroughRate}%`
+              )
+              .join('\n')
+          : 'n/a';
+
+      const controlVariant = stats.variants.find((item) => item.variant === 'control');
+      const compactVariant = stats.variants.find((item) => item.variant === 'compact');
+      let ctrInsight = 'CTR comparison: not enough data yet.';
+      let upliftLevelInsight = 'Uplift level: neutral (insufficient paired variant data).';
+
+      if (controlVariant && compactVariant) {
+        const delta = Number(
+          (compactVariant.clickThroughRate - controlVariant.clickThroughRate).toFixed(2)
+        );
+        const absDelta = Math.abs(delta);
+        const minShownAcrossVariants = Math.min(controlVariant.shown, compactVariant.shown);
+        const deltaLabel = `${delta >= 0 ? '+' : ''}${delta}`;
+        const winner = delta > 0 ? 'compact' : delta < 0 ? 'control' : 'tie';
+
+        ctrInsight =
+          winner === 'tie'
+            ? `CTR comparison: control ${controlVariant.clickThroughRate}% vs compact ${compactVariant.clickThroughRate}% (tie).`
+            : `CTR comparison: control ${controlVariant.clickThroughRate}% vs compact ${compactVariant.clickThroughRate}% (${deltaLabel}pp for ${winner}).`;
+
+        if (winner === 'tie' || absDelta < 1) {
+          upliftLevelInsight = `Uplift level: neutral (${absDelta.toFixed(2)}pp delta).`;
+        } else if (absDelta >= 4 && minShownAcrossVariants >= 50) {
+          upliftLevelInsight = `Uplift level: strong uplift for ${winner} (${deltaLabel}pp, robust sample).`;
+        } else {
+          const sampleNote =
+            minShownAcrossVariants >= 20 ? 'directional confidence' : 'early sample confidence';
+          upliftLevelInsight = `Uplift level: weak uplift for ${winner} (${deltaLabel}pp, ${sampleNote}).`;
+        }
+      }
+
+      const quickSummary = [
+        `Workspace: ${stats.workspacePath}`,
+        `Time window: ${stats.timeWindow}`,
+        `Window start: ${stats.windowStartAt ?? 'n/a'}`,
+        `Window end: ${stats.windowEndAt}`,
+        `Primary shown: ${stats.primaryShown}`,
+        `Followup shown: ${stats.followupShown}`,
+        `Followup clicked: ${stats.followupClicked}`,
+        `Followup dismissed: ${stats.followupDismissed}`,
+        `Overall followup CTR: ${stats.overallFollowupClickThroughRate}%`,
+        ctrInsight,
+        upliftLevelInsight,
+        `Variants:\n${variantSummary}`,
+      ].join('\n');
+
+      const doc = await vscode.workspace.openTextDocument({
+        language: 'json',
+        content: JSON.stringify(stats, null, 2),
+      });
+      await vscode.window.showTextDocument(doc, { preview: false });
+
+      const action = await vscode.window.showInformationMessage(
+        `Onboarding experiment stats opened (${stats.timeWindow}). ${upliftLevelInsight}`,
+        'Copy quick summary',
+        'Open telemetry summary'
+      );
+
+      if (action === 'Copy quick summary') {
+        await vscode.env.clipboard.writeText(quickSummary);
+        vscode.window.showInformationMessage('Onboarding experiment quick summary copied.');
+      }
+
+      if (action === 'Open telemetry summary') {
+        await vscode.commands.executeCommand('workspai.showTelemetrySummary');
+      }
+    }),
+
+    vscode.commands.registerCommand('workspai.resetTelemetry', async () => {
+      const selectedWorkspace = (await vscode.commands.executeCommand(
+        'workspai.getSelectedWorkspace'
+      )) as { path?: string; name?: string } | null;
+
+      const workspacePath = selectedWorkspace?.path;
+      const workspaceLabel = selectedWorkspace?.name ?? workspacePath ?? 'current workspace';
+
+      const confirm = await vscode.window.showWarningMessage(
+        `Reset Workspai telemetry for ${workspaceLabel}?`,
+        { modal: true },
+        'Reset'
+      );
+
+      if (confirm !== 'Reset') {
+        return;
+      }
+
+      const ok = await WorkspaceUsageTracker.getInstance().clearCommandTelemetry(workspacePath);
+      if (!ok) {
+        vscode.window.showWarningMessage('Could not reset telemetry (no workspace marker found).');
+        return;
+      }
+
+      vscode.window.showInformationMessage('Workspai telemetry reset for this workspace.');
     }),
   ];
 }

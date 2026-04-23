@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-04-23
+
+### Added
+
+- ✦ **AI action surface expansion** — added AI flow commands to the extension command palette and menus: `workspai.aiQuickActions`, `workspai.aiOrchestrate`, `workspai.aiFixPreviewLite`, `workspai.aiChangeImpactLite`, `workspai.aiTerminalBridge`, `workspai.aiWorkspaceMemoryWizard`, and `workspai.aiRecipePacks`.
+- 📊 **Telemetry commands + onboarding experiment analytics** — new commands `workspai.showTelemetrySummary`, `workspai.resetTelemetry`, `workspai.showAIFeatureOnboarding`, and `workspai.showOnboardingExperimentStats` with workspace-scoped summaries and experiment CTR analysis.
+- 🧭 **AI onboarding tour** — in-product AI onboarding messages with follow-up toast variants and command telemetry events for onboarding flows.
+
+### Changed
+
+- 🧱 **Sidebar and webview quick-action alignment** — WORKSPACES / PROJECTS inline action ordering now matches the expanded AI flow model; Actions webview now exposes AI Flows, telemetry, and onboarding shortcuts.
+- 🧠 **Telemetry instrumentation coverage** — both `@workspai` chat participant and AI modal now emit structured success/error/cancel outcome telemetry with context-safe guards.
+- 🎛️ **Project context insights panel** — new workspace telemetry and onboarding experiment summary views in `projectContextAndLogs` with copyable quick summaries.
+
+### Fixed
+
+- 🩺 **Doctor network safety** — version metadata fetch now enforces timeout, redirect bounds, and same-host redirect checks to reduce hangs and unsafe redirect behavior.
+- 🚀 **Dev server port probing resilience** — project start flow now uses bounded port scan attempts with warning fallback instead of unbounded recursive probing.
+- 📁 **Workspace registry initialization race** — config directory creation is now synchronous at startup to avoid first-run path timing issues.
+
 ## [0.20.0] - 2026-04-20
 
 ### Added

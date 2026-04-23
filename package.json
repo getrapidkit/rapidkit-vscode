@@ -2,7 +2,7 @@
   "name": "rapidkit-vscode",
   "displayName": "Workspai (by RapidKit)",
   "description": "The AI workspace for backend teams. Build backend systems with AI that knows your workspace, generate projects and modules from intent, debug with full context, and ship faster — all inside VS Code. FastAPI, NestJS, Go/Fiber & Go/Gin.",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "publisher": "rapidkit",
   "icon": "media/icons/icon.png",
   "galleryBanner": {
@@ -315,6 +315,30 @@
         "icon": "$(trash)"
       },
       {
+        "command": "workspai.showTelemetrySummary",
+        "title": "Show Telemetry Summary",
+        "category": "Workspai",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "workspai.resetTelemetry",
+        "title": "Reset Telemetry Data",
+        "category": "Workspai",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "workspai.showAIFeatureOnboarding",
+        "title": "Show AI Feature Tour",
+        "category": "Workspai",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "workspai.showOnboardingExperimentStats",
+        "title": "Show Onboarding Experiment Stats",
+        "category": "Workspai",
+        "icon": "$(beaker)"
+      },
+      {
         "command": "workspai.projectInit",
         "title": "Install Dependencies",
         "category": "Workspai",
@@ -457,6 +481,48 @@
         "title": "Ask Workspace Brain",
         "category": "Workspai",
         "icon": "$(hubot)"
+      },
+      {
+        "command": "workspai.aiQuickActions",
+        "title": "AI Quick Actions",
+        "category": "Workspai",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "workspai.aiOrchestrate",
+        "title": "AI Smart Route",
+        "category": "Workspai",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "workspai.aiFixPreviewLite",
+        "title": "AI Fix Preview (Lite)",
+        "category": "Workspai",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "workspai.aiChangeImpactLite",
+        "title": "AI Change Impact (Lite)",
+        "category": "Workspai",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "workspai.aiTerminalBridge",
+        "title": "Analyze Terminal Output with AI",
+        "category": "Workspai",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "workspai.aiWorkspaceMemoryWizard",
+        "title": "Guided Workspace Memory Setup",
+        "category": "Workspai",
+        "icon": "$(book)"
+      },
+      {
+        "command": "workspai.aiRecipePacks",
+        "title": "AI Recipe Packs",
+        "category": "Workspai",
+        "icon": "$(library)"
       },
       {
         "command": "workspai.aiForWorkspace",
@@ -643,7 +709,40 @@
           "command": "workspai.workspaceBrain"
         },
         {
+          "command": "workspai.aiOrchestrate"
+        },
+        {
+          "command": "workspai.aiQuickActions"
+        },
+        {
+          "command": "workspai.aiFixPreviewLite"
+        },
+        {
+          "command": "workspai.aiChangeImpactLite"
+        },
+        {
+          "command": "workspai.aiTerminalBridge"
+        },
+        {
+          "command": "workspai.aiWorkspaceMemoryWizard"
+        },
+        {
+          "command": "workspai.aiRecipePacks"
+        },
+        {
           "command": "workspai.openAICreateWorkspace"
+        },
+        {
+          "command": "workspai.showTelemetrySummary"
+        },
+        {
+          "command": "workspai.resetTelemetry"
+        },
+        {
+          "command": "workspai.showAIFeatureOnboarding"
+        },
+        {
+          "command": "workspai.showOnboardingExperimentStats"
         },
         {
           "command": "workspai.aiForWorkspace",
@@ -671,6 +770,46 @@
           "command": "workspai.debugWithAI",
           "when": "view == rapidkitActionsWebview",
           "group": "navigation@0"
+        },
+        {
+          "command": "workspai.aiOrchestrate",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@0.4"
+        },
+        {
+          "command": "workspai.aiQuickActions",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@0.5"
+        },
+        {
+          "command": "workspai.aiTerminalBridge",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@1"
+        },
+        {
+          "command": "workspai.aiRecipePacks",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@2"
+        },
+        {
+          "command": "workspai.showTelemetrySummary",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@3"
+        },
+        {
+          "command": "workspai.resetTelemetry",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@4"
+        },
+        {
+          "command": "workspai.showAIFeatureOnboarding",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@5"
+        },
+        {
+          "command": "workspai.showOnboardingExperimentStats",
+          "when": "view == rapidkitActionsWebview",
+          "group": "navigation@6"
         },
         {
           "command": "workspai.quickSwitchWorkspace",
@@ -735,14 +874,24 @@
           "group": "inline@2"
         },
         {
-          "command": "workspai.exportWorkspace",
+          "command": "workspai.aiWorkspaceMemoryWizard",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@3"
         },
         {
+          "command": "workspai.aiQuickActions",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@4"
+        },
+        {
+          "command": "workspai.exportWorkspace",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@5"
+        },
+        {
           "command": "workspai.checkWorkspaceHealth",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
-          "group": "inline@3"
+          "group": "inline@6"
         },
         {
           "command": "workspai.workspaceInit",
@@ -760,9 +909,29 @@
           "group": "navigation@2"
         },
         {
-          "command": "workspai.copyWorkspacePath",
+          "command": "workspai.aiWorkspaceMemoryWizard",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "navigation@3"
+        },
+        {
+          "command": "workspai.copyWorkspacePath",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "navigation@4"
+        },
+        {
+          "command": "workspai.showTelemetrySummary",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "telemetry@1"
+        },
+        {
+          "command": "workspai.resetTelemetry",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "telemetry@2"
+        },
+        {
+          "command": "workspai.showOnboardingExperimentStats",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "telemetry@3"
         },
         {
           "command": "workspai.removeWorkspace",
@@ -860,34 +1029,44 @@
           "group": "inline@1"
         },
         {
-          "command": "workspai.projectTerminal",
+          "command": "workspai.aiChangeImpactLite",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@2"
         },
         {
-          "command": "workspai.projectInit",
+          "command": "workspai.aiQuickActions",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@3"
         },
         {
-          "command": "workspai.projectDev",
-          "when": "view == rapidkitProjects && viewItem == project",
+          "command": "workspai.projectTerminal",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@4"
         },
         {
-          "command": "workspai.projectStop",
-          "when": "view == rapidkitProjects && viewItem == project-running",
-          "group": "inline@4"
-        },
-        {
-          "command": "workspai.projectTest",
+          "command": "workspai.projectInit",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@5"
         },
         {
-          "command": "workspai.projectBrowser",
+          "command": "workspai.projectDev",
+          "when": "view == rapidkitProjects && viewItem == project",
+          "group": "inline@6"
+        },
+        {
+          "command": "workspai.projectStop",
           "when": "view == rapidkitProjects && viewItem == project-running",
           "group": "inline@6"
+        },
+        {
+          "command": "workspai.projectTest",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@7"
+        },
+        {
+          "command": "workspai.projectBrowser",
+          "when": "view == rapidkitProjects && viewItem == project-running",
+          "group": "inline@8"
         },
         {
           "command": "workspai.newFile",
@@ -963,6 +1142,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show welcome page when extension activates"
+        },
+        "workspai.showOnboardingTips": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show in-product onboarding tips for new Workspai AI and telemetry features"
         },
         "workspai.templatePreview": {
           "type": "boolean",

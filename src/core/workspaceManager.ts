@@ -30,9 +30,9 @@ export class WorkspaceManager {
     return WorkspaceManager.instance;
   }
 
-  private async ensureConfigDir(): Promise<void> {
+  private ensureConfigDir(): void {
     const configDir = path.dirname(this.storageFile);
-    await fs.ensureDir(configDir);
+    fs.ensureDirSync(configDir);
   }
 
   /**

@@ -2069,6 +2069,9 @@
 
   .ai-modal-textarea {
     @apply w-full text-[12px] rounded-lg px-3 py-2.5 resize-none;
+    min-height: 80px;
+    max-height: 240px;
+    overflow-y: auto;
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
     border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.1));

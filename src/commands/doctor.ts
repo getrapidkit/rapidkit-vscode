@@ -11,33 +11,68 @@ import { checkPythonEnvironment } from '../utils/pythonChecker';
 import { run } from '../utils/exec';
 import { WorkspaiCLI } from '../core/rapidkitCLI';
 
+const FETCH_JSON_TIMEOUT_MS = 8000;
+const MAX_FETCH_REDIRECTS = 3;
+
 // Helper function to fetch JSON from HTTPS URL (version checking)
-const fetchJson = (url: string): Promise<any> => {
+const fetchJson = (
+  url: string,
+  options?: { redirectCount?: number; initialHost?: string }
+): Promise<any> => {
   return new Promise((resolve, reject) => {
+    const redirectCount = options?.redirectCount ?? 0;
+    if (redirectCount > MAX_FETCH_REDIRECTS) {
+      reject(new Error('Too many redirects while fetching version metadata'));
+      return;
+    }
+
+    const requestUrl = new URL(url);
+    const initialHost = options?.initialHost ?? requestUrl.hostname;
+    if (requestUrl.hostname !== initialHost) {
+      reject(new Error(`Refusing cross-host redirect to ${requestUrl.hostname}`));
+      return;
+    }
+
     const https = require('https');
-    https
-      .get(url, (res: any) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          fetchJson(res.headers.location).then(resolve).catch(reject);
+    const req = https.get(requestUrl.toString(), (res: any) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const location = res.headers.location;
+        if (typeof location !== 'string' || !location.trim()) {
+          reject(new Error('Redirect response missing location header'));
           return;
         }
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode}`));
-          return;
+
+        const redirectUrl = new URL(location, requestUrl).toString();
+        fetchJson(redirectUrl, {
+          redirectCount: redirectCount + 1,
+          initialHost,
+        })
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk: string) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
         }
-        let data = '';
-        res.on('data', (chunk: string) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
-      .on('error', reject);
+      });
+    });
+
+    req.setTimeout(FETCH_JSON_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Request timed out after ${FETCH_JSON_TIMEOUT_MS}ms`));
+    });
+
+    req.on('error', reject);
   });
 };
 

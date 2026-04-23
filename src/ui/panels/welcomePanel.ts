@@ -22,6 +22,7 @@ import {
   runRapidkitCommandsInTerminal,
   runShellCommandInTerminal,
 } from '../../utils/terminalExecutor';
+import { WorkspaceUsageTracker } from '../../utils/workspaceUsageTracker';
 import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
 
 export class WelcomePanel {
@@ -559,38 +560,83 @@ No markdown, no explanation outside the JSON.`;
               history,
               modelId: requestedModelId,
             } = message.data || {};
-            if (!question || !aiCtx) {
-              break;
-            }
             const panel = this._panel;
             const queryRequestId = typeof requestId === 'number' ? requestId : Date.now();
+            const normalizedMode = mode === 'debug' ? 'debug' : 'ask';
+            const normalizedQuestion = typeof question === 'string' ? question : '';
+            const aiContext =
+              aiCtx && typeof aiCtx === 'object'
+                ? (aiCtx as import('../../core/aiService').AIModalContext)
+                : undefined;
+            const conversationHistory = Array.isArray(history)
+              ? history
+                  .filter(
+                    (h: any): h is { role: 'user' | 'assistant'; content: string } =>
+                      h &&
+                      typeof h === 'object' &&
+                      (h.role === 'user' || h.role === 'assistant') &&
+                      typeof h.content === 'string'
+                  )
+                  .slice(-8)
+              : [];
+
+            const canTrackTelemetry =
+              typeof (vscode.window as { createOutputChannel?: unknown }).createOutputChannel ===
+              'function';
+
+            const trackAIModalOutcome = async (
+              result: 'success' | 'empty' | 'prepare-error' | 'cancelled' | 'error',
+              extraProps?: Record<string, unknown>
+            ) => {
+              if (!canTrackTelemetry) {
+                return;
+              }
+
+              try {
+                await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+                  `workspai.aimodal.${normalizedMode}`,
+                  typeof aiContext?.path === 'string' ? aiContext.path : undefined,
+                  {
+                    source: 'ai-modal',
+                    result,
+                    hasPrompt: Boolean(normalizedQuestion.trim()),
+                    historyTurns: conversationHistory.length,
+                    ...extraProps,
+                  }
+                );
+              } catch {
+                // Telemetry should never interrupt AI modal UX.
+              }
+            };
+
+            if (!normalizedQuestion.trim() || !aiContext) {
+              await trackAIModalOutcome('empty', {
+                hasContext: Boolean(aiContext),
+              });
+              panel.webview.postMessage({
+                command: 'aiStreamDone',
+                data: { requestId: queryRequestId },
+              });
+              break;
+            }
+
             this._aiQueryTokenSource?.cancel();
             this._aiQueryTokenSource?.dispose();
             const tokenSource = new vscode.CancellationTokenSource();
             this._aiQueryTokenSource = tokenSource;
             this._activeAIQueryRequestId = queryRequestId;
+            let currentStage: 'prepare' | 'stream' = 'prepare';
             try {
               const { streamAIResponse, prepareAIConversation } =
                 await import('../../core/aiService.js');
 
-              const conversationHistory = Array.isArray(history)
-                ? history
-                    .filter(
-                      (h: any): h is { role: 'user' | 'assistant'; content: string } =>
-                        h &&
-                        typeof h === 'object' &&
-                        (h.role === 'user' || h.role === 'assistant') &&
-                        typeof h.content === 'string'
-                    )
-                    .slice(-8)
-                : [];
-
               const prepared = await prepareAIConversation(
-                mode,
-                question,
-                aiCtx,
+                normalizedMode,
+                normalizedQuestion,
+                aiContext,
                 conversationHistory
               );
+              currentStage = 'stream';
 
               const { modelId } = await streamAIResponse(
                 prepared.messages,
@@ -639,6 +685,15 @@ No markdown, no explanation outside the JSON.`;
                 tokenSource.token,
                 typeof requestedModelId === 'string' ? requestedModelId : undefined
               );
+
+              if (tokenSource.token.isCancellationRequested) {
+                await trackAIModalOutcome('cancelled', { stage: 'after-stream' });
+              } else {
+                await trackAIModalOutcome('success', {
+                  modelId,
+                });
+              }
+
               // Notify the webview which model was used
               panel.webview.postMessage({
                 command: 'aiModelUsed',
@@ -646,13 +701,20 @@ No markdown, no explanation outside the JSON.`;
               });
             } catch (err) {
               if (tokenSource.token.isCancellationRequested) {
+                await trackAIModalOutcome('cancelled', { stage: currentStage });
                 panel.webview.postMessage({
                   command: 'aiStreamDone',
                   data: { requestId: queryRequestId },
                 });
                 break;
               }
+
               const errMsg = err instanceof Error ? err.message : String(err);
+              await trackAIModalOutcome(currentStage === 'prepare' ? 'prepare-error' : 'error', {
+                error: errMsg.slice(0, 180),
+                stage: currentStage,
+              });
+
               panel.webview.postMessage({
                 command: 'aiStreamDone',
                 data: { error: errMsg, requestId: queryRequestId },

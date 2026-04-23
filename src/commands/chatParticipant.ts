@@ -19,6 +19,7 @@ import {
   type AIConversationHistoryEntry,
 } from '../core/aiService';
 import { collectDebugPrefillQuestion } from './aiDebugger';
+import { WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -113,14 +114,42 @@ async function handleWorkspaiRequest(
   // Build question
   const question: string = mode === 'debug' ? collectDebugContext(request.prompt) : request.prompt;
 
+  const ctx: AIModalContext = resolveContext();
+  const history = extractHistory(chatContext);
+  const canTrackTelemetry =
+    typeof (vscode.window as { createOutputChannel?: unknown }).createOutputChannel === 'function';
+
+  const trackChatOutcome = async (
+    result: 'success' | 'empty' | 'prepare-error' | 'cancelled' | 'error',
+    extraProps?: Record<string, unknown>
+  ) => {
+    if (!canTrackTelemetry) {
+      return;
+    }
+
+    try {
+      await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+        `workspai.chat.${mode}`,
+        ctx.path,
+        {
+          source: 'chat-participant',
+          result,
+          historyTurns: history.length,
+          hasPrompt: Boolean(request.prompt?.trim()),
+          ...extraProps,
+        }
+      );
+    } catch {
+      // Telemetry should never interrupt chat UX.
+    }
+  };
+
   // Guard: empty question
   if (!question.trim()) {
+    await trackChatOutcome('empty');
     stream.markdown(EMPTY_PROMPT_MSG[mode]);
     return {};
   }
-
-  const ctx: AIModalContext = resolveContext();
-  const history = extractHistory(chatContext);
 
   // Show progress while scanning project context
   stream.progress('Scanning project context…');
@@ -129,12 +158,16 @@ async function handleWorkspaiRequest(
   try {
     prepared = await prepareAIConversation(mode, question, ctx, history);
   } catch (err: unknown) {
+    await trackChatOutcome('prepare-error', {
+      error: err instanceof Error ? err.message.slice(0, 180) : String(err).slice(0, 180),
+    });
     const msg = err instanceof Error ? err.message : String(err);
     stream.markdown(`**Workspai:** Failed to prepare context — ${msg}`);
     return {};
   }
 
   if (token.isCancellationRequested) {
+    await trackChatOutcome('cancelled', { stage: 'before-stream' });
     return {};
   }
 
@@ -153,8 +186,12 @@ async function handleWorkspaiRequest(
     );
   } catch (err: unknown) {
     if (token.isCancellationRequested) {
+      await trackChatOutcome('cancelled', { stage: 'during-stream' });
       return {};
     }
+    await trackChatOutcome('error', {
+      error: err instanceof Error ? err.message.slice(0, 180) : String(err).slice(0, 180),
+    });
     const msg = err instanceof Error ? err.message : String(err);
 
     if (!hasContent) {
@@ -166,6 +203,10 @@ async function handleWorkspaiRequest(
     }
     return {};
   }
+
+  await trackChatOutcome('success', {
+    responseHasContent: hasContent,
+  });
 
   // Append context-aware follow-up buttons
   if (!token.isCancellationRequested) {

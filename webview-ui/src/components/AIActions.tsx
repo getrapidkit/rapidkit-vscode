@@ -1,45 +1,45 @@
-import { Sparkles, Wand2, MessageSquare, FolderKanban, Package, Bug, Lightbulb } from 'lucide-react';
+import { Sparkles, Wand2, Bug, Terminal, BookOpen, Package, Layers } from 'lucide-react';
 
 const CARDS = [
     {
         icon: <Wand2 size={14} />,
-        label: 'Create with AI',
-        desc: 'Describe your idea → AI picks kit, modules, and scaffolds workspace + project',
+        label: 'AI Create',
+        desc: 'Describe your project in plain language — AI plans the workspace, picks the kit, and scaffolds everything.',
         color: '#6C5CE7',
         accent: 'teal',
     },
     {
         icon: <Bug size={14} />,
-        label: 'AI Debugger',
-        desc: 'Explain errors and get fix suggestions with full workspace context (⌨ Ctrl+Shift+R D)',
+        label: 'Fix Preview Lite',
+        desc: 'Request the smallest safe patch as a preview — root cause, candidate edits, and post-fix checks before touching code.',
         color: '#e17055',
         accent: 'orange',
     },
     {
-        icon: <FolderKanban size={14} />,
-        label: 'Workspace Brain',
-        desc: 'Ask AI anything about your workspace — architecture, decisions, next steps (⌨ Ctrl+Shift+R B)',
+        icon: <Layers size={14} />,
+        label: 'Change Impact Lite',
+        desc: 'Assess what can break before implementing a change. Risk level, impacted files, and a safe rollout checklist.',
         color: '#6c5ce7',
         accent: 'violet',
     },
     {
-        icon: <MessageSquare size={14} />,
-        label: 'Project Assistant',
-        desc: 'Per-project AI Q&A with scanned code context — click ✦ on any project item',
+        icon: <Terminal size={14} />,
+        label: 'Terminal → AI Bridge',
+        desc: 'Send stack traces, test failures, or npm errors directly to AI for structured root-cause and fix guidance.',
         color: '#a78bfa',
         accent: 'purple',
     },
     {
-        icon: <Package size={14} />,
-        label: 'Module Advisor',
-        desc: 'AI recommends which modules to install based on your project description',
+        icon: <BookOpen size={14} />,
+        label: 'Memory Wizard',
+        desc: 'Capture conventions and architecture decisions with guided prompts — injected into every AI answer automatically.',
         color: '#00b894',
         accent: 'green',
     },
     {
-        icon: <Lightbulb size={14} />,
-        label: 'Explain Error',
-        desc: 'Select any error in the editor → right-click → Explain Error with AI',
+        icon: <Package size={14} />,
+        label: 'AI Recipe Packs',
+        desc: '10 reusable AI workflows: root-cause, endpoint planning, DB migration, auth hardening, and ship-readiness review.',
         color: '#fdcb6e',
         accent: 'yellow',
     },
@@ -51,7 +51,7 @@ export function AIActions() {
             <div className="ai-actions-header">
                 <Sparkles size={13} style={{ color: '#6C5CE7' }} />
                 <span>AI Features</span>
-                <span className="ai-actions-badge">Powered by Copilot</span>
+                <span className="ai-actions-badge">Free · Powered by Copilot</span>
             </div>
             <div className="ai-features-grid">
                 {CARDS.map((c) => (

@@ -132,18 +132,41 @@ export function registerProjectLifecycleCommands(options: {
         const defaultPort = isGoProject ? 3000 : 8000;
         let port = defaultPort;
 
-        const findAvailablePort = (startPort: number): Promise<number> => {
+        const MAX_PORT_SCAN_ATTEMPTS = 50;
+
+        const canBindPort = (candidatePort: number): Promise<boolean> => {
           return new Promise((resolve) => {
             const server = net.createServer();
-            server.listen(startPort, '0.0.0.0', () => {
-              server.close(() => resolve(startPort));
+            server.once('error', () => {
+              resolve(false);
             });
-            server.on('error', () => {
-              resolve(findAvailablePort(startPort + 1));
+            server.listen(candidatePort, '0.0.0.0', () => {
+              server.close(() => resolve(true));
             });
           });
         };
-        port = await findAvailablePort(defaultPort);
+
+        const findAvailablePort = async (startPort: number): Promise<number> => {
+          for (let i = 0; i < MAX_PORT_SCAN_ATTEMPTS; i += 1) {
+            const candidatePort = startPort + i;
+            if (await canBindPort(candidatePort)) {
+              return candidatePort;
+            }
+          }
+
+          throw new Error(
+            `No available port found after ${MAX_PORT_SCAN_ATTEMPTS} attempts from ${startPort}`
+          );
+        };
+
+        try {
+          port = await findAvailablePort(defaultPort);
+        } catch {
+          vscode.window.showWarningMessage(
+            `Could not find an open port near ${defaultPort}; starting with default port.`
+          );
+          port = defaultPort;
+        }
 
         let terminal: vscode.Terminal;
 

@@ -15,9 +15,34 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
     'typescript',
     'javascript',
     'go',
+    'java',
+    'csharp',
+    'php',
+    'ruby',
+    'rust',
+    'kotlin',
+    'scala',
+    'sql',
+    'yaml',
+    'json',
+    'jsonc',
+    'toml',
+    'shellscript',
+    'dockerfile',
     'typescriptreact',
     'javascriptreact',
   ]);
+
+  private getRangeSnippet(document: vscode.TextDocument, range: vscode.Range): string | undefined {
+    const text = document.getText(document.validateRange(range)).trim();
+    if (!text) {
+      return undefined;
+    }
+    if (text.length <= 800) {
+      return text;
+    }
+    return `${text.slice(0, 800)}\n... [truncated]`;
+  }
 
   provideCodeActions(
     document: vscode.TextDocument,
@@ -61,7 +86,8 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
     const hasErrors = context.diagnostics.some(
       (d) => d.severity === vscode.DiagnosticSeverity.Error
     );
-    const hasSelection = !document.validateRange(range).isEmpty;
+    const selectionSnippet = this.getRangeSnippet(document, range);
+    const hasSelection = Boolean(selectionSnippet);
 
     if (hasErrors || hasSelection) {
       const action = new vscode.CodeAction(
@@ -74,6 +100,17 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
       };
       action.isPreferred = false;
       actions.push(action);
+
+      const fixPreviewAction = new vscode.CodeAction(
+        '✦ Preview fix with Workspai AI',
+        vscode.CodeActionKind.QuickFix
+      );
+      fixPreviewAction.command = {
+        command: 'workspai.aiFixPreviewLite',
+        title: 'Preview fix with Workspai AI',
+        arguments: [selectionSnippet],
+      };
+      actions.push(fixPreviewAction);
     }
 
     if (hasErrors) {
@@ -92,6 +129,19 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         arguments: [errorMessages],
       };
       actions.push(explainAction);
+    }
+
+    if (hasSelection) {
+      const impactAction = new vscode.CodeAction(
+        '✦ Analyze change impact with AI',
+        vscode.CodeActionKind.Refactor
+      );
+      impactAction.command = {
+        command: 'workspai.aiChangeImpactLite',
+        title: 'Analyze change impact with AI',
+        arguments: [selectionSnippet],
+      };
+      actions.push(impactAction);
     }
 
     return actions;

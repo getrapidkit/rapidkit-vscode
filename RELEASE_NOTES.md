@@ -1,5 +1,42 @@
 # Release Notes
 
+## Latest Release: v0.21.0 (April 23, 2026)
+
+### ✦ AI Action Expansion + Telemetry Insights + Runtime Hardening
+
+**Summary:** This release expands the free AI action surface across command palette, sidebar inline actions, and quick-actions webview; introduces workspace telemetry summaries plus onboarding experiment stats; and hardens runtime reliability with safer doctor metadata fetches, bounded port scans, and startup path-race fixes.
+
+#### Added
+
+- **Expanded AI action commands** available from palette and menus:
+  - `AI Quick Actions`
+  - `AI Smart Route`
+  - `AI Fix Preview (Lite)`
+  - `AI Change Impact (Lite)`
+  - `Analyze Terminal Output with AI`
+  - `Guided Workspace Memory Setup`
+  - `AI Recipe Packs`
+- **Telemetry commands**:
+  - `Show Telemetry Summary`
+  - `Reset Telemetry Data`
+  - `Show AI Feature Tour`
+  - `Show Onboarding Experiment Stats`
+- **AI onboarding tour** with follow-up variant tracking and conversion metrics hooks.
+
+#### Changed
+
+- **Action surface consistency** — WORKSPACES / PROJECTS inline action groups and the Actions webview now align with the same AI-first flows.
+- **AI telemetry depth** — `@workspai` chat and AI modal now emit structured outcome telemetry (`success`, `prepare-error`, `cancelled`, `error`) with context-safe metadata.
+- **Telemetry UX in logs/context panel** — added JSON summary views, quick summary copy, and one-click reset/open marker paths.
+
+#### Fixed
+
+- **Doctor metadata fetch safety** — added timeout, bounded redirects, and same-host redirect enforcement.
+- **Project dev startup resilience** — replaced unbounded recursive port probing with bounded scan + fallback.
+- **Workspace init stability** — made workspace registry directory creation synchronous during startup to avoid race conditions.
+
+---
+
 ## Latest Release: v0.20.0 (April 20, 2026)
 
 ### ✦ @workspai Chat Participant + AI Create Presets + Workspace Hardening
