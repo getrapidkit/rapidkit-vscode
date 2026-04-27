@@ -12,6 +12,7 @@ import { CoreVersionService } from '../../core/coreVersionService';
 import { ExamplesService } from '../../core/examplesService';
 import { KitsService } from '../../core/kitsService';
 import { WorkspaceMemoryService } from '../../core/workspaceMemoryService';
+import { getGitDiffStat } from '../../core/aiProjectContextUtils';
 import { isWorkspacePathAncestor } from '../../core/aiContextResolver';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
@@ -40,7 +41,65 @@ import {
   prependIncidentMemoryReuseBlock,
   shouldAttachIncidentMemoryReuse,
 } from './incidentStudioMemory';
-import { buildIncidentFirstResponseRules } from './incidentStudioPromptPolicy';
+import {
+  buildIncidentFirstResponseRules,
+  classifyIncidentActionPolicy,
+} from './incidentStudioPromptPolicy';
+
+type IncidentWorkspaceGraphSnapshot = {
+  snapshotVersion: 'v1';
+  workspace: {
+    path?: string;
+    name?: string;
+  };
+  project: {
+    framework: string;
+    kit: string;
+    selectedProject: {
+      path: string;
+      name?: string;
+      type?: string;
+    } | null;
+  };
+  topology: {
+    modulesCount: number;
+    topModules: string[];
+  };
+  doctor: {
+    hasEvidence: boolean;
+    generatedAt?: string;
+    health?: {
+      passed: number;
+      warnings: number;
+      errors: number;
+      total: number;
+      percent: number;
+    };
+  };
+  git: {
+    diffStat: string;
+    hasDiffContext: boolean;
+  };
+  memory: {
+    context?: string;
+    conventionsCount: number;
+    decisionsCount: number;
+    hasMemory: boolean;
+  };
+  telemetry: {
+    totalEvents: number;
+    lastCommand: string | null;
+    onboardingFollowupClickThroughRate: number;
+  };
+  evidence: {
+    hasDoctorEvidence: boolean;
+    hasGitDiff: boolean;
+    hasWorkspaceMemory: boolean;
+    projectScoped: boolean;
+  };
+  completeness: 'fresh' | 'cached' | 'partial' | 'degraded';
+  lastUpdatedAt: number;
+};
 
 export class WelcomePanel {
   private static readonly UI_PREFS_KEY = 'rapidkit.welcome.uiPreferences';
@@ -1771,53 +1830,96 @@ No markdown, no explanation outside the JSON.`;
     return 'unknown';
   }
 
-  private async _getWorkspaceGraphSnapshot(workspacePath?: string) {
+  private async _getWorkspaceGraphSnapshot(
+    workspacePath?: string
+  ): Promise<IncidentWorkspaceGraphSnapshot> {
     const resolvedWorkspacePath = workspacePath || this._resolveTelemetryWorkspacePath();
     const tracker = WorkspaceUsageTracker.getInstance();
-    const memoryPath = resolvedWorkspacePath
-      ? path.join(resolvedWorkspacePath, '.rapidkit', 'workspace-memory.json')
-      : undefined;
+    const memoryService = WorkspaceMemoryService.getInstance();
 
-    let memoryData: { context?: string; conventions?: string[]; decisions?: string[] } | null =
-      null;
-    if (memoryPath && (await fs.pathExists(memoryPath))) {
-      try {
-        const raw = await fs.readFile(memoryPath, 'utf-8');
-        memoryData = JSON.parse(raw);
-      } catch {
-        memoryData = null;
-      }
-    }
+    const selectedProject =
+      WelcomePanel._selectedProject &&
+      isWorkspacePathAncestor(resolvedWorkspacePath, WelcomePanel._selectedProject.path)
+        ? WelcomePanel._selectedProject
+        : null;
+    const graphScanPath = selectedProject?.path || resolvedWorkspacePath;
 
-    const [commandSummary, onboardingSummary, framework] = await Promise.all([
+    const [
+      commandSummary,
+      onboardingSummary,
+      framework,
+      doctorSummary,
+      workspaceMemory,
+      gitDiffStat,
+      installedModules,
+    ] = await Promise.all([
       tracker.getCommandTelemetrySummary(resolvedWorkspacePath, 'last7d'),
       tracker.getOnboardingExperimentStats(resolvedWorkspacePath, 'last7d'),
       resolvedWorkspacePath
         ? this._inferFrameworkFromWorkspace(resolvedWorkspacePath)
         : Promise.resolve('unknown'),
+      this._readDoctorEvidenceSummary(resolvedWorkspacePath),
+      resolvedWorkspacePath
+        ? memoryService.readNearest(resolvedWorkspacePath)
+        : Promise.resolve(undefined),
+      graphScanPath ? getGitDiffStat(graphScanPath, 1500) : Promise.resolve(null),
+      selectedProject
+        ? WelcomePanel._readInstalledModules(selectedProject.path)
+        : Promise.resolve([]),
     ]);
 
+    const hasWorkspaceMemory = Boolean(
+      workspaceMemory?.context ||
+      workspaceMemory?.conventions?.length ||
+      workspaceMemory?.decisions?.length
+    );
+    const hasDoctorEvidence = Boolean(doctorSummary);
+    const hasGitDiff = Boolean(gitDiffStat && !gitDiffStat.includes('unavailable'));
+    const hasProjectScope = Boolean(selectedProject);
+
     return {
+      snapshotVersion: 'v1',
       workspace: {
         path: resolvedWorkspacePath,
         name: resolvedWorkspacePath ? path.basename(resolvedWorkspacePath) : undefined,
       },
       project: {
         framework,
-        selectedProject: WelcomePanel._selectedProject,
+        kit: selectedProject?.type || 'unknown',
+        selectedProject,
       },
-      kits: [],
-      modules: [],
+      topology: {
+        modulesCount: installedModules.length,
+        topModules: installedModules.map((module) => module.slug).slice(0, 5),
+      },
+      doctor: {
+        hasEvidence: hasDoctorEvidence,
+        generatedAt: doctorSummary?.generatedAt,
+        health: doctorSummary?.health,
+      },
+      git: {
+        diffStat:
+          gitDiffStat || 'Git context unavailable (not a repository or git is not installed).',
+        hasDiffContext: hasGitDiff,
+      },
       memory: {
-        context: memoryData?.context,
-        conventionsCount: memoryData?.conventions?.length || 0,
-        decisionsCount: memoryData?.decisions?.length || 0,
+        context: workspaceMemory?.context,
+        conventionsCount: workspaceMemory?.conventions?.length || 0,
+        decisionsCount: workspaceMemory?.decisions?.length || 0,
+        hasMemory: hasWorkspaceMemory,
       },
       telemetry: {
         totalEvents: commandSummary?.totalEvents || 0,
         lastCommand: commandSummary?.lastCommand || null,
         onboardingFollowupClickThroughRate: onboardingSummary?.overallFollowupClickThroughRate || 0,
       },
+      evidence: {
+        hasDoctorEvidence,
+        hasGitDiff,
+        hasWorkspaceMemory,
+        projectScoped: hasProjectScope,
+      },
+      completeness: hasDoctorEvidence && hasGitDiff ? 'fresh' : 'partial',
       lastUpdatedAt: Date.now(),
     };
   }
@@ -2531,6 +2633,7 @@ No markdown, no explanation outside the JSON.`;
 
     const messageId = `msg-${Date.now()}`;
     const actionType = this._routeActionTypeFromMessage(message);
+    const actionPolicy = classifyIncidentActionPolicy(actionType);
     const isFirstQuery = current.queryCount === 1;
     const memoryReuseSnapshot = isFirstQuery
       ? await this._buildIncidentMemoryReuseSnapshot(current.workspacePath)
@@ -2655,6 +2758,7 @@ No markdown, no explanation outside the JSON.`;
             data: {
               route: actionType,
               confidence: 80,
+              actionPolicy,
             },
             actions: [
               {
@@ -2666,7 +2770,10 @@ No markdown, no explanation outside the JSON.`;
                       : 'Inspect launch blockers'
                     : `Run ${actionType}`,
                 actionType: actionType === 'orchestrate' ? 'terminal-bridge' : actionType,
-                riskLevel: actionType === 'change-impact-lite' ? 'medium' : 'low',
+                riskLevel: actionPolicy.riskLevel,
+                riskClass: actionPolicy.riskClass,
+                requiresImpactReview: actionPolicy.requiresImpactReview,
+                requiresVerifyPath: actionPolicy.requiresVerifyPath,
               },
               ...(actionType === 'terminal-bridge'
                 ? [
@@ -2868,6 +2975,7 @@ No markdown, no explanation outside the JSON.`;
     }
 
     if (conv) {
+      const actionPolicy = classifyIncidentActionPolicy(actionType);
       conv.actionCount += 1;
       conv.phase = 'verify';
       conv.lastActivityAt = Date.now();
@@ -2877,6 +2985,8 @@ No markdown, no explanation outside the JSON.`;
         conversationId,
         actionId,
         actionType,
+        actionRiskClass: actionPolicy.riskClass,
+        actionRiskLevel: actionPolicy.riskLevel,
         framework: conv.framework ?? 'unknown',
         actionCount: conv.actionCount,
         timeToFirstActionMs: Date.now() - conv.startedAt,

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildIncidentActionExecutionMetadata,
   buildIncidentChatExecuteActionPayload,
   buildIncidentChatQueryPayload,
   buildIncidentChatStartPayload,
+  normalizeIncidentWorkspaceGraphSnapshot,
   normalizeIncomingIncidentStudioOpen,
 } from '../../webview-ui/src/lib/incidentStudioPayload';
 
@@ -116,6 +118,117 @@ describe('incidentStudioPayload', () => {
       projectPath: '/tmp/wsp/orders-api',
       projectName: 'orders-api',
       projectType: 'springboot',
+      execution: {
+        riskClass: 'non-mutating-executable',
+        riskLevel: 'medium',
+        requiresImpactReview: false,
+        requiresVerifyPath: true,
+        allowCompletionClaimWithoutVerify: false,
+      },
     });
+  });
+
+  it('classifies execute-action metadata for known and unknown action types', () => {
+    const doctorFix = buildIncidentActionExecutionMetadata('doctor-fix');
+    const unknown = buildIncidentActionExecutionMetadata('unknown-action');
+
+    expect(doctorFix).toEqual({
+      riskClass: 'non-mutating-executable',
+      riskLevel: 'medium',
+      requiresImpactReview: false,
+      requiresVerifyPath: true,
+      allowCompletionClaimWithoutVerify: false,
+    });
+
+    expect(unknown).toEqual({
+      riskClass: 'high-risk-mutating',
+      riskLevel: 'critical',
+      requiresImpactReview: true,
+      requiresVerifyPath: true,
+      allowCompletionClaimWithoutVerify: false,
+    });
+  });
+
+  it('normalizes canonical workspace graph snapshot for incident studio', () => {
+    const graph = normalizeIncidentWorkspaceGraphSnapshot({
+      snapshotVersion: 'v1',
+      workspace: { path: ' /tmp/wsp ', name: ' Demo ' },
+      project: {
+        framework: 'springboot',
+        kit: 'springboot.standard',
+        selectedProject: {
+          path: ' /tmp/wsp/orders-api ',
+          name: ' Orders API ',
+          type: ' springboot ',
+        },
+      },
+      topology: {
+        modulesCount: 4,
+        topModules: ['auth', 'billing'],
+      },
+      doctor: {
+        hasEvidence: true,
+        generatedAt: '2026-04-27T12:00:00.000Z',
+        health: {
+          passed: 7,
+          warnings: 1,
+          errors: 0,
+          total: 8,
+          percent: 88,
+        },
+      },
+      git: {
+        diffStat: '2 files changed',
+        hasDiffContext: true,
+      },
+      memory: {
+        context: 'Monorepo with strict module boundaries.',
+        conventionsCount: 2,
+        decisionsCount: 1,
+        hasMemory: true,
+      },
+      telemetry: {
+        totalEvents: 32,
+        lastCommand: 'workspai.studio.loop_started',
+        onboardingFollowupClickThroughRate: 41,
+      },
+      evidence: {
+        hasDoctorEvidence: true,
+        hasGitDiff: true,
+        hasWorkspaceMemory: true,
+        projectScoped: true,
+      },
+      completeness: 'fresh',
+      lastUpdatedAt: 123,
+    });
+
+    expect(graph).toMatchObject({
+      snapshotVersion: 'v1',
+      workspace: { path: '/tmp/wsp', name: 'Demo' },
+      project: {
+        framework: 'springboot',
+        kit: 'springboot.standard',
+        selectedProject: {
+          path: '/tmp/wsp/orders-api',
+          name: 'Orders API',
+          type: 'springboot',
+        },
+      },
+      evidence: {
+        hasDoctorEvidence: true,
+        hasGitDiff: true,
+        hasWorkspaceMemory: true,
+        projectScoped: true,
+      },
+      completeness: 'fresh',
+    });
+  });
+
+  it('returns null when workspace path is missing in workspace graph snapshot', () => {
+    expect(
+      normalizeIncidentWorkspaceGraphSnapshot({
+        workspace: { path: '   ' },
+      })
+    ).toBeNull();
   });
 });

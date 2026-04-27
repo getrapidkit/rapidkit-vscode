@@ -1,3 +1,69 @@
+export type IncidentActionRiskClass =
+  | 'informational'
+  | 'non-mutating-executable'
+  | 'guarded-mutating'
+  | 'high-risk-mutating';
+
+export type IncidentActionRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export type IncidentActionRiskPolicy = {
+  actionType: string;
+  riskClass: IncidentActionRiskClass;
+  riskLevel: IncidentActionRiskLevel;
+  requiresImpactReview: boolean;
+  requiresVerifyPath: boolean;
+  allowCompletionClaimWithoutVerify: boolean;
+};
+
+export function classifyIncidentActionPolicy(actionType: string): IncidentActionRiskPolicy {
+  const normalized = String(actionType || '')
+    .trim()
+    .toLowerCase();
+
+  switch (normalized) {
+    case 'change-impact-lite':
+      return {
+        actionType: normalized,
+        riskClass: 'informational',
+        riskLevel: 'medium',
+        requiresImpactReview: false,
+        requiresVerifyPath: false,
+        allowCompletionClaimWithoutVerify: true,
+      };
+    case 'terminal-bridge':
+    case 'fix-preview-lite':
+    case 'workspace-memory-wizard':
+    case 'doctor-fix':
+    case 'recipe-pack':
+      return {
+        actionType: normalized,
+        riskClass: 'non-mutating-executable',
+        riskLevel: normalized === 'doctor-fix' ? 'medium' : 'low',
+        requiresImpactReview: false,
+        requiresVerifyPath: normalized === 'doctor-fix',
+        allowCompletionClaimWithoutVerify: normalized !== 'doctor-fix',
+      };
+    case 'inline-command':
+      return {
+        actionType: normalized,
+        riskClass: 'guarded-mutating',
+        riskLevel: 'high',
+        requiresImpactReview: true,
+        requiresVerifyPath: true,
+        allowCompletionClaimWithoutVerify: false,
+      };
+    default:
+      return {
+        actionType: normalized || 'unknown',
+        riskClass: 'high-risk-mutating',
+        riskLevel: 'critical',
+        requiresImpactReview: true,
+        requiresVerifyPath: true,
+        allowCompletionClaimWithoutVerify: false,
+      };
+  }
+}
+
 export function buildIncidentFirstResponseRules(input: {
   projectScoped: boolean;
   hasDoctorEvidence: boolean;

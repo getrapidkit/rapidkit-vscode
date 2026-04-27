@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildIncidentFirstResponseRules } from '../ui/panels/incidentStudioPromptPolicy';
+import {
+  buildIncidentFirstResponseRules,
+  classifyIncidentActionPolicy,
+} from '../ui/panels/incidentStudioPromptPolicy';
 
 describe('incidentStudioPromptPolicy', () => {
   it('returns no extra rules for workspace-scoped mode', () => {
@@ -36,5 +39,32 @@ describe('incidentStudioPromptPolicy', () => {
 
     expect(rules.some((line) => line.includes('Spring Boot'))).toBe(true);
     expect(rules.some((line) => line.includes('never recommend `rapidkit dev`'))).toBe(true);
+  });
+
+  it('classifies known low-risk and informational actions', () => {
+    const terminal = classifyIncidentActionPolicy('terminal-bridge');
+    const impact = classifyIncidentActionPolicy('change-impact-lite');
+
+    expect(terminal.riskClass).toBe('non-mutating-executable');
+    expect(terminal.riskLevel).toBe('low');
+    expect(terminal.requiresVerifyPath).toBe(false);
+
+    expect(impact.riskClass).toBe('informational');
+    expect(impact.riskLevel).toBe('medium');
+    expect(impact.allowCompletionClaimWithoutVerify).toBe(true);
+  });
+
+  it('classifies risky and unknown actions as verify-first required', () => {
+    const inlineCommand = classifyIncidentActionPolicy('inline-command');
+    const unknown = classifyIncidentActionPolicy('custom-mutate-action');
+
+    expect(inlineCommand.riskClass).toBe('guarded-mutating');
+    expect(inlineCommand.requiresImpactReview).toBe(true);
+    expect(inlineCommand.requiresVerifyPath).toBe(true);
+    expect(inlineCommand.allowCompletionClaimWithoutVerify).toBe(false);
+
+    expect(unknown.riskClass).toBe('high-risk-mutating');
+    expect(unknown.riskLevel).toBe('critical');
+    expect(unknown.requiresVerifyPath).toBe(true);
   });
 });
