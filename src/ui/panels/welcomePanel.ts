@@ -1848,7 +1848,7 @@ No markdown, no explanation outside the JSON.`;
       commandSummary,
       onboardingSummary,
       framework,
-      doctorSummary,
+      doctorSnapshot,
       workspaceMemory,
       gitDiffStat,
       installedModules,
@@ -1858,7 +1858,7 @@ No markdown, no explanation outside the JSON.`;
       resolvedWorkspacePath
         ? this._inferFrameworkFromWorkspace(resolvedWorkspacePath)
         : Promise.resolve('unknown'),
-      this._readDoctorEvidenceSummary(resolvedWorkspacePath),
+      this._readDoctorEvidenceSnapshot(resolvedWorkspacePath),
       resolvedWorkspacePath
         ? memoryService.readNearest(resolvedWorkspacePath)
         : Promise.resolve(undefined),
@@ -1866,16 +1866,48 @@ No markdown, no explanation outside the JSON.`;
       selectedProject
         ? WelcomePanel._readInstalledModules(selectedProject.path)
         : Promise.resolve([]),
-    ]);
+    ] as const);
 
     const hasWorkspaceMemory = Boolean(
       workspaceMemory?.context ||
       workspaceMemory?.conventions?.length ||
       workspaceMemory?.decisions?.length
     );
-    const hasDoctorEvidence = Boolean(doctorSummary);
+    const hasDoctorEvidence = Boolean(doctorSnapshot);
     const hasGitDiff = Boolean(gitDiffStat && !gitDiffStat.includes('unavailable'));
     const hasProjectScope = Boolean(selectedProject);
+    const doctorGeneratedAt =
+      doctorSnapshot && typeof doctorSnapshot.generatedAt === 'string'
+        ? doctorSnapshot.generatedAt
+        : undefined;
+
+    const doctorHealth = (() => {
+      if (!doctorSnapshot) {
+        return undefined;
+      }
+
+      const doctorRecord = doctorSnapshot as Record<string, unknown>;
+      const healthRecord =
+        doctorRecord.health && typeof doctorRecord.health === 'object'
+          ? (doctorRecord.health as Record<string, unknown>)
+          : undefined;
+
+      const passed = Number(healthRecord?.passed ?? doctorRecord.passed ?? 0);
+      const warnings = Number(healthRecord?.warnings ?? doctorRecord.warnings ?? 0);
+      const errors = Number(healthRecord?.errors ?? doctorRecord.errors ?? 0);
+      const total = passed + warnings + errors;
+      const percent = Number(
+        healthRecord?.percent ?? (total > 0 ? Math.round((passed / total) * 100) : 0)
+      );
+
+      return {
+        passed,
+        warnings,
+        errors,
+        total,
+        percent,
+      };
+    })();
 
     return {
       snapshotVersion: 'v1',
@@ -1894,8 +1926,8 @@ No markdown, no explanation outside the JSON.`;
       },
       doctor: {
         hasEvidence: hasDoctorEvidence,
-        generatedAt: doctorSummary?.generatedAt,
-        health: doctorSummary?.health,
+        generatedAt: doctorGeneratedAt,
+        health: doctorHealth,
       },
       git: {
         diffStat:
@@ -2006,16 +2038,23 @@ No markdown, no explanation outside the JSON.`;
 
   private async _handleAiChatSyncWorkspace(data: any, requestId?: string) {
     const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : undefined;
-    const cacheKey = `chat-brain-workspace-graph-${workspacePath || 'default'}`;
+    const selectedProjectPath =
+      WelcomePanel._selectedProject &&
+      isWorkspacePathAncestor(workspacePath, WelcomePanel._selectedProject.path)
+        ? WelcomePanel._selectedProject.path
+        : 'none';
+    const cacheKey = `chat-brain-workspace-graph-${workspacePath || 'default'}-${selectedProjectPath}`;
     const now = Date.now();
     const cacheTtl = 2 * 60 * 1000;
+    const forceRefresh = data?.forceRefresh === true;
 
     const cached = this._context.globalState.get<{ graph: any; timestamp: number }>(cacheKey);
-    if (cached && now - cached.timestamp < cacheTtl) {
+    if (!forceRefresh && cached && now - cached.timestamp < cacheTtl) {
       this._panel.webview.postMessage({
         command: 'aiChatWorkspaceSynced',
         data: {
           workspacePath,
+          selectedProjectPath: selectedProjectPath !== 'none' ? selectedProjectPath : undefined,
           snapshotVersion: String(cached.timestamp),
           graph: cached.graph,
           cacheHit: true,
@@ -2032,6 +2071,7 @@ No markdown, no explanation outside the JSON.`;
       command: 'aiChatWorkspaceSynced',
       data: {
         workspacePath,
+        selectedProjectPath: selectedProjectPath !== 'none' ? selectedProjectPath : undefined,
         snapshotVersion: String(now),
         graph,
         cacheHit: false,
@@ -2974,8 +3014,9 @@ No markdown, no explanation outside the JSON.`;
       return;
     }
 
+    const actionPolicy = classifyIncidentActionPolicy(actionType);
+
     if (conv) {
-      const actionPolicy = classifyIncidentActionPolicy(actionType);
       conv.actionCount += 1;
       conv.phase = 'verify';
       conv.lastActivityAt = Date.now();
@@ -3043,7 +3084,9 @@ No markdown, no explanation outside the JSON.`;
         ? data.workspacePath.trim()
         : this._chatBrainConversations.get(conversationId)?.workspacePath;
     const doctorEvidence = await this._readDoctorEvidenceSummary(workspacePath);
-    const verifySuccess = (doctorEvidence?.errors ?? 0) === 0;
+    const verifyEvidenceAvailable = Boolean(doctorEvidence);
+    const verifyReady = !actionPolicy.requiresVerifyPath || verifyEvidenceAvailable;
+    const verifySuccess = verifyReady && (doctorEvidence?.errors ?? 0) === 0;
 
     if (conv) {
       if (verifySuccess) {
@@ -3062,6 +3105,7 @@ No markdown, no explanation outside the JSON.`;
           conversationId,
           actionId,
           actionType,
+          verifyReady,
           framework: conv.framework ?? 'unknown',
           errors: doctorEvidence?.errors ?? 0,
           warnings: doctorEvidence?.warnings ?? 0,
@@ -3121,7 +3165,15 @@ No markdown, no explanation outside the JSON.`;
         conversationId,
         actionId,
         success: verifySuccess,
-        outputSummary: `${actionType} \u2014 result shown in conversation above`,
+        outputSummary: verifyReady
+          ? `${actionType} \u2014 result shown in conversation above`
+          : `${actionType} \u2014 verification required before completion claim`,
+        verificationRequired: !verifyReady,
+        verifyPolicy: {
+          requiresVerifyPath: actionPolicy.requiresVerifyPath,
+          requiresImpactReview: actionPolicy.requiresImpactReview,
+          allowCompletionClaimWithoutVerify: actionPolicy.allowCompletionClaimWithoutVerify,
+        },
         evidence: doctorEvidence
           ? {
               source: 'doctor-last-run',
@@ -3317,7 +3369,6 @@ No markdown, no explanation outside the JSON.`;
       });
     }
   }
-
   private async _cloneExample(example: any) {
     try {
       // Notify webview we're cloning
