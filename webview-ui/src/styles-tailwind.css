@@ -4763,6 +4763,11 @@
     background: color-mix(in srgb, #ff7675 9%, var(--vscode-editor-background));
   }
 
+  .incident-verify-result.is-warning {
+    border-color: color-mix(in srgb, #fdcb6e 48%, transparent);
+    background: color-mix(in srgb, #fdcb6e 11%, var(--vscode-editor-background));
+  }
+
   .incident-verify-result-title {
     display: inline-flex;
     align-items: center;

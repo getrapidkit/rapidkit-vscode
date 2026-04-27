@@ -15,6 +15,11 @@ import {
     Send,
 } from 'lucide-react';
 
+import {
+    getActionResultPresentation,
+    getBoardActionGuardHint,
+} from '../lib/incidentStudioVerifyPolicy';
+
 interface IncidentCommandUsage {
     command: string;
     count: number;
@@ -110,6 +115,8 @@ interface AIIncidentStudioProps {
             label: string;
             actionType: string;
             riskLevel?: string;
+            requiresImpactReview?: boolean;
+            requiresVerifyPath?: boolean;
         }>;
     } | null;
     chatBrainActionProgress?: {
@@ -120,6 +127,12 @@ interface AIIncidentStudioProps {
     chatBrainActionResult?: {
         success: boolean;
         outputSummary?: string;
+        verificationRequired?: boolean;
+        verifyPolicy?: {
+            requiresVerifyPath?: boolean;
+            requiresImpactReview?: boolean;
+            allowCompletionClaimWithoutVerify?: boolean;
+        };
         evidence?: {
             source?: string;
             healthScoreText?: string;
@@ -587,6 +600,19 @@ export function AIIncidentStudio({
     }, [chatBrainBoard?.actions]);
     const primaryBoardAction = sortedBoardActions[0];
     const secondaryBoardActions = sortedBoardActions.slice(1, 4);
+    const primaryBoardGuardHint = primaryBoardAction ? getBoardActionGuardHint(primaryBoardAction) : null;
+    const boardGuardHint = useMemo(() => {
+        for (const action of sortedBoardActions) {
+            const hint = getBoardActionGuardHint(action);
+            if (hint) {
+                return hint;
+            }
+        }
+        return null;
+    }, [sortedBoardActions]);
+    const actionResultPresentation = chatBrainActionResult
+        ? getActionResultPresentation(chatBrainActionResult)
+        : null;
     const sidebarIssuePreviewLimit = activeUserMode === 'guided' ? 2 : 4;
     const visibleSidebarIssues =
         activeUserMode === 'guided' && !showAllSidebarIssues
@@ -1715,18 +1741,13 @@ export function AIIncidentStudio({
                                 </div>
                             ) : null}
 
-                            {chatBrainActionResult ? (
-                                <div className={`incident-verify-result ${chatBrainActionResult.success ? 'is-success' : 'is-fail'}`}>
+                            {chatBrainActionResult && actionResultPresentation ? (
+                                <div className={`incident-verify-result ${actionResultPresentation.tone === 'success' ? 'is-success' : actionResultPresentation.tone === 'warning' ? 'is-warning' : 'is-fail'}`}>
                                     <div className="incident-verify-result-title">
-                                        {chatBrainActionResult.success ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
-                                        <span>{chatBrainActionResult.success ? 'Verification passed' : 'Verification failed'}</span>
+                                        {actionResultPresentation.tone === 'success' ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+                                        <span>{actionResultPresentation.title}</span>
                                     </div>
-                                    <p>
-                                        {chatBrainActionResult.outputSummary ||
-                                            (chatBrainActionResult.success
-                                                ? 'Action completed successfully and result was returned.'
-                                                : 'Action completed with failures. Review output and retry with a safer path.')}
-                                    </p>
+                                    <p>{actionResultPresentation.description}</p>
                                     {chatBrainActionResult.evidence?.healthScoreText ? (
                                         <div className="incident-verify-evidence">
                                             <strong>Evidence (doctor report)</strong>
@@ -1817,7 +1838,16 @@ export function AIIncidentStudio({
                                                         </span>
                                                     ) : null}
                                                 </button>
-                                                <p className="incident-primary-action-hint">{actionExecutionHint(primaryBoardAction.actionType)}</p>
+                                                <p className="incident-primary-action-hint">
+                                                    {actionExecutionHint(primaryBoardAction.actionType)}
+                                                    {primaryBoardGuardHint ? ` ${primaryBoardGuardHint}` : ''}
+                                                </p>
+                                            </div>
+                                        ) : null}
+                                        {boardGuardHint ? (
+                                            <div className="incident-onboarding-note">
+                                                <ShieldCheck size={11} />
+                                                {boardGuardHint}
                                             </div>
                                         ) : null}
                                         {(primaryCtaMode === 'single' ? secondaryBoardActions : sortedBoardActions).length > 0 ? (
