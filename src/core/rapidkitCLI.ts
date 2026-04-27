@@ -5,7 +5,7 @@
  * Uses the current npm workflow (no deprecated --template):
  * - Workspace: npx rapidkit <workspace-name> [--yes] [--skip-git]
  * - Project:   npx rapidkit create project <kit> <name> --output <dir> [--yes] [--skip-git] [--skip-install]
- *   Kit slugs: fastapi.standard, nestjs.standard (from UI template choice).
+ *   Kit slugs: fastapi.standard, fastapi.ddd, nestjs.standard, gofiber.standard, gogin.standard, springboot.standard.
  */
 
 import { Logger } from '../utils/logger';
@@ -23,12 +23,19 @@ export interface CreateWorkspaceOptions {
   /** Preferred install backend. Passed as --install-method to npm CLI. */
   installMethod?: 'poetry' | 'venv' | 'pipx';
   /** Bootstrap profile written into .rapidkit/workspace.json. Passed as --profile to npm CLI. */
-  profile?: 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+  profile?:
+    | 'minimal'
+    | 'python-only'
+    | 'node-only'
+    | 'go-only'
+    | 'java-only'
+    | 'polyglot'
+    | 'enterprise';
 }
 
 export interface CreateProjectOptions {
   name: string;
-  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'nestjs.standard', 'gofiber.standard', 'springboot.standard')
   parentPath: string;
   skipGit?: boolean;
   skipInstall?: boolean;
@@ -37,7 +44,7 @@ export interface CreateProjectOptions {
 
 export interface CreateProjectInWorkspaceOptions {
   name: string;
-  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard')
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'nestjs.standard', 'gofiber.standard', 'springboot.standard')
   workspacePath: string;
   skipGit?: boolean;
   skipInstall?: boolean;

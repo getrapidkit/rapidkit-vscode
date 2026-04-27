@@ -12,16 +12,10 @@ interface ModelSelectionCacheEntry {
 const MODEL_SELECTION_TTL_MS = 5 * 60 * 1000;
 let modelSelectionCache: ModelSelectionCacheEntry | null = null;
 
-/**
- * Select the language model according to the user's VS Code preference.
- * Falls back to auto-detection when set to "auto" or unrecognized.
- */
-export async function selectModelWithPreference(): Promise<{
+async function selectModelByPreference(pref: string): Promise<{
   model: vscode.LanguageModelChat;
   modelId: string;
 }> {
-  const pref = vscode.workspace.getConfiguration('workspai').get<string>('preferredModel', 'auto');
-
   if (
     modelSelectionCache &&
     modelSelectionCache.preference === pref &&
@@ -133,6 +127,45 @@ export async function selectModelWithPreference(): Promise<{
   );
 }
 
+/**
+ * Select the language model according to the user's VS Code preference.
+ * Falls back to auto-detection when set to "auto" or unrecognized.
+ */
+export async function selectModelWithPreference(): Promise<{
+  model: vscode.LanguageModelChat;
+  modelId: string;
+}> {
+  const pref = vscode.workspace.getConfiguration('workspai').get<string>('preferredModel', 'auto');
+  return selectModelByPreference(pref);
+}
+
+/**
+ * Force auto model selection regardless of user preference.
+ * Use this for behind-the-scenes analysis flows where no explicit user model is chosen.
+ */
+export async function selectModelAuto(): Promise<{
+  model: vscode.LanguageModelChat;
+  modelId: string;
+}> {
+  return selectModelByPreference('auto');
+}
+
 export function resetModelSelectionCache(): void {
   modelSelectionCache = null;
+}
+
+/**
+ * Register a VS Code configuration change listener that immediately invalidates
+ * the model selection cache when the user changes `workspai.preferredModel`.
+ * Call once from the extension activation entry point.
+ */
+export function registerModelCacheConfigListener(context: {
+  subscriptions: { dispose(): void }[];
+}): void {
+  const disposable = vscode.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration('workspai.preferredModel')) {
+      resetModelSelectionCache();
+    }
+  });
+  context.subscriptions.push(disposable);
 }

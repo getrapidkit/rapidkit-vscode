@@ -191,6 +191,7 @@ export function normalizeKitName(
   | 'nestjs.standard'
   | 'gofiber.standard'
   | 'gogin.standard'
+  | 'springboot.standard'
   | 'unknown' {
   switch (value) {
     case 'fastapi.ddd':
@@ -203,6 +204,8 @@ export function normalizeKitName(
       return 'gofiber.standard';
     case 'gogin.standard':
       return 'gogin.standard';
+    case 'springboot.standard':
+      return 'springboot.standard';
     default:
       return 'unknown';
   }
@@ -225,8 +228,14 @@ export function normalizeFrameworkHint(
   if (normalizedKit.startsWith('go')) {
     return 'go';
   }
+  if (normalizedKit.startsWith('springboot')) {
+    return 'springboot';
+  }
   if (resolved.runtime === 'node' || resolved.engine === 'node' || resolved.engine === 'npm') {
     return 'nestjs';
+  }
+  if (resolved.runtime === 'java' || resolved.engine === 'java' || resolved.engine === 'mvn') {
+    return 'springboot';
   }
   if (resolved.runtime === 'go' || resolved.engine === 'go') {
     return 'go';
@@ -237,7 +246,32 @@ export function normalizeFrameworkHint(
   return undefined;
 }
 
-export async function buildDirTree(projectPath: string, topDirs: string[]): Promise<string> {
+export async function buildDirTree(
+  projectPath: string,
+  topDirs: string[],
+  kit?: string
+): Promise<string> {
+  // Go kits use cmd/ + internal/ — not src/
+  if (kit?.startsWith('gofiber') || kit?.startsWith('gogin')) {
+    const lines: string[] = [];
+    for (const topDir of ['cmd', 'internal', 'docs']) {
+      try {
+        const children = (await fs.promises.readdir(path.join(projectPath, topDir)))
+          .filter((n) => !n.startsWith('.'))
+          .slice(0, 8);
+        if (children.length > 0) {
+          lines.push(`${topDir}/`);
+          for (const child of children) {
+            lines.push(`  ${child}`);
+          }
+        }
+      } catch {
+        // skip missing directories
+      }
+    }
+    return lines.join('\n');
+  }
+
   if (topDirs.length === 0) {
     return '';
   }
@@ -292,6 +326,18 @@ export async function readRelevantFiles(
       'internal/server/server.go',
       'internal/handlers/health.go'
     );
+  } else if (kit.startsWith('springboot')) {
+    candidates.push(
+      'pom.xml',
+      'src/main/resources/application.yml',
+      'src/main/resources/application.yaml'
+    );
+    // Dynamically discover Java entry point files — package path varies per service name
+    const javaFiles = await discoverSpringBootJavaFiles(projectPath, [
+      'AppApplication.java',
+      'SystemInfoController.java',
+    ]);
+    candidates.push(...javaFiles);
   }
 
   const result: Array<{ relPath: string; content: string }> = [];
@@ -306,6 +352,46 @@ export async function readRelevantFiles(
     }
   }
   return result;
+}
+
+/**
+ * Walk src/main/java/ and return relative paths for any files whose basename
+ * matches the given target names. Used for Spring Boot where the package path
+ * varies per generated service name.
+ */
+async function discoverSpringBootJavaFiles(
+  projectPath: string,
+  targets: string[]
+): Promise<string[]> {
+  const javaRoot = path.join(projectPath, 'src', 'main', 'java');
+  const found: string[] = [];
+  const remaining = new Set(targets);
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (remaining.size === 0 || depth > 8) {
+      return;
+    }
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (remaining.size === 0) {
+        break;
+      }
+      if (entry.isDirectory()) {
+        await walk(path.join(dir, entry.name), depth + 1);
+      } else if (remaining.has(entry.name)) {
+        found.push(path.relative(projectPath, path.join(dir, entry.name)));
+        remaining.delete(entry.name);
+      }
+    }
+  }
+
+  await walk(javaRoot, 0);
+  return found;
 }
 
 export async function getGitDiffStat(

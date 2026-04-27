@@ -297,6 +297,17 @@ export class WorkspaceManager {
               path: projectPath,
             });
           }
+          // Fallback: Check for Spring Boot / Java project
+          else if (
+            (await fs.pathExists(path.join(projectPath, 'pom.xml'))) ||
+            (await fs.pathExists(path.join(projectPath, 'build.gradle'))) ||
+            (await fs.pathExists(path.join(projectPath, 'build.gradle.kts')))
+          ) {
+            projects.push({
+              name: entry.name,
+              path: projectPath,
+            });
+          }
           // Fallback: Check for NestJS project
           else if (await fs.pathExists(path.join(projectPath, 'package.json'))) {
             try {

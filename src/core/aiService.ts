@@ -21,10 +21,18 @@ import {
 } from './aiProjectContextUtils';
 import {
   resetModelSelectionCache,
+  selectModelAuto,
   selectModelWithPreference as selectModelWithPreferenceInternal,
 } from './aiModelSelection';
 import { buildAIModalUserMessage as buildAIModalUserMessageInternal } from './aiPromptMessageBuilder';
 import { buildWorkspaiSystemPrompt as buildWorkspaiSystemPromptInternal } from './aiSystemPromptBuilder';
+import {
+  buildContextContractFromEvidence,
+  validateContextContract,
+  type AIContextContractV1,
+  type DoctorEvidenceSnapshot,
+} from './aiContextContract';
+export { extractContractTelemetry } from './aiContextContract';
 
 export interface AIMessage {
   role: 'user' | 'assistant';
@@ -72,7 +80,7 @@ export async function listAvailableModels(): Promise<AvailableModel[]> {
  * @param messages        – conversation history
  * @param onChunk         – called with each streamed chunk
  * @param token           – cancellation token
- * @param preferredModelId – when provided, use this exact model id instead of the workspace preference
+ * @param preferredModelId – when provided, use this exact model id chosen by the user
  */
 export async function streamAIResponse(
   messages: AIMessage[],
@@ -95,13 +103,11 @@ export async function streamAIResponse(
         modelId = found.name ?? found.id;
         logger.info(`[AI] Using user-selected model: ${model.id}`);
       } else {
-        logger.warn(
-          `[AI] Requested model "${preferredModelId}" not found, falling back to preference`
-        );
-        ({ model, modelId } = await selectModelWithPreferenceInternal());
+        logger.warn(`[AI] Requested model "${preferredModelId}" not found, falling back to auto`);
+        ({ model, modelId } = await selectModelAuto());
       }
     } else {
-      ({ model, modelId } = await selectModelWithPreferenceInternal());
+      ({ model, modelId } = await selectModelAuto());
     }
     logger.info(`[AI] Using model: ${model.id} (${modelId})`);
   } catch (err) {
@@ -164,6 +170,8 @@ export interface AIModalContext {
   framework?: string;
   moduleSlug?: string;
   moduleDescription?: string;
+  workspaceRootPath?: string;
+  projectRootPath?: string;
   prefillQuestion?: string;
   prefillMode?: AIConversationMode;
 }
@@ -183,6 +191,7 @@ export type RapidKitType =
   | 'nestjs.standard'
   | 'gofiber.standard'
   | 'gogin.standard'
+  | 'springboot.standard'
   | 'unknown';
 
 export interface InstalledModule {
@@ -213,6 +222,8 @@ export interface ScannedProjectContext {
   runtime: string | null;
   engine: string | null;
   pythonVersion: string | null;
+  /** Java version (from pom.xml <java.version>) or Go version (from go.mod). */
+  runtimeVersion: string | null;
   rapidkitCoreVersion: string | null;
   rapidkitCliVersion: string | null;
   workspaceHealth: AIWorkspaceHealthSummary | null;
@@ -225,6 +236,7 @@ interface ProjectContextCacheEntry {
 }
 
 const PROJECT_CONTEXT_TTL_MS = 60 * 1000;
+const MAX_PROJECT_CACHE_SIZE = 20;
 const DEFAULT_PROJECT_DETECTION_TIMEOUT_MS = 2000;
 const DEFAULT_GIT_DIFF_TIMEOUT_MS = 3000;
 const DEFAULT_LIVE_MODULES_TIMEOUT_MS = 8000;
@@ -232,6 +244,67 @@ const MIN_COMMAND_TIMEOUT_MS = 1000;
 const MAX_COMMAND_TIMEOUT_MS = 60000;
 
 const _projectContextCache = new Map<string, ProjectContextCacheEntry>();
+
+function stripXmlBlocks(xml: string, tagName: string): string {
+  const pattern = new RegExp(`<${tagName}\\b[\\s\\S]*?<\\/${tagName}>`, 'gi');
+  return xml.replace(pattern, '');
+}
+
+function extractMavenProductionDeps(pomXml: string): string[] {
+  if (!pomXml.trim()) {
+    return [];
+  }
+
+  // Remove blocks that frequently introduce false positives for runtime deps.
+  let sanitized = pomXml.replace(/<!--([\s\S]*?)-->/g, '');
+  sanitized = stripXmlBlocks(sanitized, 'dependencyManagement');
+  sanitized = stripXmlBlocks(sanitized, 'build');
+  sanitized = stripXmlBlocks(sanitized, 'profiles');
+
+  const dependencies = [...sanitized.matchAll(/<dependency>([\s\S]*?)<\/dependency>/gi)];
+  const deps = new Set<string>();
+
+  for (const entry of dependencies) {
+    const body = entry[1] ?? '';
+    const artifactId = body
+      .match(/<artifactId>([^<]+)<\/artifactId>/i)?.[1]
+      ?.trim()
+      .toLowerCase();
+    if (!artifactId) {
+      continue;
+    }
+
+    const scope = body
+      .match(/<scope>([^<]+)<\/scope>/i)?.[1]
+      ?.trim()
+      .toLowerCase();
+    if (scope === 'test' || scope === 'provided' || scope === 'import') {
+      continue;
+    }
+
+    deps.add(artifactId);
+  }
+
+  return [...deps];
+}
+
+function extractJavaVersionFromPom(pomXml: string): string | null {
+  const candidates = [
+    /<java\.version>(\d+(?:\.\d+(?:\.\d+)?)?)<\/java\.version>/i,
+    /<maven\.compiler\.release>(\d+(?:\.\d+(?:\.\d+)?)?)<\/maven\.compiler\.release>/i,
+    /<maven\.compiler\.target>(\d+(?:\.\d+(?:\.\d+)?)?)<\/maven\.compiler\.target>/i,
+    /<maven\.compiler\.source>(\d+(?:\.\d+(?:\.\d+)?)?)<\/maven\.compiler\.source>/i,
+  ];
+
+  for (const pattern of candidates) {
+    const match = pomXml.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
 
 function getCommandTimeoutMs(fallback: number): number {
   const configured = vscode.workspace
@@ -275,6 +348,7 @@ export async function scanProjectContext(
     runtime: null,
     engine: null,
     pythonVersion: null,
+    runtimeVersion: null,
     rapidkitCoreVersion: null,
     rapidkitCliVersion: null,
     workspaceHealth: null,
@@ -344,7 +418,7 @@ export async function scanProjectContext(
 
   let inferredFramework = resolvedFramework;
   if (!inferredFramework) {
-    const candidates: Array<'fastapi' | 'nestjs' | 'go'> = [];
+    const candidates: Array<'fastapi' | 'nestjs' | 'go' | 'springboot'> = [];
     if (hasPyproject) {
       candidates.push('fastapi');
     }
@@ -353,6 +427,13 @@ export async function scanProjectContext(
     }
     if (hasGoMod) {
       candidates.push('go');
+    }
+    if (
+      (await exists('pom.xml')) ||
+      (await exists('build.gradle')) ||
+      (await exists('build.gradle.kts'))
+    ) {
+      candidates.push('springboot');
     }
 
     if (candidates.length === 1) {
@@ -372,6 +453,20 @@ export async function scanProjectContext(
         inferredFramework = 'nestjs';
       } else if (resolved.runtime === 'go' || resolved.engine === 'go') {
         inferredFramework = 'go';
+      } else if (
+        resolved.runtime === 'java' ||
+        resolved.engine === 'java' ||
+        resolved.engine === 'mvn'
+      ) {
+        inferredFramework = 'springboot';
+      } else if (candidates.includes('springboot')) {
+        inferredFramework = 'springboot';
+      } else if (candidates.includes('go')) {
+        inferredFramework = 'go';
+      } else if (candidates.includes('nestjs')) {
+        inferredFramework = 'nestjs';
+      } else if (candidates.includes('fastapi')) {
+        inferredFramework = 'fastapi';
       }
     }
   }
@@ -440,6 +535,21 @@ export async function scanProjectContext(
     if (ctx.kit === 'unknown') {
       ctx.kit = gomod.toLowerCase().includes('gofiber') ? 'gofiber.standard' : 'gogin.standard';
     }
+    // Parse Go toolchain version from go.mod: "go 1.22.3" or "go 1.22"
+    const goVersionMatch = gomod.match(/^go\s+(\d+\.\d+(?:\.\d+)?)$/m);
+    if (goVersionMatch) {
+      ctx.runtimeVersion = goVersionMatch[1];
+    }
+  } else if (inferredFramework === 'springboot') {
+    if (ctx.kit === 'unknown') {
+      ctx.kit = 'springboot.standard';
+    }
+
+    const pomXml = (await readText('pom.xml')) ?? '';
+    if (pomXml) {
+      ctx.productionDeps = extractMavenProductionDeps(pomXml);
+      ctx.runtimeVersion = extractJavaVersionFromPom(pomXml);
+    }
   }
 
   // ── v0.18: rich context ──────────────────────────────────────────────────
@@ -448,7 +558,7 @@ export async function scanProjectContext(
   const versions = await readWorkspaceVersions(scanRoot);
   ctx.rapidkitCoreVersion = versions.core;
   ctx.rapidkitCliVersion = versions.npm;
-  ctx.dirTree = await buildDirTree(scanRoot, ctx.topLevelSrcDirs);
+  ctx.dirTree = await buildDirTree(scanRoot, ctx.topLevelSrcDirs, ctx.kit);
   ctx.relevantFiles = await readRelevantFiles(scanRoot, ctx.kit);
   ctx.gitDiff = await getGitDiffStat(scanRoot, getCommandTimeoutMs(DEFAULT_GIT_DIFF_TIMEOUT_MS));
 
@@ -456,6 +566,14 @@ export async function scanProjectContext(
     value: ctx,
     cachedAt: Date.now(),
   });
+
+  // Evict oldest entries when cache exceeds max size
+  if (_projectContextCache.size > MAX_PROJECT_CACHE_SIZE) {
+    const oldestKey = _projectContextCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      _projectContextCache.delete(oldestKey);
+    }
+  }
 
   return ctx;
 }
@@ -506,7 +624,11 @@ const LIVE_MODULES_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Try to fetch the live module list from the installed rapidkit engine.
- * Returns `null` when the engine is not installed or the command fails.
+ * Strategy:
+ *   1. Try the locally installed `rapidkit` binary (fastest, no network).
+ *   2. Fall back to `npx` WITHOUT --yes — requires rapidkit to already be cached
+ *      by npm, preventing supply-chain installs from unknown versions.
+ * Returns `null` when rapidkit is not installed or the command fails.
  * Results are cached for `LIVE_MODULES_TTL_MS` to avoid overhead.
  */
 export async function fetchLiveModules(): Promise<LiveModuleEntry[] | null> {
@@ -514,18 +636,23 @@ export async function fetchLiveModules(): Promise<LiveModuleEntry[] | null> {
   if (_liveModulesCache && now - _liveModulesCache.fetchedAt < LIVE_MODULES_TTL_MS) {
     return _liveModulesCache.modules;
   }
-  try {
-    const res = await run(
-      'npx',
-      ['--yes', '--package', 'rapidkit', 'rapidkit', 'modules', 'list', '--json-schema', '1'],
-      {
-        timeout: getCommandTimeoutMs(DEFAULT_LIVE_MODULES_TIMEOUT_MS),
-      }
-    );
-    if (res.exitCode !== 0) {
-      return null;
-    }
 
+  const moduleArgs = ['modules', 'list', '--json-schema', '1'];
+  const timeout = getCommandTimeoutMs(DEFAULT_LIVE_MODULES_TIMEOUT_MS);
+
+  // 1. Try local rapidkit binary first (no npx overhead, no network risk)
+  let res = await run('rapidkit', moduleArgs, { timeout });
+
+  // 2. Fall back to npx WITHOUT --yes (uses npm cache only, no auto-install)
+  if (res.exitCode !== 0) {
+    res = await run('npx', ['--package', 'rapidkit', 'rapidkit', ...moduleArgs], { timeout });
+  }
+
+  if (res.exitCode !== 0) {
+    return null;
+  }
+
+  try {
     const raw = res.stdout ?? '';
     // The CLI prints a preamble line ("🚀 RapidKit") before the JSON — strip it
     const jsonStart = raw.indexOf('{');
@@ -554,6 +681,7 @@ export function invalidateLiveModulesCache(): void {
 
 export function resetAIServiceCaches(): void {
   _projectContextCache.clear();
+  _workspaceModulesCache.clear();
   resetModelSelectionCache();
   _liveModulesCache = null;
 }
@@ -600,6 +728,13 @@ function buildModuleListForPrompt(liveModules: LiveModuleEntry[] | null): string
   );
 }
 
+interface WorkspaceModulesCacheEntry {
+  modules: Array<{ slug: string; projects: string[] }>;
+  cachedAt: number;
+}
+const _workspaceModulesCache = new Map<string, WorkspaceModulesCacheEntry>();
+const WORKSPACE_MODULES_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
 async function collectWorkspaceInstalledModules(
   workspacePath?: string
 ): Promise<Array<{ slug: string; projects: string[] }>> {
@@ -608,6 +743,13 @@ async function collectWorkspaceInstalledModules(
   }
 
   const root = path.resolve(workspacePath);
+
+  // Cache check — avoid repeated full directory scans in the same session
+  const cached = _workspaceModulesCache.get(root);
+  if (cached && Date.now() - cached.cachedAt < WORKSPACE_MODULES_TTL_MS) {
+    return cached.modules;
+  }
+
   const moduleProjects = new Map<string, Set<string>>();
 
   const projectCandidates = new Set<string>([root]);
@@ -649,9 +791,12 @@ async function collectWorkspaceInstalledModules(
     }
   }
 
-  return [...moduleProjects.entries()]
+  const modules = [...moduleProjects.entries()]
     .map(([slug, projects]) => ({ slug, projects: [...projects].sort() }))
     .sort((a, b) => b.projects.length - a.projects.length || a.slug.localeCompare(b.slug));
+
+  _workspaceModulesCache.set(root, { modules, cachedAt: Date.now() });
+  return modules;
 }
 
 function buildWorkspaceInstalledModulesSection(
@@ -669,13 +814,19 @@ function buildWorkspaceInstalledModulesSection(
 
 /**
  * Backward-compatible export that delegates to the extracted system prompt builder.
+ * Accepts an optional contract for persona-aware adaptation.
  */
 export async function buildWorkspaiSystemPrompt(
   ctx: AIModalContext,
-  scanned?: ScannedProjectContext
+  scanned?: ScannedProjectContext,
+  contract?: AIContextContractV1
 ): Promise<string> {
-  return buildWorkspaiSystemPromptInternal(ctx, scanned);
+  return buildWorkspaiSystemPromptInternal(ctx, scanned, contract);
 }
+
+// Re-export contract types for convenience
+export type { AIContextContractV1, DoctorEvidenceSnapshot } from './aiContextContract';
+export { buildContextContractFromEvidence, validateContextContract } from './aiContextContract';
 
 // ─── buildAIModalUserMessage ────────────────────────────────────────────────
 
@@ -695,11 +846,20 @@ export async function prepareAIConversation(
   mode: AIConversationMode,
   question: string,
   ctx: AIModalContext,
-  history: AIConversationHistoryEntry[] = []
+  history: AIConversationHistoryEntry[] = [],
+  doctorSnapshot?: DoctorEvidenceSnapshot
 ): Promise<PreparedAIConversation> {
   const scanned = ctx.path
     ? await scanProjectContext(ctx.path, ctx.framework).catch(() => undefined)
     : undefined;
+
+  const contract = buildContextContractFromEvidence(ctx, scanned, doctorSnapshot);
+  const validation = validateContextContract(contract);
+
+  // If clarification is needed the system prompt should still be assembled — the
+  // persona adapter block already includes the appropriate warning text.
+  // The caller (welcomePanel) can inspect the validation result separately.
+  void validation; // surfaced via telemetry, not blocking
 
   const historyMessages: AIMessage[] = history.slice(-8).map((entry) => ({
     role: entry.role,
@@ -711,7 +871,7 @@ export async function prepareAIConversation(
     messages: [
       {
         role: 'user',
-        content: await buildWorkspaiSystemPrompt(ctx, scanned),
+        content: await buildWorkspaiSystemPrompt(ctx, scanned, contract),
       },
       {
         role: 'assistant',
@@ -745,9 +905,10 @@ export type AICreateProfile =
   | 'python-only'
   | 'node-only'
   | 'go-only'
+  | 'java-only'
   | 'polyglot'
   | 'enterprise';
-export type AICreateFramework = 'fastapi' | 'nestjs' | 'go';
+export type AICreateFramework = 'fastapi' | 'nestjs' | 'go' | 'springboot';
 
 export interface AICreationPlan {
   type: 'workspace' | 'project';
@@ -766,6 +927,7 @@ const VALID_PROFILES = new Set<AICreateProfile>([
   'python-only',
   'node-only',
   'go-only',
+  'java-only',
   'polyglot',
   'enterprise',
 ]);
@@ -781,6 +943,7 @@ const FRAMEWORK_TO_KITS: Record<AICreateFramework, string[]> = {
   fastapi: ['fastapi.standard', 'fastapi.ddd'],
   nestjs: ['nestjs.standard'],
   go: ['gofiber.standard', 'gogin.standard'],
+  springboot: ['springboot.standard'],
 };
 
 const STATIC_MODULE_SLUGS = new Set<string>([
@@ -841,11 +1004,14 @@ function defaultProfile(fw: string): AICreateProfile {
   if (fw === 'go') {
     return 'go-only';
   }
+  if (fw === 'springboot') {
+    return 'java-only';
+  }
   return 'python-only';
 }
 
 function isCreateFramework(value: unknown): value is AICreateFramework {
-  return value === 'fastapi' || value === 'nestjs' || value === 'go';
+  return value === 'fastapi' || value === 'nestjs' || value === 'go' || value === 'springboot';
 }
 
 function normalizeCreationFramework(value: unknown, frameworkHint?: string): AICreateFramework {
@@ -864,6 +1030,9 @@ function defaultKitForFramework(framework: AICreateFramework): string {
   }
   if (framework === 'go') {
     return 'gofiber.standard';
+  }
+  if (framework === 'springboot') {
+    return 'springboot.standard';
   }
   return 'fastapi.standard';
 }
@@ -897,8 +1066,8 @@ function normalizeSuggestedModules(
   liveModules: LiveModuleEntry[] | null,
   framework?: AICreateFramework
 ): string[] {
-  // Go kits do not support the RapidKit module marketplace.
-  if (framework === 'go') {
+  // Go and Spring Boot kits do not support the RapidKit module marketplace.
+  if (framework === 'go' || framework === 'springboot') {
     return [];
   }
 
@@ -1002,10 +1171,11 @@ Available workspace profiles:
   "python-only"  — Python backend (FastAPI)
   "node-only"    — Node.js backend (NestJS)
   "go-only"      — Go backend
-  "polyglot"     — mixed Python + Node + Go
+  "java-only"    — Java backend (Spring Boot)
+  "polyglot"     — mixed Python + Node + Go + Java
   "enterprise"   — multi-team governance
 
-Available frameworks: "fastapi" | "nestjs" | "go"
+Available frameworks: "fastapi" | "nestjs" | "go" | "springboot"
 
 Available kits (use EXACT names):
   "fastapi.standard"  — FastAPI flat structure (default for Python)
@@ -1013,6 +1183,7 @@ Available kits (use EXACT names):
   "nestjs.standard"   — NestJS feature module (default for Node)
   "gofiber.standard"  — Go + Fiber v2 HTTP (fast, minimal)
   "gogin.standard"    — Go + Gin HTTP (classic REST)
+  "springboot.standard" — Spring Boot service (default for Java)
 
 ${modulesSection}
 
@@ -1034,7 +1205,8 @@ Required JSON schema (return EXACTLY this):
 }
 
 Rules:
-- ALWAYS include "free/essentials/settings" in suggestedModules
+- For fastapi/nestjs, ALWAYS include "free/essentials/settings" in suggestedModules
+- For go/springboot, set suggestedModules to []
 - Use fastapi.ddd kit when: DDD / clean-arch / domain / layered / complex mentioned
 - Use enterprise profile when: enterprise / governance / multi-team / compliance mentioned
 - Profile follows framework unless polyglot / enterprise
@@ -1049,7 +1221,8 @@ Rules:
     : `Mode: ${mode}\nDescription: ${prompt}`;
 
   // Call the LLM
-  const { model, modelId } = await selectModelWithPreferenceInternal();
+  // Creation intent parsing runs in background flow; always use auto unless user explicitly picks a model elsewhere.
+  const { model, modelId } = await selectModelAuto();
   const lmMessages = [
     vscode.LanguageModelChatMessage.User(SYSTEM),
     vscode.LanguageModelChatMessage.Assistant('I will respond with only the JSON object.'),
@@ -1073,13 +1246,19 @@ Rules:
     parsed = JSON.parse(extractJSON(rawText));
   } catch {
     // Build a reasonable default from whatever we can extract
-    const fw = (frameworkHint as AICreateFramework) ?? 'fastapi';
+    const fw = normalizeCreationFramework(undefined, frameworkHint);
     parsed = {
       workspaceName: 'my-workspace',
       profile: defaultProfile(fw),
       framework: fw,
       kit:
-        fw === 'nestjs' ? 'nestjs.standard' : fw === 'go' ? 'gofiber.standard' : 'fastapi.standard',
+        fw === 'nestjs'
+          ? 'nestjs.standard'
+          : fw === 'go'
+            ? 'gofiber.standard'
+            : fw === 'springboot'
+              ? 'springboot.standard'
+              : 'fastapi.standard',
       projectName: 'api',
       suggestedModules: ['free/essentials/settings'],
       description: prompt,

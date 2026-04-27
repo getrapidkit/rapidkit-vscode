@@ -15,6 +15,17 @@ export function buildAIModalUserMessage(
     ? {
         project_type: scanned.kit,
         python_version: scanned.pythonVersion,
+        java_version:
+          scanned.kit === 'springboot.standard' || scanned.runtime === 'java'
+            ? scanned.runtimeVersion
+            : null,
+        go_version:
+          scanned.kit === 'gofiber.standard' ||
+          scanned.kit === 'gogin.standard' ||
+          scanned.runtime === 'go'
+            ? scanned.runtimeVersion
+            : null,
+        runtime_version: scanned.runtimeVersion,
         rapidkit_cli_version: scanned.rapidkitCliVersion,
         rapidkit_core_version: scanned.rapidkitCoreVersion,
         installed_modules: scanned.installedModules.map((m) => m.slug),
@@ -28,6 +39,8 @@ export function buildAIModalUserMessage(
     `[${ctx.type.toUpperCase()}] ${ctx.name}`,
     kitLabel && `Kit: ${kitLabel}`,
     ctx.path && `Path: ${ctx.path}`,
+    ctx.workspaceRootPath && `workspace_root: ${ctx.workspaceRootPath}`,
+    ctx.projectRootPath && `project_root: ${ctx.projectRootPath}`,
     scanned?.pythonVersion && `python_version: ${scanned.pythonVersion}`,
     scanned?.rapidkitCliVersion && `rapidkit_cli_version: ${scanned.rapidkitCliVersion}`,
     scanned?.rapidkitCoreVersion && `rapidkit_core_version: ${scanned.rapidkitCoreVersion}`,
@@ -41,6 +54,7 @@ export function buildAIModalUserMessage(
       })}`,
     contextPacket && `context_packet: ${JSON.stringify(contextPacket)}`,
     installedList && `Installed modules: ${installedList}`,
+    scanned?.gitDiff && `Recent uncommitted changes (git diff --stat):\n${scanned.gitDiff}`,
   ]
     .filter(Boolean)
     .join('\n');

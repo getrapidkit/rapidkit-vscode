@@ -11,7 +11,7 @@ import { run } from '../utils/exec';
 export interface Kit {
   name: string;
   display_name: string;
-  category: 'fastapi' | 'nestjs' | string;
+  category: 'fastapi' | 'nestjs' | 'go' | 'springboot' | string;
   version: string;
   tags?: string[];
   modules?: string[];
@@ -150,7 +150,7 @@ export class KitsService {
   /**
    * Get kits by category
    */
-  async getKitsByCategory(category: 'fastapi' | 'nestjs' | 'go'): Promise<Kit[]> {
+  async getKitsByCategory(category: 'fastapi' | 'nestjs' | 'go' | 'springboot'): Promise<Kit[]> {
     const allKits = await this.getKits();
     return allKits.filter((kit) => kit.category === category);
   }
@@ -232,6 +232,15 @@ export class KitsService {
         version: '0.1.0',
         tags: ['go', 'gin', 'high-performance', 'standard'],
         description: 'Lightweight Go web service built with the Gin framework.',
+      },
+      {
+        name: 'springboot.standard',
+        display_name: 'Spring Boot Standard Kit',
+        category: 'springboot',
+        version: '0.1.0',
+        tags: ['java', 'spring', 'springboot', 'maven', 'enterprise'],
+        description:
+          'Production-ready Spring Boot starter with Maven wrapper, actuator, and OpenAPI defaults.',
       },
     ];
   }

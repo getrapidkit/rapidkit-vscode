@@ -96,8 +96,12 @@ export class WorkspaceDetector {
       'package.json',
       'go.mod',
       'go.sum',
+      'pom.xml',
+      'build.gradle',
+      'build.gradle.kts',
       path.join('src', 'main.py'),
       path.join('src', 'app.ts'),
+      path.join('src', 'main', 'java'),
       path.join('cmd', 'main.go'),
       path.join('main.go'),
     ];
@@ -116,7 +120,7 @@ export class WorkspaceDetector {
   private async analyzeProject(projectPath: string): Promise<WorkspaiProject | null> {
     try {
       const projectName = path.basename(projectPath);
-      let type: 'fastapi' | 'nestjs' | 'go' = 'fastapi';
+      let type: 'fastapi' | 'nestjs' | 'go' | 'springboot' = 'fastapi';
       let kit = 'unknown';
       const modules: string[] = [];
 
@@ -152,9 +156,33 @@ export class WorkspaceDetector {
         }
       }
 
+      const pomXmlPath = path.join(projectPath, 'pom.xml');
+      const gradlePath = path.join(projectPath, 'build.gradle');
+      const gradleKtsPath = path.join(projectPath, 'build.gradle.kts');
+      const javaSrcPath = path.join(projectPath, 'src', 'main', 'java');
+
+      if (
+        type !== 'go' &&
+        ((await fs.pathExists(pomXmlPath)) ||
+          (await fs.pathExists(gradlePath)) ||
+          (await fs.pathExists(gradleKtsPath)) ||
+          (await fs.pathExists(javaSrcPath)))
+      ) {
+        type = 'springboot';
+        try {
+          if (await fs.pathExists(pomXmlPath)) {
+            kit = 'springboot.standard';
+          } else {
+            kit = 'springboot.standard';
+          }
+        } catch {
+          kit = 'springboot.standard';
+        }
+      }
+
       // Check pyproject.toml for FastAPI
       const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-      if (type !== 'go' && (await fs.pathExists(pyprojectPath))) {
+      if (type !== 'go' && type !== 'springboot' && (await fs.pathExists(pyprojectPath))) {
         type = 'fastapi';
         const content = await fs.readFile(pyprojectPath, 'utf-8');
         if (content.includes('rapidkit')) {
@@ -164,7 +192,7 @@ export class WorkspaceDetector {
 
       // Check package.json for NestJS
       const packageJsonPath = path.join(projectPath, 'package.json');
-      if (type !== 'go' && (await fs.pathExists(packageJsonPath))) {
+      if (type !== 'go' && type !== 'springboot' && (await fs.pathExists(packageJsonPath))) {
         type = 'nestjs';
         const packageJson = await fs.readJson(packageJsonPath);
         if (packageJson.dependencies?.['@nestjs/core']) {
