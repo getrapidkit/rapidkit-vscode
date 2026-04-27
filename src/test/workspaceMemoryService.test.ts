@@ -123,4 +123,37 @@ describe('workspaceMemoryService', () => {
     expect(parsed.conventions).toContain('Always use repository interfaces');
     expect(parsed.decisions).toContain('Redis for rate limiting');
   });
+
+  it('redacts sensitive values from memory before returning and formatting prompt', async () => {
+    const svc = WorkspaceMemoryService.getInstance();
+    const wsPath = path.join(tempRoot, 'ws-redaction');
+    const memoryDir = path.join(wsPath, '.rapidkit');
+    const memoryPath = path.join(memoryDir, 'workspace-memory.json');
+
+    fs.mkdirSync(memoryDir, { recursive: true });
+    fs.writeFileSync(
+      memoryPath,
+      JSON.stringify(
+        {
+          context: 'authorization: Bearer eyJ.long.token',
+          conventions: ['api_key=prod-123-secret'],
+          decisions: ['password: letmein'],
+          lastUpdated: '2026-04-20T00:00:00.000Z',
+        },
+        null,
+        2
+      )
+    );
+
+    const parsed = await svc.read(wsPath);
+    const prompt = svc.formatForPrompt(parsed);
+
+    expect(parsed.context).toContain('[REDACTED]');
+    expect(parsed.conventions[0]).toContain('[REDACTED]');
+    expect(parsed.decisions[0]).toContain('[REDACTED]');
+    expect(prompt).toContain('[REDACTED]');
+    expect(prompt).not.toContain('prod-123-secret');
+    expect(prompt).not.toContain('letmein');
+    expect(prompt).not.toContain('eyJ.long.token');
+  });
 });

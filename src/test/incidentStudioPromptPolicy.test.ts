@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildIncidentFirstResponseRules,
   classifyIncidentActionPolicy,
+  isIncidentActionAllowlisted,
 } from '../ui/panels/incidentStudioPromptPolicy';
 
 describe('incidentStudioPromptPolicy', () => {
@@ -66,5 +67,15 @@ describe('incidentStudioPromptPolicy', () => {
     expect(unknown.riskClass).toBe('high-risk-mutating');
     expect(unknown.riskLevel).toBe('critical');
     expect(unknown.requiresVerifyPath).toBe(true);
+  });
+
+  it('enforces action allowlist for incident execution paths', () => {
+    expect(isIncidentActionAllowlisted('doctor-fix')).toBe(true);
+    expect(isIncidentActionAllowlisted('inline-command')).toBe(true);
+    expect(isIncidentActionAllowlisted('  recipe-pack  ')).toBe(true);
+
+    expect(isIncidentActionAllowlisted('shell-exec-root')).toBe(false);
+    expect(isIncidentActionAllowlisted('custom-mutate-action')).toBe(false);
+    expect(isIncidentActionAllowlisted('')).toBe(false);
   });
 });

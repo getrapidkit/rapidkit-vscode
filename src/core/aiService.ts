@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { ModulesCatalogService } from './modulesCatalogService';
 import { run } from '../utils/exec';
+import { sanitizePromptText } from '../utils/promptSecurity';
 import {
   buildDirTree,
   getGitDiffStat,
@@ -118,8 +119,8 @@ export async function streamAIResponse(
 
   const lmMessages = messages.map((m) =>
     m.role === 'user'
-      ? vscode.LanguageModelChatMessage.User(m.content)
-      : vscode.LanguageModelChatMessage.Assistant(m.content)
+      ? vscode.LanguageModelChatMessage.User(sanitizePromptText(m.content, 20000))
+      : vscode.LanguageModelChatMessage.Assistant(sanitizePromptText(m.content, 20000))
   );
 
   const response = await model.sendRequest(lmMessages, {}, token);
@@ -863,8 +864,10 @@ export async function prepareAIConversation(
 
   const historyMessages: AIMessage[] = history.slice(-8).map((entry) => ({
     role: entry.role,
-    content: entry.content,
+    content: sanitizePromptText(entry.content, 8000),
   }));
+
+  const sanitizedQuestion = sanitizePromptText(question, 8000);
 
   return {
     scanned,
@@ -880,7 +883,7 @@ export async function prepareAIConversation(
       ...historyMessages,
       {
         role: 'user',
-        content: buildAIModalUserMessageInternal(mode, question, ctx, scanned),
+        content: buildAIModalUserMessageInternal(mode, sanitizedQuestion, ctx, scanned),
       },
     ],
   };

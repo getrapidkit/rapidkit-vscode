@@ -15,6 +15,23 @@ export type IncidentActionRiskPolicy = {
   allowCompletionClaimWithoutVerify: boolean;
 };
 
+const INCIDENT_ACTION_ALLOWLIST = new Set<string>([
+  'change-impact-lite',
+  'terminal-bridge',
+  'fix-preview-lite',
+  'workspace-memory-wizard',
+  'doctor-fix',
+  'recipe-pack',
+  'inline-command',
+]);
+
+export function isIncidentActionAllowlisted(actionType: string): boolean {
+  const normalized = String(actionType || '')
+    .trim()
+    .toLowerCase();
+  return INCIDENT_ACTION_ALLOWLIST.has(normalized);
+}
+
 export function classifyIncidentActionPolicy(actionType: string): IncidentActionRiskPolicy {
   const normalized = String(actionType || '')
     .trim()

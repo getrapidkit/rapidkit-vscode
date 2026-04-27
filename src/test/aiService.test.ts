@@ -228,6 +228,29 @@ describe('aiService', () => {
     expect(prepared.messages.at(-1)?.content).toContain(`project_root: ${projectRoot}`);
   });
 
+  it('redacts sensitive literals from history and question before prompt assembly', async () => {
+    const prepared = await prepareAIConversation(
+      'ask',
+      'Please review token=abc123secret and Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+      {
+        type: 'workspace',
+        name: 'security-demo',
+      },
+      [
+        {
+          role: 'user',
+          content: 'password: supersecret',
+        },
+      ]
+    );
+
+    const joined = prepared.messages.map((msg) => msg.content).join('\n');
+    expect(joined).toContain('[REDACTED]');
+    expect(joined).not.toContain('abc123secret');
+    expect(joined).not.toContain('supersecret');
+    expect(joined).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+  });
+
   it('parses spring pom runtime deps without plugin/dependencyManagement noise', async () => {
     fs.mkdirSync(path.join(tempProjectPath, 'src', 'main', 'java'), { recursive: true });
     fs.writeFileSync(

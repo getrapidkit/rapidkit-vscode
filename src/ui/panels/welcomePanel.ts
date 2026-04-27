@@ -44,6 +44,7 @@ import {
 import {
   buildIncidentFirstResponseRules,
   classifyIncidentActionPolicy,
+  isIncidentActionAllowlisted,
 } from './incidentStudioPromptPolicy';
 
 type IncidentWorkspaceGraphSnapshot = {
@@ -3012,6 +3013,94 @@ No markdown, no explanation outside the JSON.`;
         meta: { requestId, version: 'v1' },
       });
       return;
+    }
+
+    if (!isIncidentActionAllowlisted(actionType)) {
+      if (conv) {
+        this._trackStudioEvent('workspai.studio.abandoned', conv.workspacePath, {
+          conversationId,
+          actionId,
+          actionType,
+          reason: 'action_not_allowlisted',
+          framework: conv.framework ?? 'unknown',
+        });
+      }
+
+      this._panel.webview.postMessage({
+        command: 'aiChatActionResult',
+        data: {
+          conversationId,
+          actionId,
+          success: false,
+          outputSummary: `${actionType} blocked by action allowlist policy`,
+          verificationRequired: false,
+          verifyPolicy: {
+            requiresVerifyPath: true,
+            requiresImpactReview: true,
+            allowCompletionClaimWithoutVerify: false,
+          },
+        },
+        meta: { requestId, version: 'v1' },
+      });
+
+      this._panel.webview.postMessage({
+        command: 'aiChatError',
+        data: {
+          conversationId,
+          code: 'ACTION_NOT_ALLOWED',
+          message: `Action type "${actionType}" is not in the approved allowlist.`,
+          retryable: false,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+      return;
+    }
+
+    const explicitWorkspacePath =
+      typeof data?.workspacePath === 'string' && data.workspacePath.trim()
+        ? data.workspacePath.trim()
+        : undefined;
+
+    if (conv?.workspacePath && explicitWorkspacePath) {
+      const sameWorkspace = conv.workspacePath === explicitWorkspacePath;
+      const sameHierarchy =
+        isWorkspacePathAncestor(conv.workspacePath, explicitWorkspacePath) ||
+        isWorkspacePathAncestor(explicitWorkspacePath, conv.workspacePath);
+
+      if (!sameWorkspace && !sameHierarchy) {
+        this._panel.webview.postMessage({
+          command: 'aiChatError',
+          data: {
+            conversationId,
+            code: 'WORKSPACE_SCOPE_VIOLATION',
+            message: 'Action payload workspace does not match the active conversation workspace.',
+            retryable: false,
+          },
+          meta: { requestId, version: 'v1' },
+        });
+        return;
+      }
+    }
+
+    const projectPathInPayload =
+      typeof data?.projectPath === 'string' && data.projectPath.trim()
+        ? data.projectPath.trim()
+        : undefined;
+
+    if (conv?.workspacePath && projectPathInPayload) {
+      if (!isWorkspacePathAncestor(conv.workspacePath, projectPathInPayload)) {
+        this._panel.webview.postMessage({
+          command: 'aiChatError',
+          data: {
+            conversationId,
+            code: 'WORKSPACE_SCOPE_VIOLATION',
+            message: 'Action project path is outside the active workspace scope.',
+            retryable: false,
+          },
+          meta: { requestId, version: 'v1' },
+        });
+        return;
+      }
     }
 
     const actionPolicy = classifyIncidentActionPolicy(actionType);

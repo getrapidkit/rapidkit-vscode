@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { sanitizePromptText } from '../utils/promptSecurity';
 
 const fsp = fs.promises;
 
@@ -77,7 +78,7 @@ export class WorkspaceMemoryService {
     }
     return value
       .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
+      .map((item) => sanitizePromptText(item, 2000))
       .filter(Boolean);
   }
 
@@ -85,7 +86,7 @@ export class WorkspaceMemoryService {
     const source = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
 
     const contextRaw = typeof source.context === 'string' ? source.context : '';
-    const context = contextRaw.trim();
+    const context = sanitizePromptText(contextRaw, 4000);
 
     const conventions = this.sanitizeStringList(source.conventions);
     const decisions = this.sanitizeStringList(source.decisions);
@@ -239,7 +240,7 @@ export class WorkspaceMemoryService {
     const parts: string[] = [];
 
     if (memory.context && memory.context.trim()) {
-      parts.push(`Project overview: ${memory.context.trim()}`);
+      parts.push(`Project overview: ${sanitizePromptText(memory.context, 4000)}`);
     }
     if (memory.conventions && memory.conventions.length > 0) {
       const lines = memory.conventions

@@ -116,6 +116,36 @@ function asStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
+const INCIDENT_SECRET_ASSIGNMENT_PATTERN =
+  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|client[_-]?secret|authorization)\b\s*[:=]\s*(['"]?)([^\s'",;`]+)\2/gi;
+const INCIDENT_AUTHORIZATION_ASSIGNMENT_PATTERN = /\bauthorization\b\s*[:=]\s*[^\n\r]+/gi;
+const INCIDENT_BEARER_PATTERN = /(?:^|\s)Bearer\s+[A-Za-z0-9._~+/-]+=*/gi;
+const INCIDENT_TOKEN_LITERAL_PATTERN =
+  /\b(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z\-_]{20,})\b/g;
+
+function sanitizeIncidentText(value: unknown, maxLength: number): string | undefined {
+  const cleaned = cleanText(value);
+  if (!cleaned) {
+    return undefined;
+  }
+
+  const redacted = cleaned
+    .replace(INCIDENT_AUTHORIZATION_ASSIGNMENT_PATTERN, 'authorization: [REDACTED]')
+    .replace(INCIDENT_SECRET_ASSIGNMENT_PATTERN, (full, key: string, quote: string) => {
+      const delimiter = full.includes(':') ? ':' : '=';
+      const wrapped = quote ? `${quote}[REDACTED]${quote}` : '[REDACTED]';
+      return `${key}${delimiter}${wrapped}`;
+    })
+    .replace(INCIDENT_BEARER_PATTERN, 'Bearer [REDACTED]')
+    .replace(INCIDENT_TOKEN_LITERAL_PATTERN, '[REDACTED]');
+
+  if (redacted.length <= maxLength) {
+    return redacted;
+  }
+
+  return `${redacted.slice(0, maxLength)}\n...[TRUNCATED]`;
+}
+
 export function normalizeIncidentProtocolMeta(meta: unknown): NormalizedIncidentProtocolMeta {
   const record = asRecord(meta);
   return {
@@ -140,7 +170,8 @@ export function normalizeIncidentPartialFailurePayload(
   const record = asRecord(value);
   const code = cleanText(record.code) || 'PARTIAL_FAILURE';
   const message =
-    cleanText(record.message) || 'Incident Studio request completed with partial failure.';
+    sanitizeIncidentText(record.message, 1200) ||
+    'Incident Studio request completed with partial failure.';
   const retryable = typeof record.retryable === 'boolean' ? record.retryable : true;
 
   return {
@@ -320,14 +351,14 @@ export function normalizeIncomingIncidentStudioOpen(
     return null;
   }
 
-  const workspaceName = cleanText(message.workspaceName) || workspacePath;
-  const initialQuery = cleanText(message.initialQuery);
+  const workspaceName = sanitizeIncidentText(message.workspaceName, 200) || workspacePath;
+  const initialQuery = sanitizeIncidentText(message.initialQuery, 4000);
   const projectPath = cleanText(message.projectPath);
   const projectSelection = projectPath
     ? {
         path: projectPath,
-        name: cleanText(message.projectName),
-        type: cleanText(message.projectType),
+        name: sanitizeIncidentText(message.projectName, 200),
+        type: sanitizeIncidentText(message.projectType, 120),
       }
     : null;
 
@@ -363,13 +394,16 @@ export function buildIncidentChatQueryPayload(input: {
   modelId?: string;
   projectSelection?: IncidentProjectSelection | null;
 }) {
+  const sanitizedMessage =
+    sanitizeIncidentText(input.message, 4000) || 'Provide a safe analysis summary.';
+
   return withProjectSelection(
     {
       conversationId: input.conversationId,
       workspacePath: input.workspacePath,
       requestId: input.requestId,
       modelId: input.modelId,
-      message: input.message,
+      message: sanitizedMessage,
     },
     input.projectSelection
   );
