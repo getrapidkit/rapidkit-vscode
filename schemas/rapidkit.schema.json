@@ -24,7 +24,9 @@
       "description": "Backend framework",
       "enum": [
         "fastapi",
-        "nestjs"
+        "nestjs",
+        "go",
+        "springboot"
       ]
     },
     "mode": {
@@ -44,6 +46,7 @@
         "python-only",
         "node-only",
         "go-only",
+        "java-only",
         "polyglot",
         "enterprise"
       ],
