@@ -20,6 +20,17 @@ export type IncidentActionExecutionMetadata = {
   allowCompletionClaimWithoutVerify: boolean;
 };
 
+export type NormalizedIncidentProtocolMeta = {
+  requestId: string | null;
+  version: string | null;
+};
+
+export type IncidentPartialFailurePayload = {
+  code: string;
+  message: string;
+  retryable: boolean;
+};
+
 export type IncidentWorkspaceGraphSnapshot = {
   snapshotVersion: string;
   workspace: {
@@ -103,6 +114,40 @@ function asStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === 'string');
+}
+
+export function normalizeIncidentProtocolMeta(meta: unknown): NormalizedIncidentProtocolMeta {
+  const record = asRecord(meta);
+  return {
+    requestId: cleanText(record.requestId) || null,
+    version: cleanText(record.version) || null,
+  };
+}
+
+export function isIncidentDuplicateRequest(
+  lastProcessedRequestId: string | null | undefined,
+  nextRequestId: string | null | undefined
+): boolean {
+  if (!lastProcessedRequestId || !nextRequestId) {
+    return false;
+  }
+  return lastProcessedRequestId === nextRequestId;
+}
+
+export function normalizeIncidentPartialFailurePayload(
+  value: unknown
+): IncidentPartialFailurePayload {
+  const record = asRecord(value);
+  const code = cleanText(record.code) || 'PARTIAL_FAILURE';
+  const message =
+    cleanText(record.message) || 'Incident Studio request completed with partial failure.';
+  const retryable = typeof record.retryable === 'boolean' ? record.retryable : true;
+
+  return {
+    code,
+    message,
+    retryable,
+  };
 }
 
 export function buildIncidentActionExecutionMetadata(
