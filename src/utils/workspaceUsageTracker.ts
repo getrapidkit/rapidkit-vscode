@@ -79,6 +79,33 @@ export interface StudioCtaVariantBreakdown {
   variants: StudioCtaVariantStats[];
 }
 
+export interface StudioHardGateThresholds {
+  verifyPhaseReachMin: number;
+  bridgeRouteCompletionMin: number;
+}
+
+export interface StudioHardGateStatus {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  thresholds: StudioHardGateThresholds;
+  metrics: {
+    loopStarted: number;
+    nextActionClicked: number;
+    actionExecuted: number;
+    verifyOutcomes: number;
+    verifyPhaseReach: number | null;
+    bridgeRouteCompletionRate: number | null;
+  };
+  gates: {
+    verifyPhaseReachPass: boolean;
+    bridgeRouteCompletionPass: boolean;
+    telemetryEvidencePass: boolean;
+    overallPass: boolean;
+  };
+}
+
 export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
@@ -1098,6 +1125,81 @@ export class WorkspaceUsageTracker {
       this.logger.debug(`Failed to read studio CTA variant breakdown: ${error}`);
       return null;
     }
+  }
+
+  async getStudioHardGateStatus(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last7d',
+    thresholds: Partial<StudioHardGateThresholds> = {}
+  ): Promise<StudioHardGateStatus | null> {
+    const variantBreakdown = await this.getStudioCtaVariantBreakdown(
+      preferredWorkspacePath,
+      timeWindow
+    );
+    if (!variantBreakdown) {
+      return null;
+    }
+
+    const resolvedThresholds: StudioHardGateThresholds = {
+      verifyPhaseReachMin:
+        typeof thresholds.verifyPhaseReachMin === 'number' ? thresholds.verifyPhaseReachMin : 80,
+      bridgeRouteCompletionMin:
+        typeof thresholds.bridgeRouteCompletionMin === 'number'
+          ? thresholds.bridgeRouteCompletionMin
+          : 95,
+    };
+
+    const metrics = variantBreakdown.variants.reduce(
+      (acc, variant) => {
+        acc.loopStarted += variant.loopStarted;
+        acc.nextActionClicked += variant.nextActionClicked;
+        acc.actionExecuted += variant.actionExecuted;
+        acc.verifyOutcomes += variant.verifyPassed + variant.verifyFailed;
+        return acc;
+      },
+      {
+        loopStarted: 0,
+        nextActionClicked: 0,
+        actionExecuted: 0,
+        verifyOutcomes: 0,
+      }
+    );
+
+    const verifyPhaseReach =
+      metrics.actionExecuted > 0
+        ? Number(((metrics.verifyOutcomes / metrics.actionExecuted) * 100).toFixed(2))
+        : null;
+
+    const bridgeRouteCompletionRate =
+      metrics.loopStarted > 0
+        ? Number(((metrics.actionExecuted / metrics.loopStarted) * 100).toFixed(2))
+        : null;
+
+    const verifyPhaseReachPass =
+      verifyPhaseReach !== null && verifyPhaseReach >= resolvedThresholds.verifyPhaseReachMin;
+    const bridgeRouteCompletionPass =
+      bridgeRouteCompletionRate !== null &&
+      bridgeRouteCompletionRate >= resolvedThresholds.bridgeRouteCompletionMin;
+    const telemetryEvidencePass = metrics.loopStarted > 0;
+
+    return {
+      workspacePath: variantBreakdown.workspacePath,
+      timeWindow: variantBreakdown.timeWindow,
+      windowStartAt: variantBreakdown.windowStartAt,
+      windowEndAt: variantBreakdown.windowEndAt,
+      thresholds: resolvedThresholds,
+      metrics: {
+        ...metrics,
+        verifyPhaseReach,
+        bridgeRouteCompletionRate,
+      },
+      gates: {
+        verifyPhaseReachPass,
+        bridgeRouteCompletionPass,
+        telemetryEvidencePass,
+        overallPass: verifyPhaseReachPass && bridgeRouteCompletionPass && telemetryEvidencePass,
+      },
+    };
   }
 
   /**

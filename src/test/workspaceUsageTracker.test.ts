@@ -264,6 +264,74 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(bySurface.find((entry) => entry.surface === 'other')?.count).toBe(4);
   });
 
+  it('computes studio hard-gate metrics from loop/action/verify events', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-hard-gate-pass');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+    const sequence = [
+      'workspai.studio.loop_started',
+      'workspai.studio.next_action_clicked',
+      'workspai.studio.action_executed',
+      'workspai.studio.verify_passed',
+      'workspai.studio.loop_completed',
+    ] as const;
+
+    for (let i = 0; i < 20; i += 1) {
+      for (const command of sequence) {
+        await tracker.trackCommandEvent(command, workspacePath, {
+          ctaVariant: i % 2 === 0 ? 'single' : 'multi',
+        });
+      }
+    }
+
+    const gateStatus = await tracker.getStudioHardGateStatus(workspacePath, 'all');
+    expect(gateStatus).not.toBeNull();
+    expect(gateStatus?.metrics.loopStarted).toBe(20);
+    expect(gateStatus?.metrics.actionExecuted).toBe(20);
+    expect(gateStatus?.metrics.verifyOutcomes).toBe(20);
+    expect(gateStatus?.metrics.verifyPhaseReach).toBe(100);
+    expect(gateStatus?.metrics.bridgeRouteCompletionRate).toBe(100);
+    expect(gateStatus?.gates.verifyPhaseReachPass).toBe(true);
+    expect(gateStatus?.gates.bridgeRouteCompletionPass).toBe(true);
+    expect(gateStatus?.gates.telemetryEvidencePass).toBe(true);
+    expect(gateStatus?.gates.overallPass).toBe(true);
+  });
+
+  it('fails studio hard-gate thresholds when verify and bridge rates drop below limits', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-hard-gate-fail');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+
+    for (let i = 0; i < 10; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.loop_started', workspacePath, {
+        ctaVariant: 'single',
+      });
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.action_executed', workspacePath, {
+        ctaVariant: 'single',
+      });
+    }
+
+    await tracker.trackCommandEvent('workspai.studio.verify_passed', workspacePath, {
+      ctaVariant: 'single',
+    });
+
+    const gateStatus = await tracker.getStudioHardGateStatus(workspacePath, 'all');
+    expect(gateStatus).not.toBeNull();
+    expect(gateStatus?.metrics.loopStarted).toBe(10);
+    expect(gateStatus?.metrics.actionExecuted).toBe(5);
+    expect(gateStatus?.metrics.verifyOutcomes).toBe(1);
+    expect(gateStatus?.metrics.verifyPhaseReach).toBe(20);
+    expect(gateStatus?.metrics.bridgeRouteCompletionRate).toBe(50);
+    expect(gateStatus?.gates.verifyPhaseReachPass).toBe(false);
+    expect(gateStatus?.gates.bridgeRouteCompletionPass).toBe(false);
+    expect(gateStatus?.gates.overallPass).toBe(false);
+  });
+
   it('uses onboarding hourly buckets for last24h stats instead of recentEvents cap', async () => {
     const workspacePath = path.join(tempRoot, 'ws-onboarding-hourly');
 

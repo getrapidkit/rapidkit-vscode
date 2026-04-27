@@ -82,6 +82,10 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
         selectedWorkspace?.path,
         timeWindowPick.value
       );
+      const gateStatus = await WorkspaceUsageTracker.getInstance().getStudioHardGateStatus(
+        selectedWorkspace?.path,
+        timeWindowPick.value
+      );
 
       if (!summary) {
         vscode.window.showWarningMessage(
@@ -111,12 +115,18 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
         `Last command: ${summary.lastCommand ?? 'n/a'}`,
         `Last command at: ${summary.lastCommandAt ?? 'n/a'}`,
         actionVsAskLine,
+        `Studio hard-gate overall: ${gateStatus?.gates.overallPass ? 'PASS' : 'FAIL'}`,
+        `Studio verify-phase reach: ${gateStatus?.metrics.verifyPhaseReach ?? 'n/a'}% ` +
+          `(threshold: ${gateStatus?.thresholds.verifyPhaseReachMin ?? 'n/a'}%)`,
+        `Studio bridge route completion: ${gateStatus?.metrics.bridgeRouteCompletionRate ?? 'n/a'}% ` +
+          `(threshold: ${gateStatus?.thresholds.bridgeRouteCompletionMin ?? 'n/a'}%)`,
         `Surface mix:\n${surfaceRows || 'n/a'}`,
       ].join('\n');
 
       const payload = {
         ...summary,
         topCommands,
+        studioHardGateStatus: gateStatus,
       };
 
       const doc = await vscode.workspace.openTextDocument({
@@ -126,7 +136,8 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
       await vscode.window.showTextDocument(doc, { preview: false });
 
       const action = await vscode.window.showInformationMessage(
-        `Telemetry summary opened (${summary.timeWindow}). Total events: ${summary.totalEvents}`,
+        `Telemetry summary opened (${summary.timeWindow}). Total events: ${summary.totalEvents}. ` +
+          `Studio gates: ${gateStatus?.gates.overallPass ? 'PASS' : 'FAIL'}`,
         'Copy quick summary',
         'Open workspace marker',
         'Reset telemetry'
