@@ -70,11 +70,18 @@ export class ModuleExplorerProvider implements vscode.TreeDataProvider<ModuleTre
         return [];
       }
 
-      // Go projects don’t support modules
-      if (this._currentProjectType === 'go') {
-        const item = new vscode.TreeItem('Modules not available for Go projects');
+      // Go and Spring Boot projects don’t support Workspai modules
+      if (this._currentProjectType === 'go' || this._currentProjectType === 'springboot') {
+        const isSpring = this._currentProjectType === 'springboot';
+        const item = new vscode.TreeItem(
+          isSpring
+            ? 'Modules not available for Spring Boot projects'
+            : 'Modules not available for Go projects'
+        );
         item.contextValue = 'placeholder';
-        item.description = 'Go kits manage dependencies via go mod';
+        item.description = isSpring
+          ? 'Spring Boot kit manages dependencies via Maven/Gradle'
+          : 'Go kits manage dependencies via go mod';
         item.tooltip =
           'Workspai modules are currently available for FastAPI and NestJS projects only';
         item.collapsibleState = vscode.TreeItemCollapsibleState.None;

@@ -15,7 +15,7 @@ export interface WorkspaiWorkspace {
 export interface WorkspaiProject {
   name: string;
   path: string;
-  type: 'fastapi' | 'nestjs' | 'go';
+  type: 'fastapi' | 'nestjs' | 'go' | 'springboot';
   kit: string;
   modules: string[];
   isValid: boolean;
@@ -40,7 +40,7 @@ export interface WorkspaiTemplate {
   name: string;
   displayName: string;
   description: string;
-  framework: 'fastapi' | 'nestjs' | 'go';
+  framework: 'fastapi' | 'nestjs' | 'go' | 'springboot';
   category: string;
   files: string[];
 }
@@ -50,7 +50,14 @@ export interface WorkspaceConfig {
   path: string;
   initGit: boolean;
   /** Bootstrap profile written into .rapidkit/workspace.json at creation time. */
-  profile?: 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+  profile?:
+    | 'minimal'
+    | 'python-only'
+    | 'node-only'
+    | 'go-only'
+    | 'java-only'
+    | 'polyglot'
+    | 'enterprise';
   /** Python install backend. 'auto' = let CLI probe; explicit value overrides CLI detection. */
   installMethod?: 'auto' | 'poetry' | 'venv' | 'pipx';
   /** Policy enforcement mode written to .rapidkit/policies.yml after creation. */
@@ -61,8 +68,8 @@ export interface WorkspaceConfig {
 
 export interface ProjectConfig {
   name: string;
-  framework: 'fastapi' | 'nestjs' | 'go';
-  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard', 'gofiber.standard', 'gogin.standard')
+  framework: 'fastapi' | 'nestjs' | 'go' | 'springboot';
+  kit: string; // Kit name (e.g., 'fastapi.standard', 'fastapi.ddd', 'nestjs.standard', 'gofiber.standard', 'gogin.standard', 'springboot.standard')
   packageManager?: string; // For NestJS: npm, yarn, pnpm
 }
 

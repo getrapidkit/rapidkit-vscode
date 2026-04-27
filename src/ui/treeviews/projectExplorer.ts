@@ -41,6 +41,8 @@ const NESTJS_HIDDEN = new Set([
   '*.egg-info',
 ]);
 
+const SPRINGBOOT_HIDDEN = new Set(['.venv', 'node_modules']);
+
 function shouldHide(name: string, projectType?: string): boolean {
   // Always hide system/cache items
   if (ALWAYS_HIDDEN.has(name)) {
@@ -63,6 +65,10 @@ function shouldHide(name: string, projectType?: string): boolean {
     if (NESTJS_HIDDEN.has(name)) {
       return true;
     }
+  } else if (projectType === 'springboot') {
+    if (SPRINGBOOT_HIDDEN.has(name)) {
+      return true;
+    }
   }
 
   return false;
@@ -77,6 +83,9 @@ function frameworkLabel(type: string): string {
   }
   if (type === 'go') {
     return 'Go';
+  }
+  if (type === 'springboot') {
+    return 'Spring Boot';
   }
   return type;
 }
@@ -317,11 +326,15 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
         projectDirs.map(async (entry) => {
           const projectPath = path.join(wsPath, entry.name);
 
-          const [hasPyproject, hasPackageJson, hasGoMod] = await Promise.all([
-            fs.pathExists(path.join(projectPath, 'pyproject.toml')),
-            fs.pathExists(path.join(projectPath, 'package.json')),
-            fs.pathExists(path.join(projectPath, 'go.mod')),
-          ]);
+          const [hasPyproject, hasPackageJson, hasGoMod, hasPomXml, hasGradle, hasGradleKts] =
+            await Promise.all([
+              fs.pathExists(path.join(projectPath, 'pyproject.toml')),
+              fs.pathExists(path.join(projectPath, 'package.json')),
+              fs.pathExists(path.join(projectPath, 'go.mod')),
+              fs.pathExists(path.join(projectPath, 'pom.xml')),
+              fs.pathExists(path.join(projectPath, 'build.gradle')),
+              fs.pathExists(path.join(projectPath, 'build.gradle.kts')),
+            ]);
 
           const base: Omit<WorkspaiProject, 'type'> = {
             name: entry.name,
@@ -349,6 +362,10 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
 
           if (hasGoMod) {
             return { ...base, type: 'go' } as WorkspaiProject;
+          }
+
+          if (hasPomXml || hasGradle || hasGradleKts) {
+            return { ...base, type: 'springboot' } as WorkspaiProject;
           }
 
           return null;
@@ -395,7 +412,9 @@ export class ProjectTreeItem extends vscode.TreeItem {
             ? 'fastapi.svg'
             : project.type === 'nestjs'
               ? 'nestjs.svg'
-              : 'go.svg';
+              : project.type === 'springboot'
+                ? 'springboot.svg'
+                : 'go.svg';
         this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
       } else {
         const iconId =
@@ -403,14 +422,18 @@ export class ProjectTreeItem extends vscode.TreeItem {
             ? 'symbol-method'
             : project.type === 'nestjs'
               ? 'symbol-class'
-              : 'symbol-namespace';
+              : project.type === 'springboot'
+                ? 'symbol-structure'
+                : 'symbol-namespace';
         const colorId = isSelected
           ? 'charts.blue'
           : project.type === 'fastapi'
             ? 'charts.green'
             : project.type === 'nestjs'
               ? 'charts.red'
-              : 'charts.blue';
+              : project.type === 'springboot'
+                ? 'charts.green'
+                : 'charts.blue';
         this.iconPath = new vscode.ThemeIcon(iconId, new vscode.ThemeColor(colorId));
       }
 
@@ -434,7 +457,9 @@ export class ProjectTreeItem extends vscode.TreeItem {
             ? 'fastapi.svg'
             : project.type === 'nestjs'
               ? 'nestjs.svg'
-              : 'go.svg';
+              : project.type === 'springboot'
+                ? 'springboot.svg'
+                : 'go.svg';
         this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
       } else {
         this.iconPath = new vscode.ThemeIcon(

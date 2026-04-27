@@ -37,6 +37,8 @@ export class TemplateExplorerProvider implements vscode.TreeDataProvider<Templat
     const frameworks = [
       { name: 'FastAPI', icon: 'symbol-property' },
       { name: 'NestJS', icon: 'symbol-class' },
+      { name: 'Go', icon: 'symbol-namespace' },
+      { name: 'Spring Boot', icon: 'coffee' },
     ];
 
     return frameworks.map((fw) => {
@@ -76,6 +78,37 @@ export class TemplateExplorerProvider implements vscode.TreeDataProvider<Templat
           displayName: 'NestJS Standard',
           description: 'Standard NestJS project',
           framework: 'nestjs',
+          category: 'starter',
+          files: [],
+        },
+      ],
+      Go: [
+        {
+          id: 'gofiber.standard',
+          name: 'gofiber.standard',
+          displayName: 'Go Fiber Standard',
+          description: 'Go + Fiber starter for high-performance APIs',
+          framework: 'go',
+          category: 'starter',
+          files: [],
+        },
+        {
+          id: 'gogin.standard',
+          name: 'gogin.standard',
+          displayName: 'Go Gin Standard',
+          description: 'Go + Gin starter for classic REST services',
+          framework: 'go',
+          category: 'starter',
+          files: [],
+        },
+      ],
+      'Spring Boot': [
+        {
+          id: 'springboot.standard',
+          name: 'springboot.standard',
+          displayName: 'Spring Boot Standard',
+          description: 'Java + Spring Boot starter with Maven/Gradle workflow',
+          framework: 'springboot',
           category: 'starter',
           files: [],
         },
