@@ -129,9 +129,14 @@
     }
 
     .ws-name {
-        flex-basis: 100%;
-        margin-bottom: 6px;
+        flex-basis: auto;
+        margin-bottom: 0;
         font-size: 12px;
+    }
+
+    .ws-name-row {
+        flex: 1 1 100%;
+        min-width: 0;
     }
 
     .ws-time {
