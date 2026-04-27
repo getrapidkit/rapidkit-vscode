@@ -11,6 +11,10 @@ import {
   normalizeIncidentWorkspaceGraphSnapshot,
   normalizeIncomingIncidentStudioOpen,
 } from '../../webview-ui/src/lib/incidentStudioPayload';
+import {
+  buildIncidentWorkspaceGraphFixture,
+  INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES,
+} from './fixtures/incidentStudioGraphFixtures';
 import { INCIDENT_PROTOCOL_FIXTURES } from './fixtures/incidentStudioProtocolFixtures';
 
 describe('incidentStudioPayload', () => {
@@ -226,6 +230,52 @@ describe('incidentStudioPayload', () => {
       },
       completeness: 'fresh',
     });
+  });
+
+  it('keeps graph evidence complete across supported workspace kit fixtures', () => {
+    for (const fixture of INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES) {
+      const graph = normalizeIncidentWorkspaceGraphSnapshot(
+        buildIncidentWorkspaceGraphFixture(fixture)
+      );
+
+      expect(graph).toMatchObject({
+        workspace: {
+          path: fixture.workspacePath,
+          name: fixture.workspaceName,
+        },
+        project: {
+          framework: fixture.framework,
+          kit: fixture.kit,
+          selectedProject: {
+            path: fixture.projectPath,
+            name: fixture.projectName,
+            type: fixture.projectType,
+          },
+        },
+        topology: {
+          modulesCount: fixture.modules.length,
+          topModules: fixture.modules,
+        },
+        doctor: {
+          hasEvidence: true,
+        },
+        git: {
+          hasDiffContext: true,
+        },
+        memory: {
+          hasMemory: true,
+          conventionsCount: 2,
+          decisionsCount: 1,
+        },
+        evidence: {
+          hasDoctorEvidence: true,
+          hasGitDiff: true,
+          hasWorkspaceMemory: true,
+          projectScoped: true,
+        },
+        completeness: 'fresh',
+      });
+    }
   });
 
   it('returns null when workspace path is missing in workspace graph snapshot', () => {

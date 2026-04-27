@@ -5,6 +5,10 @@ import {
   getConversationIdToCloseOnViewExit,
   reconcileIncidentStudioSyncSelection,
 } from '../../webview-ui/src/lib/incidentStudioLifecycle';
+import {
+  buildIncidentWorkspaceGraphFixture,
+  INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES,
+} from './fixtures/incidentStudioGraphFixtures';
 
 describe('incidentStudioLifecycle', () => {
   it('closes the previous conversation when incident studio re-bootstrap creates a new one', () => {
@@ -92,5 +96,24 @@ describe('incidentStudioLifecycle', () => {
       selectionChanged: true,
       projectSelection: null,
     });
+  });
+
+  it('reconciles selected project scope for all supported graph fixtures', () => {
+    for (const fixture of INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES) {
+      expect(
+        reconcileIncidentStudioSyncSelection(fixture.workspacePath, null, {
+          workspacePath: fixture.workspacePath,
+          graph: buildIncidentWorkspaceGraphFixture(fixture),
+        })
+      ).toEqual({
+        shouldApply: true,
+        selectionChanged: true,
+        projectSelection: {
+          path: fixture.projectPath,
+          name: fixture.projectName,
+          type: fixture.projectType,
+        },
+      });
+    }
   });
 });

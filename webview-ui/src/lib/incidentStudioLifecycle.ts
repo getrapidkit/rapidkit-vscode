@@ -31,6 +31,15 @@ type IncidentStudioSyncPayload = {
   graph?: IncidentWorkspaceGraphSnapshot | null;
 };
 
+function cleanText(value?: string | null): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function reconcileIncidentStudioSyncSelection(
   activeWorkspacePath: string | null,
   currentProjectPath: string | null,
@@ -56,13 +65,13 @@ export function reconcileIncidentStudioSyncSelection(
   const normalizedProjectPath =
     typeof payload.selectedProjectPath === 'string' && payload.selectedProjectPath.trim().length > 0
       ? payload.selectedProjectPath.trim()
-      : snapshotProject?.path || null;
+      : cleanText(snapshotProject?.path);
 
   const projectSelection = normalizedProjectPath
     ? {
         path: normalizedProjectPath,
-        name: snapshotProject?.name,
-        type: snapshotProject?.type,
+        name: cleanText(snapshotProject?.name) || undefined,
+        type: cleanText(snapshotProject?.type) || undefined,
       }
     : null;
 

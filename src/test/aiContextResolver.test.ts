@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES } from './fixtures/incidentStudioGraphFixtures';
+
 const { mockExecuteCommand, mockGetWorkspaceFolder } = vi.hoisted(() => ({
   mockExecuteCommand: vi.fn(),
   mockGetWorkspaceFolder: vi.fn(),
@@ -172,5 +174,31 @@ describe('aiContextResolver', () => {
 
   it('rejects unrelated paths as workspace ancestors', () => {
     expect(isWorkspacePathAncestor('/tmp/wsp-a', '/tmp/wsp-b/api')).toBe(false);
+  });
+
+  it('preserves project-scoped AI context across supported workspace kits', async () => {
+    for (const fixture of INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES) {
+      mockExecuteCommand.mockImplementation(async (command: string) => {
+        if (command === 'workspai.getSelectedProject') {
+          return {
+            name: fixture.projectName,
+            path: fixture.projectPath,
+            type: fixture.projectType,
+          };
+        }
+        if (command === 'workspai.getSelectedWorkspace') {
+          return { name: fixture.workspaceName, path: fixture.workspacePath };
+        }
+        return null;
+      });
+
+      const ctx = await resolvePreferredAIModalContext(undefined);
+
+      expect(ctx.type).toBe('project');
+      expect(ctx.path).toBe(fixture.projectPath);
+      expect(ctx.projectRootPath).toBe(fixture.projectPath);
+      expect(ctx.workspaceRootPath).toBe(fixture.workspacePath);
+      expect(ctx.framework).toBe(fixture.projectType);
+    }
   });
 });
