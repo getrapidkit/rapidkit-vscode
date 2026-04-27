@@ -58,6 +58,27 @@ export interface OnboardingExperimentStats {
   variants: OnboardingExperimentVariantStats[];
 }
 
+export interface StudioCtaVariantStats {
+  variant: string;
+  loopStarted: number;
+  nextActionClicked: number;
+  actionExecuted: number;
+  verifyPassed: number;
+  verifyFailed: number;
+  verifyCompletionRate: number | null;
+  actionVsAskShare: number | null;
+  loopCompleted: number;
+  abandoned: number;
+}
+
+export interface StudioCtaVariantBreakdown {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  variants: StudioCtaVariantStats[];
+}
+
 export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
@@ -120,6 +141,11 @@ const TELEMETRY_SURFACE_ALLOWLIST: TelemetrySurfaceAllowlistRule[] = [
     surface: 'onboarding',
     pattern:
       /^workspai\.onboarding\.(primary\.shown|primary\.action|followup\.shown|followup\.action)$/,
+  },
+  {
+    surface: 'action',
+    pattern:
+      /^workspai\.studio\.(loop_started|next_action_clicked|action_executed|verify_passed|verify_failed|loop_completed|abandoned)$/,
   },
 ];
 
@@ -945,6 +971,131 @@ export class WorkspaceUsageTracker {
       };
     } catch (error) {
       this.logger.debug(`Failed to read onboarding experiment stats: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Returns Incident Studio KPI breakdown grouped by CTA experiment variant.
+   * Uses event props.ctaVariant tracked on workspai.studio.* command events.
+   */
+  async getStudioCtaVariantBreakdown(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last7d'
+  ): Promise<StudioCtaVariantBreakdown | null> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const marker = await readWorkspaceMarker(workspacePath);
+      if (!marker) {
+        return null;
+      }
+
+      const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+      const telemetry =
+        telemetryRaw && typeof telemetryRaw === 'object'
+          ? (telemetryRaw as Record<string, unknown>)
+          : {};
+
+      const recentEvents = this.parseRecentEvents(telemetry.recentEvents);
+      const nowMs = Date.now();
+      const windowStartMs = this.getWindowStartMs(timeWindow, nowMs);
+      const filteredRecentEvents =
+        windowStartMs === null
+          ? recentEvents
+          : recentEvents.filter((entry) => Date.parse(entry.at) >= windowStartMs);
+
+      const studioEvents = filteredRecentEvents.filter((entry) =>
+        entry.command.startsWith('workspai.studio.')
+      );
+
+      const aggregate = new Map<string, StudioCtaVariantStats>();
+      const ensureVariant = (variant: string) => {
+        const key = variant.trim() || 'unknown';
+        const existing = aggregate.get(key);
+        if (existing) {
+          return existing;
+        }
+        const created: StudioCtaVariantStats = {
+          variant: key,
+          loopStarted: 0,
+          nextActionClicked: 0,
+          actionExecuted: 0,
+          verifyPassed: 0,
+          verifyFailed: 0,
+          verifyCompletionRate: null,
+          actionVsAskShare: null,
+          loopCompleted: 0,
+          abandoned: 0,
+        };
+        aggregate.set(key, created);
+        return created;
+      };
+
+      for (const entry of studioEvents) {
+        const variantProp = entry.props?.ctaVariant;
+        const variant = typeof variantProp === 'string' ? variantProp : 'unknown';
+        const bucket = ensureVariant(variant);
+
+        if (entry.command === 'workspai.studio.loop_started') {
+          bucket.loopStarted += 1;
+        } else if (entry.command === 'workspai.studio.next_action_clicked') {
+          bucket.nextActionClicked += 1;
+        } else if (entry.command === 'workspai.studio.action_executed') {
+          bucket.actionExecuted += 1;
+        } else if (entry.command === 'workspai.studio.verify_passed') {
+          bucket.verifyPassed += 1;
+        } else if (entry.command === 'workspai.studio.verify_failed') {
+          bucket.verifyFailed += 1;
+        } else if (entry.command === 'workspai.studio.loop_completed') {
+          bucket.loopCompleted += 1;
+        } else if (entry.command === 'workspai.studio.abandoned') {
+          bucket.abandoned += 1;
+        }
+      }
+
+      const variants = [...aggregate.values()]
+        .map((item) => {
+          const verifyOutcomes = item.verifyPassed + item.verifyFailed;
+          const actionAskBase = item.actionExecuted + item.nextActionClicked;
+          return {
+            ...item,
+            verifyCompletionRate:
+              item.actionExecuted > 0
+                ? Number(((verifyOutcomes / item.actionExecuted) * 100).toFixed(2))
+                : null,
+            actionVsAskShare:
+              actionAskBase > 0
+                ? Number(((item.actionExecuted / actionAskBase) * 100).toFixed(2))
+                : null,
+          };
+        })
+        .sort((a, b) => {
+          const order = new Map<string, number>([
+            ['single', 0],
+            ['multi', 1],
+            ['unknown', 2],
+          ]);
+          const aOrder = order.get(a.variant) ?? 100;
+          const bOrder = order.get(b.variant) ?? 100;
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+          return a.variant.localeCompare(b.variant);
+        });
+
+      return {
+        workspacePath,
+        timeWindow,
+        windowStartAt: windowStartMs === null ? null : new Date(windowStartMs).toISOString(),
+        windowEndAt: new Date(nowMs).toISOString(),
+        variants,
+      };
+    } catch (error) {
+      this.logger.debug(`Failed to read studio CTA variant breakdown: ${error}`);
       return null;
     }
   }

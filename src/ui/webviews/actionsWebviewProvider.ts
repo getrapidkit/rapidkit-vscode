@@ -306,21 +306,9 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
     <!-- ③ Quick tools -->
     <div class="section-label">Quick Actions</div>
     <div class="tool-grid">
-        <button class="tool-btn ai" onclick="send('aiQuickActions')" title="Open categorized AI workflows">
-            <span class="t-icon">${icons.ai}</span>
-            <span class="t-text">AI Flows</span>
-        </button>
         <button class="tool-btn welcome" onclick="send('openWelcome')" title="Open Workspai dashboard">
             <span class="t-icon">${icons.home}</span>
             <span class="t-text">Dashboard</span>
-        </button>
-        <button class="tool-btn doctor" onclick="send('doctor')" title="Run workspace health check">
-            <span class="t-icon">${icons.doctor}</span>
-            <span class="t-text">Health</span>
-        </button>
-        <button class="tool-btn telemetry" onclick="send('showTelemetry')" title="Open AI usage telemetry summary">
-            <span class="t-icon">${icons.telemetry}</span>
-            <span class="t-text">Telemetry</span>
         </button>
         <button class="tool-btn manual" onclick="send('showLogs')" title="Open extension output logs">
             <span class="t-icon">${icons.logs}</span>

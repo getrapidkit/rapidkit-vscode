@@ -9,7 +9,7 @@ import { KitsService } from '../../core/kitsService';
 
 export class ProjectWizard {
   async show(
-    preselectedFramework?: 'fastapi' | 'nestjs' | 'go',
+    preselectedFramework?: 'fastapi' | 'nestjs' | 'go' | 'springboot',
     prefilledName?: string,
     preselectedKit?: string
   ): Promise<ProjectConfig | undefined> {
@@ -46,7 +46,7 @@ export class ProjectWizard {
     }
 
     // Step 2: Choose framework (skip if preselected)
-    let framework: 'fastapi' | 'nestjs' | 'go';
+    let framework: 'fastapi' | 'nestjs' | 'go' | 'springboot';
 
     if (preselectedFramework) {
       framework = preselectedFramework;
@@ -69,6 +69,12 @@ export class ProjectWizard {
           description: 'High-performance Go web service',
           detail: 'Fiber or Gin framework, fast compile times',
           framework: 'go' as const,
+        },
+        {
+          label: '$(symbol-structure) Spring Boot',
+          description: 'Java + Spring ecosystem',
+          detail: 'Production-ready Java service with Maven/Gradle',
+          framework: 'springboot' as const,
         },
       ];
 

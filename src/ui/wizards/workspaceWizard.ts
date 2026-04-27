@@ -35,7 +35,14 @@ export class WorkspaceWizard {
 
     // ── Step 2 of 5: Profile ─────────────────────────────────────────────────
     type ProfileItem = vscode.QuickPickItem & {
-      value: 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+      value:
+        | 'minimal'
+        | 'python-only'
+        | 'node-only'
+        | 'go-only'
+        | 'java-only'
+        | 'polyglot'
+        | 'enterprise';
     };
     const profilePick = await vscode.window.showQuickPick<ProfileItem>(
       [
@@ -62,6 +69,12 @@ export class WorkspaceWizard {
           description: 'Go runtime bootstrap (no Python needed)',
           detail: 'Best for: Go services, gRPC, CLI tools, microservices',
           value: 'go-only',
+        },
+        {
+          label: '$(symbol-structure) java-only',
+          description: 'Java runtime bootstrap (JDK + Maven/Gradle)',
+          detail: 'Best for: Spring Boot services and Java microservices',
+          value: 'java-only',
         },
         {
           label: '$(layers) polyglot',
