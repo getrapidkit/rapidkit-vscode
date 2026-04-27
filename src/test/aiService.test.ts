@@ -167,6 +167,7 @@ describe('aiService', () => {
       name: 'demo-api',
       path: tempProjectPath,
       framework: 'fastapi',
+      workspaceRootPath: tempProjectPath,
     });
 
     expect(prepared.scanned?.kit).toBe('fastapi.ddd');
@@ -178,10 +179,13 @@ describe('aiService', () => {
     expect(prepared.messages[0].content).toContain('workspace_health: {"total":8,"passed":7');
     expect(prepared.messages[0].content).toContain('rapidkit_cli_version: 0.25.4');
     expect(prepared.messages[0].content).toContain('rapidkit_core_version: 0.3.9');
+    expect(prepared.messages[0].content).toContain('RAPIDKIT COMMAND EXECUTION CONTEXT');
+    expect(prepared.messages[0].content).toContain(`Active workspace root: ${tempProjectPath}`);
     expect(prepared.messages.at(-1)?.content).toContain('python_version: ^3.12');
     expect(prepared.messages.at(-1)?.content).toContain('workspace_health: {"total":8,"passed":7');
     expect(prepared.messages.at(-1)?.content).toContain('rapidkit_cli_version: 0.25.4');
     expect(prepared.messages.at(-1)?.content).toContain('rapidkit_core_version: 0.3.9');
+    expect(prepared.messages.at(-1)?.content).toContain(`workspace_root: ${tempProjectPath}`);
     expect(prepared.messages.at(-1)?.content).toContain(
       'context_packet: {"project_type":"fastapi.ddd"'
     );
@@ -213,11 +217,86 @@ describe('aiService', () => {
       name: 'orders-api',
       path: projectRoot,
       framework: 'fastapi',
+      workspaceRootPath: workspaceRoot,
+      projectRootPath: projectRoot,
     });
 
     expect(prepared.messages[0].content).toContain('WORKSPACE MEMORY');
     expect(prepared.messages[0].content).toContain('Use DTO mapping in application layer');
     expect(prepared.messages[0].content).toContain('Kafka is used for integration events');
+    expect(prepared.messages[0].content).toContain(`Selected project root: ${projectRoot}`);
+    expect(prepared.messages.at(-1)?.content).toContain(`project_root: ${projectRoot}`);
+  });
+
+  it('parses spring pom runtime deps without plugin/dependencyManagement noise', async () => {
+    fs.mkdirSync(path.join(tempProjectPath, 'src', 'main', 'java'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempProjectPath, 'pom.xml'),
+      [
+        '<project>',
+        '  <properties>',
+        '    <maven.compiler.release>21</maven.compiler.release>',
+        '  </properties>',
+        '  <dependencyManagement>',
+        '    <dependencies>',
+        '      <dependency>',
+        '        <groupId>org.springframework.boot</groupId>',
+        '        <artifactId>spring-boot-dependencies</artifactId>',
+        '        <version>3.3.0</version>',
+        '        <type>pom</type>',
+        '        <scope>import</scope>',
+        '      </dependency>',
+        '    </dependencies>',
+        '  </dependencyManagement>',
+        '  <dependencies>',
+        '    <dependency>',
+        '      <groupId>org.springframework.boot</groupId>',
+        '      <artifactId>spring-boot-starter-web</artifactId>',
+        '    </dependency>',
+        '    <dependency>',
+        '      <groupId>org.postgresql</groupId>',
+        '      <artifactId>postgresql</artifactId>',
+        '      <scope>runtime</scope>',
+        '    </dependency>',
+        '    <dependency>',
+        '      <groupId>org.springframework.boot</groupId>',
+        '      <artifactId>spring-boot-starter-test</artifactId>',
+        '      <scope>test</scope>',
+        '    </dependency>',
+        '  </dependencies>',
+        '  <build>',
+        '    <plugins>',
+        '      <plugin>',
+        '        <groupId>org.springframework.boot</groupId>',
+        '        <artifactId>spring-boot-maven-plugin</artifactId>',
+        '        <dependencies>',
+        '          <dependency>',
+        '            <groupId>org.example</groupId>',
+        '            <artifactId>plugin-helper</artifactId>',
+        '          </dependency>',
+        '        </dependencies>',
+        '      </plugin>',
+        '    </plugins>',
+        '  </build>',
+        '</project>',
+      ].join('\n')
+    );
+
+    const prepared = await prepareAIConversation('ask', 'check spring deps', {
+      type: 'project',
+      name: 'billing-api',
+      path: tempProjectPath,
+      framework: 'springboot',
+      projectRootPath: tempProjectPath,
+    });
+
+    expect(prepared.scanned?.kit).toBe('springboot.standard');
+    expect(prepared.scanned?.runtimeVersion).toBe('21');
+    expect(prepared.scanned?.productionDeps).toContain('spring-boot-starter-web');
+    expect(prepared.scanned?.productionDeps).toContain('postgresql');
+    expect(prepared.scanned?.productionDeps).not.toContain('spring-boot-starter-test');
+    expect(prepared.scanned?.productionDeps).not.toContain('spring-boot-dependencies');
+    expect(prepared.scanned?.productionDeps).not.toContain('plugin-helper');
   });
 
   it('caches model selection for repeated AI requests', async () => {
@@ -369,7 +448,10 @@ describe('aiService', () => {
     );
 
     expect(mockGetModulesCatalog).toHaveBeenCalledWith(tempProjectPath);
-    const systemPrompt = model.sendRequest.mock.calls[0][0][0].content;
+    const sendRequestMock = model.sendRequest as unknown as {
+      mock: { calls: Array<Array<Array<{ content?: string }>>> };
+    };
+    const systemPrompt = sendRequestMock.mock.calls[0]?.[0]?.[0]?.content ?? '';
     expect(systemPrompt).toContain('pro/billing/invoices');
     expect(systemPrompt).toContain('v2.3.0');
   });
@@ -447,7 +529,10 @@ describe('aiService', () => {
 
     await parseCreationIntent('Create a redis-backed api', 'workspace', 'fastapi', tempProjectPath);
 
-    const systemPrompt = model.sendRequest.mock.calls[0][0][0].content;
+    const sendRequestMock = model.sendRequest as unknown as {
+      mock: { calls: Array<Array<Array<{ content?: string }>>> };
+    };
+    const systemPrompt = sendRequestMock.mock.calls[0]?.[0]?.[0]?.content ?? '';
     expect(systemPrompt).toContain('Installed modules already present in this workspace');
     expect(systemPrompt).toContain('free/cache/redis');
     expect(systemPrompt).toContain('billing-api');
@@ -543,6 +628,60 @@ describe('aiService', () => {
     expect(selected.model).toBe(legacyMappedModel);
     expect(selected.modelId).toBe('Claude Sonnet 4.6');
     expect(mockSelectChatModels).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns java-only springboot plan with empty module list for spring projects', async () => {
+    const model = {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      sendRequest: vi.fn(async () => ({
+        stream: (async function* () {
+          yield new vscode.LanguageModelTextPart(
+            JSON.stringify({
+              workspaceName: 'orders-platform',
+              profile: 'java-only',
+              installMethod: 'auto',
+              framework: 'springboot',
+              kit: 'springboot.standard',
+              projectName: 'orders-service',
+              suggestedModules: ['free/essentials/settings', 'free/cache/redis'],
+              description: 'Spring Boot orders service.',
+            })
+          );
+        })(),
+      })),
+    };
+
+    mockGetModulesCatalog.mockResolvedValue({
+      modules: [
+        {
+          id: 'settings',
+          name: 'Settings',
+          version: '1.0.0',
+          category: 'essentials',
+          icon: 'x',
+          description: 'Settings module',
+          status: 'stable',
+          tags: [],
+          slug: 'free/essentials/settings',
+        },
+      ],
+      source: 'live',
+      catalog: null,
+    });
+    mockSelectChatModels.mockResolvedValue([model]);
+
+    const { plan } = await parseCreationIntent(
+      'Create a spring boot orders service',
+      'project',
+      'springboot',
+      tempProjectPath
+    );
+
+    expect(plan.framework).toBe('springboot');
+    expect(plan.kit).toBe('springboot.standard');
+    expect(plan.profile).toBe('java-only');
+    expect(plan.suggestedModules).toEqual([]);
   });
 
   it('auto-corrects near-miss module slug typos in AI creation output', async () => {

@@ -158,7 +158,7 @@ describe('contract drift guard', () => {
 
   it('keeps updater/setup commands pinned to stable npm install syntax and workspace doctor contract', () => {
     const updateCheckerSource = read('src/utils/updateChecker.ts');
-    const setupPanelSource = read('src/ui/panels/setupPanel.ts');
+    const setupPanelSource = read('src/ui/panels/setupExperiencePanel.ts');
     const extensionSource = read('src/extension.ts');
     const workspaceOpsSource = read('src/commands/workspaceOperations.ts');
     const commandSource = `${extensionSource}\n${workspaceOpsSource}`;
@@ -286,15 +286,16 @@ describe('contract drift guard', () => {
   });
 
   it('keeps setup panel language toolchain commands cross-platform and shell-safe', () => {
-    const setupPanelSource = read('src/ui/panels/setupPanel.ts');
+    const setupPanelSource = read('src/ui/panels/setupExperiencePanel.ts');
 
     expect(setupPanelSource).toContain('runCommandsInTerminal');
 
-    expect(setupPanelSource).toContain("commands: ['python --version']");
+    expect(setupPanelSource).toContain("'python3 --version'");
+    expect(setupPanelSource).toContain("'python --version'");
     expect(setupPanelSource).toContain("'python -m pip --version'");
     expect(setupPanelSource).toContain("'python3 -m pip --version'");
     expect(setupPanelSource).toContain("commands: [['--version']]");
-    expect(setupPanelSource).toContain("commands: ['go version']");
+    expect(setupPanelSource).toContain("'go version'");
 
     expect(setupPanelSource).toContain("'python -m pipx install --force rapidkit-core'");
     expect(setupPanelSource).toContain("'pipx install --force rapidkit-core'");

@@ -40,7 +40,9 @@ export class WorkspaiHoverProvider implements vscode.HoverProvider {
         '**Framework**\n\nSpecifies the backend framework for the project.\n\n' +
           'Supported values:\n' +
           '- `fastapi` - Python FastAPI framework\n' +
-          '- `nestjs` - TypeScript NestJS framework'
+          '- `nestjs` - TypeScript NestJS framework\n' +
+          '- `go` - Go backend service\n' +
+          '- `springboot` - Java Spring Boot framework'
       ),
       mode: new vscode.MarkdownString(
         '**Mode**\n\nProject generation mode.\n\n' +
@@ -55,6 +57,7 @@ export class WorkspaiHoverProvider implements vscode.HoverProvider {
           '- `python-only` - Python-focused dependencies\n' +
           '- `node-only` - Node.js-focused dependencies\n' +
           '- `go-only` - Go-focused dependencies\n' +
+          '- `java-only` - Java-focused dependencies\n' +
           '- `polyglot` - Multi-runtime dependencies\n' +
           '- `enterprise` - Full enterprise setup'
       ),

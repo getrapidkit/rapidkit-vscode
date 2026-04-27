@@ -37,9 +37,11 @@ export class WorkspaiCompletionProvider implements vscode.CompletionItemProvider
     );
     frameworkItem.detail = 'Framework type';
     frameworkItem.documentation = new vscode.MarkdownString(
-      'Specify the framework: `fastapi` or `nestjs`'
+      'Specify the framework: `fastapi`, `nestjs`, `go`, or `springboot`'
     );
-    frameworkItem.insertText = new vscode.SnippetString('"framework": "${1|fastapi,nestjs|}"');
+    frameworkItem.insertText = new vscode.SnippetString(
+      '"framework": "${1|fastapi,nestjs,go,springboot|}"'
+    );
     items.push(frameworkItem);
 
     // Mode completions
@@ -53,10 +55,10 @@ export class WorkspaiCompletionProvider implements vscode.CompletionItemProvider
     const profileItem = new vscode.CompletionItem('profile', vscode.CompletionItemKind.Property);
     profileItem.detail = 'Project profile';
     profileItem.documentation = new vscode.MarkdownString(
-      'Specify the profile: `minimal`, `python-only`, `node-only`, `go-only`, `polyglot`, or `enterprise`'
+      'Specify the profile: `minimal`, `python-only`, `node-only`, `go-only`, `java-only`, `polyglot`, or `enterprise`'
     );
     profileItem.insertText = new vscode.SnippetString(
-      '"profile": "${1|minimal,python-only,node-only,go-only,polyglot,enterprise|}"'
+      '"profile": "${1|minimal,python-only,node-only,go-only,java-only,polyglot,enterprise|}"'
     );
     items.push(profileItem);
 

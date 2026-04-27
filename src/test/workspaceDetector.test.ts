@@ -111,4 +111,24 @@ require github.com/gin-gonic/gin v1.10.0
 
     fs.rmSync(projectPath, { recursive: true, force: true });
   });
+
+  it('detects Spring Boot projects from pom.xml', async () => {
+    const detector = WorkspaceDetector.getInstance();
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-spring-detector-'));
+
+    fs.mkdirSync(path.join(projectPath, '.rapidkit'), { recursive: true });
+    fs.writeFileSync(path.join(projectPath, '.rapidkit', 'project.json'), '{}');
+    fs.writeFileSync(
+      path.join(projectPath, 'pom.xml'),
+      '<project><groupId>com.acme</groupId><artifactId>orders</artifactId></project>'
+    );
+
+    const analyzed = await (detector as any).analyzeProject(projectPath);
+
+    expect(analyzed).not.toBeNull();
+    expect(analyzed.type).toBe('springboot');
+    expect(analyzed.kit).toBe('springboot.standard');
+
+    fs.rmSync(projectPath, { recursive: true, force: true });
+  });
 });

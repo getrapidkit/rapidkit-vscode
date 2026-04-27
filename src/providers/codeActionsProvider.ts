@@ -162,7 +162,12 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         vscode.CodeActionKind.QuickFix
       );
       action.edit = new vscode.WorkspaceEdit();
-      action.edit.insert(document.uri, new vscode.Position(1, 0), '  "framework": "fastapi",\n');
+      // Insert a placeholder — user must choose the correct kit for their project
+      action.edit.insert(
+        document.uri,
+        new vscode.Position(1, 0),
+        '  "framework": "",  // e.g. fastapi, nestjs, go, springboot\n'
+      );
       actions.push(action);
     }
 

@@ -165,6 +165,75 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(bySurface.find((entry) => entry.surface === 'onboarding')?.count).toBe(2);
   });
 
+  it('preserves incident studio loop sequencing and classifies the full loop as action telemetry', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-studio-loop');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+    const sequence = [
+      {
+        command: 'workspai.studio.loop_started',
+        at: '2026-04-22T12:30:00.000Z',
+        props: { framework: 'fastapi' },
+      },
+      {
+        command: 'workspai.studio.next_action_clicked',
+        at: '2026-04-22T12:30:03.000Z',
+        props: { framework: 'fastapi', actionType: 'doctor-fix' },
+      },
+      {
+        command: 'workspai.studio.action_executed',
+        at: '2026-04-22T12:30:08.000Z',
+        props: { framework: 'fastapi', actionType: 'doctor-fix', durationMs: 5100 },
+      },
+      {
+        command: 'workspai.studio.verify_passed',
+        at: '2026-04-22T12:30:11.000Z',
+        props: { framework: 'fastapi', actionType: 'doctor-fix', durationMs: 3000 },
+      },
+      {
+        command: 'workspai.studio.loop_completed',
+        at: '2026-04-22T12:30:12.000Z',
+        props: { framework: 'fastapi', actionCount: 1, queryCount: 1, timeToVerifyMs: 11000 },
+      },
+    ] as const;
+
+    for (const event of sequence) {
+      vi.setSystemTime(new Date(event.at));
+      await tracker.trackCommandEvent(event.command, workspacePath, event.props);
+    }
+
+    const summary = await tracker.getCommandTelemetrySummary(workspacePath, 'all');
+
+    expect(summary).not.toBeNull();
+    expect(summary?.totalEvents).toBe(sequence.length);
+    expect(summary?.surfaceBreakdown.actionEvents).toBe(sequence.length);
+    expect(summary?.surfaceBreakdown.askEvents).toBe(0);
+    expect(summary?.lastCommand).toBe('workspai.studio.loop_completed');
+    expect(summary?.lastCommandProps).toEqual({
+      framework: 'fastapi',
+      actionCount: 1,
+      queryCount: 1,
+      timeToVerifyMs: 11000,
+    });
+
+    const marker = await readWorkspaceMarker(workspacePath);
+    const telemetry = marker?.metadata?.custom?.workspaiTelemetry as
+      | { recentEvents?: Array<{ command: string }>; commandUsage?: Record<string, number> }
+      | undefined;
+
+    expect(telemetry?.recentEvents?.map((entry) => entry.command)).toEqual(
+      sequence.map((event) => event.command)
+    );
+    expect(telemetry?.commandUsage).toMatchObject({
+      'workspai.studio.loop_started': 1,
+      'workspai.studio.next_action_clicked': 1,
+      'workspai.studio.action_executed': 1,
+      'workspai.studio.verify_passed': 1,
+      'workspai.studio.loop_completed': 1,
+    });
+  });
+
   it('treats non-allowlisted ai commands as other surface to prevent drift', async () => {
     const workspacePath = path.join(tempRoot, 'ws-allowlist');
 

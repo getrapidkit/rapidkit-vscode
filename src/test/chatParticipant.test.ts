@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   createChatParticipantMock,
-  getWorkspaceFolderMock,
   collectDebugPrefillQuestionMock,
   prepareAIConversationMock,
+  resolvePreferredAIModalContextMock,
   streamAIResponseMock,
 } = vi.hoisted(() => ({
   createChatParticipantMock: vi.fn(),
-  getWorkspaceFolderMock: vi.fn(),
   collectDebugPrefillQuestionMock: vi.fn(),
   prepareAIConversationMock: vi.fn(),
+  resolvePreferredAIModalContextMock: vi.fn(),
   streamAIResponseMock: vi.fn(),
 }));
 
@@ -52,7 +52,6 @@ vi.mock('vscode', () => {
     },
     workspace: {
       workspaceFolders: [{ name: 'demo-workspace', uri: { fsPath: '/tmp/demo-workspace' } }],
-      getWorkspaceFolder: getWorkspaceFolderMock,
     },
     ThemeIcon,
     ChatRequestTurn,
@@ -64,6 +63,10 @@ vi.mock('vscode', () => {
 vi.mock('../core/aiService', () => ({
   prepareAIConversation: prepareAIConversationMock,
   streamAIResponse: streamAIResponseMock,
+}));
+
+vi.mock('../core/aiContextResolver', () => ({
+  resolvePreferredAIModalContext: resolvePreferredAIModalContextMock,
 }));
 
 vi.mock('../commands/aiDebugger', () => ({
@@ -83,8 +86,13 @@ describe('chatParticipant', () => {
       dispose: vi.fn(),
     }));
 
-    getWorkspaceFolderMock.mockReturnValue(undefined);
     collectDebugPrefillQuestionMock.mockReturnValue('Error: db connection refused');
+    resolvePreferredAIModalContextMock.mockResolvedValue({
+      type: 'workspace',
+      name: 'demo-workspace',
+      path: '/tmp/demo-workspace',
+      workspaceRootPath: '/tmp/demo-workspace',
+    });
 
     prepareAIConversationMock.mockResolvedValue({
       messages: [{ role: 'user', content: 'test' }],

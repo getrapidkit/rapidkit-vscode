@@ -49,12 +49,20 @@ describe('WorkspaceManager (Go support)', () => {
     fs.mkdirSync(goPath, { recursive: true });
     fs.writeFileSync(path.join(goPath, 'go.mod'), 'module github.com/acme/api-go\n');
 
+    const springPath = path.join(workspacePath, 'api-spring');
+    fs.mkdirSync(springPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(springPath, 'pom.xml'),
+      '<project><groupId>com.acme</groupId><artifactId>api-spring</artifactId></project>'
+    );
+
     const projects = await (manager as any).getWorkspaceProjects(workspacePath);
     const names = projects.map((item: { name: string }) => item.name);
 
     expect(names).toContain('api-fastapi');
     expect(names).toContain('api-nest');
     expect(names).toContain('api-go');
+    expect(names).toContain('api-spring');
 
     fs.rmSync(workspacePath, { recursive: true, force: true });
   });

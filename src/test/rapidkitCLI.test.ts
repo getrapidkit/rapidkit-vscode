@@ -72,19 +72,26 @@ describe('WorkspaiCLI', () => {
   });
 
   it('falls back to npx when direct rapidkit run fails', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'rapidkit-cli-fallback-'));
+
     vi.mocked(run)
+      // optional workspace .venv runner or first direct attempt can fail
+      .mockRejectedValueOnce(new Error('rapidkit missing'))
+      // direct rapidkit fallback attempt fails too
       .mockRejectedValueOnce(new Error('rapidkit missing'))
       // npx fallback succeeds
       .mockResolvedValueOnce({ stdout: 'ok', stderr: '', exitCode: 0 } as any);
 
-    const result = await cli.run(['doctor', 'workspace'], '/tmp/workspace', true);
+    const result = await cli.run(['doctor', 'workspace'], workspacePath, true);
 
     expect(result.stdout).toBe('ok');
     expect(vi.mocked(run)).toHaveBeenLastCalledWith(
       'npx',
       ['--yes', 'rapidkit', 'doctor', 'workspace'],
-      expect.objectContaining({ cwd: '/tmp/workspace', stdio: 'pipe' })
+      expect.objectContaining({ cwd: workspacePath, stdio: 'pipe' })
     );
+
+    fs.rmSync(workspacePath, { recursive: true, force: true });
   });
 
   it('uses workspace .venv POSIX rapidkit runner when available', async () => {
