@@ -35,12 +35,14 @@ import {
 import {
     getConversationIdToCloseOnBootstrap,
     getConversationIdToCloseOnViewExit,
+    reconcileIncidentStudioSyncSelection,
 } from '@/lib/incidentStudioLifecycle';
 import {
     buildIncidentChatExecuteActionPayload,
     buildIncidentChatQueryPayload,
     buildIncidentChatStartPayload,
     normalizeIncomingIncidentStudioOpen,
+    normalizeIncidentWorkspaceGraphSnapshot,
     type IncidentProjectSelection,
 } from '@/lib/incidentStudioPayload';
 import { AIModal, AIModalContext } from '@/components/AIModal';
@@ -530,6 +532,44 @@ export function App() {
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
                 case 'aiChatWorkspaceSynced':
+                    {
+                        const normalizedGraph = normalizeIncidentWorkspaceGraphSnapshot(message.data?.graph);
+                        const syncState = reconcileIncidentStudioSyncSelection(
+                            selectedWorkspaceForAnalysis,
+                            selectedProjectForAnalysis?.path ?? null,
+                            {
+                                workspacePath:
+                                    typeof message.data?.workspacePath === 'string'
+                                        ? message.data.workspacePath
+                                        : null,
+                                selectedProjectPath:
+                                    typeof message.data?.selectedProjectPath === 'string'
+                                        ? message.data.selectedProjectPath
+                                        : null,
+                                graph: normalizedGraph,
+                            }
+                        );
+
+                        if (!syncState.shouldApply) {
+                            console.log('[ChatBrain] ignored stale workspace sync', message.data);
+                            break;
+                        }
+
+                        if (syncState.selectionChanged) {
+                            setChatBrainHistory([]);
+                            setChatBrainStreamText('');
+                            chatBrainStreamTextRef.current = '';
+                            chatBrainMessageIdRef.current = null;
+                            setChatBrainBoard(null);
+                            setChatBrainActionProgress(null);
+                            setChatBrainActionResult(null);
+                            setChatBrainSuggestedQuestions([]);
+                            setChatBrainError(null);
+                            setIncidentResume(null);
+                        }
+
+                        setSelectedProjectForAnalysis(syncState.projectSelection);
+                    }
                     setIsIncidentRefreshing(false);
                     console.log('[ChatBrain]', message.command, message.data);
                     break;

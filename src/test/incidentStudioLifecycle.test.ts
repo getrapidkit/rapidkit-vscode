@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getConversationIdToCloseOnBootstrap,
   getConversationIdToCloseOnViewExit,
+  reconcileIncidentStudioSyncSelection,
 } from '../../webview-ui/src/lib/incidentStudioLifecycle';
 
 describe('incidentStudioLifecycle', () => {
@@ -19,5 +20,77 @@ describe('incidentStudioLifecycle', () => {
     expect(getConversationIdToCloseOnViewExit('dashboard', 'conv-active')).toBe('conv-active');
     expect(getConversationIdToCloseOnViewExit('incident-studio', 'conv-active')).toBeNull();
     expect(getConversationIdToCloseOnViewExit('dashboard', null)).toBeNull();
+  });
+
+  it('ignores stale workspace sync payloads from a previous workspace', () => {
+    expect(
+      reconcileIncidentStudioSyncSelection('/tmp/workspace-b', '/tmp/workspace-b/api', {
+        workspacePath: '/tmp/workspace-a',
+        selectedProjectPath: '/tmp/workspace-a/api',
+      })
+    ).toEqual({
+      shouldApply: false,
+      selectionChanged: false,
+      projectSelection: null,
+    });
+  });
+
+  it('reconciles selected project scope from the normalized graph snapshot', () => {
+    expect(
+      reconcileIncidentStudioSyncSelection('/tmp/workspace-a', null, {
+        workspacePath: '/tmp/workspace-a',
+        graph: {
+          snapshotVersion: 'v1',
+          workspace: { path: '/tmp/workspace-a', name: 'workspace-a' },
+          project: {
+            framework: 'fastapi',
+            kit: 'fastapi.standard',
+            selectedProject: {
+              path: '/tmp/workspace-a/orders-api',
+              name: 'orders-api',
+              type: 'fastapi',
+            },
+          },
+          topology: { modulesCount: 1, topModules: ['api'] },
+          doctor: {
+            hasEvidence: false,
+            health: { passed: 0, warnings: 0, errors: 0, total: 0, percent: 0 },
+          },
+          git: { diffStat: 'clean', hasDiffContext: false },
+          memory: { conventionsCount: 0, decisionsCount: 0, hasMemory: false },
+          telemetry: { totalEvents: 0, lastCommand: null, onboardingFollowupClickThroughRate: 0 },
+          evidence: {
+            hasDoctorEvidence: false,
+            hasGitDiff: false,
+            hasWorkspaceMemory: false,
+            projectScoped: true,
+          },
+          completeness: 'fresh',
+          lastUpdatedAt: 1,
+        },
+      })
+    ).toEqual({
+      shouldApply: true,
+      selectionChanged: true,
+      projectSelection: {
+        path: '/tmp/workspace-a/orders-api',
+        name: 'orders-api',
+        type: 'fastapi',
+      },
+    });
+  });
+
+  it('marks selection as changed when sync clears previously active project scope', () => {
+    expect(
+      reconcileIncidentStudioSyncSelection('/tmp/workspace-a', '/tmp/workspace-a/orders-api', {
+        workspacePath: '/tmp/workspace-a',
+        selectedProjectPath: null,
+        graph: null,
+      })
+    ).toEqual({
+      shouldApply: true,
+      selectionChanged: true,
+      projectSelection: null,
+    });
   });
 });
