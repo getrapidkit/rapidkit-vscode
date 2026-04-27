@@ -354,7 +354,22 @@ npx rapidkit create                       # Interactive mode
 npx rapidkit workspace list               # List all workspaces
 npx rapidkit workspace policy show        # Show workspace policy
 npx rapidkit workspace policy set <key> <value> # Set workspace policy key
+npx rapidkit workspace share              # Export workspace collaboration bundle
 npx rapidkit add module auth              # Add modules to project
+```
+
+### Workspace Share in Extension
+
+Workspai supports workspace share bundles directly inside the extension:
+
+- Command Palette: `Workspai: Export Workspace Share Bundle`
+- Command Palette: `Workspai: Import Workspace Share Bundle`
+- Workspaces view: right-click a workspace item to export
+
+Export uses the same CLI contract as:
+
+```bash
+npx rapidkit workspace share [--output <file>] [--include-paths] [--no-doctor]
 ```
 
 [📦 View on npm](https://www.npmjs.com/package/rapidkit) • [💻 GitHub Repo](https://github.com/getrapidkit/rapidkit-npm)

@@ -138,9 +138,9 @@ export function ModuleBrowser({
     return (
         <div className="section module-browser">
             <div className="section-title">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="module-title-row">
                     <Package className="w-6 h-6" />
-                    Module Browser
+                    <span className="module-title-text">Module Browser</span>
                     <span className="module-count" style={{ marginLeft: '4px' }}>
                         {modules.length} free modules
                     </span>

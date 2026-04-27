@@ -999,6 +999,14 @@
     @apply mb-8;
   }
 
+  .module-title-row {
+    @apply flex items-center gap-2 flex-wrap min-w-0;
+  }
+
+  .module-title-text {
+    @apply font-semibold;
+  }
+
   .module-stats {
     @apply flex gap-3 items-center mb-4;
   }
@@ -1094,6 +1102,30 @@
     }
   }
 
+  .module-card {
+    @apply p-3 rounded-lg;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border: 1px solid var(--vscode-panel-border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .module-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, #6C5CE7 55%, var(--vscode-panel-border));
+    box-shadow: 0 4px 14px rgba(108, 92, 231, 0.14);
+  }
+
+  .module-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+  }
+
   /* Lucide icon wrapper for module cards */
   .module-icon-wrapper {
     @apply w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0;
@@ -1112,10 +1144,14 @@
 
   .module-info {
     @apply flex-1;
+    min-width: 0;
   }
 
   .module-name {
     @apply text-sm font-bold mb-0.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .module-version {
@@ -1128,6 +1164,11 @@
   .module-badge {
     @apply text-[0.5625rem] px-2 py-0.5 rounded-lg font-bold uppercase;
     letter-spacing: 0.3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .module-badge.ai {
@@ -1199,6 +1240,7 @@
   /* Module Actions */
   .module-actions {
     @apply flex gap-1.5 items-stretch;
+    flex-wrap: wrap;
   }
 
   .module-install-btn {
@@ -1206,6 +1248,7 @@
     background: linear-gradient(135deg, #6C5CE7, #8B7CF8);
     color: white;
     border: none;
+    min-width: 0;
   }
 
   .module-install-btn:hover:not(:disabled) {

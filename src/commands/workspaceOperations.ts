@@ -184,6 +184,73 @@ export function registerWorkspaceOperationsCommands(options: {
       });
     }),
 
+    vscode.commands.registerCommand('workspai.exportWorkspaceShareBundle', async (item?: any) => {
+      const workspaceExplorer = getWorkspaceExplorer();
+      const workspacePath =
+        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      if (!workspacePath) {
+        vscode.window.showErrorMessage('No workspace selected.');
+        return;
+      }
+
+      const wsName = path.basename(workspacePath);
+      const selectedFlags = await vscode.window.showQuickPick(
+        [
+          {
+            label: 'Include absolute paths',
+            description: 'Adds absolute workspace/project paths to the share bundle',
+            value: 'include-paths',
+          },
+          {
+            label: 'Exclude doctor evidence',
+            description: 'Skips doctor section in exported bundle',
+            value: 'no-doctor',
+          },
+        ],
+        {
+          title: `Workspace Share Export: ${wsName}`,
+          placeHolder: 'Choose export options (optional)',
+          canPickMany: true,
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!selectedFlags) {
+        return;
+      }
+
+      const defaultUri = vscode.Uri.file(
+        path.join(workspacePath, '.rapidkit', 'reports', 'share-bundle.json')
+      );
+
+      const outputUri = await vscode.window.showSaveDialog({
+        title: `Export Workspace Share Bundle: ${wsName}`,
+        saveLabel: 'Export Share Bundle',
+        defaultUri,
+        filters: {
+          JSON: ['json'],
+        },
+      });
+
+      if (!outputUri) {
+        return;
+      }
+
+      const command: string[] = ['workspace', 'share', '--output', outputUri.fsPath];
+      if (selectedFlags.some((item) => item.value === 'include-paths')) {
+        command.push('--include-paths');
+      }
+      if (selectedFlags.some((item) => item.value === 'no-doctor')) {
+        command.push('--no-doctor');
+      }
+
+      runRapidkitCommandsInTerminal({
+        name: `Workspai: Share Export — ${wsName}`,
+        cwd: workspacePath,
+        commands: [command],
+      });
+    }),
+
     vscode.commands.registerCommand('workspai.workspacePolicySet', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
       const workspacePath =
