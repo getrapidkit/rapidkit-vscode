@@ -11,6 +11,8 @@ import { ModulesCatalogService } from '../../core/modulesCatalogService';
 import { CoreVersionService } from '../../core/coreVersionService';
 import { ExamplesService } from '../../core/examplesService';
 import { KitsService } from '../../core/kitsService';
+import { WorkspaceMemoryService } from '../../core/workspaceMemoryService';
+import { isWorkspacePathAncestor } from '../../core/aiContextResolver';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
 import { run } from '../../utils/exec';
@@ -23,7 +25,22 @@ import {
   runShellCommandInTerminal,
 } from '../../utils/terminalExecutor';
 import { WorkspaceUsageTracker } from '../../utils/workspaceUsageTracker';
+import { openWorkspace } from '../../commands/workspaceContextMenu';
 import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
+import { createDoctorTelemetryRefreshController } from './doctorTelemetryRefresh';
+import {
+  buildIncidentStudioTelemetryFromCache,
+  buildIncidentStudioTelemetryPayload,
+  shouldUseIncidentStudioTelemetryCache,
+} from './incidentStudioTelemetry';
+import { buildIncidentResumeSnapshot, type IncidentResumeSnapshot } from './incidentStudioResume';
+import {
+  buildIncidentMemoryPromptHint,
+  buildIncidentMemoryReuseSnapshot,
+  prependIncidentMemoryReuseBlock,
+  shouldAttachIncidentMemoryReuse,
+} from './incidentStudioMemory';
+import { buildIncidentFirstResponseRules } from './incidentStudioPromptPolicy';
 
 export class WelcomePanel {
   private static readonly UI_PREFS_KEY = 'rapidkit.welcome.uiPreferences';
@@ -32,7 +49,7 @@ export class WelcomePanel {
   private _disposables: vscode.Disposable[] = [];
   private _aiQueryTokenSource?: vscode.CancellationTokenSource;
   private _activeAIQueryRequestId?: number;
-  private static _selectedProject: { name: string; path: string } | null = null;
+  private static _selectedProject: { name: string; path: string; type?: string } | null = null;
   private _modulesCatalog: ModuleData[] = MODULES;
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
   /** Framework name queued to open as a modal after the webview becomes ready */
@@ -42,6 +59,33 @@ export class WelcomePanel {
   private static _pendingModuleModal: any | null = null;
   /** AI modal context queued to show after webview becomes ready */
   private static _pendingAIModal: import('../../core/aiService').AIModalContext | null = null;
+  /** Incident Studio open request queued until webview is ready */
+  private static _pendingIncidentStudioOpen: {
+    workspacePath: string;
+    workspaceName?: string;
+    projectPath?: string;
+    projectName?: string;
+    projectType?: string;
+    initialQuery?: string;
+  } | null = null;
+  /** Workspace share bundle dashboard payload queued until webview is ready */
+  private static _pendingWorkspaceShareDashboardOpen: {
+    summary: {
+      sourceFile: string;
+      workspaceName: string;
+      workspaceProfile?: string;
+      generatedAt?: string;
+      schemaVersion: string;
+      projectCount: number;
+      runtimes: string[];
+      doctorEvidenceIncluded: boolean;
+      healthTotals: {
+        passed: number;
+        warnings: number;
+        errors: number;
+      };
+    };
+  } | null = null;
   /** Cached extension context so static methods can open the panel */
   private static _extensionContext: vscode.ExtensionContext | undefined;
 
@@ -51,7 +95,7 @@ export class WelcomePanel {
    */
   public static openProjectModal(
     context: vscode.ExtensionContext,
-    framework: 'fastapi' | 'nestjs' | 'go'
+    framework: 'fastapi' | 'nestjs' | 'go' | 'springboot'
   ): void {
     WelcomePanel._pendingModal = framework;
     WelcomePanel.createOrShow(context);
@@ -160,6 +204,71 @@ export class WelcomePanel {
   }
 
   /**
+   * Open the welcome panel and jump directly to Incident Studio analysis.
+   */
+  public static openIncidentStudio(
+    context: vscode.ExtensionContext,
+    data: {
+      workspacePath: string;
+      workspaceName?: string;
+      projectPath?: string;
+      projectName?: string;
+      projectType?: string;
+      initialQuery?: string;
+    }
+  ): void {
+    WelcomePanel._pendingIncidentStudioOpen = data;
+    WelcomePanel.createOrShow(context);
+    setTimeout(() => {
+      if (WelcomePanel._pendingIncidentStudioOpen && WelcomePanel.currentPanel) {
+        const pending = WelcomePanel._pendingIncidentStudioOpen;
+        WelcomePanel._pendingIncidentStudioOpen = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openIncidentStudio',
+          data: pending,
+        });
+      }
+    }, 350);
+  }
+
+  /**
+   * Open the welcome panel and show imported workspace share bundle summary on the dashboard.
+   */
+  public static openWorkspaceShareDashboard(
+    context: vscode.ExtensionContext,
+    data: {
+      summary: {
+        sourceFile: string;
+        workspaceName: string;
+        workspaceProfile?: string;
+        generatedAt?: string;
+        schemaVersion: string;
+        projectCount: number;
+        runtimes: string[];
+        doctorEvidenceIncluded: boolean;
+        healthTotals: {
+          passed: number;
+          warnings: number;
+          errors: number;
+        };
+      };
+    }
+  ): void {
+    WelcomePanel._pendingWorkspaceShareDashboardOpen = data;
+    WelcomePanel.createOrShow(context);
+    setTimeout(() => {
+      if (WelcomePanel._pendingWorkspaceShareDashboardOpen && WelcomePanel.currentPanel) {
+        const pending = WelcomePanel._pendingWorkspaceShareDashboardOpen;
+        WelcomePanel._pendingWorkspaceShareDashboardOpen = null;
+        WelcomePanel.currentPanel._panel.webview.postMessage({
+          command: 'openWorkspaceShareDashboard',
+          data: pending,
+        });
+      }
+    }, 350);
+  }
+
+  /**
    * Set workspace explorer reference (called from extension.ts)
    */
   public static setWorkspaceExplorer(explorer: WorkspaceExplorerProvider) {
@@ -176,7 +285,12 @@ export class WelcomePanel {
   public static async updateWithProject(projectPath: string, projectName: string) {
     console.log('[WelcomePanel] updateWithProject called:', projectName, projectPath);
 
-    WelcomePanel._selectedProject = { name: projectName, path: projectPath };
+    const projectType = await WelcomePanel._detectProjectTypeStatic(projectPath);
+    WelcomePanel._selectedProject = {
+      name: projectName,
+      path: projectPath,
+      type: projectType ?? undefined,
+    };
 
     if (WelcomePanel.currentPanel) {
       const installedModules = await WelcomePanel._readInstalledModules(projectPath);
@@ -197,8 +311,6 @@ export class WelcomePanel {
       }
 
       // Detect project type for UI adaptation (e.g., hide modules for Go)
-      const projectType = await WelcomePanel._detectProjectTypeStatic(projectPath);
-
       WelcomePanel.currentPanel._panel.webview.postMessage({
         command: 'updateWorkspaceStatus',
         data: {
@@ -206,6 +318,8 @@ export class WelcomePanel {
           hasProjectSelected: true,
           workspaceName: projectName,
           workspacePath: projectPath,
+          projectName,
+          projectPath,
           projectType: projectType ?? undefined,
           installedModules,
           isRunning,
@@ -300,10 +414,37 @@ export class WelcomePanel {
   }
 
   private _context: vscode.ExtensionContext;
+  private _chatBrainQueryTokenSource?: vscode.CancellationTokenSource;
+  private _activeChatBrainRequestId?: string;
+  private _chatBrainConversations = new Map<
+    string,
+    {
+      workspacePath?: string;
+      projectPath?: string;
+      projectName?: string;
+      projectType?: string;
+      startedAt: number;
+      lastActivityAt: number;
+      phase: 'detect' | 'diagnose' | 'plan' | 'verify' | 'learn';
+      history: Array<{ role: 'user' | 'assistant'; content: string }>;
+      // Analytics dimensions
+      queryCount: number;
+      actionCount: number;
+      verifyPassedAt?: number;
+      framework?: string;
+    }
+  >();
+  private _incidentResumeByWorkspace = new Map<string, IncidentResumeSnapshot>();
+  private _doctorTelemetryRefreshController = createDoctorTelemetryRefreshController({
+    onRefresh: (explicitWorkspacePath?: string) =>
+      this._sendIncidentStudioTelemetry(explicitWorkspacePath),
+  });
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this._panel = panel;
     this._context = context;
+
+    this._registerDoctorEvidenceWatcher();
 
     // Set webview content
     this._panel.webview.html = this._getHtmlContent(context);
@@ -311,6 +452,12 @@ export class WelcomePanel {
     // Handle messages from webview
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
+        const protocolRequestId =
+          typeof message?.meta?.requestId === 'string'
+            ? message.meta.requestId
+            : typeof message?.data?.requestId === 'string'
+              ? message.data.requestId
+              : undefined;
         switch (message.command) {
           case 'ready':
             // Send initial data to webview
@@ -362,6 +509,27 @@ export class WelcomePanel {
                 this._panel.webview.postMessage({
                   command: 'openAIModal',
                   data: aiCtx,
+                });
+              }, 300);
+            }
+            // If Incident Studio open was queued, switch the webview directly.
+            if (WelcomePanel._pendingIncidentStudioOpen) {
+              const incidentData = WelcomePanel._pendingIncidentStudioOpen;
+              WelcomePanel._pendingIncidentStudioOpen = null;
+              setTimeout(() => {
+                this._panel.webview.postMessage({
+                  command: 'openIncidentStudio',
+                  data: incidentData,
+                });
+              }, 300);
+            }
+            if (WelcomePanel._pendingWorkspaceShareDashboardOpen) {
+              const shareData = WelcomePanel._pendingWorkspaceShareDashboardOpen;
+              WelcomePanel._pendingWorkspaceShareDashboardOpen = null;
+              setTimeout(() => {
+                this._panel.webview.postMessage({
+                  command: 'openWorkspaceShareDashboard',
+                  data: shareData,
                 });
               }, 300);
             }
@@ -627,16 +795,47 @@ No markdown, no explanation outside the JSON.`;
             this._activeAIQueryRequestId = queryRequestId;
             let currentStage: 'prepare' | 'stream' = 'prepare';
             try {
-              const { streamAIResponse, prepareAIConversation } =
-                await import('../../core/aiService.js');
+              const {
+                streamAIResponse,
+                prepareAIConversation,
+                buildContextContractFromEvidence,
+                extractContractTelemetry,
+              } = await import('../../core/aiService.js');
+
+              // Build doctor snapshot for the contract — best-effort, non-blocking
+              const aiQueryDoctorSnapshot =
+                aiContext?.path || aiContext?.workspaceRootPath
+                  ? await this._readDoctorEvidenceSnapshot(
+                      aiContext.workspaceRootPath ?? aiContext.path
+                    ).catch(() => undefined)
+                  : undefined;
 
               const prepared = await prepareAIConversation(
                 normalizedMode,
                 normalizedQuestion,
                 aiContext,
-                conversationHistory
+                conversationHistory,
+                aiQueryDoctorSnapshot ?? undefined
               );
               currentStage = 'stream';
+
+              // Send contract telemetry to webview before streaming starts
+              if (aiContext) {
+                const contract = buildContextContractFromEvidence(
+                  aiContext,
+                  prepared.scanned,
+                  aiQueryDoctorSnapshot ?? undefined
+                );
+                panel.webview.postMessage({
+                  command: 'aiContextContract',
+                  data: {
+                    requestId: queryRequestId,
+                    ...extractContractTelemetry(contract),
+                    persona_level: contract.persona,
+                    evidence_confidence: contract.evidence_confidence,
+                  },
+                });
+              }
 
               const { modelId } = await streamAIResponse(
                 prepared.messages,
@@ -889,41 +1088,7 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'openWorkspaceFolder':
             if (message.data?.path) {
-              const wsBaseName = path.basename(message.data.path);
-              type OpenPick = vscode.QuickPickItem & { value: string };
-              const openPick = await vscode.window.showQuickPick<OpenPick>(
-                [
-                  {
-                    label: '$(folder-active) Select in Current Window',
-                    description: 'Activate workspace here (updates sidebar + Projects tree)',
-                    detail:
-                      'Selects the workspace in the sidebar. Projects and modules update immediately.',
-                    value: 'select',
-                  },
-                  {
-                    label: '$(empty-window) Open in New Window',
-                    description: 'Open workspace folder in a separate VS Code window',
-                    detail: 'Current window stays unchanged.',
-                    value: 'new',
-                  },
-                ],
-                {
-                  placeHolder: `What would you like to do with \u201c${wsBaseName}\u201d?`,
-                  title: 'Open Workspace',
-                  ignoreFocusOut: true,
-                }
-              );
-              if (!openPick) {
-                break;
-              }
-              if (openPick.value === 'select') {
-                await vscode.commands.executeCommand('workspai.selectWorkspace', message.data.path);
-              } else {
-                const uri = vscode.Uri.file(message.data.path);
-                await vscode.commands.executeCommand('vscode.openFolder', uri, {
-                  forceNewWindow: true,
-                });
-              }
+              await openWorkspace(message.data.path);
             }
             break;
           case 'selectWorkspace':
@@ -944,6 +1109,75 @@ No markdown, no explanation outside the JSON.`;
           case 'requestWorkspaceToolStatus':
             await this._sendWorkspaceToolStatus();
             break;
+          case 'requestIncidentStudioTelemetry':
+            await this._sendIncidentStudioTelemetry(
+              message.data?.workspacePath,
+              message.data?.forceRefresh === true
+            );
+            break;
+          case 'aiChatStart':
+            await this._handleAiChatStart(message.data, protocolRequestId);
+            break;
+          case 'aiChatSyncWorkspace':
+            await this._handleAiChatSyncWorkspace(message.data, protocolRequestId);
+            break;
+          case 'aiChatQuery':
+            await this._handleAiChatQuery(message.data, protocolRequestId);
+            break;
+          case 'aiChatExecuteAction':
+            await this._handleAiChatExecuteAction(message.data, protocolRequestId);
+            break;
+          case 'aiChatFeedback':
+            this._panel.webview.postMessage({
+              command: 'aiChatDone',
+              data: {
+                conversationId: message.data?.conversationId,
+                messageId: message.data?.messageId || `feedback-${Date.now()}`,
+                phase: 'learn',
+                confidence: 75,
+                nextActions: ['Continue investigation', 'Run verification checks'],
+              },
+              meta: { requestId: protocolRequestId, version: 'v1' },
+            });
+            break;
+          case 'aiChatClose': {
+            const conversationId = message.data?.conversationId;
+            if (typeof conversationId === 'string') {
+              const conv = this._chatBrainConversations.get(conversationId);
+              if (conv) {
+                const resumeSnapshot = buildIncidentResumeSnapshot(conv);
+                if (resumeSnapshot) {
+                  this._incidentResumeByWorkspace.set(resumeSnapshot.workspacePath, resumeSnapshot);
+                }
+
+                const durationMs = Date.now() - conv.startedAt;
+                const hasExchange = conv.history.length > 0;
+                const resolved = typeof conv.verifyPassedAt === 'number';
+
+                if (resolved) {
+                  // ── Analytics: incident_loop_completed ───────────────────
+                  this._trackStudioEvent('workspai.studio.loop_completed', conv.workspacePath, {
+                    framework: conv.framework ?? 'unknown',
+                    durationMs,
+                    queryCount: conv.queryCount,
+                    actionCount: conv.actionCount,
+                    timeToVerifyMs: conv.verifyPassedAt! - conv.startedAt,
+                  });
+                } else if (hasExchange) {
+                  // ── Analytics: incident_abandoned ─────────────────────────
+                  this._trackStudioEvent('workspai.studio.abandoned', conv.workspacePath, {
+                    framework: conv.framework ?? 'unknown',
+                    durationMs,
+                    queryCount: conv.queryCount,
+                    actionCount: conv.actionCount,
+                  });
+                }
+
+                this._chatBrainConversations.delete(conversationId);
+              }
+            }
+            break;
+          }
           case 'installModule': {
             if (message.data) {
               // Construct full module object like stable welcomePanel does
@@ -1045,6 +1279,208 @@ No markdown, no explanation outside the JSON.`;
               moduleSlug: message.data?.moduleSlug,
             });
             break;
+          case 'aiFixPreviewLite':
+            await vscode.commands.executeCommand('workspai.aiFixPreviewLite', {
+              source: 'dashboard',
+              trigger: 'card_click',
+            });
+            break;
+          case 'aiChangeImpactLite':
+            await vscode.commands.executeCommand('workspai.aiChangeImpactLite', {
+              source: 'dashboard',
+              trigger: 'card_click',
+            });
+            break;
+          case 'aiTerminalBridge':
+            await vscode.commands.executeCommand('workspai.aiTerminalBridge', {
+              source: 'dashboard',
+              trigger: 'card_click',
+            });
+            break;
+          case 'aiWorkspaceMemoryWizard':
+            await vscode.commands.executeCommand('workspai.aiWorkspaceMemoryWizard', {
+              source: 'dashboard',
+              trigger: 'incident_studio',
+            });
+            break;
+          case 'runDoctorChecks':
+            {
+              const explicitWorkspacePath =
+                typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
+                  ? message.data.workspacePath.trim()
+                  : undefined;
+              const selectedWorkspace = this._getSelectedWorkspaceInfo();
+              const workspacePath = explicitWorkspacePath || selectedWorkspace?.path;
+              const workspaceName =
+                (typeof message.data?.workspaceName === 'string' &&
+                  message.data.workspaceName.trim()) ||
+                selectedWorkspace?.name ||
+                (workspacePath ? path.basename(workspacePath) : undefined);
+
+              if (!workspacePath) {
+                vscode.window.showWarningMessage('Select a workspace first.');
+                break;
+              }
+
+              runRapidkitCommandsInTerminal({
+                name: `Workspai: Doctor - ${workspaceName}`,
+                cwd: workspacePath,
+                commands: [['doctor', 'workspace']],
+              });
+
+              this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                actionType: 'doctor-workspace-check',
+                workspaceName: workspaceName || path.basename(workspacePath),
+              });
+            }
+            break;
+          case 'runIncidentInlineCommand':
+            {
+              const inlineCommand =
+                typeof message.data?.command === 'string' ? message.data.command.trim() : '';
+              const explicitWorkspacePath =
+                typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
+                  ? message.data.workspacePath.trim()
+                  : undefined;
+              const selectedWorkspace = this._getSelectedWorkspaceInfo();
+              const workspacePath = explicitWorkspacePath || selectedWorkspace?.path;
+              const selectedProjectPath = WelcomePanel._selectedProject?.path;
+              const selectedProjectBelongsToWorkspace = isWorkspacePathAncestor(
+                workspacePath,
+                selectedProjectPath
+              );
+
+              if (!inlineCommand) {
+                vscode.window.showWarningMessage('No command provided to run.');
+                break;
+              }
+              if (!workspacePath) {
+                this._panel.webview.postMessage({
+                  command: 'runIncidentInlineCommandDone',
+                  data: {
+                    command: inlineCommand,
+                    success: false,
+                    error: 'No workspace selected. Open a workspace first.',
+                  },
+                  meta: { requestId: protocolRequestId, version: 'v1' },
+                });
+                break;
+              }
+
+              // Execute command and capture output for feedback loop
+              (async () => {
+                try {
+                  let finalCommand = inlineCommand;
+                  const normalizedCommand = inlineCommand.replace(/\s+/g, ' ').trim();
+                  const isWorkspaceScopedRapidkitCommand =
+                    /^(?:npx\s+rapidkit|rapidkit|poetry\s+run\s+rapidkit|\.\/\.venv\/bin\/rapidkit|\.\/rapidkit)\s+(?:create(?:\s+workspace|\s+project)?|bootstrap\b|setup\b|workspace\b|cache\b|mirror\b|doctor\s+workspace\b)/.test(
+                      normalizedCommand
+                    );
+                  const effectiveCwd =
+                    !isWorkspaceScopedRapidkitCommand &&
+                    selectedProjectPath &&
+                    selectedProjectBelongsToWorkspace
+                      ? selectedProjectPath
+                      : workspacePath;
+
+                  // Resolve rapidkit → project launcher or workspace venv binary when available
+                  const isRapidkitCmd = /^rapidkit\b/.test(inlineCommand);
+                  if (isRapidkitCmd) {
+                    const projectLauncher =
+                      effectiveCwd && (await fs.pathExists(path.join(effectiveCwd, 'rapidkit')))
+                        ? path.join(effectiveCwd, 'rapidkit')
+                        : undefined;
+                    const venvRapidkit = path.join(workspacePath, '.venv', 'bin', 'rapidkit');
+                    const hasVenvBin = await fs.pathExists(venvRapidkit);
+                    if (projectLauncher && effectiveCwd === selectedProjectPath) {
+                      finalCommand = './rapidkit' + inlineCommand.slice('rapidkit'.length);
+                    } else if (hasVenvBin) {
+                      finalCommand = venvRapidkit + inlineCommand.slice('rapidkit'.length);
+                    } else {
+                      const poetryLock = effectiveCwd
+                        ? await fs.pathExists(path.join(effectiveCwd, 'pyproject.toml'))
+                        : false;
+                      if (poetryLock) {
+                        finalCommand = 'poetry run ' + inlineCommand;
+                      }
+                    }
+                  }
+
+                  // Run via shell so quotes/pipes/redirects are handled natively
+                  const result = await run('sh', ['-c', finalCommand], {
+                    cwd: effectiveCwd,
+                    shell: false,
+                    timeout: 60_000,
+                    reject: false,
+                  });
+
+                  const combinedOutput = [result.stdout, result.stderr]
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                  const output = combinedOutput || 'Command completed with no output.';
+                  const truncatedOutput = output.split('\n').slice(0, 30).join('\n');
+
+                  // exitCode 0 → success; non-zero → treat as failure with output
+                  const success = result.exitCode === 0;
+
+                  this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                    actionType: 'inline-command',
+                    command: inlineCommand.slice(0, 180),
+                    projectScoped:
+                      !!selectedProjectPath &&
+                      selectedProjectBelongsToWorkspace &&
+                      effectiveCwd === selectedProjectPath,
+                    success,
+                    exitCode: result.exitCode,
+                  });
+
+                  this._trackStudioEvent(
+                    success ? 'workspai.studio.verify_passed' : 'workspai.studio.verify_failed',
+                    workspacePath,
+                    {
+                      actionType: 'inline-command',
+                      command: inlineCommand.slice(0, 180),
+                      exitCode: result.exitCode,
+                    }
+                  );
+
+                  this._panel.webview.postMessage({
+                    command: 'runIncidentInlineCommandDone',
+                    data: {
+                      command: inlineCommand,
+                      success,
+                      output: success ? truncatedOutput : undefined,
+                      error: !success ? `Exit ${result.exitCode}: ${truncatedOutput}` : undefined,
+                    },
+                    meta: { requestId: protocolRequestId, version: 'v1' },
+                  });
+                } catch (error) {
+                  const errorMsg = error instanceof Error ? error.message : String(error);
+                  this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                    actionType: 'inline-command',
+                    command: inlineCommand.slice(0, 180),
+                    success: false,
+                    error: String(errorMsg).slice(0, 180),
+                  });
+                  this._trackStudioEvent('workspai.studio.verify_failed', workspacePath, {
+                    actionType: 'inline-command',
+                    command: inlineCommand.slice(0, 180),
+                    error: String(errorMsg).slice(0, 180),
+                  });
+                  this._panel.webview.postMessage({
+                    command: 'runIncidentInlineCommandDone',
+                    data: {
+                      command: inlineCommand,
+                      success: false,
+                      error: errorMsg,
+                    },
+                    meta: { requestId: protocolRequestId, version: 'v1' },
+                  });
+                }
+              })();
+            }
+            break;
           case 'projectTerminal':
             if (WelcomePanel._selectedProject) {
               await vscode.commands.executeCommand('workspai.projectTerminal', {
@@ -1108,6 +1544,25 @@ No markdown, no explanation outside the JSON.`;
 
     // Clean up when panel is closed
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+  }
+
+  private _registerDoctorEvidenceWatcher() {
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      '**/.rapidkit/reports/doctor-last-run.json',
+      false,
+      false,
+      true
+    );
+
+    const scheduleRefresh = (uri?: vscode.Uri) => {
+      this._doctorTelemetryRefreshController.schedule(uri?.fsPath);
+    };
+
+    watcher.onDidCreate((uri) => scheduleRefresh(uri));
+    watcher.onDidChange((uri) => scheduleRefresh(uri));
+    watcher.onDidDelete((uri) => scheduleRefresh(uri));
+
+    this._disposables.push(watcher);
   }
 
   public static createOrShow(context: vscode.ExtensionContext) {
@@ -1184,6 +1639,67 @@ No markdown, no explanation outside the JSON.`;
     const venvAvailable = python.available && python.venvSupport;
     const preferredInstallMethod = poetryAvailable ? 'poetry' : pipxAvailable ? 'pipx' : 'venv';
 
+    const probeBinaryWithFallbacks = async (
+      primaryCmd: string,
+      args: string[],
+      fallbacks: string[] = []
+    ): Promise<{ available: boolean; version: string | null; resolvedPath: string | null }> => {
+      const candidates = [primaryCmd, ...fallbacks];
+      for (const cmd of candidates) {
+        try {
+          const result = await run(cmd, args, { timeout: 4000, stdio: 'pipe' });
+          if (result.exitCode === 0) {
+            const raw = (result.stdout || result.stderr || '').trim();
+            const versionMatch = raw.match(/(\d+[.\d]*)/);
+            return {
+              available: true,
+              version: versionMatch?.[0] || null,
+              resolvedPath: cmd,
+            };
+          }
+        } catch {
+          // try next
+        }
+      }
+      return { available: false, version: null, resolvedPath: null };
+    };
+
+    const javaHome = process.env.JAVA_HOME?.trim();
+    const mavenHome = (process.env.MAVEN_HOME || process.env.M2_HOME)?.trim();
+    const gradleHome = process.env.GRADLE_HOME?.trim();
+    const sdkmanBase = `${process.env.HOME || '~'}/.sdkman/candidates`;
+    const sep = process.platform === 'win32' ? '\\' : '/';
+
+    const javaFallbacks = [
+      ...(javaHome ? [`${javaHome}${sep}bin${sep}java`] : []),
+      '/usr/lib/jvm/temurin-21/bin/java',
+      '/usr/lib/jvm/java-21-openjdk-amd64/bin/java',
+      '/usr/lib/jvm/java-17-openjdk-amd64/bin/java',
+      `${sdkmanBase}/java/current/bin/java`,
+    ].filter(Boolean);
+
+    const mavenFallbacks = [
+      ...(mavenHome ? [`${mavenHome}${sep}bin${sep}mvn`] : []),
+      `${sdkmanBase}/maven/current/bin/mvn`,
+      '/usr/local/maven/bin/mvn',
+    ].filter(Boolean);
+
+    const gradleFallbacks = [
+      ...(gradleHome ? [`${gradleHome}${sep}bin${sep}gradle`] : []),
+      `${sdkmanBase}/gradle/current/bin/gradle`,
+      '/usr/local/gradle/bin/gradle',
+    ].filter(Boolean);
+
+    const [javaResult, mavenResult, gradleResult] = await Promise.all([
+      probeBinaryWithFallbacks('java', ['-version'], javaFallbacks),
+      probeBinaryWithFallbacks('mvn', ['--version'], mavenFallbacks),
+      probeBinaryWithFallbacks('gradle', ['--version'], gradleFallbacks),
+    ]);
+
+    const javaAvailable = javaResult.available;
+    const mavenAvailable = mavenResult.available;
+    const gradleAvailable = gradleResult.available;
+
     this._panel.webview.postMessage({
       command: 'workspaceToolStatus',
       data: {
@@ -1191,18 +1707,1401 @@ No markdown, no explanation outside the JSON.`;
         venvAvailable,
         poetryAvailable,
         pipxAvailable,
+        javaAvailable,
+        mavenAvailable,
+        gradleAvailable,
         preferredInstallMethod,
       },
     });
   }
 
-  private _getUiPreferences(): { setupStatusCardHidden: boolean } {
+  private _resolveTelemetryWorkspacePath(): string | undefined {
+    if (WelcomePanel._selectedProject) {
+      return path.dirname(WelcomePanel._selectedProject.path);
+    }
+    if (WelcomePanel._workspaceExplorer) {
+      return WelcomePanel._workspaceExplorer.getSelectedWorkspace()?.path;
+    }
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+      return vscode.workspace.workspaceFolders[0].uri.fsPath;
+    }
+    return undefined;
+  }
+
+  private _hashSeedToNumber(seed: string): number {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = ((hash << 5) - hash + seed.charCodeAt(index)) | 0;
+    }
+    return Math.abs(hash);
+  }
+
+  private _getIncidentPrimaryCtaExperimentVariant(workspacePath?: string): 'single' | 'multi' {
+    const seed = workspacePath || this._resolveTelemetryWorkspacePath() || 'global';
+    return this._hashSeedToNumber(seed) % 2 === 0 ? 'single' : 'multi';
+  }
+
+  private _trackStudioEvent(
+    command: string,
+    workspacePath?: string,
+    properties?: Record<string, unknown>
+  ) {
+    const resolvedWorkspacePath = workspacePath || this._resolveTelemetryWorkspacePath();
+    void WorkspaceUsageTracker.getInstance().trackCommandEvent(command, resolvedWorkspacePath, {
+      source: 'incident_studio',
+      ctaVariant: this._getIncidentPrimaryCtaExperimentVariant(resolvedWorkspacePath),
+      ...(properties || {}),
+    });
+  }
+
+  private async _inferFrameworkFromWorkspace(workspacePath: string): Promise<string> {
+    const checks: Array<{ framework: string; file: string }> = [
+      { framework: 'fastapi', file: path.join(workspacePath, 'src', 'main.py') },
+      { framework: 'nestjs', file: path.join(workspacePath, 'src', 'main.ts') },
+      { framework: 'go', file: path.join(workspacePath, 'go.mod') },
+      { framework: 'springboot', file: path.join(workspacePath, 'pom.xml') },
+    ];
+
+    for (const check of checks) {
+      if (await fs.pathExists(check.file)) {
+        return check.framework;
+      }
+    }
+
+    return 'unknown';
+  }
+
+  private async _getWorkspaceGraphSnapshot(workspacePath?: string) {
+    const resolvedWorkspacePath = workspacePath || this._resolveTelemetryWorkspacePath();
+    const tracker = WorkspaceUsageTracker.getInstance();
+    const memoryPath = resolvedWorkspacePath
+      ? path.join(resolvedWorkspacePath, '.rapidkit', 'workspace-memory.json')
+      : undefined;
+
+    let memoryData: { context?: string; conventions?: string[]; decisions?: string[] } | null =
+      null;
+    if (memoryPath && (await fs.pathExists(memoryPath))) {
+      try {
+        const raw = await fs.readFile(memoryPath, 'utf-8');
+        memoryData = JSON.parse(raw);
+      } catch {
+        memoryData = null;
+      }
+    }
+
+    const [commandSummary, onboardingSummary, framework] = await Promise.all([
+      tracker.getCommandTelemetrySummary(resolvedWorkspacePath, 'last7d'),
+      tracker.getOnboardingExperimentStats(resolvedWorkspacePath, 'last7d'),
+      resolvedWorkspacePath
+        ? this._inferFrameworkFromWorkspace(resolvedWorkspacePath)
+        : Promise.resolve('unknown'),
+    ]);
+
+    return {
+      workspace: {
+        path: resolvedWorkspacePath,
+        name: resolvedWorkspacePath ? path.basename(resolvedWorkspacePath) : undefined,
+      },
+      project: {
+        framework,
+        selectedProject: WelcomePanel._selectedProject,
+      },
+      kits: [],
+      modules: [],
+      memory: {
+        context: memoryData?.context,
+        conventionsCount: memoryData?.conventions?.length || 0,
+        decisionsCount: memoryData?.decisions?.length || 0,
+      },
+      telemetry: {
+        totalEvents: commandSummary?.totalEvents || 0,
+        lastCommand: commandSummary?.lastCommand || null,
+        onboardingFollowupClickThroughRate: onboardingSummary?.overallFollowupClickThroughRate || 0,
+      },
+      lastUpdatedAt: Date.now(),
+    };
+  }
+
+  private async _handleAiChatStart(data: any, requestId?: string) {
+    const resumeConversationId =
+      typeof data?.resumeConversationId === 'string' ? data.resumeConversationId : undefined;
+    const conversationId = resumeConversationId || `conv-${Date.now()}`;
+
+    const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : undefined;
+    const projectPath =
+      typeof data?.projectPath === 'string' && data.projectPath.trim()
+        ? data.projectPath.trim()
+        : undefined;
+    const projectName =
+      typeof data?.projectName === 'string' && data.projectName.trim()
+        ? data.projectName.trim()
+        : undefined;
+    const projectType =
+      typeof data?.projectType === 'string' && data.projectType.trim()
+        ? data.projectType.trim()
+        : undefined;
+    const existingConversation = resumeConversationId
+      ? this._chatBrainConversations.get(resumeConversationId)
+      : undefined;
+
+    const framework =
+      existingConversation?.framework ||
+      (projectPath
+        ? await this._inferFrameworkFromWorkspace(projectPath)
+        : workspacePath
+          ? await this._inferFrameworkFromWorkspace(workspacePath)
+          : undefined);
+
+    const conversation = existingConversation || {
+      workspacePath,
+      projectPath,
+      projectName,
+      projectType,
+      startedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      phase: 'detect' as const,
+      history: [] as Array<{ role: 'user' | 'assistant'; content: string }>,
+      queryCount: 0,
+      actionCount: 0,
+      framework,
+    };
+
+    conversation.workspacePath = workspacePath || conversation.workspacePath;
+    conversation.projectPath = projectPath || conversation.projectPath;
+    conversation.projectName = projectName || conversation.projectName;
+    conversation.projectType = projectType || conversation.projectType;
+    conversation.framework = framework;
+    this._chatBrainConversations.set(conversationId, conversation);
+
+    const inlineResumeSnapshot = buildIncidentResumeSnapshot(conversation);
+    if (inlineResumeSnapshot) {
+      this._incidentResumeByWorkspace.set(inlineResumeSnapshot.workspacePath, inlineResumeSnapshot);
+    }
+
+    const cachedResumeSnapshot = workspacePath
+      ? this._incidentResumeByWorkspace.get(workspacePath)
+      : undefined;
+    const resumeSnapshot = inlineResumeSnapshot || cachedResumeSnapshot;
+    const resumed = Boolean(existingConversation || (resumeConversationId && resumeSnapshot));
+
+    // ── Analytics: incident_loop_started ─────────────────────────────────────
+    this._trackStudioEvent('workspai.studio.loop_started', workspacePath, {
+      framework: framework ?? 'unknown',
+      resumed,
+    });
+
+    this._panel.webview.postMessage({
+      command: 'aiChatStarted',
+      data: {
+        conversationId,
+        phase: conversation.phase,
+        resumed,
+        resumeSnapshot,
+      },
+      meta: { requestId, version: 'v1' },
+    });
+  }
+
+  private async _handleAiChatSyncWorkspace(data: any, requestId?: string) {
+    const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : undefined;
+    const cacheKey = `chat-brain-workspace-graph-${workspacePath || 'default'}`;
+    const now = Date.now();
+    const cacheTtl = 2 * 60 * 1000;
+
+    const cached = this._context.globalState.get<{ graph: any; timestamp: number }>(cacheKey);
+    if (cached && now - cached.timestamp < cacheTtl) {
+      this._panel.webview.postMessage({
+        command: 'aiChatWorkspaceSynced',
+        data: {
+          workspacePath,
+          snapshotVersion: String(cached.timestamp),
+          graph: cached.graph,
+          cacheHit: true,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+      return;
+    }
+
+    const graph = await this._getWorkspaceGraphSnapshot(workspacePath);
+    await this._context.globalState.update(cacheKey, { graph, timestamp: now });
+
+    this._panel.webview.postMessage({
+      command: 'aiChatWorkspaceSynced',
+      data: {
+        workspacePath,
+        snapshotVersion: String(now),
+        graph,
+        cacheHit: false,
+      },
+      meta: { requestId, version: 'v1' },
+    });
+  }
+
+  private _routeActionTypeFromMessage(
+    message: string
+  ):
+    | 'terminal-bridge'
+    | 'change-impact-lite'
+    | 'fix-preview-lite'
+    | 'workspace-memory-wizard'
+    | 'doctor-fix'
+    | 'recipe-pack'
+    | 'orchestrate' {
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes('error') ||
+      normalized.includes('terminal') ||
+      normalized.includes('timeout')
+    ) {
+      return 'terminal-bridge';
+    }
+    if (normalized.includes('impact') || normalized.includes('risk')) {
+      return 'change-impact-lite';
+    }
+    if (
+      normalized.includes('preview') ||
+      normalized.includes('patch') ||
+      normalized.includes('fix')
+    ) {
+      return 'fix-preview-lite';
+    }
+    if (normalized.includes('memory') || normalized.includes('convention')) {
+      return 'workspace-memory-wizard';
+    }
+    return 'orchestrate';
+  }
+
+  private async _buildChatBrainAIContext(options?: {
+    workspacePath?: string;
+    projectPath?: string;
+    projectName?: string;
+    projectType?: string;
+  }): Promise<import('../../core/aiService').AIModalContext> {
+    const resolvedWorkspacePath = options?.workspacePath || this._resolveTelemetryWorkspacePath();
+    const explicitProject =
+      options?.projectPath &&
+      (!resolvedWorkspacePath ||
+        isWorkspacePathAncestor(resolvedWorkspacePath, options.projectPath))
+        ? {
+            path: options.projectPath,
+            name: options.projectName,
+            type: options.projectType,
+          }
+        : undefined;
+    const selectedProject = explicitProject || WelcomePanel._selectedProject;
+    const selectedProjectBelongsToWorkspace = isWorkspacePathAncestor(
+      resolvedWorkspacePath,
+      selectedProject?.path
+    );
+    const effectiveContextPath =
+      selectedProjectBelongsToWorkspace && selectedProject
+        ? selectedProject.path
+        : resolvedWorkspacePath;
+    const framework = effectiveContextPath
+      ? await this._inferFrameworkFromWorkspace(effectiveContextPath)
+      : 'unknown';
+
+    return {
+      type: selectedProjectBelongsToWorkspace ? 'project' : 'workspace',
+      name:
+        selectedProjectBelongsToWorkspace && selectedProject
+          ? selectedProject.name || path.basename(selectedProject.path)
+          : resolvedWorkspacePath
+            ? path.basename(resolvedWorkspacePath)
+            : 'Workspace',
+      path: effectiveContextPath,
+      framework:
+        selectedProjectBelongsToWorkspace && selectedProject?.type
+          ? selectedProject.type
+          : framework,
+      workspaceRootPath: resolvedWorkspacePath,
+      projectRootPath:
+        selectedProjectBelongsToWorkspace && selectedProject ? selectedProject.path : undefined,
+    };
+  }
+
+  private async _buildProjectExecutionBlock(options: {
+    workspacePath?: string;
+    projectPath?: string;
+    projectName?: string;
+    projectType?: string;
+  }): Promise<string | undefined> {
+    if (!options.projectPath) {
+      return undefined;
+    }
+
+    const projectPath = options.projectPath;
+    const framework = options.projectType || (await this._inferFrameworkFromWorkspace(projectPath));
+    const lines: string[] = ['PROJECT EXECUTION STATE:'];
+
+    lines.push(`- Selected project: ${options.projectName || path.basename(projectPath)}`);
+    lines.push(`- Project path: ${projectPath}`);
+    lines.push(`- Framework: ${framework || 'unknown'}`);
+
+    if (framework === 'springboot') {
+      const hasPom = await fs.pathExists(path.join(projectPath, 'pom.xml'));
+      const hasGradle =
+        (await fs.pathExists(path.join(projectPath, 'build.gradle'))) ||
+        (await fs.pathExists(path.join(projectPath, 'build.gradle.kts')));
+      const hasMavenWrapper =
+        (await fs.pathExists(path.join(projectPath, 'mvnw'))) ||
+        (await fs.pathExists(path.join(projectPath, 'mvnw.cmd')));
+      const hasGradleWrapper =
+        (await fs.pathExists(path.join(projectPath, 'gradlew'))) ||
+        (await fs.pathExists(path.join(projectPath, 'gradlew.bat')));
+
+      lines.push(
+        `- Build files: ${hasPom ? 'pom.xml ' : ''}${hasGradle ? 'gradle ' : ''}`.trim() ||
+          '- Build files: none detected'
+      );
+      lines.push(
+        `- Wrappers present: maven=${hasMavenWrapper ? 'yes' : 'no'}, gradle=${hasGradleWrapper ? 'yes' : 'no'}`
+      );
+
+      if (!hasMavenWrapper && !hasGradleWrapper) {
+        lines.push(
+          '- Launch blocker: no Maven Wrapper or Gradle Wrapper is present. `rapidkit dev` will require system Maven or Gradle.'
+        );
+        lines.push(
+          '- If `rapidkit init` is quiet, treat it as a warm-up step and explicitly re-check wrappers/build-tool readiness before recommending `rapidkit dev`.'
+        );
+        lines.push(
+          '- The next step is usually to install Maven 3.9+ or Gradle 8+, or generate and commit the wrapper in the selected project root.'
+        );
+      } else {
+        lines.push(
+          '- Expected launch flow: rapidkit init -> rapidkit dev -> verify startup logs or the service health endpoint.'
+        );
+      }
+    }
+
+    if (framework === 'fastapi') {
+      const hasVenv = await fs.pathExists(path.join(projectPath, '.venv'));
+      lines.push(`- Python environment present: ${hasVenv ? 'yes' : 'no'}`);
+      if (!hasVenv) {
+        lines.push(
+          '- Launch blocker: no project virtual environment detected yet. Prioritize `rapidkit init` before `rapidkit dev`.'
+        );
+      }
+    }
+
+    if (framework === 'nestjs') {
+      const hasNodeModules = await fs.pathExists(path.join(projectPath, 'node_modules'));
+      lines.push(`- node_modules present: ${hasNodeModules ? 'yes' : 'no'}`);
+      if (!hasNodeModules) {
+        lines.push(
+          '- Launch blocker: dependencies not installed yet. Prioritize `rapidkit init` or package-manager install before `rapidkit dev`.'
+        );
+      }
+    }
+
+    if (framework === 'go') {
+      const hasGoMod = await fs.pathExists(path.join(projectPath, 'go.mod'));
+      const hasGoSum = await fs.pathExists(path.join(projectPath, 'go.sum'));
+      lines.push(`- go.mod present: ${hasGoMod ? 'yes' : 'no'}`);
+      lines.push(`- go.sum present: ${hasGoSum ? 'yes' : 'no'}`);
+      if (hasGoMod && !hasGoSum) {
+        lines.push(
+          '- Launch blocker: dependencies likely not downloaded yet. Prioritize `rapidkit init` or `go mod tidy` before `rapidkit dev`.'
+        );
+      }
+    }
+
+    lines.push(
+      '- Optimize for the path to a running service: install deps -> init -> dev -> verify.'
+    );
+    lines.push('- `Verify command` must be an actual shell command or file check, never prose.');
+
+    return lines.join('\n');
+  }
+
+  private _buildSuggestedQuestions(actionType: string, message: string): string[] {
+    if (actionType === 'terminal-bridge' || /error|traceback|failed/i.test(message)) {
+      return [
+        'Show me which files I need to change to fix this',
+        'Run impact analysis before applying the fix',
+        'Add this issue to workspace memory so it never happens again',
+      ];
+    }
+    if (actionType === 'fix-preview-lite' || /fix|patch|bug/i.test(message)) {
+      return [
+        'What tests should I add to cover this fix?',
+        'Check if this fix could break anything else',
+        'Apply this fix and verify with doctor checks',
+      ];
+    }
+    if (actionType === 'change-impact-lite' || /impact|risk|refactor/i.test(message)) {
+      return [
+        'Show me the safest order to make these changes',
+        'What rollback plan should I have?',
+        'Generate a test checklist for this change',
+      ];
+    }
+    if (actionType === 'doctor-fix' || /doctor|health|issue/i.test(message)) {
+      return [
+        'Fix all remaining doctor issues automatically',
+        'Explain why this issue happens in my project type',
+        'Save this fix pattern to workspace memory',
+      ];
+    }
+    if (/module|install|add service|database|auth/i.test(message)) {
+      return [
+        'What configuration do I need after adding this?',
+        'Show me how to test this module is working',
+        'What other modules pair well with this one?',
+      ];
+    }
+    return [
+      'Run a full workspace health check now',
+      'Show me the next highest-priority action',
+      'Save this analysis to workspace memory',
+    ];
+  }
+
+  private async _buildStructuredIncidentPrompt(
+    message: string,
+    options?: {
+      workspacePath?: string;
+      projectPath?: string;
+      projectName?: string;
+      projectType?: string;
+    }
+  ): Promise<string> {
+    const resolvedWorkspacePath = options?.workspacePath || this._resolveTelemetryWorkspacePath();
+    const selectedProject = options?.projectPath
+      ? {
+          path: options.projectPath,
+          name: options.projectName,
+          type: options.projectType,
+        }
+      : WelcomePanel._selectedProject;
+    const selectedProjectBelongsToWorkspace = isWorkspacePathAncestor(
+      resolvedWorkspacePath,
+      selectedProject?.path
+    );
+
+    const doctorSnapshot = await this._readDoctorEvidenceSnapshot(resolvedWorkspacePath);
+    const workspaceArchitectureBlock = this._buildWorkspaceArchitectureBlock(
+      doctorSnapshot,
+      resolvedWorkspacePath
+    );
+    const projectExecutionBlock = await this._buildProjectExecutionBlock({
+      workspacePath: resolvedWorkspacePath,
+      projectPath: selectedProjectBelongsToWorkspace ? selectedProject?.path : undefined,
+      projectName: selectedProjectBelongsToWorkspace ? selectedProject?.name : undefined,
+      projectType: selectedProjectBelongsToWorkspace ? selectedProject?.type : undefined,
+    });
+    const responseRules = [
+      ...(selectedProjectBelongsToWorkspace
+        ? [
+            'When a project is selected, answer as a launch/readiness assistant for that project first.',
+            'Explain the current delivery stage in plain language before listing commands.',
+            'If Java build wrappers or system build tools are missing, name that blocker explicitly and do not recommend `rapidkit dev` as the next successful step.',
+            'If `rapidkit init` may be quiet, explain what it prepares and how the user can verify readiness for `rapidkit dev`.',
+          ]
+        : []),
+      ...buildIncidentFirstResponseRules({
+        projectScoped: selectedProjectBelongsToWorkspace,
+        hasDoctorEvidence: Boolean(doctorSnapshot),
+        framework: selectedProjectBelongsToWorkspace ? selectedProject?.type : undefined,
+      }),
+    ];
+
+    return [
+      message,
+      '',
+      ...(projectExecutionBlock ? [projectExecutionBlock, ''] : []),
+      workspaceArchitectureBlock,
+      '',
+      ...responseRules,
+      ...(responseRules.length ? [''] : []),
+      'Respond using this exact structure and headings:',
+      'What happened: <short diagnosis>',
+      'Why: <root cause in 1-3 bullets>',
+      'Next command: <single best next command or action>',
+      'Verify command: <single command/check to confirm success>',
+      '',
+      'Keep it concise, specific to this workspace, and executable.',
+    ].join('\n');
+  }
+
+  private _buildWorkspaceArchitectureBlock(
+    snapshot: Awaited<ReturnType<typeof this._readDoctorEvidenceSnapshot>>,
+    workspacePath?: string
+  ): string {
+    const lines: string[] = ['WORKSPACE ARCHITECTURE (from doctor evidence):'];
+
+    if (!snapshot) {
+      lines.push(
+        '- No doctor evidence available yet. Do not assume workspace doctor is the immediate next step unless the user asked for a workspace-wide audit.'
+      );
+      lines.push(`- Workspace path: ${workspacePath ?? 'unknown'}`);
+      lines.push(
+        '- Use the selected project path, framework files, dependency state, and launch blockers to guide the next action.'
+      );
+      lines.push(
+        '- Doctor evidence, when present, is stored at .rapidkit/reports/doctor-last-run.json.'
+      );
+      return lines.join('\n');
+    }
+
+    const workspaceName =
+      snapshot.workspaceName ?? (workspacePath ? path.basename(workspacePath) : 'unknown');
+    lines.push(`- Workspace name: ${workspaceName}`);
+    lines.push(`- Workspace path: ${workspacePath ?? 'unknown'}`);
+    lines.push(
+      `- Health: ${snapshot.health.percent}% (${snapshot.health.passed} passed, ${snapshot.health.warnings} warnings, ${snapshot.health.errors} errors)`
+    );
+    lines.push(`- Total projects: ${snapshot.projectCount}`);
+
+    if (snapshot.projects.length === 0) {
+      lines.push('- Projects: none found');
+    } else {
+      lines.push('- Projects in this workspace:');
+      for (const project of snapshot.projects) {
+        const issueText = project.issues > 0 ? ` [${project.issues} issue(s)]` : ' [healthy]';
+        const depsText = project.depsInstalled === false ? ' [deps missing]' : '';
+        const framework = project.framework ?? 'unknown framework';
+        lines.push(
+          `    • ${project.name} (${framework}) — path: ${workspacePath}/${project.name}${issueText}${depsText}`
+        );
+      }
+    }
+
+    if (snapshot.fixCommands.length > 0) {
+      lines.push(`- Suggested fix commands: ${snapshot.fixCommands.slice(0, 3).join(' | ')}`);
+    }
+
+    lines.push('');
+    lines.push(
+      'IMPORTANT: The workspace already has the projects listed above. Do NOT suggest creating a new project unless the user explicitly asks for one. Use the existing project paths for all commands.'
+    );
+
+    return lines.join('\n');
+  }
+
+  private async _readDoctorEvidenceSummary(workspacePath?: string): Promise<
+    | {
+        healthScoreText: string;
+        generatedAt?: string;
+        passed?: number;
+        warnings?: number;
+        errors?: number;
+      }
+    | undefined
+  > {
+    const snapshot = await this._readDoctorEvidenceSnapshot(workspacePath);
+    if (!snapshot) {
+      return undefined;
+    }
+
+    return {
+      healthScoreText: `${snapshot.health.percent}% (${snapshot.health.passed} passed, ${snapshot.health.warnings} warnings, ${snapshot.health.errors} errors)`,
+      generatedAt: snapshot.generatedAt,
+      passed: snapshot.health.passed,
+      warnings: snapshot.health.warnings,
+      errors: snapshot.health.errors,
+    };
+  }
+
+  private async _readDoctorEvidenceSnapshot(workspacePath?: string): Promise<
+    | {
+        workspaceName?: string;
+        generatedAt?: string;
+        health: {
+          total: number;
+          passed: number;
+          warnings: number;
+          errors: number;
+          percent: number;
+        };
+        projectCount: number;
+        projectsWithIssues: number;
+        issueCount: number;
+        frameworks: Array<{ name: string; count: number }>;
+        projects: Array<{
+          name: string;
+          framework?: string;
+          issues: number;
+          depsInstalled?: boolean;
+        }>;
+        fixCommands: string[];
+      }
+    | undefined
+  > {
+    if (!workspacePath) {
+      return undefined;
+    }
+
+    const evidencePath = path.join(workspacePath, '.rapidkit', 'reports', 'doctor-last-run.json');
+    try {
+      if (!(await fs.pathExists(evidencePath))) {
+        return undefined;
+      }
+
+      const raw = await fs.readJSON(evidencePath);
+
+      const total = Number(raw?.healthScore?.total ?? 0);
+      const passed = Number(raw?.healthScore?.passed ?? 0);
+      const warnings = Number(raw?.healthScore?.warnings ?? 0);
+      const errors = Number(raw?.healthScore?.errors ?? 0);
+      const percent = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+      type ParsedDoctorProject = {
+        name: string;
+        framework?: string;
+        issues: number;
+        depsInstalled?: boolean;
+        fixCommands: string[];
+      };
+
+      const projectsRaw = Array.isArray(raw?.projects) ? raw.projects : [];
+      const projects: ParsedDoctorProject[] = projectsRaw
+        .map((project: any) => {
+          const issues = Array.isArray(project?.issues) ? project.issues.length : 0;
+          return {
+            name: typeof project?.name === 'string' ? project.name : 'unknown',
+            framework: typeof project?.framework === 'string' ? project.framework : undefined,
+            issues,
+            depsInstalled:
+              typeof project?.depsInstalled === 'boolean' ? project.depsInstalled : undefined,
+            fixCommands: Array.isArray(project?.fixCommands)
+              ? project.fixCommands.filter((cmd: unknown) => typeof cmd === 'string')
+              : [],
+          };
+        })
+        .filter((project: ParsedDoctorProject) => project.name.length > 0);
+
+      const frameworkMap = new Map<string, number>();
+      for (const project of projects) {
+        const key = project.framework?.trim() || 'unknown';
+        frameworkMap.set(key, (frameworkMap.get(key) ?? 0) + 1);
+      }
+
+      const frameworks = [...frameworkMap.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+      const fixCommands = projects
+        .flatMap((project: ParsedDoctorProject) => project.fixCommands)
+        .slice(0, 8);
+
+      const issueCount = projects.reduce(
+        (acc: number, project: ParsedDoctorProject) => acc + project.issues,
+        0
+      );
+      const projectsWithIssues = projects.filter(
+        (project: ParsedDoctorProject) => project.issues > 0
+      ).length;
+
+      return {
+        workspaceName: typeof raw?.workspaceName === 'string' ? raw.workspaceName : undefined,
+        generatedAt: typeof raw?.generatedAt === 'string' ? raw.generatedAt : undefined,
+        health: {
+          total,
+          passed,
+          warnings,
+          errors,
+          percent,
+        },
+        projectCount: projects.length,
+        projectsWithIssues,
+        issueCount,
+        frameworks,
+        projects: projects.map(
+          ({ name, framework, issues, depsInstalled }: ParsedDoctorProject) => ({
+            name,
+            framework,
+            issues,
+            depsInstalled,
+          })
+        ),
+        fixCommands,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async _buildIncidentMemoryReuseSnapshot(workspacePath?: string) {
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const memoryService = WorkspaceMemoryService.getInstance();
+      const [memory, doctorSummary] = await Promise.all([
+        memoryService.readNearest(workspacePath),
+        this._readDoctorEvidenceSnapshot(workspacePath),
+      ]);
+
+      return buildIncidentMemoryReuseSnapshot({
+        workspaceMemoryContext: memory.context,
+        conventions: memory.conventions,
+        decisions: memory.decisions,
+        doctorFixCommands: doctorSummary?.fixCommands,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  private async _handleAiChatQuery(data: any, requestId?: string) {
+    const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
+    const message = typeof data?.message === 'string' ? data.message.trim() : '';
+    const requestedModelId =
+      typeof data?.modelId === 'string' && data.modelId.trim() ? data.modelId.trim() : undefined;
+
+    if (!conversationId || !message) {
+      this._panel.webview.postMessage({
+        command: 'aiChatError',
+        data: {
+          conversationId,
+          code: 'INVALID_INPUT',
+          message: 'conversationId and message are required.',
+          retryable: true,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+      return;
+    }
+
+    const existingConversation = this._chatBrainConversations.get(conversationId);
+    const current = existingConversation || {
+      workspacePath: typeof data?.workspacePath === 'string' ? data.workspacePath : undefined,
+      projectPath:
+        typeof data?.projectPath === 'string' && data.projectPath.trim()
+          ? data.projectPath.trim()
+          : undefined,
+      projectName:
+        typeof data?.projectName === 'string' && data.projectName.trim()
+          ? data.projectName.trim()
+          : undefined,
+      projectType:
+        typeof data?.projectType === 'string' && data.projectType.trim()
+          ? data.projectType.trim()
+          : undefined,
+      startedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      phase: 'detect' as const,
+      history: [] as Array<{ role: 'user' | 'assistant'; content: string }>,
+      queryCount: 0,
+      actionCount: 0,
+      framework: undefined as string | undefined,
+    };
+
+    current.workspacePath =
+      (typeof data?.workspacePath === 'string' && data.workspacePath.trim()) ||
+      current.workspacePath;
+    current.projectPath =
+      (typeof data?.projectPath === 'string' && data.projectPath.trim()) || current.projectPath;
+    current.projectName =
+      (typeof data?.projectName === 'string' && data.projectName.trim()) || current.projectName;
+    current.projectType =
+      (typeof data?.projectType === 'string' && data.projectType.trim()) || current.projectType;
+
+    if (!current.framework) {
+      current.framework = current.projectPath
+        ? await this._inferFrameworkFromWorkspace(current.projectPath)
+        : current.workspacePath
+          ? await this._inferFrameworkFromWorkspace(current.workspacePath)
+          : undefined;
+    }
+
+    current.lastActivityAt = Date.now();
+    current.phase = 'diagnose';
+    current.queryCount += 1;
+    current.history = [...current.history, { role: 'user' as const, content: message }].slice(-12);
+    this._chatBrainConversations.set(conversationId, current);
+
+    this._trackStudioEvent('workspai.studio.next_action_clicked', current.workspacePath, {
+      framework: current.framework ?? 'unknown',
+      conversationId,
+      queryCount: current.queryCount,
+      actionType: this._routeActionTypeFromMessage(message),
+      timeToFirstActionMs: Date.now() - current.startedAt,
+    });
+
+    this._chatBrainQueryTokenSource?.cancel();
+    this._chatBrainQueryTokenSource?.dispose();
+    const tokenSource = new vscode.CancellationTokenSource();
+    this._chatBrainQueryTokenSource = tokenSource;
+    this._activeChatBrainRequestId = requestId;
+
+    const messageId = `msg-${Date.now()}`;
+    const actionType = this._routeActionTypeFromMessage(message);
+    const isFirstQuery = current.queryCount === 1;
+    const memoryReuseSnapshot = isFirstQuery
+      ? await this._buildIncidentMemoryReuseSnapshot(current.workspacePath)
+      : null;
+    const memoryPromptHint = buildIncidentMemoryPromptHint(memoryReuseSnapshot);
+    let assistantText = '';
+
+    try {
+      const { prepareAIConversation, streamAIResponse } = await import('../../core/aiService.js');
+      const aiContext = await this._buildChatBrainAIContext({
+        workspacePath: current.workspacePath,
+        projectPath: current.projectPath,
+        projectName: current.projectName,
+        projectType: current.projectType,
+      });
+      const history = current.history.slice(-8);
+      const structuredPrompt = await this._buildStructuredIncidentPrompt(message, {
+        workspacePath: current.workspacePath,
+        projectPath: current.projectPath,
+        projectName: current.projectName,
+        projectType: current.projectType,
+      });
+
+      // Doctor snapshot is already read inside _buildStructuredIncidentPrompt;
+      // reuse it here for the contract rather than reading again.
+      const chatDoctorSnapshot = await this._readDoctorEvidenceSnapshot(
+        current.workspacePath
+      ).catch(() => undefined);
+
+      const prepared = await prepareAIConversation(
+        'ask',
+        memoryPromptHint ? `${structuredPrompt}\n\n${memoryPromptHint}` : structuredPrompt,
+        aiContext,
+        history,
+        chatDoctorSnapshot ?? undefined
+      );
+
+      let chunkBuffer = '';
+      let flushTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
+        if (!chunkBuffer || tokenSource.token.isCancellationRequested) {
+          return;
+        }
+        this._panel.webview.postMessage({
+          command: 'aiChatChunk',
+          data: {
+            conversationId,
+            messageId,
+            chunk: chunkBuffer,
+          },
+          meta: { requestId, version: 'v1' },
+        });
+        chunkBuffer = '';
+      }, 50);
+
+      const { modelId } = await streamAIResponse(
+        prepared.messages,
+        (chunk) => {
+          if (chunk.text) {
+            assistantText += chunk.text;
+            chunkBuffer += chunk.text;
+          }
+          if (!chunk.done) {
+            return;
+          }
+          if (flushTimer) {
+            clearInterval(flushTimer);
+            flushTimer = null;
+          }
+          if (chunkBuffer && !tokenSource.token.isCancellationRequested) {
+            this._panel.webview.postMessage({
+              command: 'aiChatChunk',
+              data: {
+                conversationId,
+                messageId,
+                chunk: chunkBuffer,
+              },
+              meta: { requestId, version: 'v1' },
+            });
+            chunkBuffer = '';
+          }
+        },
+        tokenSource.token,
+        requestedModelId
+      );
+
+      if (tokenSource.token.isCancellationRequested) {
+        return;
+      }
+
+      const nextConversation = this._chatBrainConversations.get(conversationId);
+      const baseAssistantText = assistantText.trim() || 'No response generated.';
+      const finalAssistantText = shouldAttachIncidentMemoryReuse(
+        current.queryCount,
+        memoryReuseSnapshot
+      )
+        ? prependIncidentMemoryReuseBlock(baseAssistantText, memoryReuseSnapshot)
+        : baseAssistantText;
+
+      if (nextConversation) {
+        nextConversation.history = [
+          ...nextConversation.history,
+          {
+            role: 'assistant' as const,
+            content: finalAssistantText,
+          },
+        ].slice(-12);
+        this._chatBrainConversations.set(conversationId, nextConversation);
+      }
+
+      this._panel.webview.postMessage({
+        command: 'aiChatActionBoard',
+        data: {
+          conversationId,
+          messageId,
+          board: {
+            id: `board-${Date.now()}`,
+            type: actionType === 'terminal-bridge' ? 'error' : 'solution',
+            title: 'Recommended Next Action',
+            summary: current.projectName
+              ? `Selected project: ${current.projectName} • route: ${actionType}`
+              : `Selected route: ${actionType}`,
+            data: {
+              route: actionType,
+              confidence: 80,
+            },
+            actions: [
+              {
+                id: `action-${Date.now()}`,
+                label:
+                  actionType === 'orchestrate'
+                    ? current.projectName
+                      ? `Inspect launch blockers for ${current.projectName}`
+                      : 'Inspect launch blockers'
+                    : `Run ${actionType}`,
+                actionType: actionType === 'orchestrate' ? 'terminal-bridge' : actionType,
+                riskLevel: actionType === 'change-impact-lite' ? 'medium' : 'low',
+              },
+              ...(actionType === 'terminal-bridge'
+                ? [
+                    {
+                      id: `action-followup-${Date.now()}`,
+                      label: 'Preview safe patch from this error',
+                      actionType: 'fix-preview-lite',
+                      riskLevel: 'low',
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+        meta: { requestId, version: 'v1' },
+      });
+
+      this._panel.webview.postMessage({
+        command: 'aiChatSuggestedQuestions',
+        data: {
+          conversationId,
+          messageId,
+          questions: this._buildSuggestedQuestions(actionType, message),
+        },
+        meta: { requestId, version: 'v1' },
+      });
+
+      this._panel.webview.postMessage({
+        command: 'aiChatDone',
+        data: {
+          conversationId,
+          messageId,
+          modelId,
+          finalText: finalAssistantText,
+          phase: 'diagnose',
+          confidence: 80,
+          nextActions: ['Run suggested action', 'Request verification', 'Ask follow-up'],
+        },
+        meta: { requestId, version: 'v1' },
+      });
+    } catch (err) {
+      if (!tokenSource.token.isCancellationRequested) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        this._panel.webview.postMessage({
+          command: 'aiChatError',
+          data: {
+            conversationId,
+            code: 'INTERNAL_ERROR',
+            message: errMsg,
+            retryable: true,
+          },
+          meta: { requestId, version: 'v1' },
+        });
+      }
+    } finally {
+      if (this._chatBrainQueryTokenSource === tokenSource) {
+        this._chatBrainQueryTokenSource = undefined;
+      }
+      if (this._activeChatBrainRequestId === requestId) {
+        this._activeChatBrainRequestId = undefined;
+      }
+      tokenSource.dispose();
+    }
+  }
+
+  /**
+   * Build a natural-language query from an action type + optional payload.
+   * Lets every action stream its answer INTO the Studio thread instead of
+   * opening a separate modal.
+   */
+  private async _buildInlineQueryFromAction(
+    actionType: string,
+    payload?: Record<string, unknown>
+  ): Promise<string> {
+    // ── terminal-bridge ──────────────────────────────────────────────────────
+    if (actionType === 'terminal-bridge') {
+      let terminalOutput = '';
+      try {
+        const clip = (await vscode.env.clipboard.readText()).trim();
+        if (clip && /\n|Error:|error:|Traceback|FAILED|npm ERR|❌/.test(clip)) {
+          terminalOutput = clip.slice(0, 5000);
+        }
+      } catch {
+        // clipboard unavailable — fall through to selection
+      }
+      if (!terminalOutput) {
+        const editor = vscode.window.activeTextEditor;
+        terminalOutput = editor?.document.getText(editor.selection).trim() ?? '';
+      }
+      if (terminalOutput) {
+        return [
+          'Analyze this terminal output and guide me to the fastest, safest fix.',
+          '```\n' + terminalOutput + '\n```',
+          'Respond with: root cause, immediate fix steps, any code-level follow-up, and a prevention tip.',
+        ].join('\n\n');
+      }
+      return 'Analyze my workspace for runtime errors, check logs and recent terminal output, then suggest the highest-priority fix.';
+    }
+
+    // ── fix-preview-lite ─────────────────────────────────────────────────────
+    if (actionType === 'fix-preview-lite') {
+      const editor = vscode.window.activeTextEditor;
+      const selection = editor?.document.getText(editor.selection).trim();
+      const fileName = editor?.document.fileName
+        ? path.basename(editor.document.fileName)
+        : 'current file';
+      if (selection) {
+        return [
+          `Preview a fix for this code in \`${fileName}\`:`,
+          '```\n' + selection.slice(0, 3000) + '\n```',
+          'Provide: what is wrong, the corrected code, and a one-sentence explanation of the change.',
+        ].join('\n\n');
+      }
+      const issueSummary = typeof payload?.issueSummary === 'string' ? payload.issueSummary : '';
+      if (issueSummary) {
+        return `Preview the safest fix for this issue: ${issueSummary}\n\nShow the corrected code and explain why the change is safe.`;
+      }
+      return 'Scan my project for the most impactful bug or code smell and show a concrete fix preview with before/after code.';
+    }
+
+    // ── change-impact-lite ───────────────────────────────────────────────────
+    if (actionType === 'change-impact-lite') {
+      const editor = vscode.window.activeTextEditor;
+      const selection = editor?.document.getText(editor.selection).trim();
+      const fileName = editor?.document.fileName
+        ? path.basename(editor.document.fileName)
+        : 'current file';
+      if (selection) {
+        return [
+          `Analyze the blast radius of changing this code in \`${fileName}\`:`,
+          '```\n' + selection.slice(0, 3000) + '\n```',
+          'List: affected modules/files, risk level (low/medium/high/critical), required test updates, and a safe rollout checklist.',
+        ].join('\n\n');
+      }
+      return 'Analyze the current workspace for the highest-risk pending change or tech debt and estimate its impact on the rest of the project.';
+    }
+
+    // ── doctor-fix ───────────────────────────────────────────────────────────
+    if (actionType === 'doctor-fix') {
+      const issueSummary = typeof payload?.issueSummary === 'string' ? payload.issueSummary : '';
+      const projectName = typeof payload?.projectName === 'string' ? payload.projectName : '';
+      const issueType = typeof payload?.issueType === 'string' ? payload.issueType : '';
+      if (issueSummary) {
+        return [
+          `Doctor detected an issue in project "${projectName || 'unknown'}":`,
+          `Type: ${issueType || 'unknown'}`,
+          `Detail: ${issueSummary}`,
+          '',
+          'Give me the exact fix commands or code changes to resolve this. Be direct and specific.',
+        ].join('\n');
+      }
+      return 'Run a full workspace doctor check and explain the top issues with their exact fix steps.';
+    }
+
+    // ── workspace-memory-wizard ───────────────────────────────────────────────
+    if (actionType === 'workspace-memory-wizard') {
+      return [
+        'Help me capture the key architecture decisions and conventions from this workspace into memory.',
+        'Ask me the most important questions to build a complete workspace memory profile.',
+        'After my answers, generate a structured memory summary I can save.',
+      ].join('\n');
+    }
+
+    // ── recipe-pack ───────────────────────────────────────────────────────────
+    if (actionType === 'recipe-pack') {
+      const recipeId = typeof payload?.recipeId === 'string' ? payload.recipeId : '';
+      if (recipeId) {
+        return `Run the AI recipe "${recipeId}" for this workspace. Provide a step-by-step analysis and actionable output.`;
+      }
+      return 'List the 5 most relevant AI recipe workflows for my current workspace and project type, then run the top one.';
+    }
+
+    // ── generic/orchestrate fallback ──────────────────────────────────────────
+    const label = typeof payload?.label === 'string' ? payload.label : actionType;
+    return `Perform the following action for my workspace: ${label}. Analyze the current state and provide specific, actionable guidance.`;
+  }
+
+  private async _handleAiChatExecuteAction(data: any, requestId?: string) {
+    const conversationId = data?.conversationId;
+    const actionId = typeof data?.actionId === 'string' ? data.actionId : `action-${Date.now()}`;
+    const actionType = typeof data?.actionType === 'string' ? data.actionType : '';
+    const conv =
+      typeof conversationId === 'string'
+        ? this._chatBrainConversations.get(conversationId)
+        : undefined;
+
+    if (!actionType) {
+      this._panel.webview.postMessage({
+        command: 'aiChatError',
+        data: {
+          conversationId,
+          code: 'INVALID_INPUT',
+          message: 'Action type is required.',
+          retryable: false,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+      return;
+    }
+
+    if (conv) {
+      conv.actionCount += 1;
+      conv.phase = 'verify';
+      conv.lastActivityAt = Date.now();
+      this._chatBrainConversations.set(conversationId, conv);
+
+      this._trackStudioEvent('workspai.studio.action_executed', conv.workspacePath, {
+        conversationId,
+        actionId,
+        actionType,
+        framework: conv.framework ?? 'unknown',
+        actionCount: conv.actionCount,
+        timeToFirstActionMs: Date.now() - conv.startedAt,
+      });
+    }
+
+    // Tell the Studio the action is starting
+    this._panel.webview.postMessage({
+      command: 'aiChatActionProgress',
+      data: {
+        conversationId,
+        actionId,
+        stage: 'gathering context',
+        progress: 20,
+        note: `Preparing ${actionType} analysis\u2026`,
+      },
+      meta: { requestId, version: 'v1' },
+    });
+
+    // Build the inline query — no modal opened
+    const inlineQuery = await this._buildInlineQueryFromAction(
+      actionType,
+      data?.payload as Record<string, unknown> | undefined
+    );
+
+    this._panel.webview.postMessage({
+      command: 'aiChatActionProgress',
+      data: {
+        conversationId,
+        actionId,
+        stage: 'streaming',
+        progress: 40,
+        note: 'Sending to AI\u2026',
+      },
+      meta: { requestId, version: 'v1' },
+    });
+
+    // Route through Chat Brain — answer streams into the Studio thread
+    await this._handleAiChatQuery(
+      {
+        conversationId,
+        message: inlineQuery,
+        workspacePath: data?.workspacePath,
+        projectPath: data?.projectPath,
+        projectName: data?.projectName,
+        projectType: data?.projectType,
+        modelId: data?.modelId,
+      },
+      requestId
+    );
+
+    const workspacePath =
+      typeof data?.workspacePath === 'string' && data.workspacePath.trim()
+        ? data.workspacePath.trim()
+        : this._chatBrainConversations.get(conversationId)?.workspacePath;
+    const doctorEvidence = await this._readDoctorEvidenceSummary(workspacePath);
+    const verifySuccess = (doctorEvidence?.errors ?? 0) === 0;
+
+    if (conv) {
+      if (verifySuccess) {
+        conv.verifyPassedAt = Date.now();
+        conv.phase = 'learn';
+      } else {
+        conv.phase = 'verify';
+      }
+      conv.lastActivityAt = Date.now();
+      this._chatBrainConversations.set(conversationId, conv);
+
+      this._trackStudioEvent(
+        verifySuccess ? 'workspai.studio.verify_passed' : 'workspai.studio.verify_failed',
+        conv.workspacePath,
+        {
+          conversationId,
+          actionId,
+          actionType,
+          framework: conv.framework ?? 'unknown',
+          errors: doctorEvidence?.errors ?? 0,
+          warnings: doctorEvidence?.warnings ?? 0,
+          passed: doctorEvidence?.passed ?? 0,
+        }
+      );
+
+      const uiPrefs = this._getUiPreferences();
+      if (verifySuccess && uiPrefs.incidentAutoLearningPrompt) {
+        this._panel.webview.postMessage({
+          command: 'aiChatSuggestedQuestions',
+          data: {
+            conversationId,
+            messageId: `learn-${Date.now()}`,
+            questions: [
+              'Capture this verified fix as reusable workspace memory.',
+              'Summarize why this fix worked and save it as a team convention.',
+              'Generate a memory entry with command + verification evidence.',
+            ],
+          },
+          meta: { requestId, version: 'v1' },
+        });
+
+        this._panel.webview.postMessage({
+          command: 'aiChatActionBoard',
+          data: {
+            conversationId,
+            messageId: `learn-board-${Date.now()}`,
+            board: {
+              id: `learn-board-${Date.now()}`,
+              type: 'learning',
+              title: 'Verification passed - capture reusable memory',
+              summary: 'Persist this fix pattern so the next similar incident resolves faster.',
+              data: {
+                route: 'workspace-memory-wizard',
+                confidence: 90,
+              },
+              actions: [
+                {
+                  id: `learn-action-${Date.now()}`,
+                  label: 'Capture workspace memory now',
+                  actionType: 'workspace-memory-wizard',
+                  riskLevel: 'low',
+                },
+              ],
+            },
+          },
+          meta: { requestId, version: 'v1' },
+        });
+      }
+    }
+
+    // Mark action resolved (stream already showed the result)
+    this._panel.webview.postMessage({
+      command: 'aiChatActionResult',
+      data: {
+        conversationId,
+        actionId,
+        success: verifySuccess,
+        outputSummary: `${actionType} \u2014 result shown in conversation above`,
+        evidence: doctorEvidence
+          ? {
+              source: 'doctor-last-run',
+              ...doctorEvidence,
+            }
+          : undefined,
+      },
+      meta: { requestId, version: 'v1' },
+    });
+  }
+
+  private async _sendIncidentStudioTelemetry(explicitWorkspacePath?: string, forceRefresh = false) {
+    const workspacePath = explicitWorkspacePath || this._resolveTelemetryWorkspacePath();
+    const tracker = WorkspaceUsageTracker.getInstance();
+    const doctorSummary = await this._readDoctorEvidenceSnapshot(workspacePath);
+
+    // Check cache first (5 minute TTL)
+    const cacheKey = `incident-studio-telemetry-${workspacePath}`;
+    const cachedData = this._context.globalState.get<{
+      commandSummary: any;
+      onboardingSummary: any;
+      ctaVariantBreakdown?: any;
+      doctorSummary?: any;
+      timestamp: number;
+    }>(cacheKey);
+
+    const now = Date.now();
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    if (
+      !forceRefresh &&
+      cachedData &&
+      shouldUseIncidentStudioTelemetryCache(cachedData, now, CACHE_TTL)
+    ) {
+      // Use cached data
+      console.log('[WelcomePanel] Using cached incident studio telemetry for:', workspacePath);
+      this._panel.webview.postMessage({
+        command: 'incidentStudioTelemetry',
+        data: buildIncidentStudioTelemetryFromCache(cachedData, doctorSummary),
+      });
+      return;
+    }
+
+    // Fetch fresh data if cache miss or expired
+    const [commandSummary, onboardingSummary, ctaVariantBreakdown] = await Promise.all([
+      tracker.getCommandTelemetrySummary(workspacePath, 'last7d'),
+      tracker.getOnboardingExperimentStats(workspacePath, 'last7d'),
+      tracker.getStudioCtaVariantBreakdown(workspacePath, 'last7d'),
+    ]);
+
+    const telemetryData = buildIncidentStudioTelemetryPayload(
+      commandSummary,
+      onboardingSummary,
+      ctaVariantBreakdown,
+      doctorSummary
+    );
+
+    // Store in cache
+    await this._context.globalState.update(cacheKey, {
+      ...telemetryData,
+      timestamp: now,
+    });
+
+    this._panel.webview.postMessage({
+      command: 'incidentStudioTelemetry',
+      data: telemetryData,
+    });
+  }
+
+  private _getUiPreferences(): {
+    setupStatusCardHidden: boolean;
+    incidentUserMode: 'guided' | 'standard' | 'expert';
+    incidentAutoLearningPrompt: boolean;
+    incidentPrimaryCtaExperimentVariant: 'single' | 'multi';
+  } {
     const prefs = this._context.globalState.get<Record<string, unknown>>(
       WelcomePanel.UI_PREFS_KEY,
       {}
     );
+    const incidentUserMode =
+      prefs?.incidentUserMode === 'guided' ||
+      prefs?.incidentUserMode === 'standard' ||
+      prefs?.incidentUserMode === 'expert'
+        ? (prefs.incidentUserMode as 'guided' | 'standard' | 'expert')
+        : 'standard';
     return {
       setupStatusCardHidden: prefs?.setupStatusCardHidden === true,
+      incidentUserMode,
+      incidentAutoLearningPrompt: prefs?.incidentAutoLearningPrompt !== false,
+      incidentPrimaryCtaExperimentVariant: this._getIncidentPrimaryCtaExperimentVariant(),
     };
   }
 
@@ -1586,7 +3485,7 @@ No markdown, no explanation outside the JSON.`;
     const hasWorkspace = selectedWorkspace !== null;
     let hasProjectSelected = false;
     let installedModules: { slug: string; version: string; display_name: string }[] = [];
-    let projectType: 'fastapi' | 'nestjs' | 'go' | undefined;
+    let projectType: 'fastapi' | 'nestjs' | 'go' | 'springboot' | undefined;
 
     // Keep project-scoped details only when selected project belongs to selected workspace.
     if (
@@ -1619,6 +3518,8 @@ No markdown, no explanation outside the JSON.`;
         hasProjectSelected,
         workspaceName: selectedWorkspace?.name,
         workspacePath: selectedWorkspace?.path,
+        projectName: hasProjectSelected ? WelcomePanel._selectedProject?.name : undefined,
+        projectPath: hasProjectSelected ? WelcomePanel._selectedProject?.path : undefined,
         projectType,
         installedModules,
       },
@@ -1645,12 +3546,15 @@ No markdown, no explanation outside the JSON.`;
       projectStats?: {
         fastapi?: number;
         nestjs?: number;
+        springboot?: number;
+        go?: number;
       };
       bootstrapProfile?:
         | 'minimal'
         | 'python-only'
         | 'node-only'
         | 'go-only'
+        | 'java-only'
         | 'polyglot'
         | 'enterprise';
       dependencySharingMode?: 'isolated' | 'shared-runtime-caches' | 'shared-node-deps';
@@ -1673,14 +3577,16 @@ No markdown, no explanation outside the JSON.`;
             // Get last modified time and project info
             let lastModified: number | undefined;
             let projectCount: number | undefined;
-            let projectStats: { fastapi?: number; nestjs?: number } | undefined;
+            let projectStats:
+              | { fastapi?: number; nestjs?: number; springboot?: number; go?: number }
+              | undefined;
             try {
               const stats = await fs.stat(ws.path);
               lastModified = stats.mtimeMs;
 
               // Detect projects in workspace root (not projects/ subfolder!)
               const entries = await fs.readdir(ws.path, { withFileTypes: true });
-              const stats_counter = { fastapi: 0, nestjs: 0 };
+              const stats_counter = { fastapi: 0, nestjs: 0, springboot: 0, go: 0 };
               let count = 0;
 
               for (const entry of entries) {
@@ -1700,12 +3606,30 @@ No markdown, no explanation outside the JSON.`;
                       stats_counter.fastapi++;
                     } else if (type === 'nestjs') {
                       stats_counter.nestjs++;
+                    } else if (type === 'springboot') {
+                      stats_counter.springboot++;
+                    } else if (type === 'go') {
+                      stats_counter.go++;
                     }
                   }
                   // Fallback: Check for FastAPI project
                   else if (await fs.pathExists(path.join(projectPath, 'pyproject.toml'))) {
                     count++;
                     stats_counter.fastapi++;
+                  }
+                  // Fallback: Check for Spring Boot project
+                  else if (
+                    (await fs.pathExists(path.join(projectPath, 'pom.xml'))) ||
+                    (await fs.pathExists(path.join(projectPath, 'build.gradle'))) ||
+                    (await fs.pathExists(path.join(projectPath, 'build.gradle.kts')))
+                  ) {
+                    count++;
+                    stats_counter.springboot++;
+                  }
+                  // Fallback: Check for Go project
+                  else if (await fs.pathExists(path.join(projectPath, 'go.mod'))) {
+                    count++;
+                    stats_counter.go++;
                   }
                   // Fallback: Check for NestJS project
                   else if (await fs.pathExists(path.join(projectPath, 'package.json'))) {
@@ -1728,6 +3652,9 @@ No markdown, no explanation outside the JSON.`;
                   ? {
                       fastapi: stats_counter.fastapi > 0 ? stats_counter.fastapi : undefined,
                       nestjs: stats_counter.nestjs > 0 ? stats_counter.nestjs : undefined,
+                      springboot:
+                        stats_counter.springboot > 0 ? stats_counter.springboot : undefined,
+                      go: stats_counter.go > 0 ? stats_counter.go : undefined,
                     }
                   : undefined;
             } catch (err) {
@@ -1740,6 +3667,7 @@ No markdown, no explanation outside the JSON.`;
               | 'python-only'
               | 'node-only'
               | 'go-only'
+              | 'java-only'
               | 'polyglot'
               | 'enterprise'
               | undefined;
@@ -1857,18 +3785,30 @@ No markdown, no explanation outside the JSON.`;
 
   private async _detectProjectType(
     projectPath: string
-  ): Promise<'fastapi' | 'nestjs' | 'go' | null> {
+  ): Promise<'fastapi' | 'nestjs' | 'go' | 'springboot' | null> {
     return WelcomePanel._detectProjectTypeStatic(projectPath);
   }
 
   static async _detectProjectTypeStatic(
     projectPath: string
-  ): Promise<'fastapi' | 'nestjs' | 'go' | null> {
+  ): Promise<'fastapi' | 'nestjs' | 'go' | 'springboot' | null> {
     try {
       // Check for Go indicators
       const goModPath = path.join(projectPath, 'go.mod');
       if (await fs.pathExists(goModPath)) {
         return 'go';
+      }
+
+      // Check for Spring Boot / Java indicators
+      const pomXmlPath = path.join(projectPath, 'pom.xml');
+      const gradlePath = path.join(projectPath, 'build.gradle');
+      const gradleKtsPath = path.join(projectPath, 'build.gradle.kts');
+      if (
+        (await fs.pathExists(pomXmlPath)) ||
+        (await fs.pathExists(gradlePath)) ||
+        (await fs.pathExists(gradleKtsPath))
+      ) {
+        return 'springboot';
       }
 
       // Check for FastAPI indicators
@@ -1918,6 +3858,9 @@ No markdown, no explanation outside the JSON.`;
     const goIconUri = this._panel.webview.asWebviewUri(
       vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'go.svg')
     );
+    const springbootIconUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'springboot.svg')
+    );
 
     // Generate nonce for CSP
     const nonce = this._getNonce();
@@ -1944,6 +3887,7 @@ No markdown, no explanation outside the JSON.`;
             --fastapi-icon-uri: url('${fastapiIconUri}');
             --nestjs-icon-uri: url('${nestjsIconUri}');
             --go-icon-uri: url('${goIconUri}');
+          --springboot-icon-uri: url('${springbootIconUri}');
         }
     </style>
 </head>
@@ -1955,6 +3899,7 @@ No markdown, no explanation outside the JSON.`;
         window.FASTAPI_ICON_URI = '${fastapiIconUri}';
         window.NESTJS_ICON_URI = '${nestjsIconUri}';
         window.GO_ICON_URI = '${goIconUri}';
+        window.SPRINGBOOT_ICON_URI = '${springbootIconUri}';
     </script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
@@ -2065,6 +4010,8 @@ No markdown, no explanation outside the JSON.`;
     this._aiQueryTokenSource?.dispose();
     this._aiQueryTokenSource = undefined;
     this._activeAIQueryRequestId = undefined;
+
+    this._doctorTelemetryRefreshController.dispose();
 
     this._panel.dispose();
 

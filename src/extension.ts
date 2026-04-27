@@ -45,6 +45,11 @@ import { registerWorkspaceBrainCommand } from './commands/workspaceBrain';
 import { registerAIFreeFeatureCommands } from './commands/aiFreeFeatures';
 import { WorkspaceMemoryService } from './core/workspaceMemoryService';
 import { registerWorkspaiChatParticipant } from './commands/chatParticipant';
+import { registerModelCacheConfigListener } from './core/aiModelSelection';
+import {
+  buildWorkspaceShareBundleDashboardSummary,
+  parseWorkspaceShareBundle,
+} from './utils/workspaceShareBundle';
 
 let statusBar: WorkspaiStatusBar;
 let actionsWebviewProvider: ActionsWebviewProvider;
@@ -254,6 +259,9 @@ export async function activate(context: vscode.ExtensionContext) {
     // Chat participant — @workspai in the VS Code Chat panel
     registerWorkspaiChatParticipant(context);
 
+    // Invalidate model selection cache immediately when user changes preferred model
+    registerModelCacheConfigListener(context);
+
     // AI context commands — triggered from tree view inline buttons
     context.subscriptions.push(
       vscode.commands.registerCommand('workspai.aiForWorkspace', (item?: any) => {
@@ -313,6 +321,88 @@ export async function activate(context: vscode.ExtensionContext) {
           moduleSlug: (mod as any)?.slug || mod?.id,
           moduleDescription: mod?.description,
         });
+      }),
+      vscode.commands.registerCommand('workspai.openIncidentStudio', (item?: any) => {
+        const workspaceFromItem = item?.workspace;
+        const projectFromItem = item?.project;
+
+        const selectedWorkspace = workspaceExplorer?.getSelectedWorkspace();
+
+        const workspacePath =
+          (typeof workspaceFromItem?.path === 'string' && workspaceFromItem.path) ||
+          (typeof projectFromItem?.workspacePath === 'string' && projectFromItem.workspacePath) ||
+          (typeof selectedWorkspace?.path === 'string' && selectedWorkspace.path);
+
+        const workspaceName =
+          (typeof workspaceFromItem?.name === 'string' && workspaceFromItem.name) ||
+          (typeof selectedWorkspace?.name === 'string' && selectedWorkspace.name) ||
+          (typeof projectFromItem?.name === 'string' ? projectFromItem.name : undefined);
+
+        if (!workspacePath) {
+          vscode.window.showWarningMessage('Select a workspace first.');
+          return;
+        }
+
+        const initialQuery =
+          projectFromItem && typeof projectFromItem?.name === 'string'
+            ? `Analyze project ${projectFromItem.name} in this workspace. Treat this as a project-scoped launch/readiness task. First identify the current delivery stage, then the exact next command to reach a runnable service, then verification.`
+            : undefined;
+
+        WelcomePanel.openIncidentStudio(context, {
+          workspacePath,
+          workspaceName,
+          projectPath:
+            projectFromItem && typeof projectFromItem?.path === 'string'
+              ? projectFromItem.path
+              : undefined,
+          projectName:
+            projectFromItem && typeof projectFromItem?.name === 'string'
+              ? projectFromItem.name
+              : undefined,
+          projectType:
+            projectFromItem && typeof projectFromItem?.type === 'string'
+              ? projectFromItem.type
+              : undefined,
+          initialQuery,
+        });
+      }),
+      vscode.commands.registerCommand('workspai.importWorkspaceShareBundle', async () => {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          filters: {
+            JSON: ['json'],
+            'All Files': ['*'],
+          },
+          openLabel: 'Import Share Bundle',
+          title: 'Select workspace share bundle (share-bundle.json)',
+        });
+
+        const fileUri = picked?.[0];
+        if (!fileUri) {
+          return;
+        }
+
+        try {
+          const rawBuffer = await vscode.workspace.fs.readFile(fileUri);
+          const rawText = Buffer.from(rawBuffer).toString('utf8');
+          const bundle = parseWorkspaceShareBundle(rawText);
+          const summary = buildWorkspaceShareBundleDashboardSummary(bundle, fileUri.fsPath);
+
+          WelcomePanel.openWorkspaceShareDashboard(context, { summary });
+
+          await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+            'workspai.workspace.share_bundle_imported',
+            undefined,
+            {
+              schemaVersion: summary.schemaVersion,
+              projectCount: summary.projectCount,
+              runtimes: summary.runtimes.join(','),
+            }
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          vscode.window.showErrorMessage(`Failed to import workspace share bundle: ${message}`);
+        }
       }),
       // AI-powered workspace creation — triggered from sidebar Quick Actions panel
       vscode.commands.registerCommand('workspai.openAICreateWorkspace', () => {

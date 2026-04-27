@@ -23,6 +23,26 @@ import { CommandReference } from '@/components/CommandReference';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { Footer } from '@/components/Footer';
 import { AIActions } from '@/components/AIActions';
+import { AIIncidentStudio } from '@/components/AIIncidentStudio';
+import {
+    DEFAULT_INCIDENT_USER_MODE,
+    normalizeIncidentPrimaryCtaExperimentVariant,
+    normalizeIncidentUserMode,
+    resolveIncidentPrimaryCtaMode,
+    type IncidentPrimaryCtaExperimentVariant,
+    type IncidentUserMode,
+} from '@/lib/incidentStudioPreferences';
+import {
+    getConversationIdToCloseOnBootstrap,
+    getConversationIdToCloseOnViewExit,
+} from '@/lib/incidentStudioLifecycle';
+import {
+    buildIncidentChatExecuteActionPayload,
+    buildIncidentChatQueryPayload,
+    buildIncidentChatStartPayload,
+    normalizeIncomingIncidentStudioOpen,
+    type IncidentProjectSelection,
+} from '@/lib/incidentStudioPayload';
 import { AIModal, AIModalContext } from '@/components/AIModal';
 import { AICreateModal, AICreationPlan, AICreateFramework } from '@/components/AICreateModal';
 import { CreateWorkspaceModal, WorkspaceCreationConfig } from '@/components/CreateWorkspaceModal';
@@ -31,6 +51,99 @@ import { InstallModuleModal } from '@/components/InstallModuleModal';
 import { ModuleDetailsModal } from '@/components/ModuleDetailsModal';
 
 export function App() {
+    type ChatBrainBoardAction = {
+        id: string;
+        label: string;
+        actionType: string;
+        riskLevel?: string;
+    };
+
+    type ChatBrainBoard = {
+        id: string;
+        type: string;
+        title: string;
+        summary?: string;
+        data?: Record<string, unknown>;
+        actions?: ChatBrainBoardAction[];
+    };
+
+    type ChatBrainHistoryItem = {
+        id: string;
+        role: 'user' | 'assistant';
+        text: string;
+        timestamp: number;
+    };
+
+    type IncidentTelemetrySnapshot = {
+        commandSummary: {
+            totalEvents: number;
+            lastCommand: string | null;
+            lastCommandAt: string | null;
+            commandUsage: Array<{ command: string; count: number }>;
+            surfaceBreakdown: {
+                actionEvents: number;
+                askEvents: number;
+                actionVsAskShare: number | null;
+            };
+        } | null;
+        onboardingSummary: {
+            followupShown: number;
+            followupClicked: number;
+            overallFollowupClickThroughRate: number;
+        } | null;
+        doctorSummary?: {
+            workspaceName?: string;
+            generatedAt?: string;
+            health: {
+                total: number;
+                passed: number;
+                warnings: number;
+                errors: number;
+                percent: number;
+            };
+            projectCount: number;
+            projectsWithIssues: number;
+            issueCount: number;
+            frameworks: Array<{ name: string; count: number }>;
+            projects: Array<{
+                name: string;
+                framework?: string;
+                issues: number;
+                depsInstalled?: boolean;
+            }>;
+            fixCommands: string[];
+        } | null;
+    };
+
+    type IncidentResumeSnapshot = {
+        workspacePath: string;
+        phase: 'detect' | 'diagnose' | 'plan' | 'verify' | 'learn';
+        turnCount: number;
+        queryCount: number;
+        actionCount: number;
+        lastActivityAt: number;
+        resolved: boolean;
+        recap: string;
+        nextActionLabel: string;
+        nextActionQuery: string;
+    };
+
+    type ImportedWorkspaceShareSummary = {
+        sourceFile: string;
+        workspaceName: string;
+        workspaceProfile?: string;
+        generatedAt?: string;
+        schemaVersion: string;
+        projectCount: number;
+        runtimes: string[];
+        doctorEvidenceIncluded: boolean;
+        healthTotals: {
+            passed: number;
+            warnings: number;
+            errors: number;
+        };
+    };
+
     const [version, setVersion] = useState('0.0.0');
     const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -45,6 +158,7 @@ export function App() {
     const [aiModelId, setAIModelId] = useState<string | null>(null);
     const [aiAvailableModels, setAIAvailableModels] = useState<{ id: string; name: string; vendor: string }[]>([]);
     const [aiSelectedModelId, setAISelectedModelId] = useState<string | null>(null);
+    const [incidentSelectedModelId, setIncidentSelectedModelId] = useState<string | null>(null);
     const [aiConversationHistory, setAIConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
     // AI Create state
     const [showAICreateModal, setShowAICreateModal] = useState(false);
@@ -58,7 +172,7 @@ export function App() {
     const [aiCreationStage, setAICreationStage] = useState<'workspace_done' | null>(null);
     const [aiCreationError, setAICreationError] = useState<string | null>(null);
     const [aiCreateModelId, setAICreateModelId] = useState<string | null>(null);
-    const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs' | 'go'>('fastapi');
+    const [selectedFramework, setSelectedFramework] = useState<'fastapi' | 'nestjs' | 'go' | 'springboot'>('fastapi');
     const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
     const [moduleDetails, setModuleDetails] = useState<ModuleData | null>(null);
     const [recentWorkspaces, setRecentWorkspaces] = useState<Workspace[]>([]);
@@ -74,23 +188,90 @@ export function App() {
         coreInstalled: false
     });
     const [workspaceToolStatus, setWorkspaceToolStatus] = useState<WorkspaceToolStatus | null>(null);
+    const [incidentTelemetry, setIncidentTelemetry] = useState<IncidentTelemetrySnapshot | null>(null);
+    const [incidentResume, setIncidentResume] = useState<IncidentResumeSnapshot | null>(null);
+    const [chatBrainConversationId, setChatBrainConversationId] = useState<string | null>(null);
+    const [chatBrainStreamText, setChatBrainStreamText] = useState('');
+    const [chatBrainHistory, setChatBrainHistory] = useState<ChatBrainHistoryItem[]>([]);
+    const [chatBrainSuggestedQuestions, setChatBrainSuggestedQuestions] = useState<string[]>([]);
+    const [chatBrainBoard, setChatBrainBoard] = useState<ChatBrainBoard | null>(null);
+    const [chatBrainActionProgress, setChatBrainActionProgress] = useState<{
+        stage: string;
+        progress: number;
+        note?: string;
+    } | null>(null);
+    const [chatBrainActionResult, setChatBrainActionResult] = useState<{
+        success: boolean;
+        outputSummary?: string;
+        evidence?: {
+            source?: string;
+            healthScoreText?: string;
+            generatedAt?: string;
+            passed?: number;
+            warnings?: number;
+            errors?: number;
+        };
+    } | null>(null);
+    const [chatBrainError, setChatBrainError] = useState<string | null>(null);
+    const [chatBrainIsStreaming, setChatBrainIsStreaming] = useState(false);
+    const [chatBrainExecutingCommand, setChatBrainExecutingCommand] = useState<string | null>(null);
     /** true once extension has sent at least one installStatusUpdate — before that, initial false values must not be trusted */
     const [installStatusChecked, setInstallStatusChecked] = useState(false);
     const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
     const [isSetupCardHidden, setIsSetupCardHidden] = useState(false);
+    const [activeView, setActiveView] = useState<'dashboard' | 'incident-studio'>('dashboard');
+    const [importedWorkspaceShare, setImportedWorkspaceShare] =
+        useState<ImportedWorkspaceShareSummary | null>(null);
+    const [incidentUserMode, setIncidentUserMode] = useState<IncidentUserMode>(DEFAULT_INCIDENT_USER_MODE);
+    const [incidentPrimaryCtaExperimentVariant, setIncidentPrimaryCtaExperimentVariant] =
+        useState<IncidentPrimaryCtaExperimentVariant | null>(null);
+    const [incidentAutoLearningPrompt, setIncidentAutoLearningPrompt] = useState(true);
+    const [isIncidentRefreshing, setIsIncidentRefreshing] = useState(false);
+    const [lastIncidentRefreshedAt, setLastIncidentRefreshedAt] = useState<number | null>(null);
+    const [selectedWorkspaceForAnalysis, setSelectedWorkspaceForAnalysis] = useState<string | null>(null);
+    const [selectedProjectForAnalysis, setSelectedProjectForAnalysis] = useState<IncidentProjectSelection | null>(null);
     const aiRequestIdRef = useRef(0);
+    const chatBrainMessageIdRef = useRef<string | null>(null);
+    const chatBrainStreamTextRef = useRef('');
+    const lastIncidentBootstrapWorkspaceRef = useRef<string | null>(null);
 
     const activeWorkspace =
         recentWorkspaces.find((workspace) => workspace.path === workspaceStatus.workspacePath) || null;
+    const selectedWorkspaceForAnalysisObj =
+        selectedWorkspaceForAnalysis ? recentWorkspaces.find((w) => w.path === selectedWorkspaceForAnalysis) : null;
     const hasActiveWorkspace = Boolean(workspaceStatus.hasWorkspace && workspaceStatus.workspacePath);
     const activeWorkspaceProfile = activeWorkspace?.bootstrapProfile;
-    const activeWorkspaceName = workspaceStatus.workspaceName || activeWorkspace?.name;
+    const activeWorkspaceName = selectedWorkspaceForAnalysisObj?.name || workspaceStatus.workspaceName || activeWorkspace?.name;
+    const incidentPrimaryCtaMode = resolveIncidentPrimaryCtaMode(
+        incidentUserMode,
+        incidentPrimaryCtaExperimentVariant
+    );
+    const incidentRefreshLabel = lastIncidentRefreshedAt
+        ? new Date(lastIncidentRefreshedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : null;
 
     const updateSetupCardHidden = (hidden: boolean) => {
         setIsSetupCardHidden(hidden);
         vscode.postMessage('setUiPreference', {
             key: 'setupStatusCardHidden',
             value: hidden,
+        });
+    };
+
+    const updateIncidentUserMode = (mode: IncidentUserMode) => {
+        const normalizedMode = normalizeIncidentUserMode(mode);
+        setIncidentUserMode(normalizedMode);
+        vscode.postMessage('setUiPreference', {
+            key: 'incidentUserMode',
+            value: normalizedMode,
+        });
+    };
+
+    const updateIncidentAutoLearningPrompt = (enabled: boolean) => {
+        setIncidentAutoLearningPrompt(enabled);
+        vscode.postMessage('setUiPreference', {
+            key: 'incidentAutoLearningPrompt',
+            value: enabled,
         });
     };
 
@@ -230,6 +411,7 @@ export function App() {
                     if (message.data?.error) {
                         setAIStreamError(message.data.error);
                     }
+                    vscode.postMessage('requestIncidentStudioTelemetry');
                     break;
                 case 'aiModelUsed':
                     if (
@@ -238,7 +420,9 @@ export function App() {
                     ) {
                         break;
                     }
-                    if (message.data?.modelId) setAIModelId(message.data.modelId);
+                    if (message.data?.modelId) {
+                        setAIModelId(message.data.modelId);
+                    }
                     break;
                 case 'aiModelsList':
                     if (Array.isArray(message.data?.models)) {
@@ -248,11 +432,15 @@ export function App() {
                 // ── AI Create events ────────────────────────────────────────
                 case 'aiCreationThinking':
                     setAICreationThinking(message.data?.thinking ?? false);
-                    if (message.data?.thinking) setAICreationError(null);
+                    if (message.data?.thinking) {
+                        setAICreationError(null);
+                    }
                     break;
                 case 'aiCreationPlan':
                     setAICreationPlan(message.data?.plan ?? null);
-                    if (message.data?.modelId) setAICreateModelId(message.data.modelId);
+                    if (message.data?.modelId) {
+                        setAICreateModelId(message.data.modelId);
+                    }
                     break;
                 case 'aiCreationError':
                     setAICreationError(message.data?.error ?? 'Unknown error');
@@ -295,10 +483,196 @@ export function App() {
                 case 'workspaceToolStatus':
                     setWorkspaceToolStatus(message.data);
                     break;
+                case 'openIncidentStudio': {
+                    const normalizedOpen = normalizeIncomingIncidentStudioOpen(message.data);
+                    if (!normalizedOpen) {
+                        break;
+                    }
+
+                    setActiveView('incident-studio');
+                    bootstrapIncidentStudioForWorkspace(
+                        normalizedOpen.workspacePath,
+                        normalizedOpen.workspaceName,
+                        true,
+                        normalizedOpen.initialQuery,
+                        normalizedOpen.projectSelection
+                    );
+                    break;
+                }
+                case 'openWorkspaceShareDashboard':
+                    if (message.data?.summary) {
+                        setImportedWorkspaceShare(message.data.summary as ImportedWorkspaceShareSummary);
+                        setActiveView('dashboard');
+                    }
+                    break;
+                case 'incidentStudioTelemetry':
+                    setIncidentTelemetry(message.data ?? null);
+                    setIsIncidentRefreshing(false);
+                    setLastIncidentRefreshedAt(Date.now());
+                    break;
+                case 'aiChatStarted':
+                    setChatBrainConversationId(message.data?.conversationId ?? null);
+                    setIncidentResume(
+                        message.data?.resumeSnapshot && typeof message.data.resumeSnapshot === 'object'
+                            ? (message.data.resumeSnapshot as IncidentResumeSnapshot)
+                            : null
+                    );
+                    chatBrainMessageIdRef.current = null;
+                    chatBrainStreamTextRef.current = '';
+                    setChatBrainStreamText('');
+                    setChatBrainHistory([]);
+                    setChatBrainSuggestedQuestions([]);
+                    setChatBrainBoard(null);
+                    setChatBrainActionProgress(null);
+                    setChatBrainActionResult(null);
+                    setChatBrainError(null);
+                    setChatBrainIsStreaming(false);
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatWorkspaceSynced':
+                    setIsIncidentRefreshing(false);
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatChunk':
+                    if (typeof message.data?.messageId === 'string' && message.data.messageId !== chatBrainMessageIdRef.current) {
+                        // New message stream starting — clear stale progress indicator
+                        chatBrainMessageIdRef.current = message.data.messageId;
+                        const nextChunk = message.data?.chunk || '';
+                        chatBrainStreamTextRef.current = nextChunk;
+                        setChatBrainStreamText(nextChunk);
+                        setChatBrainActionProgress(null);
+                    } else {
+                        const nextChunk = chatBrainStreamTextRef.current + (message.data?.chunk || '');
+                        chatBrainStreamTextRef.current = nextChunk;
+                        setChatBrainStreamText(nextChunk);
+                    }
+                    setChatBrainIsStreaming(true);
+                    setChatBrainError(null);
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatActionBoard':
+                    if (message.data?.board) {
+                        setChatBrainBoard(message.data.board as ChatBrainBoard);
+                    }
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatSuggestedQuestions':
+                    if (Array.isArray(message.data?.questions)) {
+                        setChatBrainSuggestedQuestions(message.data.questions);
+                    }
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatActionProgress':
+                    setChatBrainActionProgress({
+                        stage: String(message.data?.stage || 'running'),
+                        progress: Number(message.data?.progress || 0),
+                        note: typeof message.data?.note === 'string' ? message.data.note : undefined,
+                    });
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatActionResult':
+                    setChatBrainActionResult({
+                        success: Boolean(message.data?.success),
+                        outputSummary:
+                            typeof message.data?.outputSummary === 'string'
+                                ? message.data.outputSummary
+                                : undefined,
+                        evidence:
+                            message.data?.evidence && typeof message.data.evidence === 'object'
+                                ? message.data.evidence
+                                : undefined,
+                    });
+                    if (message.data?.board) {
+                        setChatBrainBoard(message.data.board as ChatBrainBoard);
+                    }
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatDone':
+                    setChatBrainIsStreaming(false);
+                    if (typeof message.data?.modelId === 'string' && message.data.modelId.trim()) {
+                        setAIModelId(message.data.modelId);
+                    }
+                    {
+                        const finalText =
+                            typeof message.data?.finalText === 'string' && message.data.finalText.trim()
+                                ? message.data.finalText
+                                : chatBrainStreamTextRef.current;
+                        if (finalText.trim()) {
+                            setChatBrainHistory((prev) => [
+                                ...prev,
+                                {
+                                    id: chatBrainMessageIdRef.current || `assistant-${Date.now()}`,
+                                    role: 'assistant' as const,
+                                    text: finalText,
+                                    timestamp: Date.now(),
+                                },
+                            ].slice(-24));
+                        }
+                    }
+                    chatBrainStreamTextRef.current = '';
+                    setChatBrainStreamText('');
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'aiChatError':
+                    setChatBrainIsStreaming(false);
+                    if (chatBrainStreamTextRef.current.trim()) {
+                        setChatBrainHistory((prev) => [
+                            ...prev,
+                            {
+                                id: chatBrainMessageIdRef.current || `assistant-partial-${Date.now()}`,
+                                role: 'assistant' as const,
+                                text: `${chatBrainStreamTextRef.current}\n\n[response interrupted]`,
+                                timestamp: Date.now(),
+                            },
+                        ].slice(-24));
+                    }
+                    chatBrainStreamTextRef.current = '';
+                    setChatBrainStreamText('');
+                    setChatBrainError(
+                        typeof message.data?.message === 'string'
+                            ? message.data.message
+                            : 'Chat Brain request failed.'
+                    );
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                case 'runIncidentInlineCommandDone':
+                    setChatBrainExecutingCommand(null);
+                    if (message.data?.success && message.data?.output) {
+                        const outputMessage = `✓ Command completed:\n\`\`\`\n${message.data.output}\n\`\`\``;
+                        setChatBrainHistory((prev) => [
+                            ...prev,
+                            {
+                                id: `command-result-${Date.now()}`,
+                                role: 'assistant' as const,
+                                text: outputMessage,
+                                timestamp: Date.now(),
+                            },
+                        ].slice(-24));
+                    } else if (!message.data?.success && message.data?.error) {
+                        const errorMessage = `✗ Command failed: ${message.data.error}`;
+                        setChatBrainHistory((prev) => [
+                            ...prev,
+                            {
+                                id: `command-error-${Date.now()}`,
+                                role: 'assistant' as const,
+                                text: errorMessage,
+                                timestamp: Date.now(),
+                            },
+                        ].slice(-24));
+                    }
+                    console.log('[InlineCommand] Completed:', message.data);
+                    break;
                 case 'uiPreferences':
                     if (typeof message.data?.setupStatusCardHidden === 'boolean') {
                         setIsSetupCardHidden(message.data.setupStatusCardHidden);
                     }
+                    setIncidentUserMode(normalizeIncidentUserMode(message.data?.incidentUserMode));
+                    setIncidentPrimaryCtaExperimentVariant(
+                        normalizeIncidentPrimaryCtaExperimentVariant(
+                            message.data?.incidentPrimaryCtaExperimentVariant
+                        )
+                    );
+                    setIncidentAutoLearningPrompt(message.data?.incidentAutoLearningPrompt !== false);
                     break;
             }
         };
@@ -308,6 +682,7 @@ export function App() {
         // Request initial data
         vscode.postMessage('ready');
         vscode.postMessage('getUiPreferences');
+        vscode.postMessage('requestIncidentStudioTelemetry');
 
         return () => window.removeEventListener('message', messageHandler);
     }, []);
@@ -318,12 +693,18 @@ export function App() {
         }
     }, [showCreateModal]);
 
+    useEffect(() => {
+        if (showProjectModal) {
+            vscode.postMessage('requestWorkspaceToolStatus');
+        }
+    }, [showProjectModal]);
+
     const handleCreateWorkspace = (config: WorkspaceCreationConfig) => {
         console.log('[React Webview] Creating workspace:', config.name);
         vscode.postMessage('createWorkspace', config);
     };
 
-    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => {
+    const handleOpenProjectModal = (framework: 'fastapi' | 'nestjs' | 'go' | 'springboot', _kitName?: string) => {
         if (installStatusChecked && !installStatus.coreInstalled) {
             vscode.postMessage('openSetup');
             return;
@@ -369,7 +750,7 @@ export function App() {
         });
     };
 
-    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => {
+    const handleCreateProject = (projectName: string, framework: 'fastapi' | 'nestjs' | 'go' | 'springboot', kitName: string) => {
         console.log('[React Webview] Creating project:', projectName, framework, kitName);
         vscode.postMessage('createProjectWithKit', { name: projectName, framework, kit: kitName });
     };
@@ -407,91 +788,495 @@ export function App() {
         }
     };
 
+    const runIncidentAction = (command: string, data?: any) => {
+        vscode.postMessage(command, data);
+        window.setTimeout(() => {
+            vscode.postMessage('requestIncidentStudioTelemetry');
+        }, 450);
+    };
+
+    const refreshIncidentStudio = () => {
+        const workspacePath = selectedWorkspaceForAnalysis || workspaceStatus.workspacePath;
+        if (!workspacePath) {
+            return;
+        }
+
+        setIsIncidentRefreshing(true);
+
+        vscode.postMessage('requestIncidentStudioTelemetry', {
+            workspacePath,
+            forceRefresh: true,
+        });
+
+        if (chatBrainConversationId) {
+            vscode.postMessage('aiChatSyncWorkspace', {
+                workspacePath,
+                requestId: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            });
+        }
+    };
+
+    const runIncidentInlineCommand = (command: string) => {
+        const workspacePath = selectedWorkspaceForAnalysis || workspaceStatus.workspacePath;
+        if (!command.trim() || !workspacePath) {
+            return;
+        }
+        setChatBrainExecutingCommand(command);
+        vscode.postMessage('runIncidentInlineCommand', {
+            command,
+            workspacePath,
+            workspaceName: activeWorkspaceName,
+        });
+    };
+
+    const bootstrapIncidentStudioForWorkspace = (
+        workspacePath: string,
+        workspaceName?: string,
+        runInitialQuery: boolean = true,
+        initialQuery?: string,
+        projectSelection?: IncidentProjectSelection | null
+    ) => {
+        const requestId = `cb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const conversationId = `conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const conversationIdToClose = getConversationIdToCloseOnBootstrap(
+            chatBrainConversationId,
+            conversationId
+        );
+
+        if (conversationIdToClose) {
+            vscode.postMessage('aiChatClose', { conversationId: conversationIdToClose });
+        }
+
+        setSelectedWorkspaceForAnalysis(workspacePath);
+        setSelectedProjectForAnalysis(projectSelection || null);
+        setChatBrainConversationId(conversationId);
+        setChatBrainHistory([]);
+        setChatBrainStreamText('');
+        chatBrainStreamTextRef.current = '';
+        chatBrainMessageIdRef.current = null;
+        setChatBrainSuggestedQuestions([]);
+        setChatBrainBoard(null);
+        setChatBrainActionProgress(null);
+        setChatBrainActionResult(null);
+        setChatBrainError(null);
+        setChatBrainIsStreaming(false);
+        setIncidentResume(null);
+
+        window.setTimeout(() => {
+            vscode.postMessage('requestIncidentStudioTelemetry', { workspacePath });
+            vscode.postMessage(
+                'aiChatStart',
+                buildIncidentChatStartPayload({
+                    workspacePath,
+                    requestId,
+                    resumeConversationId: conversationId,
+                    projectSelection,
+                })
+            );
+            vscode.postMessage('aiChatSyncWorkspace', { workspacePath, requestId });
+
+            if (runInitialQuery) {
+                vscode.postMessage(
+                    'aiChatQuery',
+                    buildIncidentChatQueryPayload({
+                        conversationId,
+                        workspacePath,
+                        requestId,
+                        modelId: incidentSelectedModelId ?? undefined,
+                        projectSelection,
+                        message:
+                            initialQuery ||
+                            `Analyze workspace ${workspaceName || workspacePath} and surface top incident risks with one recommended next action.`,
+                    })
+                );
+            }
+        }, 100);
+    };
+
+    const handleAnalyzeWorkspace = (workspace: Workspace) => {
+        // Switch to incident studio tab and bootstrap full workspace-aware session
+        setActiveView('incident-studio');
+        bootstrapIncidentStudioForWorkspace(workspace.path, workspace.name, true, undefined, null);
+    };
+
+    useEffect(() => {
+        if (activeView !== 'incident-studio') {
+            return;
+        }
+
+        vscode.postMessage('aiGetModels');
+
+        const workspacePath = workspaceStatus.workspacePath;
+        if (!workspacePath) {
+            return;
+        }
+
+        if (lastIncidentBootstrapWorkspaceRef.current === workspacePath) {
+            return;
+        }
+
+        const workspaceName =
+            recentWorkspaces.find((workspace) => workspace.path === workspacePath)?.name ||
+            workspaceStatus.workspaceName ||
+            workspacePath;
+
+        lastIncidentBootstrapWorkspaceRef.current = workspacePath;
+        bootstrapIncidentStudioForWorkspace(workspacePath, workspaceName, true);
+    }, [activeView, recentWorkspaces, workspaceStatus.workspaceName, workspaceStatus.workspacePath]);
+
+    const handleChatBrainQuery = (query: string) => {
+        if (!query.trim() || !selectedWorkspaceForAnalysis) {
+            return;
+        }
+        const conversationId = chatBrainConversationId || `conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        if (!chatBrainConversationId) {
+            setChatBrainConversationId(conversationId);
+            vscode.postMessage(
+                'aiChatStart',
+                buildIncidentChatStartPayload({
+                    workspacePath: selectedWorkspaceForAnalysis,
+                    projectSelection: selectedProjectForAnalysis,
+                    resumeConversationId: conversationId,
+                    requestId: `cb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                })
+            );
+        }
+        setChatBrainIsStreaming(true);
+        setChatBrainError(null);
+        setChatBrainActionProgress(null);
+        setChatBrainActionResult(null);
+        setChatBrainBoard(null);
+        setChatBrainSuggestedQuestions([]);
+        setChatBrainHistory((prev) => [
+            ...prev,
+            {
+                id: `user-${Date.now()}`,
+                role: 'user' as const,
+                text: query,
+                timestamp: Date.now(),
+            },
+        ].slice(-24));
+        vscode.postMessage(
+            'aiChatQuery',
+            buildIncidentChatQueryPayload({
+                conversationId,
+                workspacePath: selectedWorkspaceForAnalysis,
+                projectSelection: selectedProjectForAnalysis,
+                requestId: `cbq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                modelId: incidentSelectedModelId ?? undefined,
+                message: query,
+            })
+        );
+    };
+
+    const handleChatBrainExecuteAction = (actionType: string, actionId?: string) => {
+        if (!chatBrainConversationId || !actionType) {
+            return;
+        }
+        setChatBrainActionProgress({ stage: 'running', progress: 10, note: `Executing ${actionType}` });
+        setChatBrainActionResult(null);
+        setChatBrainError(null);
+        vscode.postMessage(
+            'aiChatExecuteAction',
+            buildIncidentChatExecuteActionPayload({
+                conversationId: chatBrainConversationId,
+                actionId: actionId || `action-${Date.now()}`,
+                actionType,
+                workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
+                projectSelection: selectedProjectForAnalysis,
+                modelId: incidentSelectedModelId ?? undefined,
+                requestId: `cba-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            })
+        );
+    };
+
+    useEffect(() => {
+        return () => {
+            if (chatBrainConversationId) {
+                vscode.postMessage('aiChatClose', { conversationId: chatBrainConversationId });
+            }
+        };
+    }, [chatBrainConversationId]);
+
+    useEffect(() => {
+        const conversationIdToClose = getConversationIdToCloseOnViewExit(
+            activeView,
+            chatBrainConversationId
+        );
+
+        if (!conversationIdToClose) {
+            return;
+        }
+
+        vscode.postMessage('aiChatClose', { conversationId: conversationIdToClose });
+        setChatBrainConversationId(null);
+    }, [activeView, chatBrainConversationId]);
+
     return (
-        <div className="container">
+        <div className={`container`}>
             <Header version={version} />
 
-            {!isSetupCardHidden ? (
-                <SetupCard
-                    onClick={() => vscode.postMessage('openSetup')}
-                    onHide={() => updateSetupCardHidden(true)}
-                />
-            ) : (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-                    <button
-                        type="button"
-                        onClick={() => updateSetupCardHidden(false)}
-                        title="Show Setup Status"
-                        aria-label="Show Setup Status"
-                        style={{
-                            border: '1px solid var(--vscode-panel-border)',
-                            background: 'var(--vscode-editor-inactiveSelectionBackground)',
-                            color: 'var(--vscode-foreground)',
-                            borderRadius: '8px',
-                            padding: '6px 10px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            cursor: 'pointer',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                        }}
-                    >
-                        <Eye size={14} />
-                        Show Setup Status
-                    </button>
-                </div>
-            )}
-
-            <div className="mb-8">
-                <HeroAction
-                    onClick={handleOpenAICreateWorkspace}
-                    isLoading={isCreatingWorkspace}
-                />
-                <QuickLinks onOpenProjectModal={handleOpenProjectModal} />
+            <div className="workspai-view-tabs" role="tablist" aria-label="Workspai views">
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === 'dashboard'}
+                    className={`workspai-view-tab ${activeView === 'dashboard' ? 'is-active' : ''}`}
+                    onClick={() => setActiveView('dashboard')}
+                >
+                    Dashboard
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === 'incident-studio'}
+                    className={`workspai-view-tab ${activeView === 'incident-studio' ? 'is-active' : ''}`}
+                    onClick={() => setActiveView('incident-studio')}
+                >
+                    WorkspAi Incident Studio
+                </button>
             </div>
 
-            <AIActions />
+            {activeView === 'dashboard' ? (
+                <>
+                    {importedWorkspaceShare ? (
+                        <section
+                            style={{
+                                border: '1px solid var(--vscode-panel-border)',
+                                borderRadius: '10px',
+                                padding: '12px',
+                                marginBottom: '12px',
+                                background: 'var(--vscode-editor-inactiveSelectionBackground)',
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                <h3 style={{ margin: 0, fontSize: '13px' }}>Imported Share Bundle</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setImportedWorkspaceShare(null)}
+                                    style={{
+                                        border: '1px solid var(--vscode-panel-border)',
+                                        background: 'var(--vscode-editor-background)',
+                                        color: 'var(--vscode-foreground)',
+                                        borderRadius: '6px',
+                                        padding: '4px 8px',
+                                        cursor: 'pointer',
+                                        fontSize: '11px',
+                                    }}
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                            <p style={{ margin: '8px 0 4px 0', fontSize: '12px' }}>
+                                <strong>{importedWorkspaceShare.workspaceName}</strong>
+                                {importedWorkspaceShare.workspaceProfile ? ` (${importedWorkspaceShare.workspaceProfile})` : ''}
+                                {' · '}
+                                {importedWorkspaceShare.projectCount} projects
+                                {' · schema '}
+                                {importedWorkspaceShare.schemaVersion}
+                            </p>
+                            <p style={{ margin: '0 0 4px 0', fontSize: '12px' }}>
+                                Runtimes: {importedWorkspaceShare.runtimes.length > 0 ? importedWorkspaceShare.runtimes.join(', ') : 'unknown'}
+                            </p>
+                            <p style={{ margin: 0, fontSize: '12px' }}>
+                                Health totals: {importedWorkspaceShare.healthTotals.passed} passed, {importedWorkspaceShare.healthTotals.warnings} warnings, {importedWorkspaceShare.healthTotals.errors} errors
+                            </p>
+                        </section>
+                    ) : null}
+                    {!isSetupCardHidden ? (
+                        <SetupCard
+                            onClick={() => vscode.postMessage('openSetup')}
+                            onHide={() => updateSetupCardHidden(true)}
+                        />
+                    ) : (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                            <button
+                                type="button"
+                                onClick={() => updateSetupCardHidden(false)}
+                                title="Show Setup Status"
+                                aria-label="Show Setup Status"
+                                style={{
+                                    border: '1px solid var(--vscode-panel-border)',
+                                    background: 'var(--vscode-editor-inactiveSelectionBackground)',
+                                    color: 'var(--vscode-foreground)',
+                                    borderRadius: '8px',
+                                    padding: '6px 10px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                <Eye size={14} />
+                                Show Setup Status
+                            </button>
+                        </div>
+                    )}
 
-            <RecentWorkspaces
-                workspaces={recentWorkspaces}
-                isRefreshing={isRefreshingWorkspaces}
-                onRefresh={() => { setIsRefreshingWorkspaces(true); vscode.postMessage('refreshWorkspaces'); }}
-                onSelect={(workspace) => vscode.postMessage('openWorkspaceFolder', { path: workspace.path })}
-                onRemove={(workspace) => vscode.postMessage('removeWorkspace', { path: workspace.path })}
-                onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
-                onCheckHealth={(workspace) => vscode.postMessage('checkWorkspaceHealth', { path: workspace.path })}
-                onExport={(workspace) => vscode.postMessage('exportWorkspace', { path: workspace.path })}
-                onAI={(workspace) => vscode.postMessage('aiForWorkspace', { workspacePath: workspace.path, workspaceName: workspace.name })}
-            />
+                    <div className="mb-8">
+                        <HeroAction
+                            onClick={handleOpenAICreateWorkspace}
+                            isLoading={isCreatingWorkspace}
+                        />
+                        <QuickLinks onOpenProjectModal={handleOpenProjectModal} />
+                    </div>
 
-            <ExampleWorkspaces
-                examples={exampleWorkspaces}
-                onClone={(example) => vscode.postMessage('cloneExample', example)}
-                onUpdate={(example) => vscode.postMessage('updateExample', example)}
-                cloningExample={cloningExample}
-                updatingExample={updatingExample}
-            />
+                    <AIActions
+                        onRunFixPreview={() => runIncidentAction('aiFixPreviewLite')}
+                        onRunChangeImpact={() => runIncidentAction('aiChangeImpactLite')}
+                        onRunTerminalBridge={() => runIncidentAction('aiTerminalBridge')}
+                    />
 
-            <ModuleBrowser
-                modules={modulesCatalog}
-                workspaceStatus={workspaceStatus}
-                categoryInfo={categoryInfo}
-                onRefresh={() => vscode.postMessage('refreshModules')}
-                onInstall={handleOpenInstallModal}
-                onShowDetails={(moduleId) => vscode.postMessage('showModuleDetails', moduleId)}
-                onAI={(module) => vscode.postMessage('aiForModule', { moduleId: module.id, moduleName: module.display_name || module.name, moduleSlug: module.slug })}
-                onProjectTerminal={() => vscode.postMessage('projectTerminal')}
-                onProjectInit={() => vscode.postMessage('projectInit')}
-                onProjectDev={() => vscode.postMessage('projectDev')}
-                onProjectStop={() => vscode.postMessage('projectStop')}
-                onProjectTest={() => vscode.postMessage('projectTest')}
-                onProjectBrowser={() => vscode.postMessage('projectBrowser')}
-                onProjectBuild={() => vscode.postMessage('projectBuild')}
-                modulesDisabled={workspaceStatus.projectType === 'go'}
-            />
+                    <RecentWorkspaces
+                        workspaces={recentWorkspaces}
+                        isRefreshing={isRefreshingWorkspaces}
+                        onRefresh={() => { setIsRefreshingWorkspaces(true); vscode.postMessage('refreshWorkspaces'); }}
+                        onSelect={(workspace) => vscode.postMessage('openWorkspaceFolder', { path: workspace.path })}
+                        onRemove={(workspace) => vscode.postMessage('removeWorkspace', { path: workspace.path })}
+                        onUpgrade={(workspace) => vscode.postMessage('upgradeCore', { path: workspace.path, version: workspace.coreLatestVersion })}
+                        onCheckHealth={(workspace) => vscode.postMessage('checkWorkspaceHealth', { path: workspace.path })}
+                        onExport={(workspace) => vscode.postMessage('exportWorkspace', { path: workspace.path })}
+                        onAI={(workspace) => vscode.postMessage('aiForWorkspace', { workspacePath: workspace.path, workspaceName: workspace.name })}
+                        onAnalyze={handleAnalyzeWorkspace}
+                    />
 
-            <Features />
+                    <ExampleWorkspaces
+                        examples={exampleWorkspaces}
+                        onClone={(example) => vscode.postMessage('cloneExample', example)}
+                        onUpdate={(example) => vscode.postMessage('updateExample', example)}
+                        cloningExample={cloningExample}
+                        updatingExample={updatingExample}
+                    />
+
+                    <ModuleBrowser
+                        modules={modulesCatalog}
+                        workspaceStatus={workspaceStatus}
+                        categoryInfo={categoryInfo}
+                        onRefresh={() => vscode.postMessage('refreshModules')}
+                        onInstall={handleOpenInstallModal}
+                        onShowDetails={(moduleId) => vscode.postMessage('showModuleDetails', moduleId)}
+                        onAI={(module) => vscode.postMessage('aiForModule', { moduleId: module.id, moduleName: module.display_name || module.name, moduleSlug: module.slug })}
+                        onProjectTerminal={() => vscode.postMessage('projectTerminal')}
+                        onProjectInit={() => vscode.postMessage('projectInit')}
+                        onProjectDev={() => vscode.postMessage('projectDev')}
+                        onProjectStop={() => vscode.postMessage('projectStop')}
+                        onProjectTest={() => vscode.postMessage('projectTest')}
+                        onProjectBrowser={() => vscode.postMessage('projectBrowser')}
+                        onProjectBuild={() => vscode.postMessage('projectBuild')}
+                        modulesDisabled={
+                            workspaceStatus.projectType === 'go' || workspaceStatus.projectType === 'springboot'
+                        }
+                    />
+
+                    <Features />
+                </>
+            ) : (
+                <>
+                    <div className="incident-tab-intro">
+                        <h2>WorkspAi Incident Studio</h2>
+                        <p>AI-first incident command center for diagnose, fix strategy, verification, and learning.</p>
+                        <div className="incident-mode-switch" role="group" aria-label="Incident Studio mode">
+                            <div className="incident-mode-group" role="group" aria-label="Diagnosis mode">
+                                <span className="incident-mode-group-label">Mode</span>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip ${incidentUserMode === 'guided' ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentUserMode('guided')}
+                                >
+                                    Guided
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip ${incidentUserMode === 'standard' ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentUserMode('standard')}
+                                >
+                                    Standard
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip ${incidentUserMode === 'expert' ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentUserMode('expert')}
+                                >
+                                    Expert
+                                </button>
+                            </div>
+                            <div className="incident-mode-group" role="group" aria-label="Automation controls">
+                                <span className="incident-mode-group-label">Automation</span>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip incident-mode-toggle ${incidentAutoLearningPrompt ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentAutoLearningPrompt(!incidentAutoLearningPrompt)}
+                                >
+                                    Auto Learn {incidentAutoLearningPrompt ? 'On' : 'Off'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip incident-mode-refresh ${isIncidentRefreshing ? 'is-loading' : ''}`}
+                                    onClick={refreshIncidentStudio}
+                                    disabled={isIncidentRefreshing}
+                                >
+                                    {isIncidentRefreshing ? 'Refreshing...' : 'Refresh'}
+                                </button>
+                            </div>
+                            <div className="incident-mode-group" role="group" aria-label="Model controls">
+                                <span className="incident-mode-group-label">Model</span>
+                                <select
+                                    className="incident-model-select"
+                                    value={incidentSelectedModelId ?? ''}
+                                    onChange={(event) => setIncidentSelectedModelId(event.target.value || null)}
+                                >
+                                    <option value="">Auto</option>
+                                    {aiAvailableModels.map((model) => (
+                                        <option key={model.id} value={model.id}>
+                                            {model.name} ({model.vendor})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <p className="incident-mode-help">
+                            Auto Learn: after <strong>verify_passed</strong>, Studio auto-injects a learning action board
+                            plus memory-capture prompts for reusable fixes.
+                        </p>
+                        <p className="incident-refresh-meta">
+                            Last refreshed: {incidentRefreshLabel || 'not yet'}
+                        </p>
+                    </div>
+                    <AIIncidentStudio
+                        workspaceName={activeWorkspaceName}
+                        modelId={aiModelId}
+                        isAnalyzing={aiIsStreaming || chatBrainIsStreaming}
+                        lastError={chatBrainError || aiStreamError}
+                        conversationTurns={chatBrainHistory.length}
+                        telemetry={incidentTelemetry}
+                        chatBrainStreamText={chatBrainStreamText}
+                        chatBrainHistory={chatBrainHistory}
+                        chatBrainSuggestedQuestions={chatBrainSuggestedQuestions}
+                        chatBrainBoard={chatBrainBoard}
+                        chatBrainActionProgress={chatBrainActionProgress}
+                        chatBrainActionResult={chatBrainActionResult}
+                        chatBrainError={chatBrainError}
+                        incidentResume={incidentResume}
+                        onChatBrainQuery={handleChatBrainQuery}
+                        onChatBrainExecuteAction={handleChatBrainExecuteAction}
+                        onRunTerminalBridge={() => runIncidentAction('aiTerminalBridge')}
+                        onRunFixPreview={() => runIncidentAction('aiFixPreviewLite')}
+                        onRunChangeImpact={() => runIncidentAction('aiChangeImpactLite')}
+                        onRunMemoryWizard={() => runIncidentAction('aiWorkspaceMemoryWizard')}
+                        onRunDoctorChecks={() => runIncidentAction('runDoctorChecks', {
+                            workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
+                            workspaceName: activeWorkspaceName,
+                        })}
+                        onRunInlineCommand={runIncidentInlineCommand}
+                        executingCommand={chatBrainExecutingCommand}
+                        primaryCtaMode={incidentPrimaryCtaMode}
+                        userMode={incidentUserMode}
+                        hasProjectSelected={Boolean(workspaceStatus.hasProjectSelected)}
+                    />
+                </>
+            )}
 
             <CreateWorkspaceModal
                 isOpen={showCreateModal}
@@ -523,6 +1308,7 @@ export function App() {
                     setAICreateTargetWorkspacePath(workspaceStatus.workspacePath ?? undefined);
                     setShowAICreateModal(true);
                 }}
+                toolStatus={workspaceToolStatus}
             />
             <AICreateModal
                 isOpen={showAICreateModal}
@@ -598,13 +1384,20 @@ export function App() {
                 onCancel={handleAICancelQuery}
                 onQuery={handleAIQuery}
             />
-            <CommandReference
-                workspaceProfile={activeWorkspaceProfile}
-                hasActiveWorkspace={hasActiveWorkspace}
-                workspaceName={activeWorkspaceName}
-            />
+            {activeView === 'dashboard' ? (
+                <CommandReference
+                    workspaceProfile={activeWorkspaceProfile}
+                    hasActiveWorkspace={hasActiveWorkspace}
+                    workspaceName={activeWorkspaceName}
+                />
+            ) : null}
 
-            <KeyboardShortcuts />
+            {activeView === 'dashboard' ? (
+                <KeyboardShortcuts />
+            ) : null}
+
+
+
 
             <Footer />
         </div>
