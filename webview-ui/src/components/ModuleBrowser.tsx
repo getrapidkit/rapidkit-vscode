@@ -217,8 +217,16 @@ export function ModuleBrowser({
             {!hasProjectSelected ? null : modulesDisabled ? (
                 <div className="empty-state" style={{ opacity: 0.7 }}>
                     <div className="workspace-empty-icon">🐹</div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Modules not available for Go projects</div>
-                    <div style={{ fontSize: '12px', opacity: 0.75 }}>Workspai modules support FastAPI and NestJS only.<br />Go kits manage dependencies via <code>go mod</code>.</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Modules not available for {workspaceStatus.projectType === 'springboot' ? 'Spring Boot' : 'Go'} projects
+                    </div>
+                    <div style={{ fontSize: '12px', opacity: 0.75 }}>
+                        Workspai modules support FastAPI and NestJS only.
+                        <br />
+                        {workspaceStatus.projectType === 'springboot'
+                            ? <>Spring Boot kits manage dependencies via <code>Maven/Gradle</code>.</>
+                            : <>Go kits manage dependencies via <code>go mod</code>.</>}
+                    </div>
                 </div>
             ) : filteredModules.length === 0 && modules.length > 0 ? (
                 <div className="empty-state">

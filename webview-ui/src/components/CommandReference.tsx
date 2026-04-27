@@ -14,7 +14,7 @@ interface CommandCategory {
     commands: Command[];
 }
 
-type WorkspaceProfile = 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+type WorkspaceProfile = 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'java-only' | 'polyglot' | 'enterprise';
 
 interface CommandReferenceProps {
     workspaceProfile?: WorkspaceProfile;
@@ -57,6 +57,12 @@ function buildWorkspaceCommands(profile: WorkspaceProfile): Command[] {
                 description: 'Validate Go runtime and pre-warm module dependencies'
             }
         ],
+        'java-only': [
+            {
+                code: 'npx rapidkit setup java --warm-deps',
+                description: 'Validate Java runtime and pre-warm build dependencies'
+            }
+        ],
         'node-only': [
             {
                 code: 'npx rapidkit setup node --warm-deps',
@@ -81,6 +87,10 @@ function buildWorkspaceCommands(profile: WorkspaceProfile): Command[] {
             {
                 code: 'npx rapidkit setup go --warm-deps',
                 description: 'Validate Go runtime and pre-warm module dependencies'
+            },
+            {
+                code: 'npx rapidkit setup java --warm-deps',
+                description: 'Validate Java runtime and pre-warm Maven/Gradle dependencies'
             }
         ],
         'enterprise': [
@@ -95,6 +105,10 @@ function buildWorkspaceCommands(profile: WorkspaceProfile): Command[] {
             {
                 code: 'npx rapidkit setup go --warm-deps',
                 description: 'Validate Go runtime and pre-warm module dependencies'
+            },
+            {
+                code: 'npx rapidkit setup java --warm-deps',
+                description: 'Validate Java runtime and pre-warm Maven/Gradle dependencies'
             },
             {
                 code: 'npx rapidkit mirror verify',
@@ -156,7 +170,7 @@ export function CommandReference({
             id: 'project',
             title: 'Project Commands',
             icon: Rocket,
-            count: 5,
+            count: 7,
             commands: [
                 {
                     code: 'npx rapidkit create project fastapi.standard my-api --output .',
@@ -171,8 +185,16 @@ export function CommandReference({
                     description: 'Create NestJS project in current workspace'
                 },
                 {
-                    code: 'npx rapidkit create project fastapi.standard my-api --output ~/projects',
-                    description: 'Create standalone FastAPI project at custom location'
+                    code: 'npx rapidkit create project gofiber.standard my-go-service --output .',
+                    description: 'Create Go/Fiber project in current workspace'
+                },
+                {
+                    code: 'npx rapidkit create project springboot.standard my-spring-service --output .',
+                    description: 'Create Spring Boot project in current workspace'
+                },
+                {
+                    code: 'npx rapidkit create project springboot.standard billing-api --output ~/projects',
+                    description: 'Create standalone Spring Boot project at custom location'
                 },
                 {
                     code: 'npx rapidkit init && npx rapidkit dev',

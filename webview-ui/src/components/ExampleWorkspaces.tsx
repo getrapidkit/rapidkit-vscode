@@ -5,7 +5,7 @@ import { vscode } from '@/vscode';
 
 export interface ExampleProject {
     name: string;
-    type: 'fastapi' | 'nestjs';
+    type: 'fastapi' | 'nestjs' | 'go' | 'springboot';
     description: string;
 }
 
@@ -17,8 +17,11 @@ interface ExampleWorkspacesProps {
     updatingExample?: string | null;
 }
 
-const getProjectTypeEmoji = (type: 'fastapi' | 'nestjs'): string => {
-    return type === 'fastapi' ? '⚡' : '🐱';
+const getProjectTypeEmoji = (type: 'fastapi' | 'nestjs' | 'go' | 'springboot'): string => {
+    if (type === 'fastapi') return '⚡';
+    if (type === 'nestjs') return '🐱';
+    if (type === 'go') return '🔵';
+    return '☕';
 };
 
 const getStatusBadge = (status?: 'not-cloned' | 'cloned' | 'update-available') => {

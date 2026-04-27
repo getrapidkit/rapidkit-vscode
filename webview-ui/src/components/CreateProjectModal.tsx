@@ -2,17 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Code, AlertCircle, Package, Sparkles, Loader2 } from 'lucide-react';
 import { vscode } from '@/vscode';
 import type { Kit } from '@/types';
+import type { WorkspaceToolStatus } from '@/types';
 
 interface CreateProjectModalProps {
     isOpen: boolean;
-    framework: 'fastapi' | 'nestjs' | 'go';
+    framework: 'fastapi' | 'nestjs' | 'go' | 'springboot';
     availableKits: Kit[];
     onClose: () => void;
-    onCreate: (name: string, framework: 'fastapi' | 'nestjs' | 'go', kitName: string) => void;
+    onCreate: (name: string, framework: 'fastapi' | 'nestjs' | 'go' | 'springboot', kitName: string) => void;
     onSwitchToAI?: () => void;
+    toolStatus?: WorkspaceToolStatus | null;
 }
 
-export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate, onSwitchToAI }: CreateProjectModalProps) {
+export function CreateProjectModal({ isOpen, framework, availableKits, onClose, onCreate, onSwitchToAI, toolStatus }: CreateProjectModalProps) {
     const [projectName, setProjectName] = useState('');
     const [selectedKit, setSelectedKit] = useState('');
     const [error, setError] = useState('');
@@ -95,6 +97,13 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
             subtitle: 'Go + High Performance',
             color: '#00ADD8',
             description: 'High-performance Go web service using Fiber or Gin'
+        },
+        springboot: {
+            iconUrl: (window as any).SPRINGBOOT_ICON_URI,
+            title: 'Spring Boot Project',
+            subtitle: 'Java + Enterprise',
+            color: '#6DB33F',
+            description: 'Production-ready Java service with Spring Boot and Maven/Gradle'
         }
     };
 
@@ -257,7 +266,7 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                     <div style={{ padding: '24px' }}>
                         {/* Framework Description */}
                         <div style={{
-                            marginBottom: '20px',
+                            marginBottom: framework === 'springboot' && toolStatus && !toolStatus.javaAvailable ? '12px' : '20px',
                             padding: '12px 16px',
                             backgroundColor: 'var(--vscode-textCodeBlock-background)',
                             borderLeft: `3px solid ${info.color}`,
@@ -267,6 +276,40 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                         }}>
                             {info.description}
                         </div>
+
+                        {/* Spring Boot Java readiness gate */}
+                        {framework === 'springboot' && toolStatus && !toolStatus.javaAvailable && (
+                            <div style={{
+                                marginBottom: '20px',
+                                padding: '10px 14px',
+                                backgroundColor: 'color-mix(in srgb, #f59e0b 12%, var(--vscode-editor-background))',
+                                border: '1px solid color-mix(in srgb, #f59e0b 35%, transparent)',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '8px',
+                            }}>
+                                <AlertCircle size={14} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }} />
+                                <div>
+                                    <span style={{ color: '#f59e0b', fontWeight: 700 }}>Java (JDK) not detected. </span>
+                                    <span style={{ color: 'var(--vscode-descriptionForeground)' }}>
+                                        Spring Boot projects require JDK 17+.{' '}
+                                    </span>
+                                    <button
+                                        onClick={() => vscode.postMessage('openSetup')}
+                                        style={{
+                                            background: 'none', border: 'none', padding: 0,
+                                            color: '#6C5CE7', fontWeight: 600, fontSize: '12px',
+                                            cursor: 'pointer', textDecoration: 'underline',
+                                        }}
+                                    >
+                                        Open Setup Panel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
 
                         {/* Project Name Input */}
                         <div style={{ marginBottom: '20px' }}>
@@ -291,7 +334,15 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                                     validateName(e.target.value);
                                 }}
                                 onKeyDown={handleKeyPress}
-                                placeholder={framework === 'fastapi' ? 'my-fastapi-api' : framework === 'nestjs' ? 'my-nestjs-app' : 'my-go-service'}
+                                placeholder={
+                                    framework === 'fastapi'
+                                        ? 'my-fastapi-api'
+                                        : framework === 'nestjs'
+                                            ? 'my-nestjs-app'
+                                            : framework === 'go'
+                                                ? 'my-go-service'
+                                                : 'my-spring-service'
+                                }
                                 autoFocus
                                 style={{
                                     width: '100%',
@@ -416,7 +467,16 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                             </div>
                             <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
                                 <li>Use lowercase letters, numbers, hyphens, or underscores</li>
-                                <li>Examples: {framework === 'fastapi' ? 'my-api, backend-service, api_v2' : framework === 'nestjs' ? 'my-app, admin-panel, service_core' : 'my-service, go-api, fiber_app'}</li>
+                                <li>
+                                    Examples:{' '}
+                                    {framework === 'fastapi'
+                                        ? 'my-api, backend-service, api_v2'
+                                        : framework === 'nestjs'
+                                            ? 'my-app, admin-panel, service_core'
+                                            : framework === 'go'
+                                                ? 'my-service, go-api, fiber_app'
+                                                : 'orders-service, billing-api, spring-core'}
+                                </li>
                                 <li>Project will be created in the current workspace</li>
                             </ul>
                         </div>

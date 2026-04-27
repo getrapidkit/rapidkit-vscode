@@ -8,10 +8,11 @@ export type AICreateProfile =
     | 'python-only'
     | 'node-only'
     | 'go-only'
+    | 'java-only'
     | 'polyglot'
     | 'enterprise';
 
-export type AICreateFramework = 'fastapi' | 'nestjs' | 'go';
+export type AICreateFramework = 'fastapi' | 'nestjs' | 'go' | 'springboot';
 
 export interface AICreationPlan {
     type: 'workspace' | 'project';
@@ -278,6 +279,45 @@ const PROJECT_PRESET_CATEGORIES: Record<AICreateFramework, PresetCategory[]> = {
             ],
         },
     ],
+    springboot: [
+        {
+            id: 'spring-core',
+            label: 'Spring core',
+            options: [
+                {
+                    id: 'sp-rest-crud',
+                    text: 'Spring Boot REST API with PostgreSQL + validation',
+                    tags: ['spring', 'springboot', 'java', 'crud', 'postgres'],
+                },
+                {
+                    id: 'sp-ddd-layered',
+                    text: 'Layered Spring service with clear controller-service boundaries',
+                    tags: ['spring', 'java', 'layered', 'service', 'architecture'],
+                },
+                {
+                    id: 'sp-security-jwt',
+                    text: 'JWT-secured Spring API with role-based access',
+                    tags: ['spring', 'jwt', 'security', 'rbac', 'auth'],
+                },
+            ],
+        },
+        {
+            id: 'spring-platform',
+            label: 'Platform and operations',
+            options: [
+                {
+                    id: 'sp-observability',
+                    text: 'Spring service with actuator health, metrics, and OpenAPI docs',
+                    tags: ['spring', 'actuator', 'metrics', 'openapi', 'observability'],
+                },
+                {
+                    id: 'sp-worker',
+                    text: 'Background-processing Spring service with scheduled jobs',
+                    tags: ['spring', 'jobs', 'scheduler', 'worker'],
+                },
+            ],
+        },
+    ],
 };
 
 function tokenizeContextHint(raw: string): string[] {
@@ -329,19 +369,31 @@ function rankPresetCategories(
         .sort((a, b) => b.maxScore - a.maxScore);
 }
 
-const PROFILE_META: Record<AICreateProfile, { icon: string; label: string; color: string }> = {
+const PROFILE_META: Record<AICreateProfile, { icon: string; iconUri?: string; label: string; color: string }> = {
     minimal: { icon: '⚡', label: 'Minimal', color: '#6b7280' },
     'python-only': { icon: '🐍', label: 'Python', color: '#3b82f6' },
     'node-only': { icon: '🟩', label: 'Node.js', color: '#22c55e' },
     'go-only': { icon: '🔵', label: 'Go', color: '#06b6d4' },
+    'java-only': {
+        icon: '☕',
+        iconUri: (typeof window !== 'undefined' ? (window as any).SPRINGBOOT_ICON_URI : undefined),
+        label: 'Java',
+        color: '#6db33f',
+    },
     polyglot: { icon: '⊞', label: 'Polyglot', color: '#a855f7' },
     enterprise: { icon: '🛡️', label: 'Enterprise', color: '#f59e0b' },
 };
 
-const FRAMEWORK_META: Record<AICreateFramework, { icon: string; label: string; color: string }> = {
+const FRAMEWORK_META: Record<AICreateFramework, { icon: string; iconUri?: string; label: string; color: string }> = {
     fastapi: { icon: '⚡', label: 'FastAPI', color: '#009688' },
     nestjs: { icon: '🔴', label: 'NestJS', color: '#E0234E' },
     go: { icon: '🔵', label: 'Go', color: '#00ADD8' },
+    springboot: {
+        icon: '☕',
+        iconUri: (typeof window !== 'undefined' ? (window as any).SPRINGBOOT_ICON_URI : undefined),
+        label: 'Spring Boot',
+        color: '#6db33f',
+    },
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -551,7 +603,17 @@ export function AICreateModal({
                             <div className="ai-create-header-sub">
                                 {fwMeta ? (
                                     <>
-                                        <span style={{ color: fwMeta.color }}>{fwMeta.icon}</span>
+                                        <span style={{ color: fwMeta.color, display: 'inline-flex', alignItems: 'center' }}>
+                                            {fwMeta.iconUri ? (
+                                                <img
+                                                    src={fwMeta.iconUri}
+                                                    alt={fwMeta.label}
+                                                    style={{ width: 14, height: 14, objectFit: 'contain' }}
+                                                />
+                                            ) : (
+                                                fwMeta.icon
+                                            )}
+                                        </span>
                                         &nbsp;{fwMeta.label} &bull; {copy.describe}
                                     </>
                                 ) : (
@@ -713,13 +775,31 @@ export function AICreateModal({
                                 className="ai-create-badge"
                                 style={{ '--badge-color': PROFILE_META[plan.profile]?.color ?? '#6b7280' } as React.CSSProperties}
                             >
-                                {PROFILE_META[plan.profile]?.icon} {PROFILE_META[plan.profile]?.label ?? plan.profile}
+                                {PROFILE_META[plan.profile]?.iconUri ? (
+                                    <img
+                                        src={PROFILE_META[plan.profile]?.iconUri}
+                                        alt={PROFILE_META[plan.profile]?.label ?? plan.profile}
+                                        style={{ width: 13, height: 13, objectFit: 'contain', verticalAlign: 'text-bottom', marginRight: 4 }}
+                                    />
+                                ) : (
+                                    `${PROFILE_META[plan.profile]?.icon ?? ''} `
+                                )}
+                                {PROFILE_META[plan.profile]?.label ?? plan.profile}
                             </span>
                             <span
                                 className="ai-create-badge"
                                 style={{ '--badge-color': FRAMEWORK_META[plan.framework]?.color ?? '#6b7280' } as React.CSSProperties}
                             >
-                                {FRAMEWORK_META[plan.framework]?.icon} {FRAMEWORK_META[plan.framework]?.label ?? plan.framework}
+                                {FRAMEWORK_META[plan.framework]?.iconUri ? (
+                                    <img
+                                        src={FRAMEWORK_META[plan.framework]?.iconUri}
+                                        alt={FRAMEWORK_META[plan.framework]?.label ?? plan.framework}
+                                        style={{ width: 13, height: 13, objectFit: 'contain', verticalAlign: 'text-bottom', marginRight: 4 }}
+                                    />
+                                ) : (
+                                    `${FRAMEWORK_META[plan.framework]?.icon ?? ''} `
+                                )}
+                                {FRAMEWORK_META[plan.framework]?.label ?? plan.framework}
                             </span>
                             <span className="ai-create-badge ai-create-badge--kit">
                                 {plan.kit}
@@ -755,10 +835,14 @@ export function AICreateModal({
                         </div>
 
                         {/* Suggested modules */}
-                        {plan.framework === 'go' ? (
+                        {plan.framework === 'go' || plan.framework === 'springboot' ? (
                             <div className="ai-create-go-no-modules">
                                 <span>ℹ️</span>
-                                <span>Go projects don't use the RapidKit module system. Extend functionality with native Go packages and internal adapters after creation.</span>
+                                <span>
+                                    {plan.framework === 'go'
+                                        ? 'Go projects do not use the RapidKit module system. Extend functionality with native Go packages and internal adapters after creation.'
+                                        : 'Spring Boot projects do not use the RapidKit module system. Extend functionality with native Spring starters/libraries and internal adapters after creation.'}
+                                </span>
                             </div>
                         ) : plan.suggestedModules.length > 0 && (
                             <div className="ai-create-modules">

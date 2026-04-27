@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { MessageSquarePlus } from 'lucide-react';
 
 interface QuickLinksProps {
-    onOpenProjectModal: (framework: 'fastapi' | 'nestjs' | 'go', kitName?: string) => void;
+    onOpenProjectModal: (framework: 'fastapi' | 'nestjs' | 'go' | 'springboot', kitName?: string) => void;
 }
 
-const POLL_OPTIONS = ['Django', 'Express', 'Spring'] as const;
+const POLL_OPTIONS = ['Django', 'Express'] as const;
 
 export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
     const [voted, setVoted] = useState<string | null>(null);
 
     const links: Array<{
-        framework: 'fastapi' | 'nestjs' | 'go';
+        framework: 'fastapi' | 'nestjs' | 'go' | 'springboot';
         className: string;
         title: string;
         subtitle: string;
@@ -41,6 +41,14 @@ export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
                 subtitle: 'Go + High Perf',
                 icon: (window as any).GO_ICON_URI,
                 alt: 'Go'
+            },
+            {
+                framework: 'springboot',
+                className: 'springboot',
+                title: 'Spring Boot',
+                subtitle: 'Java + Spring',
+                icon: (window as any).SPRINGBOOT_ICON_URI,
+                alt: 'Spring Boot'
             }
         ];
 
@@ -50,7 +58,7 @@ export function QuickLinks({ onOpenProjectModal }: QuickLinksProps) {
                 <span className="quick-links-label">Start a Project</span>
                 <span className="quick-links-hint">choose your framework</span>
             </div>
-            <div className="quick-links">
+            <div className="quick-links" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                 {links.map((link) => (
                     <button
                         key={link.framework}

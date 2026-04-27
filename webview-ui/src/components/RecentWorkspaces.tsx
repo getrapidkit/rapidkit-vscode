@@ -1,4 +1,4 @@
-import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle, Stethoscope, Upload, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, Folder, X, CheckCircle2, AlertCircle, XCircle, ArrowUpCircle, Stethoscope, Upload, Loader2, ChevronDown, ChevronUp, Sparkles, Activity } from 'lucide-react';
 import { useState } from 'react';
 import type { Workspace } from '@/types';
 
@@ -14,6 +14,7 @@ interface RecentWorkspacesProps {
     onCheckHealth?: (workspace: Workspace) => void;
     onExport?: (workspace: Workspace) => void;
     onAI?: (workspace: Workspace) => void;
+    onAnalyze?: (workspace: Workspace) => void;
 }
 
 const getStatusIcon = (status?: string) => {
@@ -50,7 +51,7 @@ const formatDate = (timestamp?: number): string => {
     return date.toLocaleDateString();
 };
 
-export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport, onAI }: RecentWorkspacesProps) {
+export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, onSelect, onRemove, onUpgrade, onCheckHealth, onExport, onAI, onAnalyze }: RecentWorkspacesProps) {
     const [showAll, setShowAll] = useState(false);
     /** path of workspace currently performing an action (health/export/upgrade) */
     const [busyPath, setBusyPath] = useState<string | null>(null);
@@ -109,7 +110,9 @@ export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, 
                                     aria-busy={isBusy}
                                 >
                                     <div className="ws-row-top">
-                                        <span className="ws-name">{workspace.name}</span>
+                                        <div className="ws-name-row">
+                                            <span className="ws-name">{workspace.name}</span>
+                                        </div>
 
                                         {/* Busy spinner — replaces action buttons while an action is running */}
                                         {isBusy && (
@@ -174,59 +177,77 @@ export function RecentWorkspaces({ workspaces, isRefreshing = false, onRefresh, 
                                         {/* Status icon - always visible */}
                                         {!shouldShowUpgrade && !isBusy && getStatusIcon(workspace.coreStatus)}
 
-                                        {/* Action buttons - only on hover, hidden while busy */}
-                                        {!isBusy && onAI && (
-                                            <button
-                                                className="ws-ai-btn ws-hover-show"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onAI(workspace);
-                                                }}
-                                                title="Ask AI about this workspace"
-                                                aria-label={`AI actions for ${workspace.name}`}
-                                            >
-                                                ✦
-                                            </button>
+                                        {/* Always-visible inline actions on the right */}
+                                        {!isBusy && (
+                                            <span className="ws-inline-actions">
+                                                {onAnalyze && (
+                                                    <button
+                                                        className="ws-inline-action ws-inline-action--analyze"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onAnalyze(workspace);
+                                                        }}
+                                                        title="Analyze workspace in Incident Studio"
+                                                        aria-label={`Analyze ${workspace.name} in Incident Studio`}
+                                                    >
+                                                        <Activity size={12} />
+                                                    </button>
+                                                )}
+                                                {onAI && (
+                                                    <button
+                                                        className="ws-inline-action ws-inline-action--ai"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onAI(workspace);
+                                                        }}
+                                                        title="Ask AI about this workspace"
+                                                        aria-label={`AI actions for ${workspace.name}`}
+                                                    >
+                                                        <Sparkles size={12} />
+                                                    </button>
+                                                )}
+                                                {onCheckHealth && (
+                                                    <button
+                                                        className="ws-inline-action ws-inline-action--doctor"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            withBusy(workspace.path, () => onCheckHealth(workspace));
+                                                        }}
+                                                        title="Check Workspace Health (Doctor)"
+                                                        aria-label={`Check health of ${workspace.name}`}
+                                                    >
+                                                        <Stethoscope size={12} />
+                                                    </button>
+                                                )}
+                                                {onExport && (
+                                                    <button
+                                                        className="ws-inline-action ws-inline-action--export"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            withBusy(workspace.path, () => onExport(workspace));
+                                                        }}
+                                                        title="Export Workspace"
+                                                        aria-label={`Export workspace ${workspace.name}`}
+                                                    >
+                                                        <Upload size={12} />
+                                                    </button>
+                                                )}
+                                                {shouldShowUpgrade && (
+                                                    <button
+                                                        className="ws-inline-action ws-inline-action--upgrade"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            withBusy(workspace.path, () => onUpgrade!(workspace));
+                                                        }}
+                                                        title={`Upgrade to v${workspace.coreLatestVersion}`}
+                                                        aria-label={`Upgrade ${workspace.name} to v${workspace.coreLatestVersion}`}
+                                                    >
+                                                        <ArrowUpCircle size={12} />
+                                                    </button>
+                                                )}
+                                            </span>
                                         )}
-                                        {!isBusy && onCheckHealth && (
-                                            <button
-                                                className="ws-doctor-btn ws-hover-show"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    withBusy(workspace.path, () => onCheckHealth(workspace));
-                                                }}
-                                                title="Check Workspace Health (Doctor)"
-                                                aria-label={`Check health of ${workspace.name}`}
-                                            >
-                                                <Stethoscope size={14} />
-                                            </button>
-                                        )}
-                                        {!isBusy && onExport && (
-                                            <button
-                                                className="ws-export-btn ws-hover-show"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    withBusy(workspace.path, () => onExport(workspace));
-                                                }}
-                                                title="Export Workspace"
-                                                aria-label={`Export workspace ${workspace.name}`}
-                                            >
-                                                <Upload size={14} />
-                                            </button>
-                                        )}
-                                        {!isBusy && shouldShowUpgrade && (
-                                            <button
-                                                className="ws-upgrade-btn ws-hover-show"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    withBusy(workspace.path, () => onUpgrade!(workspace));
-                                                }}
-                                                title={`Upgrade to v${workspace.coreLatestVersion}`}
-                                                aria-label={`Upgrade ${workspace.name} to v${workspace.coreLatestVersion}`}
-                                            >
-                                                <ArrowUpCircle size={14} />
-                                            </button>
-                                        )}
+
                                         <button
                                             className="ws-close ws-hover-show"
                                             onClick={(e) => {

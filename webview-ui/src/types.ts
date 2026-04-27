@@ -110,6 +110,7 @@ export interface Workspace {
     | 'python-only'
     | 'node-only'
     | 'go-only'
+    | 'java-only'
     | 'polyglot'
     | 'enterprise';
   /** Phase 4: dependency sharing mode from .rapidkit/policies.yml */
@@ -123,6 +124,8 @@ export interface Workspace {
   projectStats?: {
     fastapi?: number;
     nestjs?: number;
+    springboot?: number;
+    go?: number;
   };
 }
 
@@ -137,6 +140,9 @@ export interface WorkspaceToolStatus {
   venvAvailable: boolean;
   poetryAvailable: boolean;
   pipxAvailable: boolean;
+  javaAvailable?: boolean;
+  mavenAvailable?: boolean;
+  gradleAvailable?: boolean;
   preferredInstallMethod: 'poetry' | 'venv' | 'pipx';
 }
 
@@ -145,7 +151,9 @@ export interface WorkspaceStatus {
   hasProjectSelected?: boolean;
   workspaceName?: string;
   workspacePath?: string;
-  projectType?: 'fastapi' | 'nestjs' | 'go';
+  projectName?: string;
+  projectPath?: string;
+  projectType?: 'fastapi' | 'nestjs' | 'go' | 'springboot';
   installedModules?: { slug: string; version: string; display_name: string }[];
   isRunning?: boolean;
   runningPort?: number;
@@ -154,7 +162,7 @@ export interface WorkspaceStatus {
 
 export interface ExampleProject {
   name: string;
-  type: 'fastapi' | 'nestjs';
+  type: 'fastapi' | 'nestjs' | 'go' | 'springboot';
   description: string;
 }
 
@@ -176,7 +184,7 @@ export interface ExampleWorkspace {
 export interface Kit {
   name: string;
   display_name: string;
-  category: 'fastapi' | 'nestjs' | string;
+  category: 'fastapi' | 'nestjs' | 'go' | 'springboot' | string;
   version: string;
   tags?: string[];
   modules?: string[];

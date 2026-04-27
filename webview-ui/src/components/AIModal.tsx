@@ -40,6 +40,7 @@ const FRAMEWORK_LABELS: Record<string, string> = {
     fastapi: 'FastAPI',
     nestjs: 'NestJS',
     go: 'Go',
+    springboot: 'Spring Boot',
 };
 
 function getQuickPrompts(ctx: AIModalContext, mode: Mode): string[] {
@@ -73,6 +74,11 @@ function getQuickPrompts(ctx: AIModalContext, mode: Mode): string[] {
             'How do I add a new HTTP handler in internal/handlers following this project\'s conventions?',
             'How should I add a new service function with dependency injection here?',
             'How do I add a new Workspai module to this Go project?',
+        ];
+        if (fw === 'springboot') return [
+            'How do I add a new Spring REST controller following this project\'s package structure?',
+            'How should I add a service class and constructor-based dependency injection here?',
+            'How do I expose a new endpoint in OpenAPI/Swagger for this Spring project?',
         ];
         return [
             'How do I add a feature to this project following its conventions?',

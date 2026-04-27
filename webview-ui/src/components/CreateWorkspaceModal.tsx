@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import { X, FolderPlus, AlertCircle, Sparkles } from 'lucide-react';
 import type { WorkspaceToolStatus } from '@/types';
+import { vscode } from '@/vscode';
 
-export type WorkspaceProfile = 'minimal' | 'python-only' | 'node-only' | 'go-only' | 'polyglot' | 'enterprise';
+export type WorkspaceProfile =
+    | 'minimal'
+    | 'python-only'
+    | 'node-only'
+    | 'go-only'
+    | 'java-only'
+    | 'polyglot'
+    | 'enterprise';
 export type WorkspaceInstallMethod = 'auto' | 'poetry' | 'venv' | 'pipx';
 
 export interface WorkspaceCreationConfig {
@@ -22,12 +30,13 @@ interface CreateWorkspaceModalProps {
     toolStatus?: WorkspaceToolStatus | null;
 }
 
-const PROFILES: { value: WorkspaceProfile; icon: string; label: string; desc: string }[] = [
+const PROFILES: { value: WorkspaceProfile; icon: string; iconUri?: string; label: string; desc: string }[] = [
     { value: 'minimal', icon: '⚡', label: 'Minimal', desc: 'Files only' },
     { value: 'python-only', icon: '🐍', label: 'Python', desc: 'Poetry/venv' },
     { value: 'node-only', icon: '🟩', label: 'Node.js', desc: 'npm/NestJS' },
     { value: 'go-only', icon: '🔵', label: 'Go', desc: 'Go runtime' },
-    { value: 'polyglot', icon: '⊞', label: 'Polyglot', desc: 'Py+Node+Go' },
+    { value: 'java-only', icon: '☕', iconUri: (typeof window !== 'undefined' ? (window as any).SPRINGBOOT_ICON_URI : undefined), label: 'Java', desc: 'Spring Boot' },
+    { value: 'polyglot', icon: '⊞', label: 'Polyglot', desc: 'Py+Node+Go+Java' },
     { value: 'enterprise', icon: '🛡️', label: 'Enterprise', desc: '+Governance' },
 ];
 
@@ -276,13 +285,43 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, 
                                             boxShadow: profile === p.value ? `0 0 0 1px ${primary}` : 'none',
                                         }}
                                     >
-                                        <div style={{ fontSize: '18px', marginBottom: '3px' }}>{p.icon}</div>
+                                        <div style={{ fontSize: '18px', marginBottom: '3px', display: 'flex', justifyContent: 'center', alignItems: 'center', height: 22 }}>
+                                            {p.iconUri ? <img src={p.iconUri} alt={p.label} style={{ width: 18, height: 18, objectFit: 'contain' }} /> : p.icon}
+                                        </div>
                                         <div style={{ fontSize: '11px', fontWeight: 600, color: profile === p.value ? primary : 'var(--vscode-foreground)' }}>{p.label}</div>
                                         <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginTop: '2px' }}>{p.desc}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
+
+                        {/* Java readiness warning for java-heavy profiles */}
+                        {(profile === 'java-only' || profile === 'polyglot' || profile === 'enterprise') && toolStatus && !toolStatus.javaAvailable && (
+                            <div style={{
+                                padding: '8px 12px',
+                                backgroundColor: 'color-mix(in srgb, #f59e0b 10%, var(--vscode-editor-background))',
+                                border: '1px solid color-mix(in srgb, #f59e0b 30%, transparent)',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                color: '#f59e0b',
+                            }}>
+                                <AlertCircle size={12} style={{ flexShrink: 0 }} />
+                                <span>Java (JDK) not detected — this profile requires JDK 17+.</span>
+                                <button
+                                    onClick={() => vscode.postMessage('openSetup')}
+                                    style={{
+                                        background: 'none', border: 'none', padding: '0 0 0 4px',
+                                        color: '#6C5CE7', cursor: 'pointer', textDecoration: 'underline',
+                                        fontSize: '11px', fontWeight: 600, flexShrink: 0,
+                                    }}
+                                >
+                                    Open Setup
+                                </button>
+                            </div>
+                        )}
 
                         {/* Install Method */}
                         <div>
@@ -332,6 +371,11 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, 
                             {toolStatus && (
                                 <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
                                     Active: <strong>{toolStatus.preferredInstallMethod}</strong>
+                                    <div style={{ marginTop: '4px', opacity: 0.9 }}>
+                                        Java: {toolStatus.javaAvailable ? '✓' : '✗'} · Maven:{' '}
+                                        {toolStatus.mavenAvailable ? '✓' : '✗'} · Gradle:{' '}
+                                        {toolStatus.gradleAvailable ? '✓' : '✗'}
+                                    </div>
                                 </div>
                             )}
                         </div>

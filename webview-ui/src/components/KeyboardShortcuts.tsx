@@ -6,7 +6,6 @@ export function KeyboardShortcuts() {
         { keys: ['Ctrl+Shift+R', 'P'], description: 'New Project' },
         { keys: ['Ctrl+Shift+R', 'M'], description: 'Add Module' },
         { keys: ['Ctrl+Shift+R', 'D'], description: 'AI Debugger' },
-        { keys: ['Ctrl+Shift+R', 'B'], description: 'Workspace Brain' },
     ];
 
     return (
