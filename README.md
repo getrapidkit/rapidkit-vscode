@@ -458,6 +458,21 @@ rapidkit workspace list
 - Run `rapidkit workspace sync` from terminal
 - Check `~/.rapidkit/workspaces.json` registry
 
+### Release gate override (emergency only)
+
+Wave 1 release gate supports a controlled emergency override path. Use this only for exceptional cases.
+
+```bash
+npm run release:stop-gate -- \
+    --marker <path-to-.rapidkit-workspace> \
+    --allow-override \
+    --override-owner <name-or-team> \
+    --override-ticket <incident-or-jira-id> \
+    --override-reason "short but concrete rationale"
+```
+
+Override events are logged to `.rapidkit/reports/release-gate-overrides.jsonl` (or `WORKSPAI_GATE_OVERRIDE_LOG`).
+
 ---
 
 ## 🔗 Links

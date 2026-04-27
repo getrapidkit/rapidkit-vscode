@@ -1331,6 +1331,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:vscode": "vscode-test",
+    "release:stop-gate": "node scripts/release-stop-gate.mjs",
     "sync:modules": "node scripts/sync-modules.mjs",
     "package": "vsce package",
     "publish": "vsce publish",

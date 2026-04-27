@@ -179,6 +179,21 @@ describe('contract drift guard', () => {
     expect(setupPanelSource).toContain("'python -m pipx ensurepath'");
   });
 
+  it('keeps release stop automation wired to gate script and CI workflow', () => {
+    const packageJsonSource = read('package.json');
+    const workflowSource = read('.github/workflows/extension-smoke-matrix.yml');
+    const gateScriptSource = read('scripts/release-stop-gate.mjs');
+
+    expect(packageJsonSource).toContain(
+      '"release:stop-gate": "node scripts/release-stop-gate.mjs"'
+    );
+    expect(workflowSource).toContain('Release stop gate (contract/parity)');
+    expect(workflowSource).toContain('npm run release:stop-gate -- --skip-kpi');
+    expect(gateScriptSource).toContain('src/test/driftGuard.test.ts');
+    expect(gateScriptSource).toContain('src/test/incidentStudioPayload.test.ts');
+    expect(gateScriptSource).toContain('src/test/workspaceUsageTracker.test.ts');
+  });
+
   it('keeps terminal execution centralized in approved files', () => {
     const sourceFiles = collectProjectFiles(path.join(repoRoot, 'src')).filter(
       (relPath) => relPath.endsWith('.ts') && !relPath.startsWith('test/')
