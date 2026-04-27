@@ -8,7 +8,7 @@ import { doctorCommand } from './doctor';
 import { checkSystemCommand } from './checkSystem';
 import { showWelcomeCommand } from './showWelcome';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
-import { SetupPanel } from '../ui/panels/setupPanel';
+import { SetupPanel } from '../ui/panels/setupExperiencePanel';
 
 type WorkspaceLike = { path: string };
 
@@ -133,6 +133,29 @@ export function registerCoreCommands(options: {
       }
     ),
 
+    vscode.commands.registerCommand(
+      'workspai.createSpringBootProject',
+      async (projectName?: string) => {
+        try {
+          logger.info('Executing createSpringBootProject command', { projectName });
+          const workspaceExplorer = getWorkspaceExplorer();
+          if (!workspaceExplorer) {
+            vscode.window.showErrorMessage('Extension not fully initialized');
+            return;
+          }
+
+          const selectedWorkspace = workspaceExplorer.getSelectedWorkspace();
+          await createProjectCommand(selectedWorkspace?.path, 'springboot', projectName);
+          getProjectExplorer()?.refresh();
+        } catch (error) {
+          logger.error('Failed to create Spring Boot project', error);
+          vscode.window.showErrorMessage(
+            `Failed to create Spring Boot project: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+    ),
+
     vscode.commands.registerCommand('workspai.openDocs', async () => {
       await vscode.env.openExternal(vscode.Uri.parse('https://getrapidkit.com/docs'));
     }),
@@ -163,7 +186,7 @@ export function registerCoreCommands(options: {
 
     vscode.commands.registerCommand(
       'workspai.openProjectModal',
-      (framework: 'fastapi' | 'nestjs' | 'go') => {
+      (framework: 'fastapi' | 'nestjs' | 'go' | 'springboot') => {
         WelcomePanel.openProjectModal(context, framework);
       }
     ),

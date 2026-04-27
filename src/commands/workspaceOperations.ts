@@ -52,8 +52,13 @@ export function registerWorkspaceOperationsCommands(options: {
             value: 'go-only',
           },
           {
+            label: '$(symbol-class) java-only',
+            description: 'Java + Spring Boot runtime bootstrap',
+            value: 'java-only',
+          },
+          {
             label: '$(layers) polyglot',
-            description: 'Python + Node + Go — multi-runtime workspace',
+            description: 'Python + Node + Go + Java — multi-runtime workspace',
             value: 'polyglot',
           },
           {
@@ -118,6 +123,11 @@ export function registerWorkspaceOperationsCommands(options: {
             label: '$(go) go',
             description: 'Check Go runtime prerequisites',
             value: 'go',
+          },
+          {
+            label: '$(symbol-class) java',
+            description: 'Check Java / Maven / Gradle prerequisites',
+            value: 'java',
           },
         ],
         {

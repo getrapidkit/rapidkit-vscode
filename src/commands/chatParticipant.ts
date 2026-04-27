@@ -18,6 +18,7 @@ import {
   type AIConversationMode,
   type AIConversationHistoryEntry,
 } from '../core/aiService';
+import { resolvePreferredAIModalContext } from '../core/aiContextResolver';
 import { collectDebugPrefillQuestion } from './aiDebugger';
 import { WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
 
@@ -31,27 +32,15 @@ const EMPTY_PROMPT_MSG = {
   ask: 'Ask me anything about your Workspai project — architecture, modules, configuration, best practices.',
   debug:
     'No question or error provided. Open a file with a diagnostic error, select failing code, or describe the issue.',
+  recipe:
+    'Which recipe would you like to run? Try: /recipe ship-readiness, /recipe auth-hardening, /recipe test-gaps, or leave blank to pick from the full list.',
+  memory:
+    'Describe what you want to record in workspace memory (conventions, decisions, or project overview), or leave blank to open the memory wizard.',
 };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Context resolution
 // ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Build an AIModalContext from the currently active editor and workspace folders.
- * Prefers the workspace folder that owns the active document.
- */
-function resolveContext(): AIModalContext {
-  const editor = vscode.window.activeTextEditor;
-  if (editor) {
-    const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-    if (folder) {
-      return { type: 'project', name: folder.name, path: folder.uri.fsPath };
-    }
-  }
-  const first = vscode.workspace.workspaceFolders?.[0];
-  return { type: 'workspace', name: first?.name ?? 'Workspace', path: first?.uri.fsPath };
-}
 
 /**
  * Collect a prefill question for /debug mode.
@@ -111,10 +100,40 @@ async function handleWorkspaiRequest(
   const rawCommand = request.command?.toLowerCase();
   const mode: AIConversationMode = rawCommand === 'debug' ? 'debug' : 'ask';
 
+  // Handle /recipe — delegate to the recipe packs command and confirm in chat
+  if (rawCommand === 'recipe') {
+    const recipeId = request.prompt.trim() || undefined;
+    stream.progress('Opening recipe picker…');
+    await vscode.commands.executeCommand('workspai.aiRecipePacks', recipeId);
+    stream.markdown(
+      recipeId
+        ? `Recipe **${recipeId}** opened in the AI modal.`
+        : 'Recipe picker opened. Select a recipe from the panel.'
+    );
+    stream.button({ command: 'workspai.aiRecipePacks', title: '$(zap) Browse All Recipes' });
+    return {};
+  }
+
+  // Handle /memory — delegate to the memory wizard and confirm in chat
+  if (rawCommand === 'memory') {
+    const memoryNote = request.prompt.trim();
+    if (memoryNote) {
+      stream.progress('Opening AI modal with memory context…');
+      await vscode.commands.executeCommand('workspai.aiWorkspaceMemoryWizard');
+      stream.markdown(`Memory wizard opened. Your note: _"${memoryNote}"_ — add it in the wizard.`);
+    } else {
+      stream.progress('Opening memory wizard…');
+      await vscode.commands.executeCommand('workspai.aiWorkspaceMemoryWizard');
+      stream.markdown('Workspace memory wizard opened in the panel.');
+    }
+    stream.button({ command: 'workspai.aiWorkspaceMemoryWizard', title: '$(brain) Edit Memory' });
+    return {};
+  }
+
   // Build question
   const question: string = mode === 'debug' ? collectDebugContext(request.prompt) : request.prompt;
 
-  const ctx: AIModalContext = resolveContext();
+  const ctx: AIModalContext = await resolvePreferredAIModalContext();
   const history = extractHistory(chatContext);
   const canTrackTelemetry =
     typeof (vscode.window as { createOutputChannel?: unknown }).createOutputChannel === 'function';
@@ -147,7 +166,7 @@ async function handleWorkspaiRequest(
   // Guard: empty question
   if (!question.trim()) {
     await trackChatOutcome('empty');
-    stream.markdown(EMPTY_PROMPT_MSG[mode]);
+    stream.markdown(EMPTY_PROMPT_MSG[mode] ?? EMPTY_PROMPT_MSG.ask);
     return {};
   }
 
@@ -241,6 +260,16 @@ export function registerWorkspaiChatParticipant(context: vscode.ExtensionContext
   const participant = vscode.chat.createChatParticipant(PARTICIPANT_ID, handleWorkspaiRequest);
 
   participant.iconPath = new vscode.ThemeIcon('sparkle');
+
+  // Register slash commands so VS Code autocompletes them in the chat panel
+  if ('commands' in participant) {
+    (participant as unknown as { commands: { name: string; description: string }[] }).commands = [
+      { name: 'ask', description: 'Ask anything about your Workspai project' },
+      { name: 'debug', description: 'Debug: root cause + fix + prevention for an error' },
+      { name: 'recipe', description: 'Run an AI recipe pack (ship-readiness, auth-hardening, …)' },
+      { name: 'memory', description: 'Open the workspace memory wizard' },
+    ];
+  }
 
   participant.followupProvider = {
     provideFollowups(

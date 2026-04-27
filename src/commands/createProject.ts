@@ -12,7 +12,7 @@ import { runCommandsInTerminal } from '../utils/terminalExecutor';
 
 export async function createProjectCommand(
   selectedWorkspacePath?: string,
-  preselectedFramework?: 'fastapi' | 'nestjs' | 'go',
+  preselectedFramework?: 'fastapi' | 'nestjs' | 'go' | 'springboot',
   projectName?: string,
   kitName?: string
 ) {

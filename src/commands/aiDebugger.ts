@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import type { AIModalContext } from '../core/aiService';
+import { resolvePreferredAIModalContext } from '../core/aiContextResolver';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
 
 // ──────────────────────────────────────────────
@@ -72,34 +73,14 @@ export function collectExplainPrefillQuestion(
   return getActiveDiagnostics(editor, diagnostics);
 }
 
-function resolveAIModalContext(editor = vscode.window.activeTextEditor): AIModalContext {
-  if (editor) {
-    const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-    if (folder) {
-      return {
-        type: 'project',
-        name: folder.name,
-        path: folder.uri.fsPath,
-      };
-    }
-  }
-
-  const firstWorkspace = vscode.workspace.workspaceFolders?.[0];
-  return {
-    type: 'workspace',
-    name: firstWorkspace?.name ?? 'Workspace',
-    path: firstWorkspace?.uri.fsPath,
-  };
-}
-
 // ──────────────────────────────────────────────
 // Command registration
 // ──────────────────────────────────────────────
 
 export function registerAIDebuggerCommand(context: vscode.ExtensionContext): vscode.Disposable {
-  const debugCommand = vscode.commands.registerCommand('workspai.debugWithAI', () => {
+  const debugCommand = vscode.commands.registerCommand('workspai.debugWithAI', async () => {
     const prefillQuestion = collectDebugPrefillQuestion();
-    const baseContext = resolveAIModalContext();
+    const baseContext: AIModalContext = await resolvePreferredAIModalContext();
     WelcomePanel.showAIModal(context, {
       ...baseContext,
       prefillQuestion,
@@ -109,9 +90,9 @@ export function registerAIDebuggerCommand(context: vscode.ExtensionContext): vsc
 
   const explainCommand = vscode.commands.registerCommand(
     'workspai.explainErrorWithAI',
-    (issueSummary?: string) => {
+    async (issueSummary?: string) => {
       const prefillQuestion = collectExplainPrefillQuestion(issueSummary);
-      const baseContext = resolveAIModalContext();
+      const baseContext: AIModalContext = await resolvePreferredAIModalContext();
       WelcomePanel.showAIModal(context, {
         ...baseContext,
         prefillQuestion,

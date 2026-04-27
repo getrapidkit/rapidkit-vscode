@@ -6,6 +6,52 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 
+type OpenPick = vscode.QuickPickItem & { value: 'select' | 'new' };
+
+/**
+ * Prompt how to open a workspace path, matching the dashboard QuickPick flow.
+ */
+export async function openWorkspace(workspacePath: string): Promise<void> {
+  const wsBaseName = workspacePath
+    ? workspacePath.split(/[/\\]/).pop() || workspacePath
+    : 'workspace';
+  const openPick = await vscode.window.showQuickPick<OpenPick>(
+    [
+      {
+        label: '$(folder-active) Select in Current Window',
+        description: 'Activate workspace here (updates sidebar + Projects tree)',
+        detail: 'Selects the workspace in the sidebar. Projects and modules update immediately.',
+        value: 'select',
+      },
+      {
+        label: '$(empty-window) Open in New Window',
+        description: 'Open workspace folder in a separate VS Code window',
+        detail: 'Current window stays unchanged.',
+        value: 'new',
+      },
+    ],
+    {
+      placeHolder: `What would you like to do with “${wsBaseName}”?`,
+      title: 'Open Workspace',
+      ignoreFocusOut: true,
+    }
+  );
+
+  if (!openPick) {
+    return;
+  }
+
+  if (openPick.value === 'select') {
+    await vscode.commands.executeCommand('workspai.selectWorkspace', workspacePath);
+    return;
+  }
+
+  const uri = vscode.Uri.file(workspacePath);
+  await vscode.commands.executeCommand('vscode.openFolder', uri, {
+    forceNewWindow: true,
+  });
+}
+
 /**
  * Open workspace folder in system file explorer
  */

@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { AIModalContext } from '../core/aiService';
+import { resolvePreferredAIModalContext } from '../core/aiContextResolver';
 import { WorkspaceMemoryService, type WorkspaceMemory } from '../core/workspaceMemoryService';
 import { WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
@@ -273,6 +274,35 @@ function normalizeInputText(value: unknown): string | undefined {
   return clampText(trimmed, MAX_PREFILL_CHARS);
 }
 
+function parseFeatureInvocation(value: unknown): {
+  seedText?: string;
+  telemetryProps?: Record<string, string>;
+} {
+  if (typeof value === 'string') {
+    return { seedText: value };
+  }
+
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const payload = value as Record<string, unknown>;
+  const telemetryProps: Record<string, string> = {};
+
+  if (typeof payload.source === 'string' && payload.source.trim()) {
+    telemetryProps.source = payload.source.trim();
+  }
+  if (typeof payload.trigger === 'string' && payload.trigger.trim()) {
+    telemetryProps.trigger = payload.trigger.trim();
+  }
+
+  const seedText = typeof payload.seed === 'string' ? payload.seed : undefined;
+  return {
+    seedText,
+    telemetryProps: Object.keys(telemetryProps).length > 0 ? telemetryProps : undefined,
+  };
+}
+
 function looksLikeTerminalOutput(value: string): boolean {
   const text = value.toLowerCase();
   const signals = [
@@ -299,47 +329,7 @@ function hasActiveEditorErrors(editor = vscode.window.activeTextEditor): boolean
 }
 
 async function resolvePreferredAIContext(): Promise<AIModalContext> {
-  const selectedProject = await executeOptionalCommand<ProjectSelection>(
-    'workspai.getSelectedProject'
-  );
-  if (selectedProject?.path) {
-    return {
-      type: 'project',
-      name: selectedProject.name ?? path.basename(selectedProject.path),
-      path: selectedProject.path,
-      framework: selectedProject.type,
-    };
-  }
-
-  const selectedWorkspace = await executeOptionalCommand<WorkspaceSelection>(
-    'workspai.getSelectedWorkspace'
-  );
-  if (selectedWorkspace?.path) {
-    return {
-      type: 'workspace',
-      name: selectedWorkspace.name ?? path.basename(selectedWorkspace.path),
-      path: selectedWorkspace.path,
-    };
-  }
-
-  const editor = vscode.window.activeTextEditor;
-  if (editor) {
-    const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-    if (folder) {
-      return {
-        type: 'project',
-        name: folder.name,
-        path: folder.uri.fsPath,
-      };
-    }
-  }
-
-  const fallbackFolder = vscode.workspace.workspaceFolders?.[0];
-  return {
-    type: 'workspace',
-    name: fallbackFolder?.name ?? 'Workspace',
-    path: fallbackFolder?.uri.fsPath,
-  };
+  return resolvePreferredAIModalContext();
 }
 
 async function resolveWorkspaceForMemory(): Promise<{ name: string; path: string } | null> {
@@ -493,6 +483,18 @@ export function registerAIFreeFeatureCommands(
         hasSelection: Boolean(selectionSnippet),
       });
 
+      // Show a brief status bar message so user knows why a specific feature activated
+      const routeLabels: Record<string, string> = {
+        'active-editor-errors': '$(error) Routing to Fix Preview — errors detected',
+        'selection-without-errors': '$(diff) Routing to Change Impact — selection detected',
+        'terminal-signal-in-clipboard':
+          '$(terminal) Routing to Terminal Bridge — terminal output in clipboard',
+        'memory-incomplete': '$(brain) Routing to Memory Wizard — workspace memory incomplete',
+        'fallback-quick-actions': '$(zap) Opening Quick Actions',
+      };
+      const label = routeLabels[routeReason] ?? '$(zap) Workspai AI';
+      vscode.window.setStatusBarMessage(label, 4000);
+
       await vscode.commands.executeCommand(targetCommand, ...commandArgs);
     }),
 
@@ -528,11 +530,15 @@ export function registerAIFreeFeatureCommands(
 
     vscode.commands.registerCommand('workspai.aiFixPreviewLite', async (seed?: unknown) => {
       const aiContext = await resolvePreferredAIContext();
+      const invocation = parseFeatureInvocation(seed);
       let issueContext =
-        normalizeInputText(seed) ?? normalizeInputText(getEditorSelectionOrCurrentLine());
+        normalizeInputText(invocation.seedText ?? seed) ??
+        normalizeInputText(getEditorSelectionOrCurrentLine());
       let fixInputSource: 'argument' | 'editor' | 'manual-prompt' = 'editor';
 
-      if (typeof seed === 'string' && seed.trim()) {
+      if (typeof invocation.seedText === 'string' && invocation.seedText.trim()) {
+        fixInputSource = 'argument';
+      } else if (typeof seed === 'string' && seed.trim()) {
         fixInputSource = 'argument';
       } else if (!issueContext) {
         fixInputSource = 'manual-prompt';
@@ -546,6 +552,7 @@ export function registerAIFreeFeatureCommands(
           await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
             result: 'cancelled',
             inputSource: 'manual-prompt',
+            ...invocation.telemetryProps,
           });
           return;
         }
@@ -559,6 +566,7 @@ export function registerAIFreeFeatureCommands(
         await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
           result: 'empty-input',
           inputSource: fixInputSource,
+          ...invocation.telemetryProps,
         });
         return;
       }
@@ -566,6 +574,7 @@ export function registerAIFreeFeatureCommands(
       await trackAIFreeCommandEvent('workspai.aiFixPreviewLite', aiContext, {
         result: 'opened',
         inputSource: fixInputSource,
+        ...invocation.telemetryProps,
       });
 
       const prefillQuestion = [
@@ -583,11 +592,15 @@ export function registerAIFreeFeatureCommands(
 
     vscode.commands.registerCommand('workspai.aiChangeImpactLite', async (seed?: unknown) => {
       const aiContext = await resolvePreferredAIContext();
+      const invocation = parseFeatureInvocation(seed);
       let changeContext =
-        normalizeInputText(seed) ?? normalizeInputText(getEditorSelectionOrCurrentLine());
+        normalizeInputText(invocation.seedText ?? seed) ??
+        normalizeInputText(getEditorSelectionOrCurrentLine());
       let impactInputSource: 'argument' | 'editor' | 'manual-prompt' = 'editor';
 
-      if (typeof seed === 'string' && seed.trim()) {
+      if (typeof invocation.seedText === 'string' && invocation.seedText.trim()) {
+        impactInputSource = 'argument';
+      } else if (typeof seed === 'string' && seed.trim()) {
         impactInputSource = 'argument';
       } else if (!changeContext) {
         impactInputSource = 'manual-prompt';
@@ -602,6 +615,7 @@ export function registerAIFreeFeatureCommands(
           await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
             result: 'cancelled',
             inputSource: 'manual-prompt',
+            ...invocation.telemetryProps,
           });
           return;
         }
@@ -615,6 +629,7 @@ export function registerAIFreeFeatureCommands(
         await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
           result: 'empty-input',
           inputSource: impactInputSource,
+          ...invocation.telemetryProps,
         });
         return;
       }
@@ -622,6 +637,7 @@ export function registerAIFreeFeatureCommands(
       await trackAIFreeCommandEvent('workspai.aiChangeImpactLite', aiContext, {
         result: 'opened',
         inputSource: impactInputSource,
+        ...invocation.telemetryProps,
       });
 
       const prefillQuestion = [
@@ -637,9 +653,12 @@ export function registerAIFreeFeatureCommands(
       });
     }),
 
-    vscode.commands.registerCommand('workspai.aiTerminalBridge', async () => {
+    vscode.commands.registerCommand('workspai.aiTerminalBridge', async (seed?: unknown) => {
       const aiContext = await resolvePreferredAIContext();
-      const selection = normalizeInputText(getEditorSelectionOrCurrentLine());
+      const invocation = parseFeatureInvocation(seed);
+      const selection =
+        normalizeInputText(invocation.seedText ?? seed) ??
+        normalizeInputText(getEditorSelectionOrCurrentLine());
 
       let terminalPayload = selection;
       let inputSource: 'selection' | 'clipboard' | 'manual' = 'selection';
@@ -663,6 +682,7 @@ export function registerAIFreeFeatureCommands(
           await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
             result: 'cancelled',
             inputSource,
+            ...invocation.telemetryProps,
           });
           return;
         }
@@ -675,6 +695,7 @@ export function registerAIFreeFeatureCommands(
         await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
           result: 'empty-input',
           inputSource,
+          ...invocation.telemetryProps,
         });
         return;
       }
@@ -682,6 +703,7 @@ export function registerAIFreeFeatureCommands(
       await trackAIFreeCommandEvent('workspai.aiTerminalBridge', aiContext, {
         result: 'opened',
         inputSource,
+        ...invocation.telemetryProps,
       });
 
       const prefillQuestion = [
@@ -695,6 +717,16 @@ export function registerAIFreeFeatureCommands(
         prefillMode: 'debug',
         prefillQuestion,
       });
+
+      // Follow-up action — drives terminal_bridge_to_followup_action_rate KPI
+      const followup = await vscode.window.showInformationMessage(
+        'Terminal output analyzed. Want a targeted patch preview for this error?',
+        'Preview Fix',
+        'Dismiss'
+      );
+      if (followup === 'Preview Fix') {
+        await vscode.commands.executeCommand('workspai.aiFixPreviewLite', terminalPayload);
+      }
     }),
 
     vscode.commands.registerCommand('workspai.aiWorkspaceMemoryWizard', async () => {

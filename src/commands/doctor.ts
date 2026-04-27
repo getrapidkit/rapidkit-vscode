@@ -346,6 +346,98 @@ async function runSystemChecks(
     });
   }
 
+  progress.report({ increment: 85, message: 'Checking Go...' });
+
+  // Check Go
+  try {
+    const goResult = await run('go', ['version'], { stdio: 'pipe', timeout: 5000 });
+    const goVersion = goResult.stdout.trim().replace(/^go version /, '');
+    result.checks.push({
+      name: 'Go',
+      status: 'pass',
+      message: goVersion,
+    });
+  } catch {
+    result.checks.push({
+      name: 'Go',
+      status: 'warning',
+      message: 'Not found (required for gofiber.standard / gogin.standard projects)',
+    });
+  }
+
+  progress.report({ increment: 90, message: 'Checking Java...' });
+
+  // Check Java — try JAVA_HOME first, then common candidates
+  const javaHome = process.env['JAVA_HOME'];
+  const javaExecutable = javaHome ? require('path').join(javaHome, 'bin', 'java') : 'java';
+  try {
+    const javaResult = await run(javaExecutable, ['-version'], { stdio: 'pipe', timeout: 6000 });
+    // java -version writes to stderr
+    const raw = (javaResult.stderr || javaResult.stdout || '').trim();
+    const javaVersion = raw.split('\n')[0] ?? raw;
+    result.checks.push({
+      name: 'Java (JDK)',
+      status: 'pass',
+      message: javaVersion,
+    });
+  } catch {
+    result.checks.push({
+      name: 'Java (JDK)',
+      status: 'warning',
+      message: 'Not found (required for springboot.standard projects — install JDK 17+)',
+    });
+  }
+
+  progress.report({ increment: 94, message: 'Checking Maven...' });
+
+  // Check Maven
+  try {
+    const mvnResult = await run('mvn', ['--version'], { stdio: 'pipe', timeout: 6000 });
+    const mvnRaw = (mvnResult.stdout || mvnResult.stderr || '').trim().split('\n')[0] ?? '';
+    const mvnVersion = mvnRaw.replace(/^Apache Maven /, '').trim();
+    if (mvnResult.exitCode !== 0 || !mvnVersion) {
+      throw new Error('mvn not found or returned empty version');
+    }
+    result.checks.push({
+      name: 'Maven',
+      status: 'pass',
+      message: mvnVersion,
+    });
+  } catch {
+    result.checks.push({
+      name: 'Maven',
+      status: 'warning',
+      message: 'Not found (optional — Spring Boot projects include Maven wrapper mvnw)',
+    });
+  }
+
+  progress.report({ increment: 97, message: 'Checking Gradle...' });
+
+  // Check Gradle
+  try {
+    const gradleResult = await run('gradle', ['--version'], {
+      stdio: 'pipe',
+      timeout: 8000,
+    });
+    const gradleOut = gradleResult.stdout || gradleResult.stderr || '';
+    const gradleLine = gradleOut.split('\n').find((l) => l.trim().startsWith('Gradle'));
+    const gradleVersion = gradleLine?.trim() ?? '';
+    if (gradleResult.exitCode !== 0 || !gradleVersion) {
+      throw new Error('gradle not found or returned empty version');
+    }
+    result.checks.push({
+      name: 'Gradle',
+      status: 'pass',
+      message: gradleVersion,
+    });
+  } catch {
+    result.checks.push({
+      name: 'Gradle',
+      status: 'warning',
+      message: 'Not found (optional — Spring Boot projects include Gradle wrapper gradlew)',
+    });
+  }
+
   progress.report({ increment: 100, message: 'Done!' });
 
   // Show results

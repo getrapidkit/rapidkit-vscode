@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { ModulesCatalogService } from '../core/modulesCatalogService';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
-import { openWorkspaceFolder, copyWorkspacePath } from './workspaceContextMenu';
+import { openWorkspace, openWorkspaceFolder, copyWorkspacePath } from './workspaceContextMenu';
 
 type WorkspaceLike = { path: string; name?: string };
 type ProjectLike = { path: string; name: string; type: string };
@@ -159,6 +159,13 @@ export function registerWorkspaceSelectionCommands(options: {
       const workspacePath = item?.workspace?.path || item;
       if (workspacePath && typeof workspacePath === 'string') {
         await openWorkspaceFolder(workspacePath);
+      }
+    }),
+
+    vscode.commands.registerCommand('workspai.openWorkspace', async (item: any) => {
+      const workspacePath = item?.workspace?.path || item?.path || item;
+      if (workspacePath && typeof workspacePath === 'string') {
+        await openWorkspace(workspacePath);
       }
     }),
 

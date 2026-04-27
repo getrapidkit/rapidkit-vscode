@@ -929,6 +929,12 @@ ${name}/
    
    # NestJS project
    npx rapidkit create project nestjs.standard my-app --output .
+
+  # Go Fiber project
+  npx rapidkit create project gofiber.standard my-go-api --output .
+
+  # Spring Boot project
+  npx rapidkit create project springboot.standard billing-api --output .
    \`\`\`
 
 4. **Or use VS Code Extension:**
@@ -957,6 +963,19 @@ npm install
 # Add your code
 \`\`\`
 
+**Spring Boot Project:**
+\`\`\`bash
+mkdir billing-api
+cd billing-api
+curl https://start.spring.io/starter.zip \\
+  -d dependencies=web,actuator \\
+  -d type=maven-project \\
+  -d language=java \\
+  -o starter.zip
+unzip starter.zip && rm starter.zip
+./mvnw spring-boot:run
+\`\`\`
+
 ### Option 3: Wait for Full Release
 
 When \`rapidkit-core\` is published to PyPI:
@@ -978,6 +997,9 @@ mv ${name}/* new-workspace/
 |----------|-------|-------------|
 | \`fastapi.standard\` | Python + FastAPI | High-performance Python API |
 | \`nestjs.standard\` | TypeScript + NestJS | Enterprise Node.js framework |
+| \`gofiber.standard\` | Go + Fiber | High-performance Go API |
+| \`gogin.standard\` | Go + Gin | Idiomatic Go REST API |
+| \`springboot.standard\` | Java + Spring Boot | Enterprise Java API service |
 
 ## 🛠️ Commands
 
@@ -989,7 +1011,10 @@ npx rapidkit create project <template> <name> --output .
 
 # Examples
 npx rapidkit create project fastapi.standard my-api --output .
+npx rapidkit create project fastapi.ddd my-api --output .
 npx rapidkit create project nestjs.standard my-app --output .
+npx rapidkit create project gofiber.standard my-go-api --output .
+npx rapidkit create project springboot.standard billing-api --output .
 \`\`\`
 
 ## 🆘 Need Help?

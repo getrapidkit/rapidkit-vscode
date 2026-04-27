@@ -9,6 +9,17 @@ import {
   runRapidkitCommandsInTerminal,
 } from '../utils/terminalExecutor';
 
+async function hasCommandAvailable(command: string): Promise<boolean> {
+  try {
+    const { execa } = await import('execa');
+    const args = command === 'java' ? ['-version'] : ['--version'];
+    const result = await execa(command, args, { timeout: 3000, reject: false });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 type ProjectExplorerLike = {
   refresh: () => void;
 };
@@ -35,6 +46,7 @@ export function registerProjectLifecycleCommands(options: {
     vscode.commands.registerCommand('workspai.projectInit', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectName = item?.project?.name || 'Project';
+      const projectType = item?.project?.type || 'fastapi';
 
       if (projectPath) {
         runRapidkitCommandsInTerminal({
@@ -42,6 +54,12 @@ export function registerProjectLifecycleCommands(options: {
           cwd: projectPath,
           commands: [['init']],
         });
+
+        if (projectType === 'springboot') {
+          vscode.window.showInformationMessage(
+            `Running rapidkit init for ${projectName}. This step can be quiet. It prepares the project, but Spring Boot still needs a Maven/Gradle wrapper or system Maven/Gradle before rapidkit dev can start.`
+          );
+        }
 
         logger.info(`Running init for project: ${projectPath}`);
       }
@@ -58,9 +76,12 @@ export function registerProjectLifecycleCommands(options: {
 
         const isFastAPI = projectType === 'fastapi';
         const isGoProject = projectType === 'go';
+        const isSpringBootProject = projectType === 'springboot';
 
         let isInitialized = false;
         let missingText = '';
+        let springHasWrapper = false;
+        let springHasSystemBuildTool = false;
 
         if (isFastAPI) {
           const venvInfo = await detectPythonVirtualenv(projectPath);
@@ -70,10 +91,87 @@ export function registerProjectLifecycleCommands(options: {
           const goSumPath = path.join(projectPath, 'go.sum');
           isInitialized = fs.existsSync(goSumPath);
           missingText = 'go.sum (run go mod tidy)';
-        } else {
+        } else if (isSpringBootProject) {
+          const hasMaven = fs.existsSync(path.join(projectPath, 'mvnw'));
+          const hasGradle =
+            fs.existsSync(path.join(projectPath, 'gradlew')) ||
+            fs.existsSync(path.join(projectPath, 'gradlew.bat'));
+          const hasSystemMaven = await hasCommandAvailable('mvn');
+          const hasSystemGradle = await hasCommandAvailable('gradle');
+
+          springHasWrapper = hasMaven || hasGradle;
+          springHasSystemBuildTool = hasSystemMaven || hasSystemGradle;
+          isInitialized = springHasWrapper || springHasSystemBuildTool;
+          missingText = 'Maven/Gradle wrapper or system Maven/Gradle';
+        } else if (!isSpringBootProject) {
           const checkPath = path.join(projectPath, 'node_modules');
           isInitialized = fs.existsSync(checkPath);
           missingText = 'node_modules';
+        }
+
+        if (isSpringBootProject && !springHasWrapper && !springHasSystemBuildTool) {
+          const choice = await vscode.window.showWarningMessage(
+            `Project "${projectName}" cannot start yet. No Maven/Gradle wrapper was found in the project, and no system Maven/Gradle was detected. rapidkit init may be quiet, but rapidkit dev will still fail until one of those build tools is available.`,
+            'Run Init Only',
+            'Open Setup Panel',
+            'Cancel'
+          );
+
+          if (choice === 'Run Init Only') {
+            runRapidkitCommandsInTerminal({
+              name: `📦 ${projectName} [init]`,
+              cwd: projectPath,
+              commands: [['init']],
+            });
+            vscode.window.showInformationMessage(
+              `rapidkit init started for ${projectName}. After it finishes, add Maven/Gradle or generate the wrapper, then run dev again.`
+            );
+          } else if (choice === 'Open Setup Panel') {
+            vscode.commands.executeCommand('workspai.openSetup');
+          }
+
+          return;
+        }
+
+        // Java pre-flight: check JDK availability before starting Spring Boot
+        if (isSpringBootProject) {
+          const os = await import('os');
+          const javaHome = process.env.JAVA_HOME?.trim();
+          const javaExe = process.platform === 'win32' ? 'java.exe' : 'java';
+          const javaCandidates = [
+            'java',
+            ...(javaHome ? [path.join(javaHome, 'bin', javaExe)] : []),
+            `/usr/lib/jvm/temurin-21/bin/${javaExe}`,
+            `/usr/lib/jvm/java-21-openjdk-amd64/bin/${javaExe}`,
+            `/usr/lib/jvm/java-17-openjdk-amd64/bin/${javaExe}`,
+            path.join(os.homedir(), '.sdkman', 'candidates', 'java', 'current', 'bin', javaExe),
+          ];
+
+          let javaFound = false;
+          for (const candidate of javaCandidates) {
+            try {
+              const { execa } = await import('execa');
+              const result = await execa(candidate, ['-version'], { timeout: 3000, reject: false });
+              if (result.exitCode === 0) {
+                javaFound = true;
+                break;
+              }
+            } catch {
+              // try next
+            }
+          }
+
+          if (!javaFound) {
+            const choice = await vscode.window.showErrorMessage(
+              `☕ Java (JDK) not found — required to start "${projectName}" (Spring Boot).`,
+              'Open Setup Panel',
+              'Cancel'
+            );
+            if (choice === 'Open Setup Panel') {
+              vscode.commands.executeCommand('workspai.openSetup');
+            }
+            return;
+          }
         }
 
         if (!isInitialized) {
@@ -129,7 +227,7 @@ export function registerProjectLifecycleCommands(options: {
         }
 
         const net = await import('net');
-        const defaultPort = isGoProject ? 3000 : 8000;
+        const defaultPort = isSpringBootProject ? 8080 : isGoProject ? 3000 : 8000;
         let port = defaultPort;
 
         const MAX_PORT_SCAN_ATTEMPTS = 50;
@@ -209,6 +307,27 @@ export function registerProjectLifecycleCommands(options: {
             });
             vscode.window.showInformationMessage(`▶️ Started Go server on port ${port}`);
           }
+        } else if (isSpringBootProject) {
+          if (port !== defaultPort) {
+            terminal = runRapidkitCommandsInTerminal({
+              name: `🚀 ${projectName} [:${port}]`,
+              cwd: projectPath,
+              env: {
+                PORT: String(port),
+              },
+              commands: [['dev']],
+            });
+            vscode.window.showInformationMessage(
+              `▶️ Started on port ${port} (${defaultPort} was busy)`
+            );
+          } else {
+            terminal = runRapidkitCommandsInTerminal({
+              name: `🚀 ${projectName} [:${port}]`,
+              cwd: projectPath,
+              commands: [['dev']],
+            });
+            vscode.window.showInformationMessage(`▶️ Started Spring Boot server on port ${port}`);
+          }
         } else {
           if (port !== defaultPort) {
             terminal = runCommandsInTerminal({
@@ -286,6 +405,7 @@ export function registerProjectLifecycleCommands(options: {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectType = item?.project?.type || 'fastapi';
       const isFastAPI = projectType === 'fastapi';
+      const isSpringBootProject = projectType === 'springboot';
 
       let port = 8000;
       const runningTerminal = projectPath ? runningServers.get(projectPath) : null;
@@ -296,7 +416,9 @@ export function registerProjectLifecycleCommands(options: {
         }
       }
 
-      const url = `http://localhost:${port}/docs`;
+      const url = isSpringBootProject
+        ? `http://localhost:${port}/swagger-ui/index.html`
+        : `http://localhost:${port}/docs`;
       vscode.env.openExternal(vscode.Uri.parse(url));
       logger.info(`Opening browser: ${url}`);
 
@@ -307,7 +429,19 @@ export function registerProjectLifecycleCommands(options: {
           }
         });
       } else {
-        vscode.window.showInformationMessage(`Opening ${url}`);
+        if (isSpringBootProject) {
+          vscode.window
+            .showInformationMessage(`Opening ${url}`, 'Open /actuator/health')
+            .then((selection) => {
+              if (selection === 'Open /actuator/health') {
+                vscode.env.openExternal(
+                  vscode.Uri.parse(`http://localhost:${port}/actuator/health`)
+                );
+              }
+            });
+        } else {
+          vscode.window.showInformationMessage(`Opening ${url}`);
+        }
       }
     }),
   ];
