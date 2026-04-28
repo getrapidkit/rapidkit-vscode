@@ -14,6 +14,11 @@ import { KitsService } from '../../core/kitsService';
 import { WorkspaceMemoryService } from '../../core/workspaceMemoryService';
 import { getGitDiffStat } from '../../core/aiProjectContextUtils';
 import { isWorkspacePathAncestor } from '../../core/aiContextResolver';
+import {
+  indexProjectSystemGraph,
+  queryProjectSystemGraphImpact,
+  scoreSystemGraphImpactDeterministic,
+} from '../../core/systemGraphIndexer';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
 import { run } from '../../utils/exec';
@@ -1187,6 +1192,35 @@ No markdown, no explanation outside the JSON.`;
           case 'aiChatExecuteAction':
             await this._handleAiChatExecuteAction(message.data, protocolRequestId);
             break;
+          case 'incidentPredictionAccepted': {
+            const conversationId =
+              typeof message.data?.conversationId === 'string'
+                ? message.data.conversationId
+                : undefined;
+            const conv = conversationId
+              ? this._chatBrainConversations.get(conversationId)
+              : undefined;
+            const explicitWorkspacePath =
+              typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
+                ? message.data.workspacePath.trim()
+                : undefined;
+
+            this._trackStudioEvent(
+              'workspai.studio.prediction_accepted',
+              explicitWorkspacePath || conv?.workspacePath,
+              {
+                conversationId,
+                warningId:
+                  typeof message.data?.warningId === 'string' ? message.data.warningId : undefined,
+                predictionKey:
+                  typeof message.data?.predictionKey === 'string'
+                    ? message.data.predictionKey
+                    : undefined,
+                framework: conv?.framework ?? 'unknown',
+              }
+            );
+            break;
+          }
           case 'aiChatFeedback':
             this._panel.webview.postMessage({
               command: 'aiChatDone',
@@ -2448,6 +2482,376 @@ No markdown, no explanation outside the JSON.`;
     };
   }
 
+  private _derivePredictionConfidenceBand(confidence: number): 'low' | 'medium' | 'high' {
+    if (confidence >= 75) {
+      return 'high';
+    }
+    if (confidence >= 50) {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  private async _buildIncidentWave2Contracts(input: {
+    requestId?: string;
+    conversationId?: string;
+    actionId: string;
+    actionType: string;
+    workspacePath?: string;
+    actionPolicy: ReturnType<typeof classifyIncidentActionPolicy>;
+    graphSnapshot: IncidentWorkspaceGraphSnapshot;
+    doctorEvidence?: {
+      healthScoreText: string;
+      generatedAt?: string;
+      passed?: number;
+      warnings?: number;
+      errors?: number;
+    };
+    verifyReady: boolean;
+    verifySuccess: boolean;
+  }): Promise<{
+    systemGraphSnapshot: {
+      requestId?: string;
+      workspacePath: string;
+      projectPath?: string;
+      graphVersion: string;
+      nodes: Array<{
+        id: string;
+        type: 'route' | 'controller' | 'service' | 'model' | 'datastore' | 'test';
+        label: string;
+        filePath?: string;
+        confidence: number;
+      }>;
+      edges: Array<{
+        sourceId: string;
+        targetId: string;
+        relation: string;
+      }>;
+      summary: {
+        nodeCount: number;
+        edgeCount: number;
+        supportedTopology: string;
+      };
+    };
+    impactAssessment: {
+      requestId?: string;
+      source: string[];
+      confidence: number;
+      riskLevel: 'low' | 'medium' | 'high' | 'critical';
+      affectedFiles: string[];
+      affectedModules: string[];
+      affectedTests: string[];
+      likelyFailureMode?: string;
+      rationale: string[];
+      verifyChecklist: string[];
+      blockMutationWhenScopeUnknown: boolean;
+    };
+    predictiveWarning?: {
+      requestId?: string;
+      warningId: string;
+      confidenceBand: 'low' | 'medium' | 'high';
+      predictedFailure?: string;
+      affectedScopeSummary?: string;
+      nextSafeAction?: string;
+      verifyChecklist: string[];
+      telemetrySeed: {
+        predictionKey: string;
+        evidenceSources: string[];
+      };
+    };
+    releaseGateEvidence: {
+      requestId?: string;
+      scopeKnown: boolean;
+      verifyPathPresent: boolean;
+      rollbackPathPresent: boolean;
+      confidenceSufficient: boolean;
+      blockedReasons: string[];
+    };
+  }> {
+    const workspacePath =
+      input.workspacePath ||
+      input.graphSnapshot.workspace.path ||
+      this._resolveTelemetryWorkspacePath() ||
+      '';
+    const selectedProjectPath = input.graphSnapshot.project.selectedProject?.path;
+    const indexedGraph = await indexProjectSystemGraph({
+      workspacePath,
+      projectPath: selectedProjectPath || undefined,
+      framework: input.graphSnapshot.project.framework,
+      kit: input.graphSnapshot.project.kit,
+    });
+
+    const moduleSeeds =
+      indexedGraph.topModules.length > 0
+        ? indexedGraph.topModules.slice(0, 4)
+        : input.graphSnapshot.topology.topModules.slice(0, 4);
+    const actionSeedTokens = input.actionType
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter((token) => token.length >= 3)
+      .slice(0, 3);
+    const impactQuery = queryProjectSystemGraphImpact(indexedGraph, {
+      seedFilePaths: selectedProjectPath ? [selectedProjectPath] : [],
+      seedModules: Array.from(new Set([...moduleSeeds, ...actionSeedTokens])),
+      maxDepth: 2,
+      maxNodes: 36,
+    });
+    const deterministicScore = scoreSystemGraphImpactDeterministic({
+      impactQuery,
+      graphSnapshot: indexedGraph,
+      doctorErrors: input.doctorEvidence?.errors ?? 0,
+      doctorWarnings: input.doctorEvidence?.warnings ?? 0,
+      requiresImpactReview: input.actionPolicy.requiresImpactReview,
+      requiresVerifyPath: input.actionPolicy.requiresVerifyPath,
+      riskClass: input.actionPolicy.riskClass,
+    });
+
+    const nodes: Array<{
+      id: string;
+      type: 'route' | 'controller' | 'service' | 'model' | 'datastore' | 'test';
+      label: string;
+      filePath?: string;
+      confidence: number;
+    }> =
+      indexedGraph.nodes.length > 0
+        ? indexedGraph.nodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            label: node.label,
+            filePath: node.filePath,
+            confidence: node.confidence,
+          }))
+        : moduleSeeds.map((moduleName) => ({
+            id: `service:${moduleName}`,
+            type: 'service',
+            label: `${moduleName} service`,
+            filePath: `src/${moduleName}`,
+            confidence: 70,
+          }));
+
+    const edges: Array<{
+      sourceId: string;
+      targetId: string;
+      relation: string;
+    }> =
+      indexedGraph.edges.length > 0
+        ? indexedGraph.edges.map((edge) => ({
+            sourceId: edge.sourceId,
+            targetId: edge.targetId,
+            relation: edge.relation,
+          }))
+        : [];
+
+    if (
+      selectedProjectPath &&
+      nodes.length > 0 &&
+      !nodes.some((node) => node.type === 'route' || node.type === 'controller')
+    ) {
+      nodes.unshift({
+        id: 'route:entry',
+        type: 'route',
+        label: 'project entry route',
+        filePath: selectedProjectPath,
+        confidence: 65,
+      });
+      edges.push({
+        sourceId: 'route:entry',
+        targetId: nodes[1].id,
+        relation: 'calls',
+      });
+    }
+
+    if (edges.length === 0) {
+      for (let index = 0; index < moduleSeeds.length - 1; index += 1) {
+        edges.push({
+          sourceId: `service:${moduleSeeds[index]}`,
+          targetId: `service:${moduleSeeds[index + 1]}`,
+          relation: 'depends-on',
+        });
+      }
+    }
+
+    const sources = ['graph'];
+    if (input.graphSnapshot.evidence.hasDoctorEvidence) {
+      sources.push('doctor');
+    }
+    if (input.graphSnapshot.evidence.hasGitDiff) {
+      sources.push('runtime');
+    }
+    if (selectedProjectPath) {
+      sources.push('selection');
+    }
+
+    const confidence = Math.max(0, Math.min(100, deterministicScore.confidence));
+
+    const affectedModules =
+      impactQuery.impactedModules.length > 0
+        ? impactQuery.impactedModules.slice(0, 3)
+        : moduleSeeds.slice(0, 3);
+    const affectedFilesFromGraph =
+      impactQuery.impactedNodes.length > 0
+        ? impactQuery.impactedNodes
+            .map((node) => node.filePath)
+            .filter(
+              (filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0
+            )
+            .slice(0, 8)
+        : nodes
+            .map((node) => node.filePath)
+            .filter(
+              (filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0
+            )
+            .slice(0, 8);
+    const affectedFiles = Array.from(
+      new Set([
+        ...(selectedProjectPath ? [selectedProjectPath] : []),
+        ...affectedFilesFromGraph,
+        ...affectedModules.map((moduleName) => `src/${moduleName}`),
+      ])
+    );
+    const affectedTests = Array.from(
+      new Set([
+        ...impactQuery.candidateTests.slice(0, 4),
+        ...nodes
+          .filter((node) => node.type === 'test' && typeof node.filePath === 'string')
+          .map((node) => node.filePath as string)
+          .slice(0, 4),
+        ...affectedModules.map((moduleName) => `tests/${moduleName}.spec.ts`),
+      ])
+    );
+
+    const likelyFailureMode =
+      deterministicScore.likelyFailureMode ||
+      ((input.doctorEvidence?.errors ?? 0) > 0
+        ? `${input.doctorEvidence?.errors} doctor error(s) indicate unresolved runtime risk.`
+        : input.actionPolicy.requiresImpactReview
+          ? 'Mutation may break downstream modules if applied without impact review.'
+          : undefined);
+
+    const verifyChecklist: string[] = [];
+    if (input.actionPolicy.requiresImpactReview) {
+      verifyChecklist.push('Run change-impact-lite and review affected modules before apply.');
+    }
+    if (input.actionPolicy.requiresVerifyPath) {
+      verifyChecklist.push('Run deterministic verify command and capture output evidence.');
+    }
+    if ((input.doctorEvidence?.errors ?? 0) > 0) {
+      verifyChecklist.push(
+        `Resolve ${input.doctorEvidence?.errors} doctor error(s) before completion claim.`
+      );
+    }
+    if (verifyChecklist.length === 0) {
+      verifyChecklist.push('No blocking verify checks detected for this action class.');
+    }
+    if (impactQuery.unknownScope && input.actionPolicy.requiresImpactReview) {
+      verifyChecklist.push(
+        'Scope is uncertain. Ask for clarification before mutation recommendation.'
+      );
+    }
+
+    const scopeKnown =
+      deterministicScore.scopeKnown &&
+      (affectedFiles.length > 0 || affectedModules.length > 0 || affectedTests.length > 0);
+    const verifyPathPresent = !input.actionPolicy.requiresVerifyPath || verifyChecklist.length > 0;
+    const rollbackPathPresent =
+      input.actionPolicy.riskClass === 'informational' ||
+      input.actionPolicy.riskClass === 'non-mutating-executable' ||
+      input.verifyReady;
+    const confidenceSufficient = confidence >= (input.actionPolicy.requiresImpactReview ? 60 : 50);
+
+    const blockedReasons: string[] = [];
+    if (input.actionPolicy.requiresImpactReview && !scopeKnown) {
+      blockedReasons.push('Affected scope is unknown while impact review is required.');
+    }
+    if (input.actionPolicy.requiresVerifyPath && !input.verifyReady) {
+      blockedReasons.push('Verification evidence is missing for a verify-first action.');
+    }
+    if (!rollbackPathPresent) {
+      blockedReasons.push('Rollback path is unavailable for this risk class.');
+    }
+    if (!confidenceSufficient) {
+      blockedReasons.push('Impact confidence is below release-safe threshold.');
+    }
+    if (!input.verifySuccess && (input.doctorEvidence?.errors ?? 0) > 0) {
+      blockedReasons.push(`${input.doctorEvidence?.errors} doctor error(s) remain unresolved.`);
+    }
+    blockedReasons.push(...deterministicScore.blockedReasons);
+
+    const predictiveWarningNeeded =
+      input.actionPolicy.requiresImpactReview || (input.doctorEvidence?.errors ?? 0) > 0;
+    const warningId = `${input.conversationId || 'conv'}:${input.actionId}:prediction`;
+    const predictionKey = `${input.actionType}:${warningId}`;
+
+    return {
+      systemGraphSnapshot: {
+        requestId: input.requestId,
+        workspacePath,
+        projectPath: selectedProjectPath,
+        graphVersion: input.graphSnapshot.snapshotVersion || 'v1',
+        nodes,
+        edges,
+        summary: {
+          nodeCount: nodes.length,
+          edgeCount: edges.length,
+          supportedTopology:
+            indexedGraph.supportedTopology ||
+            input.graphSnapshot.project.kit ||
+            input.graphSnapshot.project.framework,
+        },
+      },
+      impactAssessment: {
+        requestId: input.requestId,
+        source: sources,
+        confidence,
+        riskLevel: deterministicScore.riskLevel,
+        affectedFiles,
+        affectedModules,
+        affectedTests,
+        likelyFailureMode,
+        rationale: [
+          'Impact is derived from workspace graph topology and doctor/runtime evidence.',
+          input.actionPolicy.requiresImpactReview
+            ? 'Action policy requires impact review before completion claim.'
+            : 'Action policy allows lower-risk execution path.',
+          ...deterministicScore.rationale.slice(0, 3),
+        ],
+        verifyChecklist,
+        blockMutationWhenScopeUnknown:
+          input.actionPolicy.requiresImpactReview || input.actionPolicy.requiresVerifyPath,
+      },
+      predictiveWarning: predictiveWarningNeeded
+        ? {
+            requestId: input.requestId,
+            warningId,
+            confidenceBand: this._derivePredictionConfidenceBand(confidence),
+            predictedFailure:
+              likelyFailureMode ||
+              'Potential downstream regression if this action lands without scoped verification.',
+            affectedScopeSummary:
+              affectedModules.length > 0
+                ? `Likely impact: ${affectedModules.slice(0, 3).join(', ')}`
+                : 'Impact scope is uncertain - clarification required.',
+            nextSafeAction: input.actionPolicy.requiresImpactReview
+              ? 'Run change-impact-lite and then execute the verify command with captured output.'
+              : 'Run the verify command and confirm no new doctor errors before closing.',
+            verifyChecklist: verifyChecklist.slice(0, 3),
+            telemetrySeed: {
+              predictionKey,
+              evidenceSources: sources,
+            },
+          }
+        : undefined,
+      releaseGateEvidence: {
+        requestId: input.requestId,
+        scopeKnown,
+        verifyPathPresent,
+        rollbackPathPresent,
+        confidenceSufficient,
+        blockedReasons: Array.from(new Set(blockedReasons)),
+      },
+    };
+  }
+
   private async _readDoctorEvidenceSnapshot(workspacePath?: string): Promise<
     | {
         workspaceName?: string;
@@ -3172,10 +3576,35 @@ No markdown, no explanation outside the JSON.`;
       typeof data?.workspacePath === 'string' && data.workspacePath.trim()
         ? data.workspacePath.trim()
         : this._chatBrainConversations.get(conversationId)?.workspacePath;
+    const graphSnapshot = await this._getWorkspaceGraphSnapshot(workspacePath);
     const doctorEvidence = await this._readDoctorEvidenceSummary(workspacePath);
     const verifyEvidenceAvailable = Boolean(doctorEvidence);
     const verifyReady = !actionPolicy.requiresVerifyPath || verifyEvidenceAvailable;
     const verifySuccess = verifyReady && (doctorEvidence?.errors ?? 0) === 0;
+    const wave2Contracts = await this._buildIncidentWave2Contracts({
+      requestId,
+      conversationId,
+      actionId,
+      actionType,
+      workspacePath,
+      actionPolicy,
+      graphSnapshot,
+      doctorEvidence,
+      verifyReady,
+      verifySuccess,
+    });
+
+    if (conv && wave2Contracts.predictiveWarning) {
+      this._trackStudioEvent('workspai.studio.prediction_shown', conv.workspacePath, {
+        conversationId,
+        actionId,
+        actionType,
+        predictionKey: wave2Contracts.predictiveWarning.telemetrySeed.predictionKey,
+        confidenceBand: wave2Contracts.predictiveWarning.confidenceBand,
+        riskLevel: wave2Contracts.impactAssessment.riskLevel,
+        framework: conv.framework ?? 'unknown',
+      });
+    }
 
     if (conv) {
       if (verifySuccess) {
@@ -3201,6 +3630,24 @@ No markdown, no explanation outside the JSON.`;
           passed: doctorEvidence?.passed ?? 0,
         }
       );
+
+      if (wave2Contracts.predictiveWarning) {
+        this._trackStudioEvent(
+          verifySuccess
+            ? 'workspai.studio.prediction_falsified'
+            : 'workspai.studio.prediction_verified',
+          conv.workspacePath,
+          {
+            conversationId,
+            actionId,
+            actionType,
+            predictionKey: wave2Contracts.predictiveWarning.telemetrySeed.predictionKey,
+            warningId: wave2Contracts.predictiveWarning.warningId,
+            verifySuccess,
+            framework: conv.framework ?? 'unknown',
+          }
+        );
+      }
 
       const uiPrefs = this._getUiPreferences();
       if (verifySuccess && uiPrefs.incidentAutoLearningPrompt) {
@@ -3269,6 +3716,10 @@ No markdown, no explanation outside the JSON.`;
               ...doctorEvidence,
             }
           : undefined,
+        systemGraphSnapshot: wave2Contracts.systemGraphSnapshot,
+        impactAssessment: wave2Contracts.impactAssessment,
+        predictiveWarning: wave2Contracts.predictiveWarning,
+        releaseGateEvidence: wave2Contracts.releaseGateEvidence,
       },
       meta: { requestId, version: 'v1' },
     });
