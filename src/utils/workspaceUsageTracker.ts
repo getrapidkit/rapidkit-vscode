@@ -139,6 +139,32 @@ export interface StudioPredictionKpiStatus {
   };
 }
 
+export interface StudioRollbackKpiThresholds {
+  verifyAutoRollbackSuccessRateMin: number;
+  falseConfidenceRateMax: number;
+}
+
+export interface StudioRollbackKpiStatus {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  thresholds: StudioRollbackKpiThresholds;
+  metrics: {
+    verifyFailed: number;
+    rollbackAttempted: number;
+    rollbackSucceeded: number;
+    verifyAutoRollbackSuccessRate: number | null;
+    falseConfidenceRate: number | null;
+  };
+  gates: {
+    telemetryEvidencePass: boolean;
+    verifyAutoRollbackSuccessRatePass: boolean;
+    falseConfidenceRatePass: boolean;
+    overallPass: boolean;
+  };
+}
+
 export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
@@ -205,7 +231,7 @@ const TELEMETRY_SURFACE_ALLOWLIST: TelemetrySurfaceAllowlistRule[] = [
   {
     surface: 'action',
     pattern:
-      /^workspai\.studio\.(loop_started|next_action_clicked|action_executed|verify_passed|verify_failed|loop_completed|abandoned|prediction_shown|prediction_accepted|prediction_verified|prediction_falsified)$/,
+      /^workspai\.studio\.(loop_started|next_action_clicked|action_executed|verify_passed|verify_failed|loop_completed|abandoned|prediction_shown|prediction_accepted|prediction_verified|prediction_falsified|rollback_attempted|rollback_succeeded|rollback_failed)$/,
   },
 ];
 
@@ -1361,6 +1387,105 @@ export class WorkspaceUsageTracker {
       };
     } catch (error) {
       this.logger.debug(`Failed to read studio prediction KPI status: ${error}`);
+      return null;
+    }
+  }
+
+  async getStudioRollbackKpiStatus(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last7d',
+    thresholds: Partial<StudioRollbackKpiThresholds> = {}
+  ): Promise<StudioRollbackKpiStatus | null> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const marker = await readWorkspaceMarker(workspacePath);
+      if (!marker) {
+        return null;
+      }
+
+      const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+      const telemetry =
+        telemetryRaw && typeof telemetryRaw === 'object'
+          ? (telemetryRaw as Record<string, unknown>)
+          : {};
+
+      const recentEvents = this.parseRecentEvents(telemetry.recentEvents);
+      const nowMs = Date.now();
+      const windowStartMs = this.getWindowStartMs(timeWindow, nowMs);
+      const filteredRecentEvents =
+        windowStartMs === null
+          ? recentEvents
+          : recentEvents.filter((entry) => Date.parse(entry.at) >= windowStartMs);
+
+      let verifyFailed = 0;
+      let rollbackAttempted = 0;
+      let rollbackSucceeded = 0;
+
+      for (const entry of filteredRecentEvents) {
+        if (entry.command === 'workspai.studio.verify_failed') {
+          verifyFailed += 1;
+        } else if (entry.command === 'workspai.studio.rollback_attempted') {
+          rollbackAttempted += 1;
+        } else if (entry.command === 'workspai.studio.rollback_succeeded') {
+          rollbackSucceeded += 1;
+        }
+      }
+
+      const verifyAutoRollbackSuccessRate =
+        rollbackAttempted > 0
+          ? Number(((rollbackSucceeded / rollbackAttempted) * 100).toFixed(2))
+          : null;
+      const falseConfidenceRate =
+        verifyFailed > 0
+          ? Number((((verifyFailed - rollbackSucceeded) / verifyFailed) * 100).toFixed(2))
+          : null;
+
+      const resolvedThresholds: StudioRollbackKpiThresholds = {
+        verifyAutoRollbackSuccessRateMin:
+          typeof thresholds.verifyAutoRollbackSuccessRateMin === 'number'
+            ? thresholds.verifyAutoRollbackSuccessRateMin
+            : 60,
+        falseConfidenceRateMax:
+          typeof thresholds.falseConfidenceRateMax === 'number'
+            ? thresholds.falseConfidenceRateMax
+            : 40,
+      };
+
+      const telemetryEvidencePass = verifyFailed > 0 || rollbackAttempted > 0;
+      const verifyAutoRollbackSuccessRatePass =
+        verifyAutoRollbackSuccessRate !== null &&
+        verifyAutoRollbackSuccessRate >= resolvedThresholds.verifyAutoRollbackSuccessRateMin;
+      const falseConfidenceRatePass =
+        falseConfidenceRate !== null &&
+        falseConfidenceRate <= resolvedThresholds.falseConfidenceRateMax;
+
+      return {
+        workspacePath,
+        timeWindow,
+        windowStartAt: windowStartMs === null ? null : new Date(windowStartMs).toISOString(),
+        windowEndAt: new Date(nowMs).toISOString(),
+        thresholds: resolvedThresholds,
+        metrics: {
+          verifyFailed,
+          rollbackAttempted,
+          rollbackSucceeded,
+          verifyAutoRollbackSuccessRate,
+          falseConfidenceRate,
+        },
+        gates: {
+          telemetryEvidencePass,
+          verifyAutoRollbackSuccessRatePass,
+          falseConfidenceRatePass,
+          overallPass:
+            telemetryEvidencePass && verifyAutoRollbackSuccessRatePass && falseConfidenceRatePass,
+        },
+      };
+    } catch (error) {
+      this.logger.debug(`Failed to read studio rollback KPI status: ${error}`);
       return null;
     }
   }

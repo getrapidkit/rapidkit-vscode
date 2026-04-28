@@ -240,6 +240,32 @@ describe('incidentStudioFlowE2E', () => {
       title: 'Verification failed',
       description: 'inline-command - command exited with failures',
     });
+
+    const rollbackFailure = normalizeIncidentActionResultPayload({
+      success: false,
+      verificationRequired: false,
+      verifyPolicy: policy,
+      outputSummary: 'inline-command - rollback attempted after verify failure',
+      rollback: {
+        attempted: true,
+        status: 'succeeded',
+        candidateFiles: ['src/orders/service.ts'],
+        restoredFiles: ['src/orders/service.ts'],
+        failedFiles: [],
+      },
+    });
+
+    expect(rollbackFailure.rollback).toEqual({
+      attempted: true,
+      status: 'succeeded',
+      reason: undefined,
+      attemptedAt: undefined,
+      candidateFiles: ['src/orders/service.ts'],
+      restoredFiles: ['src/orders/service.ts'],
+      failedFiles: [],
+      suggestedNextStep: undefined,
+    });
+    expect(getActionResultPresentation(rollbackFailure).tone).toBe('failure');
   });
 
   it('guards finalization from duplicate request IDs during verify completion', () => {

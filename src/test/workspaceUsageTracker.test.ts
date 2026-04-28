@@ -416,6 +416,54 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(status?.gates.overallPass).toBe(true);
   });
 
+  it('computes rollback KPI metrics from verify-failed and rollback events', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-rollback-kpi-pass');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+
+    for (let i = 0; i < 5; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.verify_failed', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.rollback_attempted', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    for (let i = 0; i < 4; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.rollback_succeeded', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    await tracker.trackCommandEvent('workspai.studio.rollback_failed', workspacePath, {
+      framework: 'fastapi',
+    });
+
+    const status = await tracker.getStudioRollbackKpiStatus(workspacePath, 'all', {
+      verifyAutoRollbackSuccessRateMin: 75,
+      falseConfidenceRateMax: 30,
+    });
+
+    expect(status).not.toBeNull();
+    expect(status?.metrics.verifyFailed).toBe(5);
+    expect(status?.metrics.rollbackAttempted).toBe(5);
+    expect(status?.metrics.rollbackSucceeded).toBe(4);
+    expect(status?.metrics.verifyAutoRollbackSuccessRate).toBe(80);
+    expect(status?.metrics.falseConfidenceRate).toBe(20);
+    expect(status?.gates.telemetryEvidencePass).toBe(true);
+    expect(status?.gates.verifyAutoRollbackSuccessRatePass).toBe(true);
+    expect(status?.gates.falseConfidenceRatePass).toBe(true);
+    expect(status?.gates.overallPass).toBe(true);
+
+    const summary = await tracker.getCommandTelemetrySummary(workspacePath, 'all');
+    expect(summary?.surfaceBreakdown.actionEvents).toBe(15);
+  });
+
   it('uses onboarding hourly buckets for last24h stats instead of recentEvents cap', async () => {
     const workspacePath = path.join(tempRoot, 'ws-onboarding-hourly');
 

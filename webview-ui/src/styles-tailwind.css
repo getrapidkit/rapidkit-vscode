@@ -4979,6 +4979,43 @@
     line-height: 1.45;
   }
 
+  .incident-rollback-evidence {
+    margin-top: 8px;
+    border-top: 1px dashed color-mix(in srgb, var(--vscode-panel-border) 72%, transparent);
+    padding-top: 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .incident-rollback-evidence strong {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-rollback-evidence p {
+    margin: 0;
+    font-size: 9px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-rollback-evidence.is-succeeded {
+    color: #00b894;
+  }
+
+  .incident-rollback-evidence.is-partial {
+    color: #fdcb6e;
+  }
+
+  .incident-rollback-evidence.is-failed,
+  .incident-rollback-evidence.is-unavailable {
+    color: #e17055;
+  }
+
   /* ── Command Chat ──────────────────────────── */
 
   .incident-command-chat {

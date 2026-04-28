@@ -46,12 +46,24 @@ export type IncidentActionEvidence = {
   errors?: number;
 };
 
+export type IncidentRollbackEvidence = {
+  attempted: boolean;
+  status: 'succeeded' | 'failed' | 'partial' | 'skipped' | 'unavailable';
+  reason?: string;
+  attemptedAt?: string;
+  candidateFiles: string[];
+  restoredFiles: string[];
+  failedFiles: string[];
+  suggestedNextStep?: string;
+};
+
 export type NormalizedIncidentActionResultPayload = {
   success: boolean;
   outputSummary?: string;
   verificationRequired?: boolean;
   verifyPolicy?: IncidentVerifyPolicy;
   evidence?: IncidentActionEvidence;
+  rollback?: IncidentRollbackEvidence;
 };
 
 export type NormalizedIncidentActionProgressPayload = {
@@ -382,6 +394,7 @@ export function normalizeIncidentActionResultPayload(
   const record = asRecord(value);
   const verifyPolicyRecord = asRecord(record.verifyPolicy);
   const evidenceRecord = asRecord(record.evidence);
+  const rollbackRecord = asRecord(record.rollback);
 
   const verifyPolicy: IncidentVerifyPolicy = {
     requiresVerifyPath: asOptionalBoolean(verifyPolicyRecord.requiresVerifyPath),
@@ -413,12 +426,41 @@ export function normalizeIncidentActionResultPayload(
     typeof evidence.warnings === 'number' ||
     typeof evidence.errors === 'number';
 
+  const rollbackStatus = cleanText(rollbackRecord.status);
+  const rollback: IncidentRollbackEvidence = {
+    attempted: asBoolean(rollbackRecord.attempted, false),
+    status:
+      rollbackStatus === 'succeeded' ||
+      rollbackStatus === 'failed' ||
+      rollbackStatus === 'partial' ||
+      rollbackStatus === 'skipped' ||
+      rollbackStatus === 'unavailable'
+        ? rollbackStatus
+        : 'unavailable',
+    reason: sanitizeIncidentText(rollbackRecord.reason, 320),
+    attemptedAt: cleanText(rollbackRecord.attemptedAt),
+    candidateFiles: sanitizeStringArray(rollbackRecord.candidateFiles, 240, 32),
+    restoredFiles: sanitizeStringArray(rollbackRecord.restoredFiles, 240, 32),
+    failedFiles: sanitizeStringArray(rollbackRecord.failedFiles, 240, 32),
+    suggestedNextStep: sanitizeIncidentText(rollbackRecord.suggestedNextStep, 280),
+  };
+
+  const hasRollbackField =
+    rollback.attempted ||
+    rollback.candidateFiles.length > 0 ||
+    rollback.restoredFiles.length > 0 ||
+    rollback.failedFiles.length > 0 ||
+    typeof rollback.reason === 'string' ||
+    typeof rollback.suggestedNextStep === 'string' ||
+    typeof rollback.attemptedAt === 'string';
+
   return {
     success: Boolean(record.success),
     outputSummary: sanitizeIncidentText(record.outputSummary, 1200),
     verificationRequired: asOptionalBoolean(record.verificationRequired),
     verifyPolicy: hasVerifyPolicyField ? verifyPolicy : undefined,
     evidence: hasEvidenceField ? evidence : undefined,
+    rollback: hasRollbackField ? rollback : undefined,
   };
 }
 

@@ -20,6 +20,7 @@ import {
     getBoardActionGuardHint,
 } from '../lib/incidentStudioVerifyPolicy';
 import type {
+    NormalizedIncidentActionResultPayload,
     NormalizedIncidentImpactAssessmentPayload,
     NormalizedIncidentPredictiveWarningPayload,
     NormalizedIncidentReleaseGateEvidencePayload,
@@ -154,24 +155,7 @@ interface AIIncidentStudioProps {
         progress: number;
         note?: string;
     } | null;
-    chatBrainActionResult?: {
-        success: boolean;
-        outputSummary?: string;
-        verificationRequired?: boolean;
-        verifyPolicy?: {
-            requiresVerifyPath?: boolean;
-            requiresImpactReview?: boolean;
-            allowCompletionClaimWithoutVerify?: boolean;
-        };
-        evidence?: {
-            source?: string;
-            healthScoreText?: string;
-            generatedAt?: string;
-            passed?: number;
-            warnings?: number;
-            errors?: number;
-        };
-    } | null;
+    chatBrainActionResult?: NormalizedIncidentActionResultPayload | null;
     chatBrainSystemGraphSnapshot?: NormalizedIncidentSystemGraphSnapshotPayload | null;
     chatBrainImpactAssessment?: NormalizedIncidentImpactAssessmentPayload | null;
     chatBrainPredictiveWarning?: NormalizedIncidentPredictiveWarningPayload | null;
@@ -1964,6 +1948,33 @@ export function AIIncidentStudio({
                                                 <p>
                                                     Generated: {new Date(chatBrainActionResult.evidence.generatedAt).toLocaleString()}
                                                 </p>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                    {chatBrainActionResult.rollback ? (
+                                        <div className={`incident-rollback-evidence is-${chatBrainActionResult.rollback.status}`}>
+                                            <strong>Rollback evidence</strong>
+                                            <p>
+                                                Status: {chatBrainActionResult.rollback.status}
+                                                {chatBrainActionResult.rollback.attempted ? ' (auto attempted)' : ''}
+                                            </p>
+                                            {chatBrainActionResult.rollback.reason ? (
+                                                <p>{chatBrainActionResult.rollback.reason}</p>
+                                            ) : null}
+                                            {chatBrainActionResult.rollback.restoredFiles.length > 0 ? (
+                                                <p>
+                                                    Restored files ({chatBrainActionResult.rollback.restoredFiles.length}):{' '}
+                                                    {chatBrainActionResult.rollback.restoredFiles.slice(0, 4).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.rollback.failedFiles.length > 0 ? (
+                                                <p>
+                                                    Pending manual restore ({chatBrainActionResult.rollback.failedFiles.length}):{' '}
+                                                    {chatBrainActionResult.rollback.failedFiles.slice(0, 3).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.rollback.suggestedNextStep ? (
+                                                <p>{chatBrainActionResult.rollback.suggestedNextStep}</p>
                                             ) : null}
                                         </div>
                                     ) : null}

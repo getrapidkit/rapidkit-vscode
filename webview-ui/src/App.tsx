@@ -53,6 +53,7 @@ import {
     normalizeIncidentReleaseGateEvidencePayload,
     normalizeIncidentSystemGraphSnapshotPayload,
     normalizeIncidentWorkspaceGraphSnapshot,
+    type NormalizedIncidentActionResultPayload,
     type NormalizedIncidentImpactAssessmentPayload,
     type NormalizedIncidentPredictiveWarningPayload,
     type NormalizedIncidentReleaseGateEvidencePayload,
@@ -241,24 +242,8 @@ export function App() {
         progress: number;
         note?: string;
     } | null>(null);
-    const [chatBrainActionResult, setChatBrainActionResult] = useState<{
-        success: boolean;
-        outputSummary?: string;
-        verificationRequired?: boolean;
-        verifyPolicy?: {
-            requiresVerifyPath?: boolean;
-            requiresImpactReview?: boolean;
-            allowCompletionClaimWithoutVerify?: boolean;
-        };
-        evidence?: {
-            source?: string;
-            healthScoreText?: string;
-            generatedAt?: string;
-            passed?: number;
-            warnings?: number;
-            errors?: number;
-        };
-    } | null>(null);
+    const [chatBrainActionResult, setChatBrainActionResult] =
+        useState<NormalizedIncidentActionResultPayload | null>(null);
     const [chatBrainSystemGraphSnapshot, setChatBrainSystemGraphSnapshot] =
         useState<NormalizedIncidentSystemGraphSnapshotPayload | null>(null);
     const [chatBrainImpactAssessment, setChatBrainImpactAssessment] =

@@ -3786,6 +3786,14 @@ No markdown, no explanation outside the JSON.`;
     }
 
     const actionPolicy = classifyIncidentActionPolicy(actionType);
+    const workspacePath = explicitWorkspacePath || conv?.workspacePath;
+    const shouldAttemptAutoRollback =
+      actionPolicy.riskClass === 'guarded-mutating' ||
+      actionPolicy.riskClass === 'high-risk-mutating';
+    const rollbackBaselineEntries =
+      shouldAttemptAutoRollback && workspacePath
+        ? await this._readGitDirtyEntries(workspacePath)
+        : null;
 
     if (conv) {
       conv.actionCount += 1;
@@ -3841,7 +3849,7 @@ No markdown, no explanation outside the JSON.`;
       {
         conversationId,
         message: inlineQuery,
-        workspacePath: data?.workspacePath,
+        workspacePath,
         projectPath: data?.projectPath,
         projectName: data?.projectName,
         projectType: data?.projectType,
@@ -3850,21 +3858,23 @@ No markdown, no explanation outside the JSON.`;
       requestId
     );
 
-    const workspacePath =
-      typeof data?.workspacePath === 'string' && data.workspacePath.trim()
-        ? data.workspacePath.trim()
-        : this._chatBrainConversations.get(conversationId)?.workspacePath;
-    const graphSnapshot = await this._getWorkspaceGraphSnapshot(workspacePath);
-    const doctorEvidence = await this._readDoctorEvidenceSummary(workspacePath);
+    const activeWorkspacePath =
+      workspacePath || this._chatBrainConversations.get(conversationId)?.workspacePath;
+    const graphSnapshot = await this._getWorkspaceGraphSnapshot(activeWorkspacePath);
+    const doctorEvidence = await this._readDoctorEvidenceSummary(activeWorkspacePath);
     const verifyEvidenceAvailable = Boolean(doctorEvidence);
     const verifyReady = !actionPolicy.requiresVerifyPath || verifyEvidenceAvailable;
     const verifySuccess = verifyReady && (doctorEvidence?.errors ?? 0) === 0;
+    const rollbackEvidence =
+      !verifySuccess && shouldAttemptAutoRollback && activeWorkspacePath
+        ? await this._attemptIncidentAutoRollback(activeWorkspacePath, rollbackBaselineEntries)
+        : undefined;
     const wave2Contracts = await this._buildIncidentWave2Contracts({
       requestId,
       conversationId,
       actionId,
       actionType,
-      workspacePath,
+      workspacePath: activeWorkspacePath,
       actionPolicy,
       graphSnapshot,
       doctorEvidence,
@@ -3927,6 +3937,34 @@ No markdown, no explanation outside the JSON.`;
         );
       }
 
+      if (rollbackEvidence?.attempted) {
+        this._trackStudioEvent('workspai.studio.rollback_attempted', conv.workspacePath, {
+          conversationId,
+          actionId,
+          actionType,
+          rollbackStatus: rollbackEvidence.status,
+          restoredCount: rollbackEvidence.restoredFiles.length,
+          failedCount: rollbackEvidence.failedFiles.length,
+          framework: conv.framework ?? 'unknown',
+        });
+
+        this._trackStudioEvent(
+          rollbackEvidence.status === 'succeeded'
+            ? 'workspai.studio.rollback_succeeded'
+            : 'workspai.studio.rollback_failed',
+          conv.workspacePath,
+          {
+            conversationId,
+            actionId,
+            actionType,
+            rollbackStatus: rollbackEvidence.status,
+            restoredCount: rollbackEvidence.restoredFiles.length,
+            failedCount: rollbackEvidence.failedFiles.length,
+            framework: conv.framework ?? 'unknown',
+          }
+        );
+      }
+
       const uiPrefs = this._getUiPreferences();
       if (verifySuccess && uiPrefs.incidentAutoLearningPrompt) {
         this._panel.webview.postMessage({
@@ -3979,9 +4017,13 @@ No markdown, no explanation outside the JSON.`;
         conversationId,
         actionId,
         success: verifySuccess,
-        outputSummary: verifyReady
+        outputSummary: verifySuccess
           ? `${actionType} \u2014 result shown in conversation above`
-          : `${actionType} \u2014 verification required before completion claim`,
+          : rollbackEvidence
+            ? `${actionType} \u2014 verification failed; rollback status: ${rollbackEvidence.status}`
+            : verifyReady
+              ? `${actionType} \u2014 verification failed; review output and retry safely`
+              : `${actionType} \u2014 verification required before completion claim`,
         verificationRequired: !verifyReady,
         verifyPolicy: {
           requiresVerifyPath: actionPolicy.requiresVerifyPath,
@@ -3994,6 +4036,7 @@ No markdown, no explanation outside the JSON.`;
               ...doctorEvidence,
             }
           : undefined,
+        rollback: rollbackEvidence,
         systemGraphSnapshot: wave2Contracts.systemGraphSnapshot,
         impactAssessment: wave2Contracts.impactAssessment,
         predictiveWarning: wave2Contracts.predictiveWarning,
@@ -4423,6 +4466,168 @@ No markdown, no explanation outside the JSON.`;
     } catch {
       return false;
     }
+  }
+
+  private async _readGitDirtyEntries(
+    workspacePath: string
+  ): Promise<Array<{ path: string; untracked: boolean }> | null> {
+    try {
+      const result = await run('git', ['status', '--porcelain'], {
+        cwd: workspacePath,
+        timeout: 3000,
+      });
+
+      if (result.exitCode !== 0) {
+        return null;
+      }
+
+      if (!result.stdout.trim()) {
+        return [];
+      }
+
+      const entries: Array<{ path: string; untracked: boolean }> = [];
+      for (const rawLine of result.stdout.split('\n')) {
+        const line = rawLine.trimEnd();
+        if (!line || line.length < 4) {
+          continue;
+        }
+
+        const statusCode = line.slice(0, 2);
+        const pathChunk = line.slice(3).trim();
+        if (!pathChunk) {
+          continue;
+        }
+
+        const normalizedPath = pathChunk.includes('->')
+          ? pathChunk.split('->').pop()?.trim() || pathChunk
+          : pathChunk;
+
+        if (!normalizedPath) {
+          continue;
+        }
+
+        entries.push({
+          path: normalizedPath,
+          untracked: statusCode === '??',
+        });
+      }
+
+      return entries;
+    } catch {
+      return null;
+    }
+  }
+
+  private async _attemptIncidentAutoRollback(
+    workspacePath: string,
+    baselineEntries: Array<{ path: string; untracked: boolean }> | null
+  ): Promise<{
+    attempted: boolean;
+    status: 'succeeded' | 'failed' | 'partial' | 'skipped' | 'unavailable';
+    reason?: string;
+    attemptedAt: string;
+    candidateFiles: string[];
+    restoredFiles: string[];
+    failedFiles: string[];
+    suggestedNextStep?: string;
+  }> {
+    const attemptedAt = new Date().toISOString();
+    const unavailableResult = {
+      attempted: false,
+      status: 'unavailable' as const,
+      reason: 'Git rollback is unavailable for this workspace.',
+      attemptedAt,
+      candidateFiles: [] as string[],
+      restoredFiles: [] as string[],
+      failedFiles: [] as string[],
+      suggestedNextStep: 'Run the verify path manually and inspect workspace state before retry.',
+    };
+
+    const afterEntries = await this._readGitDirtyEntries(workspacePath);
+    if (!baselineEntries || !afterEntries) {
+      return unavailableResult;
+    }
+
+    const baselineSet = new Set(baselineEntries.map((entry) => entry.path));
+    const deltaEntries = afterEntries.filter((entry) => !baselineSet.has(entry.path));
+    if (deltaEntries.length === 0) {
+      return {
+        attempted: false,
+        status: 'skipped',
+        reason: 'No new file mutations were detected for rollback.',
+        attemptedAt,
+        candidateFiles: [],
+        restoredFiles: [],
+        failedFiles: [],
+      };
+    }
+
+    const trackedCandidates = deltaEntries
+      .filter((entry) => !entry.untracked)
+      .map((entry) => entry.path);
+    const untrackedCandidates = deltaEntries
+      .filter((entry) => entry.untracked)
+      .map((entry) => entry.path);
+
+    if (trackedCandidates.length === 0) {
+      return {
+        attempted: false,
+        status: 'skipped',
+        reason: 'Only untracked files changed; auto-rollback skipped for safety.',
+        attemptedAt,
+        candidateFiles: untrackedCandidates,
+        restoredFiles: [],
+        failedFiles: untrackedCandidates,
+        suggestedNextStep:
+          'Inspect untracked files and remove manually if safe, then rerun verification.',
+      };
+    }
+
+    let restoreResult = await run(
+      'git',
+      ['restore', '--staged', '--worktree', '--', ...trackedCandidates],
+      {
+        cwd: workspacePath,
+        timeout: 6000,
+      }
+    );
+
+    if (restoreResult.exitCode !== 0) {
+      restoreResult = await run('git', ['restore', '--worktree', '--', ...trackedCandidates], {
+        cwd: workspacePath,
+        timeout: 6000,
+      });
+    }
+
+    const afterRestoreEntries = await this._readGitDirtyEntries(workspacePath);
+    const afterRestoreSet = new Set((afterRestoreEntries || []).map((entry) => entry.path));
+    const restoredFiles = trackedCandidates.filter((filePath) => !afterRestoreSet.has(filePath));
+    const failedTrackedFiles = trackedCandidates.filter((filePath) =>
+      afterRestoreSet.has(filePath)
+    );
+    const failedFiles = [...failedTrackedFiles, ...untrackedCandidates];
+
+    const status: 'succeeded' | 'failed' | 'partial' =
+      failedFiles.length === 0 ? 'succeeded' : restoredFiles.length > 0 ? 'partial' : 'failed';
+
+    const reason =
+      restoreResult.exitCode !== 0
+        ? 'Auto-rollback command exited with errors; some files may need manual restore.'
+        : undefined;
+
+    return {
+      attempted: true,
+      status,
+      reason,
+      attemptedAt,
+      candidateFiles: [...trackedCandidates, ...untrackedCandidates],
+      restoredFiles,
+      failedFiles,
+      suggestedNextStep:
+        failedFiles.length > 0
+          ? 'Run `git status` and restore remaining files manually before retrying.'
+          : undefined,
+    };
   }
 
   private async _sendModulesCatalog() {

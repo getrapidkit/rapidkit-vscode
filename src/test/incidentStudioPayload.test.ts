@@ -503,6 +503,34 @@ describe('incidentStudioPayload', () => {
     });
   });
 
+  it('normalizes rollback evidence in action-result payload', () => {
+    const normalized = normalizeIncidentActionResultPayload({
+      success: false,
+      outputSummary: 'inline-command failed after mutation',
+      rollback: {
+        attempted: true,
+        status: ' partial ',
+        reason: 'git restore partially failed due to locked file',
+        attemptedAt: ' 2026-04-28T21:00:00.000Z ',
+        candidateFiles: ['src/orders/service.ts', 'src/orders/service.ts'],
+        restoredFiles: ['src/orders/service.ts'],
+        failedFiles: ['src/orders/worker.ts'],
+        suggestedNextStep: 'Run git status and restore remaining files manually.',
+      },
+    });
+
+    expect(normalized.rollback).toEqual({
+      attempted: true,
+      status: 'partial',
+      reason: 'git restore partially failed due to locked file',
+      attemptedAt: '2026-04-28T21:00:00.000Z',
+      candidateFiles: ['src/orders/service.ts'],
+      restoredFiles: ['src/orders/service.ts'],
+      failedFiles: ['src/orders/worker.ts'],
+      suggestedNextStep: 'Run git status and restore remaining files manually.',
+    });
+  });
+
   it('normalizes action-progress payload with clamped progress and safe defaults', () => {
     expect(
       normalizeIncidentActionProgressPayload({
