@@ -11,6 +11,7 @@ import {
   normalizeIncidentWorkspaceGraphSnapshot,
   normalizeIncomingIncidentStudioOpen,
 } from '../../webview-ui/src/lib/incidentStudioPayload';
+import { classifyIncidentActionPolicy } from '../ui/panels/incidentStudioPromptPolicy';
 import {
   buildIncidentWorkspaceGraphFixture,
   INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES,
@@ -155,6 +156,39 @@ describe('incidentStudioPayload', () => {
       requiresVerifyPath: true,
       allowCompletionClaimWithoutVerify: false,
     });
+  });
+
+  it('keeps execute payload metadata in parity with host-side incident action policy', () => {
+    const actionTypes = [
+      'change-impact-lite',
+      'terminal-bridge',
+      'fix-preview-lite',
+      'workspace-memory-wizard',
+      'doctor-fix',
+      'recipe-pack',
+      'inline-command',
+      'custom-mutate-action',
+    ];
+
+    for (const actionType of actionTypes) {
+      const {
+        riskClass,
+        riskLevel,
+        requiresImpactReview,
+        requiresVerifyPath,
+        allowCompletionClaimWithoutVerify,
+      } = classifyIncidentActionPolicy(actionType);
+
+      expect(buildIncidentActionExecutionMetadata(actionType)).toEqual(
+        expect.objectContaining({
+          riskClass,
+          riskLevel,
+          requiresImpactReview,
+          requiresVerifyPath,
+          allowCompletionClaimWithoutVerify,
+        })
+      );
+    }
   });
 
   it('normalizes canonical workspace graph snapshot for incident studio', () => {

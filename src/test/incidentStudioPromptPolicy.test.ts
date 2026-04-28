@@ -78,4 +78,28 @@ describe('incidentStudioPromptPolicy', () => {
     expect(isIncidentActionAllowlisted('custom-mutate-action')).toBe(false);
     expect(isIncidentActionAllowlisted('')).toBe(false);
   });
+
+  it('keeps verify-first requirements aligned across all supported action classes', () => {
+    const actionTypes = [
+      'change-impact-lite',
+      'terminal-bridge',
+      'fix-preview-lite',
+      'workspace-memory-wizard',
+      'doctor-fix',
+      'recipe-pack',
+      'inline-command',
+      'custom-mutate-action',
+    ];
+
+    for (const actionType of actionTypes) {
+      const policy = classifyIncidentActionPolicy(actionType);
+
+      expect(policy.allowCompletionClaimWithoutVerify).toBe(!policy.requiresVerifyPath);
+
+      if (policy.riskClass === 'guarded-mutating' || policy.riskClass === 'high-risk-mutating') {
+        expect(policy.requiresVerifyPath).toBe(true);
+        expect(policy.requiresImpactReview).toBe(true);
+      }
+    }
+  });
 });

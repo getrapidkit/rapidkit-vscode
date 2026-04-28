@@ -203,4 +203,41 @@ describe('incidentStudioTelemetry', () => {
       },
     });
   });
+
+  it('preserves null verify completion rate so incomplete verify paths are not shown as completed', () => {
+    const payload = buildIncidentStudioTelemetryPayload(
+      null,
+      null,
+      {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-04-18T04:00:00.000Z',
+        windowEndAt: '2026-04-25T04:10:00.000Z',
+        variants: [
+          {
+            variant: 'single',
+            loopStarted: 4,
+            nextActionClicked: 2,
+            actionExecuted: 1,
+            verifyPassed: 0,
+            verifyFailed: 0,
+            verifyCompletionRate: null,
+            actionVsAskShare: 25,
+            loopCompleted: 0,
+            abandoned: 1,
+          },
+        ],
+      },
+      { workspaceName: 'demo' }
+    );
+
+    expect(payload.ctaVariantBreakdown?.variants[0]?.verifyCompletionRate).toBeNull();
+    expect(
+      (
+        payload.doctorSummary as {
+          ctaVariantBreakdown?: { variants: Array<{ verifyCompletionRate: number | null }> };
+        }
+      ).ctaVariantBreakdown?.variants[0]?.verifyCompletionRate
+    ).toBeNull();
+  });
 });
