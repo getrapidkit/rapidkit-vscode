@@ -6,8 +6,15 @@ import {
   buildIncidentChatQueryPayload,
   buildIncidentChatStartPayload,
   isIncidentDuplicateRequest,
+  normalizeIncidentActionProgressPayload,
+  normalizeIncidentActionResultPayload,
+  normalizeIncidentDonePayload,
+  normalizeIncidentImpactAssessmentPayload,
+  normalizeIncidentPredictiveWarningPayload,
   normalizeIncidentPartialFailurePayload,
   normalizeIncidentProtocolMeta,
+  normalizeIncidentReleaseGateEvidencePayload,
+  normalizeIncidentSystemGraphSnapshotPayload,
   normalizeIncidentWorkspaceGraphSnapshot,
   normalizeIncomingIncidentStudioOpen,
 } from '../../webview-ui/src/lib/incidentStudioPayload';
@@ -455,5 +462,264 @@ describe('incidentStudioPayload', () => {
     });
     expect(partial.message).toContain('[REDACTED]');
     expect(partial.message).not.toContain('hello123');
+  });
+
+  it('normalizes action-result payload and drops malformed verify policy fields', () => {
+    const normalized = normalizeIncidentActionResultPayload({
+      success: true,
+      outputSummary: 'authorization: Bearer top-secret',
+      verificationRequired: true,
+      verifyPolicy: {
+        requiresVerifyPath: true,
+        requiresImpactReview: 'yes',
+        allowCompletionClaimWithoutVerify: false,
+      },
+      evidence: {
+        source: 'doctor-last-run',
+        healthScoreText: 'token=abc123',
+        passed: 7,
+        warnings: 1,
+        errors: 0,
+      },
+    });
+
+    expect(normalized).toEqual({
+      success: true,
+      outputSummary: 'authorization:[REDACTED]',
+      verificationRequired: true,
+      verifyPolicy: {
+        requiresVerifyPath: true,
+        requiresImpactReview: undefined,
+        allowCompletionClaimWithoutVerify: false,
+      },
+      evidence: {
+        source: 'doctor-last-run',
+        healthScoreText: 'token=[REDACTED]',
+        generatedAt: undefined,
+        passed: 7,
+        warnings: 1,
+        errors: 0,
+      },
+    });
+  });
+
+  it('normalizes action-progress payload with clamped progress and safe defaults', () => {
+    expect(
+      normalizeIncidentActionProgressPayload({
+        stage: 'streaming',
+        progress: 140,
+        note: 'password=hello123',
+      })
+    ).toEqual({
+      stage: 'streaming',
+      progress: 100,
+      note: 'password=[REDACTED]',
+    });
+
+    expect(normalizeIncidentActionProgressPayload({})).toEqual({
+      stage: 'running',
+      progress: 0,
+      note: undefined,
+    });
+  });
+
+  it('normalizes done payload and redacts sensitive final text tokens', () => {
+    expect(
+      normalizeIncidentDonePayload({
+        modelId: ' gpt-5 ',
+        finalText: 'Use api_key=prod-123 for this request',
+      })
+    ).toEqual({
+      modelId: 'gpt-5',
+      finalText: 'Use api_key=[REDACTED] for this request',
+    });
+
+    expect(normalizeIncidentDonePayload(null)).toEqual({
+      modelId: undefined,
+      finalText: undefined,
+    });
+  });
+
+  it('normalizes system graph snapshot payload for architecture-aware flow contracts', () => {
+    const normalized = normalizeIncidentSystemGraphSnapshotPayload({
+      requestId: ' req-graph-1 ',
+      workspacePath: ' /tmp/wsp ',
+      projectPath: ' /tmp/wsp/orders-api ',
+      graphVersion: ' v2 ',
+      nodes: [
+        {
+          id: 'route.orders.create',
+          type: 'route',
+          label: 'Create order route',
+          filePath: 'src/routes/orders.ts',
+          confidence: 120,
+        },
+        {
+          id: 'service.orders',
+          type: 'service',
+          label: 'Orders service',
+          confidence: -5,
+        },
+        { type: 'model' },
+      ],
+      edges: [
+        {
+          sourceId: 'route.orders.create',
+          targetId: 'service.orders',
+          relation: 'calls',
+        },
+        {
+          sourceId: '',
+          targetId: 'service.orders',
+          relation: 'invalid',
+        },
+      ],
+      summary: {
+        supportedTopology: ' fastapi-monolith ',
+      },
+    });
+
+    expect(normalized).toEqual({
+      requestId: 'req-graph-1',
+      workspacePath: '/tmp/wsp',
+      projectPath: '/tmp/wsp/orders-api',
+      graphVersion: 'v2',
+      nodes: [
+        {
+          id: 'route.orders.create',
+          type: 'route',
+          label: 'Create order route',
+          filePath: 'src/routes/orders.ts',
+          confidence: 100,
+        },
+        {
+          id: 'service.orders',
+          type: 'service',
+          label: 'Orders service',
+          filePath: undefined,
+          confidence: 0,
+        },
+      ],
+      edges: [
+        {
+          sourceId: 'route.orders.create',
+          targetId: 'service.orders',
+          relation: 'calls',
+        },
+      ],
+      summary: {
+        nodeCount: 2,
+        edgeCount: 1,
+        supportedTopology: 'fastapi-monolith',
+      },
+    });
+
+    expect(normalizeIncidentSystemGraphSnapshotPayload({ workspacePath: '   ' })).toBeNull();
+  });
+
+  it('normalizes impact assessment payload with fail-safe mutation blocking defaults', () => {
+    expect(
+      normalizeIncidentImpactAssessmentPayload({
+        requestId: ' impact-1 ',
+        source: ['graph', 'doctor', 'graph'],
+        confidence: 141,
+        riskLevel: 'critical',
+        affectedFiles: ['src/orders/service.ts', 'src/orders/service.ts'],
+        affectedModules: ['orders'],
+        affectedTests: ['tests/orders/service.spec.ts'],
+        likelyFailureMode: ' null pointer in orders flow ',
+        rationale: ['edge route->service changed'],
+        verifyChecklist: ['run order tests'],
+        blockMutationWhenScopeUnknown: false,
+      })
+    ).toEqual({
+      requestId: 'impact-1',
+      sources: ['graph', 'doctor'],
+      confidence: 100,
+      riskLevel: 'critical',
+      affectedFiles: ['src/orders/service.ts'],
+      affectedModules: ['orders'],
+      affectedTests: ['tests/orders/service.spec.ts'],
+      likelyFailureMode: 'null pointer in orders flow',
+      rationale: ['edge route->service changed'],
+      verifyChecklist: ['run order tests'],
+      blockMutationWhenScopeUnknown: false,
+    });
+
+    expect(normalizeIncidentImpactAssessmentPayload({})).toMatchObject({
+      requestId: undefined,
+      sources: [],
+      confidence: 0,
+      riskLevel: 'medium',
+      affectedFiles: [],
+      blockMutationWhenScopeUnknown: true,
+    });
+  });
+
+  it('normalizes predictive warning payload and defaults confidence safely', () => {
+    expect(
+      normalizeIncidentPredictiveWarningPayload({
+        requestId: ' pred-1 ',
+        warningId: ' warn-1 ',
+        confidenceBand: 'high',
+        predictedFailure: ' timeout risk in checkout ',
+        affectedScopeSummary: 'orders-api + payment-worker',
+        nextSafeAction: 'run staged verify pack',
+        verifyChecklist: ['npm run test:orders'],
+        telemetrySeed: {
+          predictionKey: ' pred-key-1 ',
+          evidenceSources: ['graph', 'doctor'],
+        },
+      })
+    ).toEqual({
+      requestId: 'pred-1',
+      warningId: 'warn-1',
+      confidenceBand: 'high',
+      predictedFailure: 'timeout risk in checkout',
+      affectedScopeSummary: 'orders-api + payment-worker',
+      nextSafeAction: 'run staged verify pack',
+      verifyChecklist: ['npm run test:orders'],
+      telemetrySeed: {
+        predictionKey: 'pred-key-1',
+        evidenceSources: ['graph', 'doctor'],
+      },
+    });
+
+    expect(normalizeIncidentPredictiveWarningPayload({ requestId: 'pred-2' })).toMatchObject({
+      warningId: 'pred-2',
+      confidenceBand: 'medium',
+      telemetrySeed: {
+        predictionKey: 'pred-2',
+      },
+    });
+  });
+
+  it('normalizes release gate evidence payload with fail-safe boolean defaults', () => {
+    expect(
+      normalizeIncidentReleaseGateEvidencePayload({
+        requestId: ' gate-1 ',
+        scopeKnown: true,
+        verifyPathPresent: true,
+        rollbackPathPresent: false,
+        confidenceSufficient: true,
+        blockedReasons: ['rollback path missing', 'rollback path missing'],
+      })
+    ).toEqual({
+      requestId: 'gate-1',
+      scopeKnown: true,
+      verifyPathPresent: true,
+      rollbackPathPresent: false,
+      confidenceSufficient: true,
+      blockedReasons: ['rollback path missing'],
+    });
+
+    expect(normalizeIncidentReleaseGateEvidencePayload({})).toEqual({
+      requestId: undefined,
+      scopeKnown: false,
+      verifyPathPresent: false,
+      rollbackPathPresent: false,
+      confidenceSufficient: false,
+      blockedReasons: [],
+    });
   });
 });

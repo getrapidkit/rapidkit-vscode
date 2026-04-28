@@ -1351,6 +1351,7 @@
     "test:coverage": "vitest run --coverage",
     "test:vscode": "vscode-test",
     "release:stop-gate": "node scripts/release-stop-gate.mjs",
+    "release:stop-gate:wave2": "node scripts/release-stop-gate.mjs --manifest releases/wave2-foundation-gate.json --marker releases/fixtures/wave2-kpi-marker.json",
     "sync:modules": "node scripts/sync-modules.mjs",
     "package": "vsce package",
     "publish": "vsce publish",

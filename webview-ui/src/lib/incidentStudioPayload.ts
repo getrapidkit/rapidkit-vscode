@@ -31,6 +31,116 @@ export type IncidentPartialFailurePayload = {
   retryable: boolean;
 };
 
+export type IncidentVerifyPolicy = {
+  requiresVerifyPath?: boolean;
+  requiresImpactReview?: boolean;
+  allowCompletionClaimWithoutVerify?: boolean;
+};
+
+export type IncidentActionEvidence = {
+  source?: string;
+  healthScoreText?: string;
+  generatedAt?: string;
+  passed?: number;
+  warnings?: number;
+  errors?: number;
+};
+
+export type NormalizedIncidentActionResultPayload = {
+  success: boolean;
+  outputSummary?: string;
+  verificationRequired?: boolean;
+  verifyPolicy?: IncidentVerifyPolicy;
+  evidence?: IncidentActionEvidence;
+};
+
+export type NormalizedIncidentActionProgressPayload = {
+  stage: string;
+  progress: number;
+  note?: string;
+};
+
+export type NormalizedIncidentDonePayload = {
+  modelId?: string;
+  finalText?: string;
+};
+
+export type IncidentSystemGraphNodeType =
+  | 'route'
+  | 'controller'
+  | 'service'
+  | 'model'
+  | 'datastore'
+  | 'test'
+  | 'unknown';
+
+export type IncidentSystemGraphNode = {
+  id: string;
+  type: IncidentSystemGraphNodeType;
+  label: string;
+  filePath?: string;
+  confidence: number;
+};
+
+export type IncidentSystemGraphEdge = {
+  sourceId: string;
+  targetId: string;
+  relation: string;
+};
+
+export type NormalizedIncidentSystemGraphSnapshotPayload = {
+  requestId?: string;
+  workspacePath: string;
+  projectPath?: string;
+  graphVersion: string;
+  nodes: IncidentSystemGraphNode[];
+  edges: IncidentSystemGraphEdge[];
+  summary: {
+    nodeCount: number;
+    edgeCount: number;
+    supportedTopology: string;
+  };
+};
+
+export type NormalizedIncidentImpactAssessmentPayload = {
+  requestId?: string;
+  sources: string[];
+  confidence: number;
+  riskLevel: IncidentActionRiskLevel;
+  affectedFiles: string[];
+  affectedModules: string[];
+  affectedTests: string[];
+  likelyFailureMode?: string;
+  rationale: string[];
+  verifyChecklist: string[];
+  blockMutationWhenScopeUnknown: boolean;
+};
+
+export type IncidentPredictiveConfidenceBand = 'low' | 'medium' | 'high';
+
+export type NormalizedIncidentPredictiveWarningPayload = {
+  requestId?: string;
+  warningId: string;
+  confidenceBand: IncidentPredictiveConfidenceBand;
+  predictedFailure?: string;
+  affectedScopeSummary?: string;
+  nextSafeAction?: string;
+  verifyChecklist: string[];
+  telemetrySeed: {
+    predictionKey: string;
+    evidenceSources: string[];
+  };
+};
+
+export type NormalizedIncidentReleaseGateEvidencePayload = {
+  requestId?: string;
+  scopeKnown: boolean;
+  verifyPathPresent: boolean;
+  rollbackPathPresent: boolean;
+  confidenceSufficient: boolean;
+  blockedReasons: string[];
+};
+
 export type IncidentWorkspaceGraphSnapshot = {
   snapshotVersion: string;
   workspace: {
@@ -109,6 +219,25 @@ function asNumber(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
+}
+
+function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function asOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -146,6 +275,72 @@ function sanitizeIncidentText(value: unknown, maxLength: number): string | undef
   return `${redacted.slice(0, maxLength)}\n...[TRUNCATED]`;
 }
 
+function sanitizeStringArray(value: unknown, maxLength: number, maxItems = 32): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const unique: string[] = [];
+  for (const entry of value) {
+    const sanitized = sanitizeIncidentText(entry, maxLength);
+    if (!sanitized || unique.includes(sanitized)) {
+      continue;
+    }
+    unique.push(sanitized);
+    if (unique.length >= maxItems) {
+      break;
+    }
+  }
+  return unique;
+}
+
+function sanitizeStringList(value: unknown, maxLength: number, maxItems = 32): string[] {
+  if (typeof value === 'string') {
+    const single = sanitizeIncidentText(value, maxLength);
+    return single ? [single] : [];
+  }
+
+  return sanitizeStringArray(value, maxLength, maxItems);
+}
+
+function normalizeIncidentRiskLevel(value: unknown): IncidentActionRiskLevel {
+  const normalized = cleanText(value)?.toLowerCase();
+  if (
+    normalized === 'low' ||
+    normalized === 'medium' ||
+    normalized === 'high' ||
+    normalized === 'critical'
+  ) {
+    return normalized;
+  }
+  return 'medium';
+}
+
+function normalizeIncidentGraphNodeType(value: unknown): IncidentSystemGraphNodeType {
+  const normalized = cleanText(value)?.toLowerCase();
+  if (
+    normalized === 'route' ||
+    normalized === 'controller' ||
+    normalized === 'service' ||
+    normalized === 'model' ||
+    normalized === 'datastore' ||
+    normalized === 'test'
+  ) {
+    return normalized;
+  }
+
+  return 'unknown';
+}
+
+function normalizePredictiveConfidenceBand(value: unknown): IncidentPredictiveConfidenceBand {
+  const normalized = cleanText(value)?.toLowerCase();
+  if (normalized === 'low' || normalized === 'medium' || normalized === 'high') {
+    return normalized;
+  }
+
+  return 'medium';
+}
+
 export function normalizeIncidentProtocolMeta(meta: unknown): NormalizedIncidentProtocolMeta {
   const record = asRecord(meta);
   return {
@@ -178,6 +373,198 @@ export function normalizeIncidentPartialFailurePayload(
     code,
     message,
     retryable,
+  };
+}
+
+export function normalizeIncidentActionResultPayload(
+  value: unknown
+): NormalizedIncidentActionResultPayload {
+  const record = asRecord(value);
+  const verifyPolicyRecord = asRecord(record.verifyPolicy);
+  const evidenceRecord = asRecord(record.evidence);
+
+  const verifyPolicy: IncidentVerifyPolicy = {
+    requiresVerifyPath: asOptionalBoolean(verifyPolicyRecord.requiresVerifyPath),
+    requiresImpactReview: asOptionalBoolean(verifyPolicyRecord.requiresImpactReview),
+    allowCompletionClaimWithoutVerify: asOptionalBoolean(
+      verifyPolicyRecord.allowCompletionClaimWithoutVerify
+    ),
+  };
+
+  const hasVerifyPolicyField =
+    typeof verifyPolicy.requiresVerifyPath === 'boolean' ||
+    typeof verifyPolicy.requiresImpactReview === 'boolean' ||
+    typeof verifyPolicy.allowCompletionClaimWithoutVerify === 'boolean';
+
+  const evidence: IncidentActionEvidence = {
+    source: sanitizeIncidentText(evidenceRecord.source, 120),
+    healthScoreText: sanitizeIncidentText(evidenceRecord.healthScoreText, 160),
+    generatedAt: cleanText(evidenceRecord.generatedAt),
+    passed: asOptionalNumber(evidenceRecord.passed),
+    warnings: asOptionalNumber(evidenceRecord.warnings),
+    errors: asOptionalNumber(evidenceRecord.errors),
+  };
+
+  const hasEvidenceField =
+    typeof evidence.source === 'string' ||
+    typeof evidence.healthScoreText === 'string' ||
+    typeof evidence.generatedAt === 'string' ||
+    typeof evidence.passed === 'number' ||
+    typeof evidence.warnings === 'number' ||
+    typeof evidence.errors === 'number';
+
+  return {
+    success: Boolean(record.success),
+    outputSummary: sanitizeIncidentText(record.outputSummary, 1200),
+    verificationRequired: asOptionalBoolean(record.verificationRequired),
+    verifyPolicy: hasVerifyPolicyField ? verifyPolicy : undefined,
+    evidence: hasEvidenceField ? evidence : undefined,
+  };
+}
+
+export function normalizeIncidentActionProgressPayload(
+  value: unknown
+): NormalizedIncidentActionProgressPayload {
+  const record = asRecord(value);
+  const rawProgress = asNumber(record.progress, 0);
+
+  return {
+    stage: sanitizeIncidentText(record.stage, 80) || 'running',
+    progress: Math.max(0, Math.min(100, rawProgress)),
+    note: sanitizeIncidentText(record.note, 320),
+  };
+}
+
+export function normalizeIncidentDonePayload(value: unknown): NormalizedIncidentDonePayload {
+  const record = asRecord(value);
+  return {
+    modelId: sanitizeIncidentText(record.modelId, 120),
+    finalText: sanitizeIncidentText(record.finalText, 24000),
+  };
+}
+
+export function normalizeIncidentSystemGraphSnapshotPayload(
+  value: unknown
+): NormalizedIncidentSystemGraphSnapshotPayload | null {
+  const root = asRecord(value);
+  const workspacePath = cleanText(root.workspacePath);
+  if (!workspacePath) {
+    return null;
+  }
+
+  const nodes = Array.isArray(root.nodes)
+    ? root.nodes
+        .map((entry): IncidentSystemGraphNode | null => {
+          const node = asRecord(entry);
+          const id = cleanText(node.id);
+          if (!id) {
+            return null;
+          }
+
+          const filePath = cleanText(node.filePath);
+
+          return {
+            id,
+            type: normalizeIncidentGraphNodeType(node.type),
+            label: sanitizeIncidentText(node.label, 200) || id,
+            ...(filePath ? { filePath } : {}),
+            confidence: clampNumber(asNumber(node.confidence, 50), 0, 100),
+          };
+        })
+        .filter((entry): entry is IncidentSystemGraphNode => entry !== null)
+    : [];
+
+  const edges = Array.isArray(root.edges)
+    ? root.edges
+        .map((entry) => {
+          const edge = asRecord(entry);
+          const sourceId = cleanText(edge.sourceId);
+          const targetId = cleanText(edge.targetId);
+          if (!sourceId || !targetId) {
+            return null;
+          }
+
+          return {
+            sourceId,
+            targetId,
+            relation: sanitizeIncidentText(edge.relation, 120) || 'depends-on',
+          } satisfies IncidentSystemGraphEdge;
+        })
+        .filter((entry): entry is IncidentSystemGraphEdge => entry !== null)
+    : [];
+
+  const summary = asRecord(root.summary);
+  return {
+    requestId: cleanText(root.requestId),
+    workspacePath,
+    projectPath: cleanText(root.projectPath),
+    graphVersion: cleanText(root.graphVersion) || 'v1',
+    nodes,
+    edges,
+    summary: {
+      nodeCount: asNumber(summary.nodeCount, nodes.length),
+      edgeCount: asNumber(summary.edgeCount, edges.length),
+      supportedTopology: sanitizeIncidentText(summary.supportedTopology, 120) || 'unknown',
+    },
+  };
+}
+
+export function normalizeIncidentImpactAssessmentPayload(
+  value: unknown
+): NormalizedIncidentImpactAssessmentPayload {
+  const root = asRecord(value);
+
+  return {
+    requestId: cleanText(root.requestId),
+    sources: sanitizeStringList(root.sources ?? root.source, 80),
+    confidence: clampNumber(asNumber(root.confidence, 0), 0, 100),
+    riskLevel: normalizeIncidentRiskLevel(root.riskLevel),
+    affectedFiles: sanitizeStringArray(root.affectedFiles, 240),
+    affectedModules: sanitizeStringArray(root.affectedModules, 120),
+    affectedTests: sanitizeStringArray(root.affectedTests, 180),
+    likelyFailureMode: sanitizeIncidentText(root.likelyFailureMode, 240),
+    rationale: sanitizeStringArray(root.rationale, 280),
+    verifyChecklist: sanitizeStringArray(root.verifyChecklist, 240),
+    blockMutationWhenScopeUnknown: asBoolean(root.blockMutationWhenScopeUnknown, true),
+  };
+}
+
+export function normalizeIncidentPredictiveWarningPayload(
+  value: unknown
+): NormalizedIncidentPredictiveWarningPayload {
+  const root = asRecord(value);
+  const warningId = cleanText(root.warningId) || cleanText(root.requestId) || 'prediction-warning';
+  const telemetrySeed = asRecord(root.telemetrySeed);
+  const predictionKey =
+    cleanText(telemetrySeed.predictionKey) || cleanText(root.predictionKey) || warningId;
+
+  return {
+    requestId: cleanText(root.requestId),
+    warningId,
+    confidenceBand: normalizePredictiveConfidenceBand(root.confidenceBand),
+    predictedFailure: sanitizeIncidentText(root.predictedFailure, 240),
+    affectedScopeSummary: sanitizeIncidentText(root.affectedScopeSummary, 240),
+    nextSafeAction: sanitizeIncidentText(root.nextSafeAction, 240),
+    verifyChecklist: sanitizeStringArray(root.verifyChecklist, 240),
+    telemetrySeed: {
+      predictionKey,
+      evidenceSources: sanitizeStringList(telemetrySeed.evidenceSources, 80),
+    },
+  };
+}
+
+export function normalizeIncidentReleaseGateEvidencePayload(
+  value: unknown
+): NormalizedIncidentReleaseGateEvidencePayload {
+  const root = asRecord(value);
+
+  return {
+    requestId: cleanText(root.requestId),
+    scopeKnown: asBoolean(root.scopeKnown, false),
+    verifyPathPresent: asBoolean(root.verifyPathPresent, false),
+    rollbackPathPresent: asBoolean(root.rollbackPathPresent, false),
+    confidenceSufficient: asBoolean(root.confidenceSufficient, false),
+    blockedReasons: sanitizeStringArray(root.blockedReasons, 220),
   };
 }
 

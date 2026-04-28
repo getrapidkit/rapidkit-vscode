@@ -1,0 +1,38 @@
+name: wave2-release-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  wave2-foundation:
+    name: Wave 2 release gate
+    runs-on: ubuntu-latest
+    env:
+      WORKSPAI_GATE_VERIFY_MIN: ${{ vars.WORKSPAI_GATE_VERIFY_MIN || '80' }}
+      WORKSPAI_GATE_BRIDGE_MIN: ${{ vars.WORKSPAI_GATE_BRIDGE_MIN || '95' }}
+      WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN: ${{ vars.WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN || '65' }}
+      WORKSPAI_GATE_FALSE_ALARM_RATE_MAX: ${{ vars.WORKSPAI_GATE_FALSE_ALARM_RATE_MAX || '35' }}
+      WORKSPAI_GATE_PREVENTED_INCIDENT_RATE_MIN: ${{ vars.WORKSPAI_GATE_PREVENTED_INCIDENT_RATE_MIN || '20' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile extension
+        run: npm run compile
+
+      - name: Wave 2 release gate
+        run: npm run release:stop-gate:wave2

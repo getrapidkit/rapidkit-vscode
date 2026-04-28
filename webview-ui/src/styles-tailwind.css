@@ -2810,6 +2810,11 @@
     color: #00b894;
   }
 
+  .incident-verify-inline-badge.is-warning {
+    background: color-mix(in srgb, #fdcb6e 12%, transparent);
+    color: #e6a817;
+  }
+
   .incident-verify-inline-badge.is-fail {
     background: color-mix(in srgb, #e17055 12%, transparent);
     color: #e17055;
@@ -3259,6 +3264,176 @@
   .incident-focus-command-card--proof {
     border-color: color-mix(in srgb, #55efc4 28%, var(--vscode-panel-border));
     background: color-mix(in srgb, #55efc4 7%, var(--vscode-editor-background));
+  }
+
+  .incident-focus-command-card--impact {
+    border-color: color-mix(in srgb, #00cec9 28%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #00cec9 7%, var(--vscode-editor-background));
+  }
+
+  .incident-focus-graph-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-focus-graph-meta strong {
+    color: var(--vscode-editor-foreground);
+    font-size: 10.5px;
+  }
+
+  .incident-impact-card {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 95%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .incident-impact-card.risk-high,
+  .incident-impact-card.risk-critical {
+    border-color: color-mix(in srgb, #e17055 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #e17055 9%, var(--vscode-editor-background));
+  }
+
+  .incident-impact-card.risk-medium {
+    border-color: color-mix(in srgb, #fdcb6e 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #fdcb6e 8%, var(--vscode-editor-background));
+  }
+
+  .incident-impact-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-impact-head small {
+    font-size: 9px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-impact-summary {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-impact-scopes {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 10px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-predictive-card {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 95%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .incident-predictive-card.tone-high {
+    border-color: color-mix(in srgb, #e17055 36%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #e17055 8%, var(--vscode-editor-background));
+  }
+
+  .incident-predictive-card.tone-medium {
+    border-color: color-mix(in srgb, #fdcb6e 36%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #fdcb6e 7%, var(--vscode-editor-background));
+  }
+
+  .incident-predictive-card.tone-low {
+    border-color: color-mix(in srgb, #74b9ff 34%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #74b9ff 7%, var(--vscode-editor-background));
+  }
+
+  .incident-predictive-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-predictive-head small {
+    font-size: 9px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-predictive-card p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-predictive-scope {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-predictive-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-release-gate-badge {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 8px;
+    padding: 7px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 96%, transparent);
+  }
+
+  .incident-release-gate-badge.is-open {
+    border-color: color-mix(in srgb, #00b894 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #00b894 8%, var(--vscode-editor-background));
+  }
+
+  .incident-release-gate-badge.is-blocked {
+    border-color: color-mix(in srgb, #e17055 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #e17055 8%, var(--vscode-editor-background));
+  }
+
+  .incident-release-gate-badge strong {
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-release-gate-badge span,
+  .incident-release-gate-badge em {
+    font-size: 9.5px;
+    font-style: normal;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
   }
 
   .incident-focus-command-head {

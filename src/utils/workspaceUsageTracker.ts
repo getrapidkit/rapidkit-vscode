@@ -106,6 +106,39 @@ export interface StudioHardGateStatus {
   };
 }
 
+export interface StudioPredictionKpiThresholds {
+  predictivePrecisionMin: number;
+  falseAlarmRateMax: number;
+  preventedIncidentRateMin: number;
+}
+
+export interface StudioPredictionKpiStatus {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  thresholds: StudioPredictionKpiThresholds;
+  metrics: {
+    predictionShown: number;
+    predictionAccepted: number;
+    predictionVerified: number;
+    predictionFalsified: number;
+    predictionIgnored: number;
+    predictivePrecision: number | null;
+    falseAlarmRate: number | null;
+    preventedIncidentRate: number | null;
+    acceptanceRate: number | null;
+    verificationCoverage: number | null;
+  };
+  gates: {
+    telemetryEvidencePass: boolean;
+    predictivePrecisionPass: boolean;
+    falseAlarmRatePass: boolean;
+    preventedIncidentRatePass: boolean;
+    overallPass: boolean;
+  };
+}
+
 export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
@@ -172,7 +205,7 @@ const TELEMETRY_SURFACE_ALLOWLIST: TelemetrySurfaceAllowlistRule[] = [
   {
     surface: 'action',
     pattern:
-      /^workspai\.studio\.(loop_started|next_action_clicked|action_executed|verify_passed|verify_failed|loop_completed|abandoned)$/,
+      /^workspai\.studio\.(loop_started|next_action_clicked|action_executed|verify_passed|verify_failed|loop_completed|abandoned|prediction_shown|prediction_accepted|prediction_verified|prediction_falsified)$/,
   },
 ];
 
@@ -1200,6 +1233,136 @@ export class WorkspaceUsageTracker {
         overallPass: verifyPhaseReachPass && bridgeRouteCompletionPass && telemetryEvidencePass,
       },
     };
+  }
+
+  async getStudioPredictionKpiStatus(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last7d',
+    thresholds: Partial<StudioPredictionKpiThresholds> = {}
+  ): Promise<StudioPredictionKpiStatus | null> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const marker = await readWorkspaceMarker(workspacePath);
+      if (!marker) {
+        return null;
+      }
+
+      const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+      const telemetry =
+        telemetryRaw && typeof telemetryRaw === 'object'
+          ? (telemetryRaw as Record<string, unknown>)
+          : {};
+
+      const recentEvents = this.parseRecentEvents(telemetry.recentEvents);
+      const nowMs = Date.now();
+      const windowStartMs = this.getWindowStartMs(timeWindow, nowMs);
+      const filteredRecentEvents =
+        windowStartMs === null
+          ? recentEvents
+          : recentEvents.filter((entry) => Date.parse(entry.at) >= windowStartMs);
+
+      let predictionShown = 0;
+      let predictionAccepted = 0;
+      let predictionVerified = 0;
+      let predictionFalsified = 0;
+
+      for (const entry of filteredRecentEvents) {
+        if (entry.command === 'workspai.studio.prediction_shown') {
+          predictionShown += 1;
+        } else if (entry.command === 'workspai.studio.prediction_accepted') {
+          predictionAccepted += 1;
+        } else if (entry.command === 'workspai.studio.prediction_verified') {
+          predictionVerified += 1;
+        } else if (entry.command === 'workspai.studio.prediction_falsified') {
+          predictionFalsified += 1;
+        }
+      }
+
+      const predictionIgnored = Math.max(0, predictionShown - predictionAccepted);
+      const predictionOutcomes = predictionVerified + predictionFalsified;
+
+      const predictivePrecision =
+        predictionOutcomes > 0
+          ? Number(((predictionVerified / predictionOutcomes) * 100).toFixed(2))
+          : null;
+      const falseAlarmRate =
+        predictionOutcomes > 0
+          ? Number(((predictionFalsified / predictionOutcomes) * 100).toFixed(2))
+          : null;
+      const preventedIncidentRate =
+        predictionShown > 0
+          ? Number(((predictionVerified / predictionShown) * 100).toFixed(2))
+          : null;
+      const acceptanceRate =
+        predictionShown > 0
+          ? Number(((predictionAccepted / predictionShown) * 100).toFixed(2))
+          : null;
+      const verificationCoverage =
+        predictionAccepted > 0
+          ? Number(((predictionOutcomes / predictionAccepted) * 100).toFixed(2))
+          : null;
+
+      const resolvedThresholds: StudioPredictionKpiThresholds = {
+        predictivePrecisionMin:
+          typeof thresholds.predictivePrecisionMin === 'number'
+            ? thresholds.predictivePrecisionMin
+            : 65,
+        falseAlarmRateMax:
+          typeof thresholds.falseAlarmRateMax === 'number' ? thresholds.falseAlarmRateMax : 35,
+        preventedIncidentRateMin:
+          typeof thresholds.preventedIncidentRateMin === 'number'
+            ? thresholds.preventedIncidentRateMin
+            : 20,
+      };
+
+      const telemetryEvidencePass = predictionShown > 0;
+      const predictivePrecisionPass =
+        predictivePrecision !== null &&
+        predictivePrecision >= resolvedThresholds.predictivePrecisionMin;
+      const falseAlarmRatePass =
+        falseAlarmRate !== null && falseAlarmRate <= resolvedThresholds.falseAlarmRateMax;
+      const preventedIncidentRatePass =
+        preventedIncidentRate !== null &&
+        preventedIncidentRate >= resolvedThresholds.preventedIncidentRateMin;
+
+      return {
+        workspacePath,
+        timeWindow,
+        windowStartAt: windowStartMs === null ? null : new Date(windowStartMs).toISOString(),
+        windowEndAt: new Date(nowMs).toISOString(),
+        thresholds: resolvedThresholds,
+        metrics: {
+          predictionShown,
+          predictionAccepted,
+          predictionVerified,
+          predictionFalsified,
+          predictionIgnored,
+          predictivePrecision,
+          falseAlarmRate,
+          preventedIncidentRate,
+          acceptanceRate,
+          verificationCoverage,
+        },
+        gates: {
+          telemetryEvidencePass,
+          predictivePrecisionPass,
+          falseAlarmRatePass,
+          preventedIncidentRatePass,
+          overallPass:
+            telemetryEvidencePass &&
+            predictivePrecisionPass &&
+            falseAlarmRatePass &&
+            preventedIncidentRatePass,
+        },
+      };
+    } catch (error) {
+      this.logger.debug(`Failed to read studio prediction KPI status: ${error}`);
+      return null;
+    }
   }
 
   /**

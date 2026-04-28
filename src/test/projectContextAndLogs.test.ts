@@ -22,6 +22,7 @@ const {
   trackerMock: {
     getCommandTelemetrySummary: vi.fn(),
     getStudioHardGateStatus: vi.fn(),
+    getStudioPredictionKpiStatus: vi.fn(),
     getOnboardingExperimentStats: vi.fn(),
     clearCommandTelemetry: vi.fn(),
   },
@@ -142,6 +143,37 @@ describe('projectContextAndLogs telemetry summary contract', () => {
         overallPass: false,
       },
     });
+
+    trackerMock.getStudioPredictionKpiStatus.mockResolvedValue({
+      workspacePath: '/tmp/demo-workspace',
+      timeWindow: 'last24h',
+      windowStartAt: '2026-04-21T12:30:00.000Z',
+      windowEndAt: '2026-04-22T12:30:00.000Z',
+      thresholds: {
+        predictivePrecisionMin: 65,
+        falseAlarmRateMax: 35,
+        preventedIncidentRateMin: 20,
+      },
+      metrics: {
+        predictionShown: 10,
+        predictionAccepted: 7,
+        predictionVerified: 5,
+        predictionFalsified: 2,
+        predictionIgnored: 3,
+        predictivePrecision: 71.43,
+        falseAlarmRate: 28.57,
+        preventedIncidentRate: 50,
+        acceptanceRate: 70,
+        verificationCoverage: 100,
+      },
+      gates: {
+        telemetryEvidencePass: true,
+        predictivePrecisionPass: true,
+        falseAlarmRatePass: true,
+        preventedIncidentRatePass: true,
+        overallPass: true,
+      },
+    });
   });
 
   it('includes action-vs-ask and surface mix in copied quick summary', async () => {
@@ -159,6 +191,10 @@ describe('projectContextAndLogs telemetry summary contract', () => {
       '/tmp/demo-workspace',
       'last24h'
     );
+    expect(trackerMock.getStudioPredictionKpiStatus).toHaveBeenCalledWith(
+      '/tmp/demo-workspace',
+      'last24h'
+    );
 
     expect(writeTextMock).toHaveBeenCalledTimes(1);
     const quickSummary = writeTextMock.mock.calls[0][0] as string;
@@ -167,10 +203,13 @@ describe('projectContextAndLogs telemetry summary contract', () => {
     expect(quickSummary).toContain('action: 6 (60%)');
     expect(quickSummary).toContain('chat: 3 (30%)');
     expect(quickSummary).toContain('aimodal: 1 (10%)');
+    expect(quickSummary).toContain('Predictive KPI overall: PASS');
+    expect(quickSummary).toContain('Predictive precision: 71.43%');
 
     expect(openTextDocumentMock).toHaveBeenCalledTimes(1);
     const openDocArgs = openTextDocumentMock.mock.calls[0][0] as { content: string };
     expect(openDocArgs.content).toContain('"surfaceBreakdown"');
     expect(openDocArgs.content).toContain('"actionVsAskShare": 60');
+    expect(openDocArgs.content).toContain('"studioPredictionKpiStatus"');
   });
 });

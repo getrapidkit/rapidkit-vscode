@@ -182,16 +182,32 @@ describe('contract drift guard', () => {
   it('keeps release stop automation wired to gate script and CI workflow', () => {
     const packageJsonSource = read('package.json');
     const workflowSource = read('.github/workflows/extension-smoke-matrix.yml');
+    const wave2WorkflowSource = read('.github/workflows/release-gate-wave2.yml');
+    const gateManifestSource = read('releases/wave2-foundation-gate.json');
     const gateScriptSource = read('scripts/release-stop-gate.mjs');
 
     expect(packageJsonSource).toContain(
       '"release:stop-gate": "node scripts/release-stop-gate.mjs"'
     );
+    expect(packageJsonSource).toContain(
+      '"release:stop-gate:wave2": "node scripts/release-stop-gate.mjs --manifest releases/wave2-foundation-gate.json --marker releases/fixtures/wave2-kpi-marker.json"'
+    );
     expect(workflowSource).toContain('Release stop gate (contract/parity)');
     expect(workflowSource).toContain('npm run release:stop-gate -- --skip-kpi');
+    expect(wave2WorkflowSource).toContain('Wave 2 release gate');
+    expect(wave2WorkflowSource).toContain('npm run release:stop-gate:wave2');
+    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN');
+    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_FALSE_ALARM_RATE_MAX');
+    expect(gateManifestSource).toContain('WAVE2_FOUNDATION_GATE');
+    expect(gateManifestSource).toContain('docs/WAVE2_ENGINEERING_BREAKDOWN.md');
+    expect(gateManifestSource).toContain('releases/fixtures/wave2-kpi-marker.json');
     expect(gateScriptSource).toContain('src/test/driftGuard.test.ts');
     expect(gateScriptSource).toContain('src/test/incidentStudioPayload.test.ts');
     expect(gateScriptSource).toContain('src/test/workspaceUsageTracker.test.ts');
+    expect(gateScriptSource).toContain('--manifest');
+    expect(gateScriptSource).toContain('--skip-contract-checks');
+    expect(gateScriptSource).toContain('WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN');
+    expect(gateScriptSource).toContain('WORKSPAI_GATE_FALSE_ALARM_RATE_MAX');
   });
 
   it('keeps terminal execution centralized in approved files', () => {

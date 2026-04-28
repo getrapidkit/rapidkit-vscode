@@ -1,0 +1,37 @@
+{
+    "name": "WAVE2_FOUNDATION_GATE",
+    "requiredFiles": [
+        "docs/WAVE2_ENGINEERING_BREAKDOWN.md",
+        "docs/WAVE2_CONTRACT_TEST_MATRIX.md",
+        ".github/workflows/release-gate-wave2.yml",
+        "src/test/releaseStopGateManifest.test.ts",
+        "releases/fixtures/wave2-kpi-marker.json"
+    ],
+    "requiredVitestTests": [
+        "src/test/incidentStudioFlowE2E.test.ts",
+        "src/test/incidentStudioTelemetry.test.ts",
+        "src/test/releaseStopGateManifest.test.ts"
+    ],
+    "requiredContents": [
+        {
+            "path": "package.json",
+            "contains": "\"release:stop-gate:wave2\": \"node scripts/release-stop-gate.mjs --manifest releases/wave2-foundation-gate.json --marker releases/fixtures/wave2-kpi-marker.json\""
+        },
+        {
+            "path": ".github/workflows/release-gate-wave2.yml",
+            "contains": "npm run release:stop-gate:wave2"
+        },
+        {
+            "path": ".github/workflows/release-gate-wave2.yml",
+            "contains": "WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN"
+        },
+        {
+            "path": "docs/WAVE2_ENGINEERING_BREAKDOWN.md",
+            "contains": "Architecture-Aware Predictive Incident Slice"
+        },
+        {
+            "path": "docs/WAVE2_CONTRACT_TEST_MATRIX.md",
+            "contains": "impactAssessment"
+        }
+    ]
+}

@@ -234,6 +234,36 @@ describe('workspaceUsageTracker telemetry stability', () => {
     });
   });
 
+  it('classifies studio prediction events as action telemetry surface', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-prediction-surface');
+
+    createWorkspaceMarker(workspacePath, {
+      commandUsage: {
+        'workspai.studio.prediction_shown': 3,
+        'workspai.studio.prediction_accepted': 2,
+        'workspai.studio.prediction_verified': 1,
+        'workspai.studio.prediction_falsified': 1,
+        'workspai.chat.ask': 2,
+      },
+      recentEvents: [
+        { command: 'workspai.studio.prediction_shown', at: '2026-04-22T12:10:00.000Z' },
+        { command: 'workspai.chat.ask', at: '2026-04-22T12:12:00.000Z' },
+      ],
+      lastCommand: 'workspai.chat.ask',
+      lastCommandAt: '2026-04-22T12:12:00.000Z',
+    });
+
+    const summary = await WorkspaceUsageTracker.getInstance().getCommandTelemetrySummary(
+      workspacePath,
+      'all'
+    );
+
+    expect(summary).not.toBeNull();
+    expect(summary?.surfaceBreakdown.actionEvents).toBe(7);
+    expect(summary?.surfaceBreakdown.askEvents).toBe(2);
+    expect(summary?.surfaceBreakdown.actionVsAskShare).toBe(77.78);
+  });
+
   it('treats non-allowlisted ai commands as other surface to prevent drift', async () => {
     const workspacePath = path.join(tempRoot, 'ws-allowlist');
 
@@ -330,6 +360,60 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(gateStatus?.gates.verifyPhaseReachPass).toBe(false);
     expect(gateStatus?.gates.bridgeRouteCompletionPass).toBe(false);
     expect(gateStatus?.gates.overallPass).toBe(false);
+  });
+
+  it('computes predictive KPI metrics from studio prediction lifecycle events', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-prediction-kpi-pass');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+
+    for (let i = 0; i < 10; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.prediction_shown', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    for (let i = 0; i < 7; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.prediction_accepted', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.prediction_verified', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    for (let i = 0; i < 2; i += 1) {
+      await tracker.trackCommandEvent('workspai.studio.prediction_falsified', workspacePath, {
+        framework: 'fastapi',
+      });
+    }
+
+    const status = await tracker.getStudioPredictionKpiStatus(workspacePath, 'all', {
+      predictivePrecisionMin: 70,
+      falseAlarmRateMax: 30,
+      preventedIncidentRateMin: 40,
+    });
+
+    expect(status).not.toBeNull();
+    expect(status?.metrics.predictionShown).toBe(10);
+    expect(status?.metrics.predictionAccepted).toBe(7);
+    expect(status?.metrics.predictionVerified).toBe(5);
+    expect(status?.metrics.predictionFalsified).toBe(2);
+    expect(status?.metrics.predictionIgnored).toBe(3);
+    expect(status?.metrics.predictivePrecision).toBe(71.43);
+    expect(status?.metrics.falseAlarmRate).toBe(28.57);
+    expect(status?.metrics.preventedIncidentRate).toBe(50);
+    expect(status?.metrics.acceptanceRate).toBe(70);
+    expect(status?.metrics.verificationCoverage).toBe(100);
+    expect(status?.gates.telemetryEvidencePass).toBe(true);
+    expect(status?.gates.predictivePrecisionPass).toBe(true);
+    expect(status?.gates.falseAlarmRatePass).toBe(true);
+    expect(status?.gates.preventedIncidentRatePass).toBe(true);
+    expect(status?.gates.overallPass).toBe(true);
   });
 
   it('uses onboarding hourly buckets for last24h stats instead of recentEvents cap', async () => {

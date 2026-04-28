@@ -1,0 +1,171 @@
+{
+    "signature": "RAPIDKIT_WORKSPACE",
+    "createdBy": "rapidkit-vscode",
+    "version": "0.22.0",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "name": "wave2-kpi-fixture",
+    "metadata": {
+        "custom": {
+            "workspaiTelemetry": {
+                "recentEvents": [
+                    {
+                        "command": "workspai.studio.loop_started",
+                        "at": "2026-04-28T10:00:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.loop_started",
+                        "at": "2026-04-28T10:00:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.loop_started",
+                        "at": "2026-04-28T10:00:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.loop_started",
+                        "at": "2026-04-28T10:00:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.loop_started",
+                        "at": "2026-04-28T10:00:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.action_executed",
+                        "at": "2026-04-28T10:01:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.action_executed",
+                        "at": "2026-04-28T10:01:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.action_executed",
+                        "at": "2026-04-28T10:01:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.action_executed",
+                        "at": "2026-04-28T10:01:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.action_executed",
+                        "at": "2026-04-28T10:01:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.verify_passed",
+                        "at": "2026-04-28T10:02:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.verify_passed",
+                        "at": "2026-04-28T10:02:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.verify_passed",
+                        "at": "2026-04-28T10:02:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.verify_passed",
+                        "at": "2026-04-28T10:02:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.verify_failed",
+                        "at": "2026-04-28T10:02:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:05.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:06.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:07.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:08.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_shown",
+                        "at": "2026-04-28T10:03:09.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:05.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_accepted",
+                        "at": "2026-04-28T10:04:06.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_verified",
+                        "at": "2026-04-28T10:05:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_verified",
+                        "at": "2026-04-28T10:05:01.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_verified",
+                        "at": "2026-04-28T10:05:02.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_verified",
+                        "at": "2026-04-28T10:05:03.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_verified",
+                        "at": "2026-04-28T10:05:04.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_falsified",
+                        "at": "2026-04-28T10:06:00.000Z"
+                    },
+                    {
+                        "command": "workspai.studio.prediction_falsified",
+                        "at": "2026-04-28T10:06:01.000Z"
+                    }
+                ]
+            }
+        }
+    }
+}

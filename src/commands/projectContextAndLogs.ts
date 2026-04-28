@@ -86,6 +86,11 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
         selectedWorkspace?.path,
         timeWindowPick.value
       );
+      const predictionKpiStatus =
+        await WorkspaceUsageTracker.getInstance().getStudioPredictionKpiStatus(
+          selectedWorkspace?.path,
+          timeWindowPick.value
+        );
 
       if (!summary) {
         vscode.window.showWarningMessage(
@@ -120,6 +125,13 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
           `(threshold: ${gateStatus?.thresholds.verifyPhaseReachMin ?? 'n/a'}%)`,
         `Studio bridge route completion: ${gateStatus?.metrics.bridgeRouteCompletionRate ?? 'n/a'}% ` +
           `(threshold: ${gateStatus?.thresholds.bridgeRouteCompletionMin ?? 'n/a'}%)`,
+        `Predictive KPI overall: ${predictionKpiStatus?.gates.overallPass ? 'PASS' : 'FAIL'}`,
+        `Predictive precision: ${predictionKpiStatus?.metrics.predictivePrecision ?? 'n/a'}% ` +
+          `(threshold: ${predictionKpiStatus?.thresholds.predictivePrecisionMin ?? 'n/a'}%)`,
+        `Predictive false alarm rate: ${predictionKpiStatus?.metrics.falseAlarmRate ?? 'n/a'}% ` +
+          `(threshold: <=${predictionKpiStatus?.thresholds.falseAlarmRateMax ?? 'n/a'}%)`,
+        `Prevented incident rate: ${predictionKpiStatus?.metrics.preventedIncidentRate ?? 'n/a'}% ` +
+          `(threshold: ${predictionKpiStatus?.thresholds.preventedIncidentRateMin ?? 'n/a'}%)`,
         `Surface mix:\n${surfaceRows || 'n/a'}`,
       ].join('\n');
 
@@ -127,6 +139,7 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
         ...summary,
         topCommands,
         studioHardGateStatus: gateStatus,
+        studioPredictionKpiStatus: predictionKpiStatus,
       };
 
       const doc = await vscode.workspace.openTextDocument({
