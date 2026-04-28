@@ -21,6 +21,7 @@ const {
   executeCommandMock: vi.fn(),
   trackerMock: {
     getCommandTelemetrySummary: vi.fn(),
+    getStudioHardGateStatus: vi.fn(),
     getOnboardingExperimentStats: vi.fn(),
     clearCommandTelemetry: vi.fn(),
   },
@@ -116,6 +117,31 @@ describe('projectContextAndLogs telemetry summary contract', () => {
         ],
       },
     });
+
+    trackerMock.getStudioHardGateStatus.mockResolvedValue({
+      workspacePath: '/tmp/demo-workspace',
+      timeWindow: 'last24h',
+      windowStartAt: '2026-04-21T12:30:00.000Z',
+      windowEndAt: '2026-04-22T12:30:00.000Z',
+      thresholds: {
+        verifyPhaseReachMin: 80,
+        bridgeRouteCompletionMin: 95,
+      },
+      metrics: {
+        loopStarted: 5,
+        nextActionClicked: 3,
+        actionExecuted: 4,
+        verifyOutcomes: 4,
+        verifyPhaseReach: 100,
+        bridgeRouteCompletionRate: 80,
+      },
+      gates: {
+        verifyPhaseReachPass: true,
+        bridgeRouteCompletionPass: false,
+        telemetryEvidencePass: true,
+        overallPass: false,
+      },
+    });
   });
 
   it('includes action-vs-ask and surface mix in copied quick summary', async () => {
@@ -126,6 +152,10 @@ describe('projectContextAndLogs telemetry summary contract', () => {
     await showTelemetrySummary?.();
 
     expect(trackerMock.getCommandTelemetrySummary).toHaveBeenCalledWith(
+      '/tmp/demo-workspace',
+      'last24h'
+    );
+    expect(trackerMock.getStudioHardGateStatus).toHaveBeenCalledWith(
       '/tmp/demo-workspace',
       'last24h'
     );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  type CachedIncidentStudioTelemetry,
   buildIncidentStudioTelemetryFromCache,
   buildIncidentStudioTelemetryPayload,
   shouldUseIncidentStudioTelemetryCache,
@@ -8,7 +9,7 @@ import {
 
 describe('incidentStudioTelemetry', () => {
   it('uses cached command/onboarding summaries but always overrides doctor summary with fresh evidence', () => {
-    const cachedData = {
+    const cachedData: CachedIncidentStudioTelemetry = {
       commandSummary: {
         totalEvents: 12,
         lastCommand: 'workspai.aiQuickActions',
