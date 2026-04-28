@@ -7,6 +7,7 @@ import {
   normalizeIncidentPredictiveWarningPayload,
   normalizeIncidentReleaseGateEvidencePayload,
   normalizeIncidentActionResultPayload,
+  normalizeIncidentPartialFailurePayload,
   normalizeIncomingIncidentStudioOpen,
   normalizeIncidentProtocolMeta,
   normalizeIncidentSystemGraphSnapshotPayload,
@@ -254,6 +255,48 @@ describe('incidentStudioFlowE2E', () => {
 
     expect(isIncidentDuplicateRequest('req-done-1', doneMeta.requestId)).toBe(true);
     expect(isIncidentDuplicateRequest('req-done-1', 'req-done-2')).toBe(false);
+  });
+
+  it('ignores stale workspace sync payloads during rapid workspace switching', () => {
+    const fixture = INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES[0];
+    const otherFixture = INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES[1];
+
+    const staleSync = reconcileIncidentStudioSyncSelection(fixture.workspacePath, null, {
+      workspacePath: otherFixture.workspacePath,
+      graph: normalizeIncidentWorkspaceGraphSnapshot(
+        buildIncidentWorkspaceGraphFixture(otherFixture)
+      ),
+    });
+
+    expect(staleSync.shouldApply).toBe(false);
+    expect(staleSync.selectionChanged).toBe(false);
+    expect(staleSync.projectSelection).toBeNull();
+  });
+
+  it('keeps partial-failure payload retry semantics deterministic for stream interruptions', () => {
+    const timeoutFailure = normalizeIncidentPartialFailurePayload({
+      code: ' TIMEOUT ',
+      message: ' Upstream stream timed out ',
+      retryable: true,
+    });
+
+    expect(timeoutFailure).toEqual({
+      code: 'TIMEOUT',
+      message: 'Upstream stream timed out',
+      retryable: true,
+    });
+
+    const duplicateFailure = normalizeIncidentPartialFailurePayload({
+      code: ' DUPLICATE_REQUEST ',
+      message: ' Duplicate requestId detected ',
+      retryable: false,
+    });
+
+    expect(duplicateFailure).toEqual({
+      code: 'DUPLICATE_REQUEST',
+      message: 'Duplicate requestId detected',
+      retryable: false,
+    });
   });
 
   it('preserves precise unknown-scope blocked reasons in release gate contract payload', () => {

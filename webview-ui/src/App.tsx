@@ -41,8 +41,22 @@ import {
     buildIncidentChatExecuteActionPayload,
     buildIncidentChatQueryPayload,
     buildIncidentChatStartPayload,
+    isIncidentDuplicateRequest,
+    normalizeIncidentPartialFailurePayload,
+    normalizeIncidentActionProgressPayload,
+    normalizeIncidentActionResultPayload,
+    normalizeIncidentDonePayload,
+    normalizeIncidentImpactAssessmentPayload,
     normalizeIncomingIncidentStudioOpen,
+    normalizeIncidentPredictiveWarningPayload,
+    normalizeIncidentProtocolMeta,
+    normalizeIncidentReleaseGateEvidencePayload,
+    normalizeIncidentSystemGraphSnapshotPayload,
     normalizeIncidentWorkspaceGraphSnapshot,
+    type NormalizedIncidentImpactAssessmentPayload,
+    type NormalizedIncidentPredictiveWarningPayload,
+    type NormalizedIncidentReleaseGateEvidencePayload,
+    type NormalizedIncidentSystemGraphSnapshotPayload,
     type IncidentProjectSelection,
 } from '@/lib/incidentStudioPayload';
 import { AIModal, AIModalContext } from '@/components/AIModal';
@@ -185,6 +199,7 @@ export function App() {
     const [aiAvailableModels, setAIAvailableModels] = useState<{ id: string; name: string; vendor: string }[]>([]);
     const [aiSelectedModelId, setAISelectedModelId] = useState<string | null>(null);
     const [incidentSelectedModelId, setIncidentSelectedModelId] = useState<string | null>(null);
+    const [incidentModelId, setIncidentModelId] = useState<string | null>(null);
     const [aiConversationHistory, setAIConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
     // AI Create state
     const [showAICreateModal, setShowAICreateModal] = useState(false);
@@ -229,6 +244,12 @@ export function App() {
     const [chatBrainActionResult, setChatBrainActionResult] = useState<{
         success: boolean;
         outputSummary?: string;
+        verificationRequired?: boolean;
+        verifyPolicy?: {
+            requiresVerifyPath?: boolean;
+            requiresImpactReview?: boolean;
+            allowCompletionClaimWithoutVerify?: boolean;
+        };
         evidence?: {
             source?: string;
             healthScoreText?: string;
@@ -238,7 +259,16 @@ export function App() {
             errors?: number;
         };
     } | null>(null);
+    const [chatBrainSystemGraphSnapshot, setChatBrainSystemGraphSnapshot] =
+        useState<NormalizedIncidentSystemGraphSnapshotPayload | null>(null);
+    const [chatBrainImpactAssessment, setChatBrainImpactAssessment] =
+        useState<NormalizedIncidentImpactAssessmentPayload | null>(null);
+    const [chatBrainPredictiveWarning, setChatBrainPredictiveWarning] =
+        useState<NormalizedIncidentPredictiveWarningPayload | null>(null);
+    const [chatBrainReleaseGateEvidence, setChatBrainReleaseGateEvidence] =
+        useState<NormalizedIncidentReleaseGateEvidencePayload | null>(null);
     const [chatBrainError, setChatBrainError] = useState<string | null>(null);
+    const [chatBrainErrorRetryable, setChatBrainErrorRetryable] = useState<boolean>(true);
     const [chatBrainIsStreaming, setChatBrainIsStreaming] = useState(false);
     const [chatBrainExecutingCommand, setChatBrainExecutingCommand] = useState<string | null>(null);
     /** true once extension has sent at least one installStatusUpdate — before that, initial false values must not be trusted */
@@ -259,6 +289,10 @@ export function App() {
     const aiRequestIdRef = useRef(0);
     const chatBrainMessageIdRef = useRef<string | null>(null);
     const chatBrainStreamTextRef = useRef('');
+    const chatBrainLastDoneRequestIdRef = useRef<string | null>(null);
+    const chatBrainLastActionResultRequestIdRef = useRef<string | null>(null);
+    const chatBrainLastPartialFailureRequestIdRef = useRef<string | null>(null);
+    const chatBrainLastErrorRequestIdRef = useRef<string | null>(null);
     const lastIncidentBootstrapWorkspaceRef = useRef<string | null>(null);
 
     const activeWorkspace =
@@ -538,6 +572,7 @@ export function App() {
                     break;
                 case 'aiChatStarted':
                     setChatBrainConversationId(message.data?.conversationId ?? null);
+                    setIncidentModelId(null);
                     setIncidentResume(
                         message.data?.resumeSnapshot && typeof message.data.resumeSnapshot === 'object'
                             ? (message.data.resumeSnapshot as IncidentResumeSnapshot)
@@ -545,13 +580,22 @@ export function App() {
                     );
                     chatBrainMessageIdRef.current = null;
                     chatBrainStreamTextRef.current = '';
+                    chatBrainLastDoneRequestIdRef.current = null;
+                    chatBrainLastActionResultRequestIdRef.current = null;
+                    chatBrainLastPartialFailureRequestIdRef.current = null;
+                    chatBrainLastErrorRequestIdRef.current = null;
                     setChatBrainStreamText('');
                     setChatBrainHistory([]);
                     setChatBrainSuggestedQuestions([]);
                     setChatBrainBoard(null);
                     setChatBrainActionProgress(null);
                     setChatBrainActionResult(null);
+                    setChatBrainSystemGraphSnapshot(null);
+                    setChatBrainImpactAssessment(null);
+                    setChatBrainPredictiveWarning(null);
+                    setChatBrainReleaseGateEvidence(null);
                     setChatBrainError(null);
+                    setChatBrainErrorRetryable(true);
                     setChatBrainIsStreaming(false);
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
@@ -584,11 +628,20 @@ export function App() {
                             setChatBrainStreamText('');
                             chatBrainStreamTextRef.current = '';
                             chatBrainMessageIdRef.current = null;
+                            chatBrainLastDoneRequestIdRef.current = null;
+                            chatBrainLastActionResultRequestIdRef.current = null;
+                            chatBrainLastPartialFailureRequestIdRef.current = null;
+                            chatBrainLastErrorRequestIdRef.current = null;
                             setChatBrainBoard(null);
                             setChatBrainActionProgress(null);
                             setChatBrainActionResult(null);
+                            setChatBrainSystemGraphSnapshot(null);
+                            setChatBrainImpactAssessment(null);
+                            setChatBrainPredictiveWarning(null);
+                            setChatBrainReleaseGateEvidence(null);
                             setChatBrainSuggestedQuestions([]);
                             setChatBrainError(null);
+                            setChatBrainErrorRetryable(true);
                             setIncidentResume(null);
                         }
 
@@ -612,6 +665,7 @@ export function App() {
                     }
                     setChatBrainIsStreaming(true);
                     setChatBrainError(null);
+                    setChatBrainErrorRetryable(true);
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
                 case 'aiChatActionBoard':
@@ -627,39 +681,100 @@ export function App() {
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
                 case 'aiChatActionProgress':
-                    setChatBrainActionProgress({
-                        stage: String(message.data?.stage || 'running'),
-                        progress: Number(message.data?.progress || 0),
-                        note: typeof message.data?.note === 'string' ? message.data.note : undefined,
-                    });
+                    setChatBrainActionProgress(normalizeIncidentActionProgressPayload(message.data));
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
-                case 'aiChatActionResult':
-                    setChatBrainActionResult({
-                        success: Boolean(message.data?.success),
-                        outputSummary:
-                            typeof message.data?.outputSummary === 'string'
-                                ? message.data.outputSummary
-                                : undefined,
-                        evidence:
-                            message.data?.evidence && typeof message.data.evidence === 'object'
-                                ? message.data.evidence
-                                : undefined,
-                    });
+                case 'aiChatActionResult': {
+                    {
+                        const protocolMeta = normalizeIncidentProtocolMeta(message.meta);
+                        if (
+                            isIncidentDuplicateRequest(
+                                chatBrainLastActionResultRequestIdRef.current,
+                                protocolMeta.requestId
+                            )
+                        ) {
+                            break;
+                        }
+                        chatBrainLastActionResultRequestIdRef.current = protocolMeta.requestId;
+                    }
+                    const actionResultPayload = normalizeIncidentActionResultPayload(message.data);
+                    const graphPayload = normalizeIncidentSystemGraphSnapshotPayload(
+                        message.data?.systemGraphSnapshot
+                    );
+                    const impactPayload = normalizeIncidentImpactAssessmentPayload(
+                        message.data?.impactAssessment
+                    );
+                    const predictivePayload = normalizeIncidentPredictiveWarningPayload(
+                        message.data?.predictiveWarning
+                    );
+                    const gateEvidencePayload = normalizeIncidentReleaseGateEvidencePayload(
+                        message.data?.releaseGateEvidence
+                    );
+
+                    setChatBrainActionResult(actionResultPayload);
+                    setChatBrainSystemGraphSnapshot(graphPayload);
+
+                    const hasImpactAssessment =
+                        impactPayload.affectedFiles.length > 0 ||
+                        impactPayload.affectedModules.length > 0 ||
+                        impactPayload.affectedTests.length > 0 ||
+                        impactPayload.verifyChecklist.length > 0 ||
+                        Boolean(impactPayload.likelyFailureMode);
+                    setChatBrainImpactAssessment(
+                        message.data?.impactAssessment && hasImpactAssessment ? impactPayload : null
+                    );
+
+                    const hasPredictiveSignal =
+                        predictivePayload.verifyChecklist.length > 0 ||
+                        Boolean(predictivePayload.predictedFailure) ||
+                        Boolean(predictivePayload.nextSafeAction);
+                    setChatBrainPredictiveWarning(
+                        message.data?.predictiveWarning && hasPredictiveSignal
+                            ? predictivePayload
+                            : null
+                    );
+
+                    const hasGateEvidence =
+                        gateEvidencePayload.scopeKnown ||
+                        gateEvidencePayload.verifyPathPresent ||
+                        gateEvidencePayload.rollbackPathPresent ||
+                        gateEvidencePayload.confidenceSufficient ||
+                        gateEvidencePayload.blockedReasons.length > 0;
+                    setChatBrainReleaseGateEvidence(
+                        message.data?.releaseGateEvidence && hasGateEvidence
+                            ? gateEvidencePayload
+                            : null
+                    );
+
                     if (message.data?.board) {
                         setChatBrainBoard(message.data.board as ChatBrainBoard);
                     }
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
+                }
                 case 'aiChatDone':
-                    setChatBrainIsStreaming(false);
-                    if (typeof message.data?.modelId === 'string' && message.data.modelId.trim()) {
-                        setAIModelId(message.data.modelId);
-                    }
                     {
+                        const protocolMeta = normalizeIncidentProtocolMeta(message.meta);
+                        if (
+                            isIncidentDuplicateRequest(
+                                chatBrainLastDoneRequestIdRef.current,
+                                protocolMeta.requestId
+                            )
+                        ) {
+                            break;
+                        }
+                        chatBrainLastDoneRequestIdRef.current = protocolMeta.requestId;
+                    }
+                    setChatBrainIsStreaming(false);
+                    {
+                        const donePayload = normalizeIncidentDonePayload(message.data);
+                        if (donePayload.modelId) {
+                            setIncidentModelId(donePayload.modelId);
+                        }
+
                         const finalText =
-                            typeof message.data?.finalText === 'string' && message.data.finalText.trim()
-                                ? message.data.finalText
+                            typeof donePayload.finalText === 'string' && donePayload.finalText.trim()
+                                ? donePayload.finalText
                                 : chatBrainStreamTextRef.current;
                         if (finalText.trim()) {
                             setChatBrainHistory((prev) => [
@@ -675,9 +790,60 @@ export function App() {
                     }
                     chatBrainStreamTextRef.current = '';
                     setChatBrainStreamText('');
+                    setChatBrainErrorRetryable(true);
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
+                case 'aiChatPartialFailure': {
+                    {
+                        const protocolMeta = normalizeIncidentProtocolMeta(message.meta);
+                        if (
+                            isIncidentDuplicateRequest(
+                                chatBrainLastPartialFailureRequestIdRef.current,
+                                protocolMeta.requestId
+                            )
+                        ) {
+                            break;
+                        }
+                        chatBrainLastPartialFailureRequestIdRef.current = protocolMeta.requestId;
+                    }
+
+                    const partialFailure = normalizeIncidentPartialFailurePayload(message.data);
+                    setChatBrainIsStreaming(false);
+                    if (chatBrainStreamTextRef.current.trim()) {
+                        setChatBrainHistory((prev) => [
+                            ...prev,
+                            {
+                                id: chatBrainMessageIdRef.current || `assistant-partial-${Date.now()}`,
+                                role: 'assistant' as const,
+                                text: `${chatBrainStreamTextRef.current}\n\n[response interrupted]`,
+                                timestamp: Date.now(),
+                            },
+                        ].slice(-24));
+                    }
+                    chatBrainStreamTextRef.current = '';
+                    setChatBrainStreamText('');
+                    setChatBrainActionProgress(null);
+                    if (message.data?.board) {
+                        setChatBrainBoard(message.data.board as ChatBrainBoard);
+                    }
+                    setChatBrainError(partialFailure.message);
+                    setChatBrainErrorRetryable(partialFailure.retryable !== false);
+                    console.log('[ChatBrain]', message.command, message.data);
+                    break;
+                }
                 case 'aiChatError':
+                    {
+                        const protocolMeta = normalizeIncidentProtocolMeta(message.meta);
+                        if (
+                            isIncidentDuplicateRequest(
+                                chatBrainLastErrorRequestIdRef.current,
+                                protocolMeta.requestId
+                            )
+                        ) {
+                            break;
+                        }
+                        chatBrainLastErrorRequestIdRef.current = protocolMeta.requestId;
+                    }
                     setChatBrainIsStreaming(false);
                     if (chatBrainStreamTextRef.current.trim()) {
                         setChatBrainHistory((prev) => [
@@ -697,6 +863,7 @@ export function App() {
                             ? message.data.message
                             : 'Chat Brain request failed.'
                     );
+                    setChatBrainErrorRetryable(message.data?.retryable !== false);
                     console.log('[ChatBrain]', message.command, message.data);
                     break;
                 case 'runIncidentInlineCommandDone':
@@ -918,12 +1085,22 @@ export function App() {
         setChatBrainStreamText('');
         chatBrainStreamTextRef.current = '';
         chatBrainMessageIdRef.current = null;
+        chatBrainLastDoneRequestIdRef.current = null;
+        chatBrainLastActionResultRequestIdRef.current = null;
+        chatBrainLastPartialFailureRequestIdRef.current = null;
+        chatBrainLastErrorRequestIdRef.current = null;
         setChatBrainSuggestedQuestions([]);
         setChatBrainBoard(null);
         setChatBrainActionProgress(null);
         setChatBrainActionResult(null);
+        setChatBrainSystemGraphSnapshot(null);
+        setChatBrainImpactAssessment(null);
+        setChatBrainPredictiveWarning(null);
+        setChatBrainReleaseGateEvidence(null);
         setChatBrainError(null);
+        setChatBrainErrorRetryable(true);
         setChatBrainIsStreaming(false);
+        setIncidentModelId(null);
         setIncidentResume(null);
 
         window.setTimeout(() => {
@@ -989,16 +1166,29 @@ export function App() {
     }, [activeView, recentWorkspaces, workspaceStatus.workspaceName, workspaceStatus.workspacePath]);
 
     const handleChatBrainQuery = (query: string) => {
-        if (!query.trim() || !selectedWorkspaceForAnalysis) {
+        const trimmedQuery = query.trim();
+        if (!trimmedQuery) {
             return;
         }
+
+        const workspacePath = selectedWorkspaceForAnalysis || workspaceStatus.workspacePath;
+        if (!workspacePath) {
+            setChatBrainError('Select or open a workspace before sending an Incident Studio query.');
+            setChatBrainErrorRetryable(false);
+            return;
+        }
+
+        if (!selectedWorkspaceForAnalysis) {
+            setSelectedWorkspaceForAnalysis(workspacePath);
+        }
+
         const conversationId = chatBrainConversationId || `conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         if (!chatBrainConversationId) {
             setChatBrainConversationId(conversationId);
             vscode.postMessage(
                 'aiChatStart',
                 buildIncidentChatStartPayload({
-                    workspacePath: selectedWorkspaceForAnalysis,
+                    workspacePath,
                     projectSelection: selectedProjectForAnalysis,
                     resumeConversationId: conversationId,
                     requestId: `cb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1007,8 +1197,13 @@ export function App() {
         }
         setChatBrainIsStreaming(true);
         setChatBrainError(null);
+        setChatBrainErrorRetryable(true);
         setChatBrainActionProgress(null);
         setChatBrainActionResult(null);
+        setChatBrainSystemGraphSnapshot(null);
+        setChatBrainImpactAssessment(null);
+        setChatBrainPredictiveWarning(null);
+        setChatBrainReleaseGateEvidence(null);
         setChatBrainBoard(null);
         setChatBrainSuggestedQuestions([]);
         setChatBrainHistory((prev) => [
@@ -1016,7 +1211,7 @@ export function App() {
             {
                 id: `user-${Date.now()}`,
                 role: 'user' as const,
-                text: query,
+                text: trimmedQuery,
                 timestamp: Date.now(),
             },
         ].slice(-24));
@@ -1024,11 +1219,11 @@ export function App() {
             'aiChatQuery',
             buildIncidentChatQueryPayload({
                 conversationId,
-                workspacePath: selectedWorkspaceForAnalysis,
+                workspacePath,
                 projectSelection: selectedProjectForAnalysis,
                 requestId: `cbq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 modelId: incidentSelectedModelId ?? undefined,
-                message: query,
+                message: trimmedQuery,
             })
         );
     };
@@ -1039,7 +1234,12 @@ export function App() {
         }
         setChatBrainActionProgress({ stage: 'running', progress: 10, note: `Executing ${actionType}` });
         setChatBrainActionResult(null);
+        setChatBrainSystemGraphSnapshot(null);
+        setChatBrainImpactAssessment(null);
+        setChatBrainPredictiveWarning(null);
+        setChatBrainReleaseGateEvidence(null);
         setChatBrainError(null);
+        setChatBrainErrorRetryable(true);
         vscode.postMessage(
             'aiChatExecuteAction',
             buildIncidentChatExecuteActionPayload({
@@ -1052,6 +1252,21 @@ export function App() {
                 requestId: `cba-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             })
         );
+    };
+
+    const handlePredictiveWarningAccepted = (warningId: string, predictionKey: string) => {
+        const workspacePath = selectedWorkspaceForAnalysis || workspaceStatus.workspacePath;
+        if (!workspacePath || !chatBrainConversationId) {
+            return;
+        }
+
+        vscode.postMessage('incidentPredictionAccepted', {
+            conversationId: chatBrainConversationId,
+            workspacePath,
+            projectPath: selectedProjectForAnalysis?.path,
+            warningId,
+            predictionKey,
+        });
     };
 
     useEffect(() => {
@@ -1310,7 +1525,7 @@ export function App() {
                     </div>
                     <AIIncidentStudio
                         workspaceName={activeWorkspaceName}
-                        modelId={aiModelId}
+                        modelId={incidentModelId || incidentSelectedModelId}
                         isAnalyzing={aiIsStreaming || chatBrainIsStreaming}
                         lastError={chatBrainError || aiStreamError}
                         conversationTurns={chatBrainHistory.length}
@@ -1321,7 +1536,12 @@ export function App() {
                         chatBrainBoard={chatBrainBoard}
                         chatBrainActionProgress={chatBrainActionProgress}
                         chatBrainActionResult={chatBrainActionResult}
+                        chatBrainSystemGraphSnapshot={chatBrainSystemGraphSnapshot}
+                        chatBrainImpactAssessment={chatBrainImpactAssessment}
+                        chatBrainPredictiveWarning={chatBrainPredictiveWarning}
+                        chatBrainReleaseGateEvidence={chatBrainReleaseGateEvidence}
                         chatBrainError={chatBrainError}
+                        chatBrainErrorRetryable={chatBrainErrorRetryable}
                         incidentResume={incidentResume}
                         onChatBrainQuery={handleChatBrainQuery}
                         onChatBrainExecuteAction={handleChatBrainExecuteAction}
@@ -1334,9 +1554,11 @@ export function App() {
                             workspaceName: activeWorkspaceName,
                         })}
                         onRunInlineCommand={runIncidentInlineCommand}
+                        onPredictiveWarningAccepted={handlePredictiveWarningAccepted}
                         executingCommand={chatBrainExecutingCommand}
                         primaryCtaMode={incidentPrimaryCtaMode}
                         userMode={incidentUserMode}
+                        onUserModeChange={updateIncidentUserMode}
                         hasProjectSelected={Boolean(workspaceStatus.hasProjectSelected)}
                     />
                 </>

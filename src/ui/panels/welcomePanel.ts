@@ -481,6 +481,9 @@ export class WelcomePanel {
   private _context: vscode.ExtensionContext;
   private _chatBrainQueryTokenSource?: vscode.CancellationTokenSource;
   private _activeChatBrainRequestId?: string;
+  private _activeChatBrainConversationId?: string;
+  private _chatBrainInFlightRequestIds = new Set<string>();
+  private _chatBrainCompletedRequestIds: string[] = [];
   private _chatBrainConversations = new Map<
     string,
     {
@@ -2073,6 +2076,25 @@ No markdown, no explanation outside the JSON.`;
 
   private async _handleAiChatSyncWorkspace(data: any, requestId?: string) {
     const workspacePath = typeof data?.workspacePath === 'string' ? data.workspacePath : undefined;
+
+    // If a stream is active for another workspace, cancel it before applying sync.
+    const activeConversationId = this._activeChatBrainConversationId;
+    const activeConversation = activeConversationId
+      ? this._chatBrainConversations.get(activeConversationId)
+      : undefined;
+    if (
+      this._chatBrainQueryTokenSource &&
+      activeConversation?.workspacePath &&
+      workspacePath &&
+      activeConversation.workspacePath !== workspacePath
+    ) {
+      this._chatBrainQueryTokenSource.cancel();
+      this._chatBrainQueryTokenSource.dispose();
+      this._chatBrainQueryTokenSource = undefined;
+      this._activeChatBrainRequestId = undefined;
+      this._activeChatBrainConversationId = undefined;
+    }
+
     const selectedProjectPath =
       WelcomePanel._selectedProject &&
       isWorkspacePathAncestor(workspacePath, WelcomePanel._selectedProject.path)
@@ -2994,9 +3016,122 @@ No markdown, no explanation outside the JSON.`;
     }
   }
 
+  private _trackChatBrainRequestStart(requestId?: string): boolean {
+    if (!requestId) {
+      return true;
+    }
+    if (
+      this._chatBrainInFlightRequestIds.has(requestId) ||
+      this._chatBrainCompletedRequestIds.includes(requestId)
+    ) {
+      return false;
+    }
+
+    this._chatBrainInFlightRequestIds.add(requestId);
+    return true;
+  }
+
+  private _trackChatBrainRequestComplete(requestId?: string): void {
+    if (!requestId) {
+      return;
+    }
+
+    this._chatBrainInFlightRequestIds.delete(requestId);
+    if (!this._chatBrainCompletedRequestIds.includes(requestId)) {
+      this._chatBrainCompletedRequestIds.push(requestId);
+      if (this._chatBrainCompletedRequestIds.length > 240) {
+        this._chatBrainCompletedRequestIds.splice(
+          0,
+          this._chatBrainCompletedRequestIds.length - 240
+        );
+      }
+    }
+  }
+
+  private _isRetryableChatBrainError(err: unknown): boolean {
+    const raw = err instanceof Error ? err.message : String(err ?? '');
+    if (!raw) {
+      return true;
+    }
+
+    if (/cancel|aborted|scope_violation|invalid_input/i.test(raw)) {
+      return false;
+    }
+
+    return /timeout|timed out|network|socket|econnreset|etimedout|enotfound|429|5\d\d/i.test(raw);
+  }
+
+  private _deriveChatBrainFailureCode(err: unknown): string {
+    const raw = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
+    if (raw.includes('scope_violation')) {
+      return 'WORKSPACE_SCOPE_VIOLATION';
+    }
+    if (raw.includes('timeout') || raw.includes('timed out')) {
+      return 'TIMEOUT';
+    }
+    if (raw.includes('network') || raw.includes('socket') || raw.includes('enotfound')) {
+      return 'NETWORK_INTERRUPTION';
+    }
+    return 'PARTIAL_FAILURE';
+  }
+
+  private _buildChatBrainFallbackBoard(
+    actionType: string,
+    projectName?: string
+  ): {
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    actions: Array<{
+      id: string;
+      label: string;
+      actionType: string;
+      riskLevel: 'low' | 'medium';
+      requiresImpactReview?: boolean;
+      requiresVerifyPath?: boolean;
+    }>;
+  } {
+    const safeActionType = actionType === 'orchestrate' ? 'terminal-bridge' : actionType;
+    const summary = projectName
+      ? `${projectName}: connection was interrupted. Continue with deterministic checks and retry.`
+      : 'Connection was interrupted. Continue with deterministic checks and retry.';
+
+    return {
+      id: `fallback-board-${Date.now()}`,
+      type: 'fallback',
+      title: 'Partial response received - continue safely',
+      summary,
+      actions: [
+        {
+          id: `fallback-retry-${Date.now()}`,
+          label: 'Retry diagnosis route',
+          actionType: safeActionType,
+          riskLevel: 'low',
+        },
+        {
+          id: `fallback-doctor-${Date.now()}`,
+          label: 'Run doctor verification',
+          actionType: 'doctor-fix',
+          riskLevel: 'medium',
+          requiresVerifyPath: true,
+        },
+        {
+          id: `fallback-impact-${Date.now()}`,
+          label: 'Run impact check before mutation',
+          actionType: 'change-impact-lite',
+          riskLevel: 'low',
+          requiresImpactReview: true,
+        },
+      ],
+    };
+  }
+
   private async _handleAiChatQuery(data: any, requestId?: string) {
     const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
     const message = typeof data?.message === 'string' ? data.message.trim() : '';
+    const normalizedRequestId =
+      typeof requestId === 'string' && requestId.trim() ? requestId.trim() : undefined;
     const requestedModelId =
       typeof data?.modelId === 'string' && data.modelId.trim() ? data.modelId.trim() : undefined;
 
@@ -3008,6 +3143,31 @@ No markdown, no explanation outside the JSON.`;
           code: 'INVALID_INPUT',
           message: 'conversationId and message are required.',
           retryable: true,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+      return;
+    }
+
+    if (!this._trackChatBrainRequestStart(normalizedRequestId)) {
+      this._panel.webview.postMessage({
+        command: 'aiChatPartialFailure',
+        data: {
+          conversationId,
+          code: 'DUPLICATE_REQUEST',
+          message: 'Duplicate requestId detected. Ignoring replayed chat query.',
+          retryable: false,
+        },
+        meta: { requestId, version: 'v1' },
+      });
+
+      this._panel.webview.postMessage({
+        command: 'aiChatError',
+        data: {
+          conversationId,
+          code: 'DUPLICATE_REQUEST',
+          message: 'Duplicate requestId detected. Ignoring replayed chat query.',
+          retryable: false,
         },
         meta: { requestId, version: 'v1' },
       });
@@ -3075,6 +3235,7 @@ No markdown, no explanation outside the JSON.`;
     const tokenSource = new vscode.CancellationTokenSource();
     this._chatBrainQueryTokenSource = tokenSource;
     this._activeChatBrainRequestId = requestId;
+    this._activeChatBrainConversationId = conversationId;
 
     const messageId = `msg-${Date.now()}`;
     const actionType = this._routeActionTypeFromMessage(message);
@@ -3085,6 +3246,8 @@ No markdown, no explanation outside the JSON.`;
       : null;
     const memoryPromptHint = buildIncidentMemoryPromptHint(memoryReuseSnapshot);
     let assistantText = '';
+    let responseModelId: string | undefined;
+    const expectedWorkspacePath = current.workspacePath;
 
     try {
       const { prepareAIConversation, streamAIResponse } = await import('../../core/aiService.js');
@@ -3116,38 +3279,45 @@ No markdown, no explanation outside the JSON.`;
         chatDoctorSnapshot ?? undefined
       );
 
-      let chunkBuffer = '';
-      let flushTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
-        if (!chunkBuffer || tokenSource.token.isCancellationRequested) {
-          return;
-        }
-        this._panel.webview.postMessage({
-          command: 'aiChatChunk',
-          data: {
-            conversationId,
-            messageId,
-            chunk: chunkBuffer,
-          },
-          meta: { requestId, version: 'v1' },
-        });
-        chunkBuffer = '';
-      }, 50);
+      const maxAttempts = 2;
+      let streamSucceeded = false;
+      let lastStreamError: unknown;
 
-      const { modelId } = await streamAIResponse(
-        prepared.messages,
-        (chunk) => {
-          if (chunk.text) {
-            assistantText += chunk.text;
-            chunkBuffer += chunk.text;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        if (tokenSource.token.isCancellationRequested) {
+          break;
+        }
+
+        let chunkBuffer = '';
+        let attemptReceivedChunk = false;
+        let flushTimer: ReturnType<typeof setInterval> | null = null;
+        const attemptTokenSource = new vscode.CancellationTokenSource();
+        const cancelSubscription = tokenSource.token.onCancellationRequested(() => {
+          attemptTokenSource.cancel();
+        });
+        const firstChunkTimeout = setTimeout(() => {
+          if (!attemptReceivedChunk && !attemptTokenSource.token.isCancellationRequested) {
+            attemptTokenSource.cancel();
           }
-          if (!chunk.done) {
-            return;
-          }
-          if (flushTimer) {
-            clearInterval(flushTimer);
-            flushTimer = null;
-          }
-          if (chunkBuffer && !tokenSource.token.isCancellationRequested) {
+        }, 20_000);
+
+        try {
+          flushTimer = setInterval(() => {
+            const staleRequest =
+              this._activeChatBrainRequestId !== requestId ||
+              this._activeChatBrainConversationId !== conversationId ||
+              (expectedWorkspacePath &&
+                this._chatBrainConversations.get(conversationId)?.workspacePath !==
+                  expectedWorkspacePath);
+
+            if (staleRequest && !attemptTokenSource.token.isCancellationRequested) {
+              attemptTokenSource.cancel();
+              return;
+            }
+
+            if (!chunkBuffer || attemptTokenSource.token.isCancellationRequested) {
+              return;
+            }
             this._panel.webview.postMessage({
               command: 'aiChatChunk',
               data: {
@@ -3158,11 +3328,101 @@ No markdown, no explanation outside the JSON.`;
               meta: { requestId, version: 'v1' },
             });
             chunkBuffer = '';
+          }, 50);
+
+          const streamResult = await streamAIResponse(
+            prepared.messages,
+            (chunk) => {
+              const staleRequest =
+                this._activeChatBrainRequestId !== requestId ||
+                this._activeChatBrainConversationId !== conversationId ||
+                (expectedWorkspacePath &&
+                  this._chatBrainConversations.get(conversationId)?.workspacePath !==
+                    expectedWorkspacePath);
+
+              if (staleRequest && !attemptTokenSource.token.isCancellationRequested) {
+                attemptTokenSource.cancel();
+                return;
+              }
+
+              if (chunk.text) {
+                attemptReceivedChunk = true;
+                assistantText += chunk.text;
+                chunkBuffer += chunk.text;
+              }
+              if (!chunk.done) {
+                return;
+              }
+              if (flushTimer) {
+                clearInterval(flushTimer);
+                flushTimer = null;
+              }
+              if (chunkBuffer && !attemptTokenSource.token.isCancellationRequested) {
+                this._panel.webview.postMessage({
+                  command: 'aiChatChunk',
+                  data: {
+                    conversationId,
+                    messageId,
+                    chunk: chunkBuffer,
+                  },
+                  meta: { requestId, version: 'v1' },
+                });
+                chunkBuffer = '';
+              }
+            },
+            attemptTokenSource.token,
+            requestedModelId
+          );
+
+          if (
+            attemptTokenSource.token.isCancellationRequested &&
+            !tokenSource.token.isCancellationRequested &&
+            !attemptReceivedChunk
+          ) {
+            throw new Error('First chunk timeout while streaming response.');
           }
-        },
-        tokenSource.token,
-        requestedModelId
-      );
+
+          responseModelId = streamResult.modelId;
+          streamSucceeded = true;
+          break;
+        } catch (streamErr) {
+          lastStreamError = streamErr;
+          const retryable = !attemptReceivedChunk && this._isRetryableChatBrainError(streamErr);
+          const canRetry =
+            attempt < maxAttempts && retryable && !tokenSource.token.isCancellationRequested;
+
+          if (canRetry) {
+            this._panel.webview.postMessage({
+              command: 'aiChatActionProgress',
+              data: {
+                conversationId,
+                actionId: messageId,
+                stage: 'retrying',
+                progress: 45,
+                note: `Transient stream interruption detected. Retrying (${attempt + 1}/${maxAttempts})...`,
+              },
+              meta: { requestId, version: 'v1' },
+            });
+            continue;
+          }
+
+          throw streamErr;
+        } finally {
+          if (flushTimer) {
+            clearInterval(flushTimer);
+            flushTimer = null;
+          }
+          clearTimeout(firstChunkTimeout);
+          cancelSubscription.dispose();
+          attemptTokenSource.dispose();
+        }
+      }
+
+      if (!streamSucceeded) {
+        throw lastStreamError instanceof Error
+          ? lastStreamError
+          : new Error('Chat stream failed before completion.');
+      }
 
       if (tokenSource.token.isCancellationRequested) {
         return;
@@ -3251,7 +3511,7 @@ No markdown, no explanation outside the JSON.`;
         data: {
           conversationId,
           messageId,
-          modelId,
+          modelId: responseModelId,
           finalText: finalAssistantText,
           phase: 'diagnose',
           confidence: 80,
@@ -3262,13 +3522,27 @@ No markdown, no explanation outside the JSON.`;
     } catch (err) {
       if (!tokenSource.token.isCancellationRequested) {
         const errMsg = err instanceof Error ? err.message : String(err);
+        const failureCode = this._deriveChatBrainFailureCode(err);
+        const retryable = this._isRetryableChatBrainError(err);
+        this._panel.webview.postMessage({
+          command: 'aiChatPartialFailure',
+          data: {
+            conversationId,
+            code: failureCode,
+            message: errMsg,
+            retryable,
+            board: this._buildChatBrainFallbackBoard(actionType, current.projectName),
+          },
+          meta: { requestId, version: 'v1' },
+        });
+
         this._panel.webview.postMessage({
           command: 'aiChatError',
           data: {
             conversationId,
-            code: 'INTERNAL_ERROR',
+            code: failureCode,
             message: errMsg,
-            retryable: true,
+            retryable,
           },
           meta: { requestId, version: 'v1' },
         });
@@ -3280,6 +3554,10 @@ No markdown, no explanation outside the JSON.`;
       if (this._activeChatBrainRequestId === requestId) {
         this._activeChatBrainRequestId = undefined;
       }
+      if (this._activeChatBrainConversationId === conversationId) {
+        this._activeChatBrainConversationId = undefined;
+      }
+      this._trackChatBrainRequestComplete(normalizedRequestId);
       tokenSource.dispose();
     }
   }

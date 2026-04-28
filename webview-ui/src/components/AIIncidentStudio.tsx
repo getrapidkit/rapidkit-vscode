@@ -19,6 +19,12 @@ import {
     getActionResultPresentation,
     getBoardActionGuardHint,
 } from '../lib/incidentStudioVerifyPolicy';
+import type {
+    NormalizedIncidentImpactAssessmentPayload,
+    NormalizedIncidentPredictiveWarningPayload,
+    NormalizedIncidentReleaseGateEvidencePayload,
+    NormalizedIncidentSystemGraphSnapshotPayload,
+} from '../lib/incidentStudioPayload';
 
 interface IncidentCommandUsage {
     command: string;
@@ -166,7 +172,12 @@ interface AIIncidentStudioProps {
             errors?: number;
         };
     } | null;
+    chatBrainSystemGraphSnapshot?: NormalizedIncidentSystemGraphSnapshotPayload | null;
+    chatBrainImpactAssessment?: NormalizedIncidentImpactAssessmentPayload | null;
+    chatBrainPredictiveWarning?: NormalizedIncidentPredictiveWarningPayload | null;
+    chatBrainReleaseGateEvidence?: NormalizedIncidentReleaseGateEvidencePayload | null;
     chatBrainError?: string | null;
+    chatBrainErrorRetryable?: boolean;
     incidentResume?: {
         workspacePath: string;
         phase: 'detect' | 'diagnose' | 'plan' | 'verify' | 'learn';
@@ -187,10 +198,12 @@ interface AIIncidentStudioProps {
     onRunMemoryWizard: () => void;
     onRunDoctorChecks: () => void;
     onRunInlineCommand?: (command: string) => void;
+    onPredictiveWarningAccepted?: (warningId: string, predictionKey: string) => void;
     executingCommand?: string | null;
     primaryCtaMode?: PrimaryCtaMode;
     hasProjectSelected?: boolean;
     userMode?: IncidentUserMode;
+    onUserModeChange?: (mode: IncidentUserMode) => void;
 }
 
 type StructuredIncidentResponse = {
@@ -513,7 +526,12 @@ export function AIIncidentStudio({
     chatBrainBoard,
     chatBrainActionProgress,
     chatBrainActionResult,
+    chatBrainSystemGraphSnapshot,
+    chatBrainImpactAssessment,
+    chatBrainPredictiveWarning,
+    chatBrainReleaseGateEvidence,
     chatBrainError,
+    chatBrainErrorRetryable = true,
     incidentResume,
     onChatBrainQuery,
     onChatBrainExecuteAction,
@@ -523,10 +541,12 @@ export function AIIncidentStudio({
     onRunMemoryWizard: _onRunMemoryWizard,
     onRunDoctorChecks,
     onRunInlineCommand,
+    onPredictiveWarningAccepted,
     executingCommand,
     primaryCtaMode = 'single',
     hasProjectSelected = false,
     userMode = 'standard',
+    onUserModeChange,
 }: AIIncidentStudioProps) {
     const [commandInput, setCommandInput] = useState('');
     const [lastCopiedCommand, setLastCopiedCommand] = useState<string | null>(null);
@@ -539,7 +559,17 @@ export function AIIncidentStudio({
     // Auto-scroll to bottom whenever history grows or streaming is active
     const [activeUserMode, setActiveUserMode] = useState<IncidentUserMode>(userMode);
     const cycleUserMode = () =>
-        setActiveUserMode((m) => (m === 'guided' ? 'standard' : m === 'standard' ? 'expert' : 'guided'));
+        setActiveUserMode((currentMode) => {
+            const nextMode =
+                currentMode === 'guided' ? 'standard' : currentMode === 'standard' ? 'expert' : 'guided';
+            onUserModeChange?.(nextMode);
+            return nextMode;
+        });
+
+    // Keep local mode in sync when parent (tab header controls) changes userMode
+    useEffect(() => {
+        setActiveUserMode(userMode);
+    }, [userMode]);
 
     useEffect(() => {
         const el = threadRef.current;
@@ -824,6 +854,10 @@ export function AIIncidentStudio({
     const resumeTimestamp = incidentResume?.lastActivityAt
         ? new Date(incidentResume.lastActivityAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : null;
+    const impactRiskTone = riskTone(chatBrainImpactAssessment?.riskLevel);
+    const impactConfidence = chatBrainImpactAssessment?.confidence ?? 0;
+    const predictiveWarningTone = chatBrainPredictiveWarning?.confidenceBand ?? 'medium';
+    const releaseGateBlocked = Boolean(chatBrainReleaseGateEvidence?.blockedReasons?.length);
     const intentChips = useMemo(() => {
         const chips: IncidentIntentChip[] = [];
         const seen = new Set<string>();
@@ -943,6 +977,23 @@ export function AIIncidentStudio({
             return;
         }
         onRunInlineCommand?.(command);
+    };
+
+    const runPredictiveSafeAction = () => {
+        if (!chatBrainPredictiveWarning) {
+            return;
+        }
+
+        onPredictiveWarningAccepted?.(
+            chatBrainPredictiveWarning.warningId,
+            chatBrainPredictiveWarning.telemetrySeed.predictionKey
+        );
+
+        const action = chatBrainPredictiveWarning.nextSafeAction;
+        if (action) {
+            setLastUserQuery(action);
+            onChatBrainQuery?.(action);
+        }
     };
 
     const runStudioAction = (
@@ -1233,6 +1284,75 @@ export function AIIncidentStudio({
                                     </div>
                                 ) : null}
                             </details>
+                            {chatBrainImpactAssessment ? (
+                                <div className={`incident-impact-card risk-${impactRiskTone}`}>
+                                    <div className="incident-impact-head">
+                                        <span>Architecture impact</span>
+                                        <small>{chatBrainImpactAssessment.riskLevel.toUpperCase()} · {impactConfidence}% confidence</small>
+                                    </div>
+                                    {chatBrainImpactAssessment.likelyFailureMode ? (
+                                        <p className="incident-impact-summary">{chatBrainImpactAssessment.likelyFailureMode}</p>
+                                    ) : null}
+                                    <div className="incident-impact-scopes">
+                                        <span>
+                                            Modules: {chatBrainImpactAssessment.affectedModules.length > 0
+                                                ? chatBrainImpactAssessment.affectedModules.join(', ')
+                                                : 'unknown'}
+                                        </span>
+                                        <span>
+                                            Files: {chatBrainImpactAssessment.affectedFiles.length > 0
+                                                ? chatBrainImpactAssessment.affectedFiles.slice(0, 3).join(', ')
+                                                : 'unknown'}
+                                        </span>
+                                        <span>
+                                            Tests: {chatBrainImpactAssessment.affectedTests.length > 0
+                                                ? chatBrainImpactAssessment.affectedTests.slice(0, 2).join(', ')
+                                                : 'none suggested'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {chatBrainPredictiveWarning ? (
+                                <div className={`incident-predictive-card tone-${predictiveWarningTone}`}>
+                                    <div className="incident-predictive-head">
+                                        <span>Predictive warning</span>
+                                        <small>{predictiveWarningTone.toUpperCase()} confidence</small>
+                                    </div>
+                                    <p>{chatBrainPredictiveWarning.predictedFailure || 'Potential downstream failure risk detected.'}</p>
+                                    {chatBrainPredictiveWarning.affectedScopeSummary ? (
+                                        <small className="incident-predictive-scope">{chatBrainPredictiveWarning.affectedScopeSummary}</small>
+                                    ) : null}
+                                    {chatBrainPredictiveWarning.verifyChecklist.length > 0 ? (
+                                        <div className="incident-predictive-checklist">
+                                            {chatBrainPredictiveWarning.verifyChecklist.slice(0, 3).map((item, index) => (
+                                                <span key={`${chatBrainPredictiveWarning.warningId}-check-${index}`}>• {item}</span>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                    {chatBrainPredictiveWarning.nextSafeAction ? (
+                                        <button
+                                            type="button"
+                                            className="incident-btn primary"
+                                            onClick={runPredictiveSafeAction}
+                                        >
+                                            Use safe next action
+                                        </button>
+                                    ) : null}
+                                </div>
+                            ) : null}
+
+                            {chatBrainReleaseGateEvidence ? (
+                                <div className={`incident-release-gate-badge ${releaseGateBlocked ? 'is-blocked' : 'is-open'}`}>
+                                    <strong>{releaseGateBlocked ? 'Release gate blocked' : 'Release gate ready'}</strong>
+                                    <span>
+                                        scope {chatBrainReleaseGateEvidence.scopeKnown ? 'known' : 'unknown'} · verify {chatBrainReleaseGateEvidence.verifyPathPresent ? 'ready' : 'missing'} · rollback {chatBrainReleaseGateEvidence.rollbackPathPresent ? 'ready' : 'missing'}
+                                    </span>
+                                    {releaseGateBlocked ? (
+                                        <em>{chatBrainReleaseGateEvidence.blockedReasons.slice(0, 2).join(' | ')}</em>
+                                    ) : null}
+                                </div>
+                            ) : null}
                             {intentChips.length > 0 ? (
                                 <div className="incident-intent-section">
                                     <div className="incident-intent-section-head">
@@ -1321,13 +1441,23 @@ export function AIIncidentStudio({
                                     </div>
                                 </div>
                             ) : null}
+
+                            {chatBrainSystemGraphSnapshot ? (
+                                <div className="incident-focus-command-card incident-focus-command-card--impact">
+                                    <div className="incident-focus-command-head">System graph</div>
+                                    <div className="incident-focus-graph-meta">
+                                        <span>{chatBrainSystemGraphSnapshot.summary.supportedTopology}</span>
+                                        <strong>{chatBrainSystemGraphSnapshot.summary.nodeCount} nodes · {chatBrainSystemGraphSnapshot.summary.edgeCount} edges</strong>
+                                    </div>
+                                </div>
+                            ) : null}
                         </aside>
-                        {chatBrainActionResult ? (
-                            <div className={`incident-verify-inline-badge ${chatBrainActionResult.success ? 'is-pass' : 'is-fail'}`}>
-                                {chatBrainActionResult.success
+                        {chatBrainActionResult && actionResultPresentation ? (
+                            <div className={`incident-verify-inline-badge is-${actionResultPresentation.tone === 'success' ? 'pass' : actionResultPresentation.tone === 'warning' ? 'warning' : 'fail'}`}>
+                                {actionResultPresentation.tone === 'success'
                                     ? <CheckCircle2 size={11} />
                                     : <AlertTriangle size={11} />}
-                                <span>{chatBrainActionResult.success ? 'Passed' : 'Failed'}</span>
+                                <span>{actionResultPresentation.title}</span>
                                 {chatBrainActionResult.outputSummary
                                     ? <em>{chatBrainActionResult.outputSummary}</em>
                                     : null}
@@ -1847,7 +1977,7 @@ export function AIIncidentStudio({
                                         <span>Chat Brain error</span>
                                     </div>
                                     <p>{chatBrainError}</p>
-                                    {lastUserQuery ? (
+                                    {lastUserQuery && chatBrainErrorRetryable ? (
                                         <button
                                             type="button"
                                             className="incident-retry-btn"
