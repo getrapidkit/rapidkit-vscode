@@ -413,6 +413,20 @@ describe('incidentStudioPayload', () => {
     });
   });
 
+  it('preserves timeout-specific retry semantics in partial-failure payloads', () => {
+    expect(
+      normalizeIncidentPartialFailurePayload({
+        code: ' TIMEOUT ',
+        message: ' Request exceeded response budget ',
+        retryable: true,
+      })
+    ).toEqual({
+      code: 'TIMEOUT',
+      message: 'Request exceeded response budget',
+      retryable: true,
+    });
+  });
+
   it('redacts secrets from incoming query and partial failure payload text fields', () => {
     const normalizedOpen = normalizeIncomingIncidentStudioOpen({
       workspacePath: '/tmp/wsp',
