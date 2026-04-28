@@ -93,6 +93,30 @@ export function App() {
             followupClicked: number;
             overallFollowupClickThroughRate: number;
         } | null;
+        studioHardGateStatus?: {
+            workspacePath: string;
+            timeWindow: 'all' | 'last24h' | 'last7d';
+            windowStartAt: string | null;
+            windowEndAt: string;
+            thresholds: {
+                verifyPhaseReachMin: number;
+                bridgeRouteCompletionMin: number;
+            };
+            metrics: {
+                loopStarted: number;
+                nextActionClicked: number;
+                actionExecuted: number;
+                verifyOutcomes: number;
+                verifyPhaseReach: number | null;
+                bridgeRouteCompletionRate: number | null;
+            };
+            gates: {
+                verifyPhaseReachPass: boolean;
+                bridgeRouteCompletionPass: boolean;
+                telemetryEvidencePass: boolean;
+                overallPass: boolean;
+            };
+        } | null;
         doctorSummary?: {
             workspaceName?: string;
             generatedAt?: string;

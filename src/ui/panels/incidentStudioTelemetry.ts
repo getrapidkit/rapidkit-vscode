@@ -39,6 +39,30 @@ export type IncidentStudioTelemetryPayload = {
   commandSummary: IncidentStudioCommandSummary | null;
   onboardingSummary: IncidentStudioOnboardingSummary | null;
   ctaVariantBreakdown?: IncidentStudioCtaVariantBreakdown | null;
+  studioHardGateStatus?: {
+    workspacePath: string;
+    timeWindow: 'all' | 'last24h' | 'last7d';
+    windowStartAt: string | null;
+    windowEndAt: string;
+    thresholds: {
+      verifyPhaseReachMin: number;
+      bridgeRouteCompletionMin: number;
+    };
+    metrics: {
+      loopStarted: number;
+      nextActionClicked: number;
+      actionExecuted: number;
+      verifyOutcomes: number;
+      verifyPhaseReach: number | null;
+      bridgeRouteCompletionRate: number | null;
+    };
+    gates: {
+      verifyPhaseReachPass: boolean;
+      bridgeRouteCompletionPass: boolean;
+      telemetryEvidencePass: boolean;
+      overallPass: boolean;
+    };
+  } | null;
   doctorSummary?: unknown | null;
 };
 
@@ -76,6 +100,7 @@ export function buildIncidentStudioTelemetryFromCache(
     commandSummary: cachedData.commandSummary,
     onboardingSummary: cachedData.onboardingSummary,
     ctaVariantBreakdown: cachedData.ctaVariantBreakdown ?? null,
+    studioHardGateStatus: cachedData.studioHardGateStatus ?? null,
     // Always prefer the doctor snapshot freshly read from disk.
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(
       doctorSummary,
@@ -119,7 +144,8 @@ export function buildIncidentStudioTelemetryPayload(
       abandoned: number;
     }>;
   } | null,
-  doctorSummary: unknown | null
+  doctorSummary: unknown | null,
+  studioHardGateStatus?: IncidentStudioTelemetryPayload['studioHardGateStatus']
 ): IncidentStudioTelemetryPayload {
   return {
     commandSummary: commandSummary
@@ -151,6 +177,7 @@ export function buildIncidentStudioTelemetryPayload(
           variants: ctaVariantBreakdown.variants,
         }
       : null,
+    studioHardGateStatus: studioHardGateStatus ?? null,
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(doctorSummary, ctaVariantBreakdown),
   };
 }

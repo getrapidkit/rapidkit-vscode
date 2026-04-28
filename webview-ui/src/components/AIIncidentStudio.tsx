@@ -66,6 +66,30 @@ interface IncidentTelemetrySnapshot {
             abandoned: number;
         }>;
     } | null;
+    studioHardGateStatus?: {
+        workspacePath: string;
+        timeWindow: 'all' | 'last24h' | 'last7d';
+        windowStartAt: string | null;
+        windowEndAt: string;
+        thresholds: {
+            verifyPhaseReachMin: number;
+            bridgeRouteCompletionMin: number;
+        };
+        metrics: {
+            loopStarted: number;
+            nextActionClicked: number;
+            actionExecuted: number;
+            verifyOutcomes: number;
+            verifyPhaseReach: number | null;
+            bridgeRouteCompletionRate: number | null;
+        };
+        gates: {
+            verifyPhaseReachPass: boolean;
+            bridgeRouteCompletionPass: boolean;
+            telemetryEvidencePass: boolean;
+            overallPass: boolean;
+        };
+    } | null;
     doctorSummary?: {
         workspaceName?: string;
         generatedAt?: string;
@@ -533,6 +557,7 @@ export function AIIncidentStudio({
     const commandSummary = telemetry?.commandSummary ?? null;
     const onboardingSummary = telemetry?.onboardingSummary ?? null;
     const ctaVariantBreakdown = telemetry?.ctaVariantBreakdown ?? null;
+    const studioHardGateStatus = telemetry?.studioHardGateStatus ?? null;
     const doctorSummary = telemetry?.doctorSummary ?? null;
     const hasDoctorSnapshot = Boolean(doctorSummary);
     const snapshotHealthPercent = hasDoctorSnapshot ? doctorSummary!.health.percent : confidence;
@@ -546,6 +571,10 @@ export function AIIncidentStudio({
             ? Math.min(99, Math.ceil(commandSummary.totalEvents / 3))
             : 1 + Math.floor(conversationTurns / 2)
     );
+    const hardGateVerifyReach = studioHardGateStatus?.metrics.verifyPhaseReach ?? null;
+    const hardGateBridgeCompletion = studioHardGateStatus?.metrics.bridgeRouteCompletionRate ?? null;
+    const hardGateVerifyMeter = Math.max(0, Math.min(100, hardGateVerifyReach ?? 0));
+    const hardGateBridgeMeter = Math.max(0, Math.min(100, hardGateBridgeCompletion ?? 0));
 
     const studioEventLabelMap: Record<string, string> = {
         'workspai.studio.next_action_clicked': 'Actions triggered',
@@ -1454,6 +1483,55 @@ export function AIIncidentStudio({
                                 </div>
                                 <div className="incident-cta-variant-legend">
                                     verify completion = (verify passed + verify failed) / action executed. action vs ask = action executed / (action executed + next_action_clicked). UNKNOWN = events collected without ctaVariant tag.
+                                </div>
+                            </details>
+                        ) : null}
+
+                        {studioHardGateStatus ? (
+                            <details className="incident-collapse incident-collapse--snapshot incident-health-section">
+                                <summary>
+                                    <span>Studio hard-gate</span>
+                                    <small>{studioHardGateStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                </summary>
+                                <div className="incident-metric-card">
+                                    <span>Verify-phase reach</span>
+                                    <strong>
+                                        {hardGateVerifyReach === null ? 'N/A' : `${hardGateVerifyReach}%`} / min{' '}
+                                        {studioHardGateStatus.thresholds.verifyPhaseReachMin}%
+                                    </strong>
+                                    <div className="incident-meter">
+                                        <span style={{ width: `${hardGateVerifyMeter}%` }} />
+                                    </div>
+                                </div>
+                                <div className="incident-metric-card">
+                                    <span>Bridge route completion</span>
+                                    <strong>
+                                        {hardGateBridgeCompletion === null ? 'N/A' : `${hardGateBridgeCompletion}%`} / min{' '}
+                                        {studioHardGateStatus.thresholds.bridgeRouteCompletionMin}%
+                                    </strong>
+                                    <div className="incident-meter">
+                                        <span style={{ width: `${hardGateBridgeMeter}%` }} />
+                                    </div>
+                                </div>
+                                <div className="incident-stats-row">
+                                    <div>
+                                        <ShieldCheck size={12} />
+                                        <span>
+                                            verify gate: {studioHardGateStatus.gates.verifyPhaseReachPass ? 'pass' : 'fail'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <BarChart3 size={12} />
+                                        <span>
+                                            bridge gate: {studioHardGateStatus.gates.bridgeRouteCompletionPass ? 'pass' : 'fail'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <Activity size={12} />
+                                        <span>
+                                            telemetry evidence: {studioHardGateStatus.gates.telemetryEvidencePass ? 'present' : 'missing'}
+                                        </span>
+                                    </div>
                                 </div>
                             </details>
                         ) : null}

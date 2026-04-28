@@ -45,6 +45,30 @@ describe('incidentStudioTelemetry', () => {
           },
         ],
       },
+      studioHardGateStatus: {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-04-18T04:00:00.000Z',
+        windowEndAt: '2026-04-25T04:00:00.000Z',
+        thresholds: {
+          verifyPhaseReachMin: 80,
+          bridgeRouteCompletionMin: 95,
+        },
+        metrics: {
+          loopStarted: 5,
+          nextActionClicked: 3,
+          actionExecuted: 2,
+          verifyOutcomes: 2,
+          verifyPhaseReach: 100,
+          bridgeRouteCompletionRate: 40,
+        },
+        gates: {
+          verifyPhaseReachPass: true,
+          bridgeRouteCompletionPass: false,
+          telemetryEvidencePass: true,
+          overallPass: false,
+        },
+      },
       doctorSummary: {
         workspaceName: 'stale-workspace',
         generatedAt: '2026-04-25T03:55:00.000Z',
@@ -62,6 +86,7 @@ describe('incidentStudioTelemetry', () => {
       commandSummary: cachedData.commandSummary,
       onboardingSummary: cachedData.onboardingSummary,
       ctaVariantBreakdown: cachedData.ctaVariantBreakdown,
+      studioHardGateStatus: cachedData.studioHardGateStatus,
       doctorSummary: {
         ...freshDoctorSummary,
         ctaVariantBreakdown: cachedData.ctaVariantBreakdown,
@@ -139,7 +164,31 @@ describe('incidentStudioTelemetry', () => {
             },
           ],
         },
-        { workspaceName: 'demo' }
+        { workspaceName: 'demo' },
+        {
+          workspacePath: '/tmp/demo',
+          timeWindow: 'last7d',
+          windowStartAt: '2026-04-18T04:00:00.000Z',
+          windowEndAt: '2026-04-25T04:10:00.000Z',
+          thresholds: {
+            verifyPhaseReachMin: 80,
+            bridgeRouteCompletionMin: 95,
+          },
+          metrics: {
+            loopStarted: 6,
+            nextActionClicked: 1,
+            actionExecuted: 4,
+            verifyOutcomes: 4,
+            verifyPhaseReach: 100,
+            bridgeRouteCompletionRate: 66.67,
+          },
+          gates: {
+            verifyPhaseReachPass: true,
+            bridgeRouteCompletionPass: false,
+            telemetryEvidencePass: true,
+            overallPass: false,
+          },
+        }
       )
     ).toEqual({
       commandSummary: {
@@ -177,6 +226,30 @@ describe('incidentStudioTelemetry', () => {
             abandoned: 1,
           },
         ],
+      },
+      studioHardGateStatus: {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-04-18T04:00:00.000Z',
+        windowEndAt: '2026-04-25T04:10:00.000Z',
+        thresholds: {
+          verifyPhaseReachMin: 80,
+          bridgeRouteCompletionMin: 95,
+        },
+        metrics: {
+          loopStarted: 6,
+          nextActionClicked: 1,
+          actionExecuted: 4,
+          verifyOutcomes: 4,
+          verifyPhaseReach: 100,
+          bridgeRouteCompletionRate: 66.67,
+        },
+        gates: {
+          verifyPhaseReachPass: true,
+          bridgeRouteCompletionPass: false,
+          telemetryEvidencePass: true,
+          overallPass: false,
+        },
       },
       doctorSummary: {
         workspaceName: 'demo',

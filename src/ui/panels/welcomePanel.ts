@@ -3285,6 +3285,7 @@ No markdown, no explanation outside the JSON.`;
       commandSummary: any;
       onboardingSummary: any;
       ctaVariantBreakdown?: any;
+      studioHardGateStatus?: any;
       doctorSummary?: any;
       timestamp: number;
     }>(cacheKey);
@@ -3307,17 +3308,20 @@ No markdown, no explanation outside the JSON.`;
     }
 
     // Fetch fresh data if cache miss or expired
-    const [commandSummary, onboardingSummary, ctaVariantBreakdown] = await Promise.all([
-      tracker.getCommandTelemetrySummary(workspacePath, 'last7d'),
-      tracker.getOnboardingExperimentStats(workspacePath, 'last7d'),
-      tracker.getStudioCtaVariantBreakdown(workspacePath, 'last7d'),
-    ]);
+    const [commandSummary, onboardingSummary, ctaVariantBreakdown, studioHardGateStatus] =
+      await Promise.all([
+        tracker.getCommandTelemetrySummary(workspacePath, 'last7d'),
+        tracker.getOnboardingExperimentStats(workspacePath, 'last7d'),
+        tracker.getStudioCtaVariantBreakdown(workspacePath, 'last7d'),
+        tracker.getStudioHardGateStatus(workspacePath, 'last7d'),
+      ]);
 
     const telemetryData = buildIncidentStudioTelemetryPayload(
       commandSummary,
       onboardingSummary,
       ctaVariantBreakdown,
-      doctorSummary
+      doctorSummary,
+      studioHardGateStatus
     );
 
     // Store in cache
