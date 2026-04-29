@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-04-29
+
+### Added
+
+- 🚨 **Incident Studio foundation** — shipped the core AI Incident Studio experience with lifecycle-aware payload contracts, graph-backed action handling, protocol fixtures, support panels for memory/resume/telemetry/prompt policy, and end-to-end regression coverage.
+- 🧭 **System graph + Architecture Lens baseline** — added the workspace system graph indexer, deterministic blast-radius scoring, Incident Studio Architecture Lens, editor CodeLens surface, and inline architecture warnings for supported source files.
+- 🔁 **Release gate and rollback baseline** — added wave-2 stop-gate automation, release gate manifest/KPI wiring, verify-first policy enforcement, hard-gate telemetry, and verify-fail auto-rollback evidence plumbing.
+- 🧰 **Setup and workspace operations upgrade** — replaced the old setup panel with the new setup experience, added workspace share bundle import/export flows in the dashboard, restored module browser responsiveness, and expanded workspace/project command coverage.
+- 🩺 **Doctor and telemetry surfaces** — added doctor telemetry refresh views and richer project context/log reporting for release gating and runtime observability.
+- 🧪 **Deep regression coverage** — added contract, flow, graph, telemetry, release-gate, workspace-share, and A08-specific tests across the extension and webview layers.
+
+### Changed
+
+- 🧠 **AI context pipeline hardening** — introduced a formal AI context contract and resolver, expanded project-context extraction, refreshed system prompt/prompt message shaping, and aligned AI/debug/chat flows on the same context-rich path.
+- 🖥️ **UI and webview modernization** — refreshed large parts of the dashboard, Actions, setup, project creation, and incident surfaces to support the new Workspai workflows and responsive layouts.
+- 🧩 **Command/provider/schema alignment** — updated command handlers, config-file completion/hover support, schemas, tree views, wizards, and extension activation wiring so the new surfaces work coherently in-editor and in-webview.
+- 📦 **Dependency security refresh** — lockfile dependencies were refreshed through `npm audit fix`, clearing current production dependency findings for the release line.
+
+### Fixed
+
+- 🔒 **Prompt and mutation safety** — tightened prompt sanitization, adversarial-input guards, verify-readiness enforcement, and unknown-scope blocking so risky actions degrade safely.
+- 🔄 **Workspace flow stability** — fixed workspace detection, project switching, sync cache invalidation, partial-failure normalization, webview readiness races, and module browser responsiveness.
+- 🧩 **Architecture evidence fragmentation** — impact, predictive, and release-gate signals are now presented as one coherent architecture review surface instead of several loosely related cards.
+- 🛡️ **Production dependency audit findings** — runtime npm audit findings are resolved for the current shipped dependency tree; only upstream dev-tooling issues without an available fix remain.
+
 ## [0.21.0] - 2026-04-23
 
 ### Added
