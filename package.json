@@ -55,6 +55,9 @@
   },
   "homepage": "https://www.workspai.com/",
   "license": "MIT",
+  "workspaces": [
+    "webview-ui"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "chatParticipants": [
