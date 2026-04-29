@@ -16,7 +16,7 @@ export function InstallModuleModal({
     onClose,
     onConfirm
 }: InstallModuleModalProps) {
-    if (!isOpen || !module) return null;
+    if (!isOpen || !module) {return null;}
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {

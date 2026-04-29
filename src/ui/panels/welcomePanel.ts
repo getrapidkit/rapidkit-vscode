@@ -39,6 +39,7 @@ import {
   buildIncidentStudioTelemetryPayload,
   shouldUseIncidentStudioTelemetryCache,
 } from './incidentStudioTelemetry';
+import { ProjectSelectionSequence } from './projectSelectionSequence';
 import { buildIncidentResumeSnapshot, type IncidentResumeSnapshot } from './incidentStudioResume';
 import {
   buildIncidentMemoryPromptHint,
@@ -115,6 +116,7 @@ export class WelcomePanel {
   private _aiQueryTokenSource?: vscode.CancellationTokenSource;
   private _activeAIQueryRequestId?: number;
   private static _selectedProject: { name: string; path: string; type?: string } | null = null;
+  private static _projectSelectionSequence = new ProjectSelectionSequence();
   private _modulesCatalog: ModuleData[] = MODULES;
   private static _workspaceExplorer: WorkspaceExplorerProvider | undefined;
   /** Framework name queued to open as a modal after the webview becomes ready */
@@ -133,6 +135,8 @@ export class WelcomePanel {
     projectType?: string;
     initialQuery?: string;
   } | null = null;
+  /** Whether the webview has fired its first 'ready' event for the current panel instance */
+  private _isReady = false;
   /** Workspace share bundle dashboard payload queued until webview is ready */
   private static _pendingWorkspaceShareDashboardOpen: {
     summary: {
@@ -162,19 +166,16 @@ export class WelcomePanel {
     context: vscode.ExtensionContext,
     framework: 'fastapi' | 'nestjs' | 'go' | 'springboot'
   ): void {
+    // If the panel is already open and ready, post immediately.
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openProjectModal',
+        data: { framework },
+      });
+      return;
+    }
     WelcomePanel._pendingModal = framework;
     WelcomePanel.createOrShow(context);
-    // If the panel was already visible the 'ready' event won't fire again,
-    // so also try posting directly after a short delay.
-    setTimeout(() => {
-      if (WelcomePanel._pendingModal && WelcomePanel.currentPanel) {
-        WelcomePanel._pendingModal = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openProjectModal',
-          data: { framework },
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -190,19 +191,15 @@ export class WelcomePanel {
     if (!context) {
       return;
     }
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openModuleInstallModal',
+        data: moduleData,
+      });
+      return;
+    }
     WelcomePanel._pendingModuleModal = moduleData;
     WelcomePanel.createOrShow(context);
-    // If panel was already visible the 'ready' event won't fire again — post directly after short delay
-    setTimeout(() => {
-      if (WelcomePanel._pendingModuleModal && WelcomePanel.currentPanel) {
-        const data = WelcomePanel._pendingModuleModal;
-        WelcomePanel._pendingModuleModal = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openModuleInstallModal',
-          data,
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -212,32 +209,25 @@ export class WelcomePanel {
     context: vscode.ExtensionContext,
     aiContext: import('../../core/aiService').AIModalContext
   ): void {
-    WelcomePanel._pendingAIModal = aiContext;
     WelcomePanel._extensionContext = context;
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openAIModal',
+        data: aiContext,
+      });
+      return;
+    }
+    WelcomePanel._pendingAIModal = aiContext;
     WelcomePanel.createOrShow(context);
-    setTimeout(() => {
-      if (WelcomePanel._pendingAIModal && WelcomePanel.currentPanel) {
-        const data = WelcomePanel._pendingAIModal;
-        WelcomePanel._pendingAIModal = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openAIModal',
-          data,
-        });
-      }
-    }, 350);
   }
 
   public static openWorkspaceModal(context: vscode.ExtensionContext): void {
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({ command: 'openWorkspaceModal' });
+      return;
+    }
     WelcomePanel._pendingModal = '__workspace__';
     WelcomePanel.createOrShow(context);
-    setTimeout(() => {
-      if (WelcomePanel._pendingModal === '__workspace__' && WelcomePanel.currentPanel) {
-        WelcomePanel._pendingModal = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openWorkspaceModal',
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -248,24 +238,22 @@ export class WelcomePanel {
     context: vscode.ExtensionContext,
     mode: 'workspace' | 'project' = 'workspace'
   ): void {
-    WelcomePanel._pendingModal = '__ai_create__';
     WelcomePanel._pendingAICreateMode = mode;
+    if (WelcomePanel.currentPanel?._isReady) {
+      const selectedWs =
+        mode === 'project' ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace() : undefined;
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openAICreateModal',
+        data: {
+          mode,
+          targetWorkspaceName: selectedWs?.name,
+          targetWorkspacePath: selectedWs?.path,
+        },
+      });
+      return;
+    }
+    WelcomePanel._pendingModal = '__ai_create__';
     WelcomePanel.createOrShow(context);
-    setTimeout(() => {
-      if (WelcomePanel._pendingModal === '__ai_create__' && WelcomePanel.currentPanel) {
-        WelcomePanel._pendingModal = null;
-        const selectedWs =
-          mode === 'project' ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace() : undefined;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openAICreateModal',
-          data: {
-            mode,
-            targetWorkspaceName: selectedWs?.name,
-            targetWorkspacePath: selectedWs?.path,
-          },
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -282,18 +270,15 @@ export class WelcomePanel {
       initialQuery?: string;
     }
   ): void {
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openIncidentStudio',
+        data,
+      });
+      return;
+    }
     WelcomePanel._pendingIncidentStudioOpen = data;
     WelcomePanel.createOrShow(context);
-    setTimeout(() => {
-      if (WelcomePanel._pendingIncidentStudioOpen && WelcomePanel.currentPanel) {
-        const pending = WelcomePanel._pendingIncidentStudioOpen;
-        WelcomePanel._pendingIncidentStudioOpen = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openIncidentStudio',
-          data: pending,
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -319,18 +304,15 @@ export class WelcomePanel {
       };
     }
   ): void {
+    if (WelcomePanel.currentPanel?._isReady) {
+      WelcomePanel.currentPanel._panel.webview.postMessage({
+        command: 'openWorkspaceShareDashboard',
+        data,
+      });
+      return;
+    }
     WelcomePanel._pendingWorkspaceShareDashboardOpen = data;
     WelcomePanel.createOrShow(context);
-    setTimeout(() => {
-      if (WelcomePanel._pendingWorkspaceShareDashboardOpen && WelcomePanel.currentPanel) {
-        const pending = WelcomePanel._pendingWorkspaceShareDashboardOpen;
-        WelcomePanel._pendingWorkspaceShareDashboardOpen = null;
-        WelcomePanel.currentPanel._panel.webview.postMessage({
-          command: 'openWorkspaceShareDashboard',
-          data: pending,
-        });
-      }
-    }, 350);
   }
 
   /**
@@ -350,7 +332,13 @@ export class WelcomePanel {
   public static async updateWithProject(projectPath: string, projectName: string) {
     console.log('[WelcomePanel] updateWithProject called:', projectName, projectPath);
 
+    const selectionVersion = WelcomePanel._projectSelectionSequence.begin();
+
     const projectType = await WelcomePanel._detectProjectTypeStatic(projectPath);
+    if (!WelcomePanel._projectSelectionSequence.isCurrent(selectionVersion)) {
+      return;
+    }
+
     WelcomePanel._selectedProject = {
       name: projectName,
       path: projectPath,
@@ -358,7 +346,14 @@ export class WelcomePanel {
     };
 
     if (WelcomePanel.currentPanel) {
+      const currentPanel = WelcomePanel.currentPanel;
       const installedModules = await WelcomePanel._readInstalledModules(projectPath);
+      if (
+        !WelcomePanel._projectSelectionSequence.isCurrent(selectionVersion) ||
+        WelcomePanel.currentPanel !== currentPanel
+      ) {
+        return;
+      }
       console.log('[WelcomePanel] Found', installedModules.length, 'installed modules');
 
       // Check if server is running and extract port
@@ -376,7 +371,7 @@ export class WelcomePanel {
       }
 
       // Detect project type for UI adaptation (e.g., hide modules for Go)
-      WelcomePanel.currentPanel._panel.webview.postMessage({
+      currentPanel._panel.webview.postMessage({
         command: 'updateWorkspaceStatus',
         data: {
           hasWorkspace: true,
@@ -394,7 +389,14 @@ export class WelcomePanel {
       console.log('[WelcomePanel] ✅ Workspace status sent to webview');
 
       // Refresh modules catalog to get correct versions for the new project
-      await WelcomePanel.currentPanel._refreshModulesCatalog();
+      if (
+        !WelcomePanel._projectSelectionSequence.isCurrent(selectionVersion) ||
+        WelcomePanel.currentPanel !== currentPanel
+      ) {
+        return;
+      }
+
+      await currentPanel._refreshModulesCatalog();
       console.log('[WelcomePanel] ✅ Modules catalog refreshed for project switch');
     } else {
       console.log('[WelcomePanel] ❌ No currentPanel - stored for later');
@@ -406,6 +408,7 @@ export class WelcomePanel {
    */
   public static clearSelectedProject() {
     console.log('[WelcomePanel] clearSelectedProject called');
+    WelcomePanel._projectSelectionSequence.begin();
     WelcomePanel._selectedProject = null;
 
     if (WelcomePanel.currentPanel) {
@@ -528,78 +531,71 @@ export class WelcomePanel {
               : undefined;
         switch (message.command) {
           case 'ready':
+            // Mark this panel instance as ready so static callers can post directly.
+            this._isReady = true;
             // Send initial data to webview
             this._sendInitialData();
-            // If a modal was queued (e.g. triggered from sidebar), open it now
+            // If a modal was queued (e.g. triggered from sidebar), open it now — post
+            // directly without a delay because the webview just confirmed it is ready.
             if (WelcomePanel._pendingModal) {
               const pending = WelcomePanel._pendingModal;
               WelcomePanel._pendingModal = null;
-              setTimeout(() => {
-                if (pending === '__workspace__') {
-                  this._panel.webview.postMessage({ command: 'openWorkspaceModal' });
-                } else if (pending === '__ai_create__') {
-                  const selectedWs =
-                    WelcomePanel._pendingAICreateMode === 'project'
-                      ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace()
-                      : undefined;
-                  this._panel.webview.postMessage({
-                    command: 'openAICreateModal',
-                    data: {
-                      mode: WelcomePanel._pendingAICreateMode,
-                      targetWorkspaceName: selectedWs?.name,
-                      targetWorkspacePath: selectedWs?.path,
-                    },
-                  });
-                } else {
-                  this._panel.webview.postMessage({
-                    command: 'openProjectModal',
-                    data: { framework: pending },
-                  });
-                }
-              }, 300);
+              if (pending === '__workspace__') {
+                this._panel.webview.postMessage({ command: 'openWorkspaceModal' });
+              } else if (pending === '__ai_create__') {
+                const selectedWs =
+                  WelcomePanel._pendingAICreateMode === 'project'
+                    ? WelcomePanel._workspaceExplorer?.getSelectedWorkspace()
+                    : undefined;
+                this._panel.webview.postMessage({
+                  command: 'openAICreateModal',
+                  data: {
+                    mode: WelcomePanel._pendingAICreateMode,
+                    targetWorkspaceName: selectedWs?.name,
+                    targetWorkspacePath: selectedWs?.path,
+                  },
+                });
+              } else {
+                this._panel.webview.postMessage({
+                  command: 'openProjectModal',
+                  data: { framework: pending },
+                });
+              }
             }
             // If a module install modal was queued (e.g. triggered from sidebar), open it now
             if (WelcomePanel._pendingModuleModal) {
               const moduleData = WelcomePanel._pendingModuleModal;
               WelcomePanel._pendingModuleModal = null;
-              setTimeout(() => {
-                this._panel.webview.postMessage({
-                  command: 'openModuleInstallModal',
-                  data: moduleData,
-                });
-              }, 300);
+              this._panel.webview.postMessage({
+                command: 'openModuleInstallModal',
+                data: moduleData,
+              });
             }
             // If an AI modal was queued (triggered from tree view inline button), open it now
             if (WelcomePanel._pendingAIModal) {
               const aiCtx = WelcomePanel._pendingAIModal;
               WelcomePanel._pendingAIModal = null;
-              setTimeout(() => {
-                this._panel.webview.postMessage({
-                  command: 'openAIModal',
-                  data: aiCtx,
-                });
-              }, 300);
+              this._panel.webview.postMessage({
+                command: 'openAIModal',
+                data: aiCtx,
+              });
             }
             // If Incident Studio open was queued, switch the webview directly.
             if (WelcomePanel._pendingIncidentStudioOpen) {
               const incidentData = WelcomePanel._pendingIncidentStudioOpen;
               WelcomePanel._pendingIncidentStudioOpen = null;
-              setTimeout(() => {
-                this._panel.webview.postMessage({
-                  command: 'openIncidentStudio',
-                  data: incidentData,
-                });
-              }, 300);
+              this._panel.webview.postMessage({
+                command: 'openIncidentStudio',
+                data: incidentData,
+              });
             }
             if (WelcomePanel._pendingWorkspaceShareDashboardOpen) {
               const shareData = WelcomePanel._pendingWorkspaceShareDashboardOpen;
               WelcomePanel._pendingWorkspaceShareDashboardOpen = null;
-              setTimeout(() => {
-                this._panel.webview.postMessage({
-                  command: 'openWorkspaceShareDashboard',
-                  data: shareData,
-                });
-              }, 300);
+              this._panel.webview.postMessage({
+                command: 'openWorkspaceShareDashboard',
+                data: shareData,
+              });
             }
             break;
           case 'createWorkspace':
@@ -2514,6 +2510,214 @@ No markdown, no explanation outside the JSON.`;
     return 'low';
   }
 
+  private _normalizeIncidentRollbackApprovalMode(
+    value: unknown
+  ): 'never' | 'high-risk-only' | 'mutating-only' | 'always' {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (
+      normalized === 'never' ||
+      normalized === 'high-risk-only' ||
+      normalized === 'mutating-only' ||
+      normalized === 'always'
+    ) {
+      return normalized;
+    }
+
+    return 'high-risk-only';
+  }
+
+  private _normalizeIncidentRollbackProtectedPaths(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const unique: string[] = [];
+    for (const entry of value) {
+      if (typeof entry !== 'string') {
+        continue;
+      }
+
+      const normalized = entry.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+      if (!normalized || unique.includes(normalized)) {
+        continue;
+      }
+      unique.push(normalized);
+      if (unique.length >= 32) {
+        break;
+      }
+    }
+
+    return unique;
+  }
+
+  private _resolveIncidentRollbackRuntimePolicy(input: {
+    workspacePath?: string;
+    actionPolicy: ReturnType<typeof classifyIncidentActionPolicy>;
+    rollbackApprovalToken?: unknown;
+  }): {
+    approvalMode: 'never' | 'high-risk-only' | 'mutating-only' | 'always';
+    requiresManualApproval: boolean;
+    approvedByUser: boolean;
+    protectedPathPrefixes: string[];
+  } {
+    const workspaceUri = input.workspacePath ? vscode.Uri.file(input.workspacePath) : undefined;
+    const config = vscode.workspace.getConfiguration('workspai', workspaceUri);
+    const uiPrefs = this._getUiPreferences();
+
+    const approvalMode = this._normalizeIncidentRollbackApprovalMode(
+      config.get('incidentStudio.rollbackApprovalMode') ?? uiPrefs.incidentRollbackApprovalMode
+    );
+
+    const configProtectedPaths = this._normalizeIncidentRollbackProtectedPaths(
+      config.get('incidentStudio.rollbackProtectedPaths')
+    );
+    const protectedPathPrefixes =
+      configProtectedPaths.length > 0
+        ? configProtectedPaths
+        : this._normalizeIncidentRollbackProtectedPaths(uiPrefs.incidentRollbackProtectedPaths);
+
+    const requiresManualApproval =
+      approvalMode === 'always' ||
+      (approvalMode === 'high-risk-only' &&
+        input.actionPolicy.riskClass === 'high-risk-mutating') ||
+      (approvalMode === 'mutating-only' &&
+        (input.actionPolicy.riskClass === 'guarded-mutating' ||
+          input.actionPolicy.riskClass === 'high-risk-mutating'));
+
+    const approvedByUser =
+      input.rollbackApprovalToken === true ||
+      (typeof input.rollbackApprovalToken === 'string' &&
+        input.rollbackApprovalToken.trim().toLowerCase() === 'approved');
+
+    return {
+      approvalMode,
+      requiresManualApproval,
+      approvedByUser,
+      protectedPathPrefixes,
+    };
+  }
+
+  private _isIncidentRollbackProtectedPath(
+    candidatePath: string,
+    protectedPathPrefixes: string[]
+  ): boolean {
+    const normalizedCandidate = candidatePath
+      .replace(/\\/g, '/')
+      .replace(/^\.\//, '')
+      .toLowerCase();
+
+    for (const rawPrefix of protectedPathPrefixes) {
+      const normalizedPrefix = rawPrefix.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+
+      if (!normalizedPrefix) {
+        continue;
+      }
+
+      const basePrefix = normalizedPrefix.endsWith('/')
+        ? normalizedPrefix.slice(0, -1)
+        : normalizedPrefix;
+
+      if (normalizedCandidate === basePrefix || normalizedCandidate.startsWith(`${basePrefix}/`)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private _buildIncidentDiagnosisEvidence(input: {
+    actionPolicy: ReturnType<typeof classifyIncidentActionPolicy>;
+    verifyReady: boolean;
+    verifySuccess: boolean;
+    doctorEvidence?: {
+      healthScoreText: string;
+      generatedAt?: string;
+      passed?: number;
+      warnings?: number;
+      errors?: number;
+    };
+    impactAssessment: {
+      affectedFiles: string[];
+      affectedModules: string[];
+      likelyFailureMode?: string;
+      verifyChecklist: string[];
+    };
+    predictiveWarning?: {
+      warningId: string;
+    };
+    graphSnapshot: {
+      nodes: Array<{ filePath?: string }>;
+    };
+  }): {
+    confidence: number;
+    confidenceBand: 'low' | 'medium' | 'high';
+    signalSources: string[];
+    relatedFiles: string[];
+    recommendedFocus?: string;
+  } {
+    const signalSources: string[] = [];
+    let confidenceScore = 25;
+
+    if (input.doctorEvidence) {
+      signalSources.push('doctor-evidence');
+      confidenceScore += 25;
+    }
+
+    if (input.graphSnapshot.nodes.length > 0) {
+      signalSources.push('system-graph');
+      confidenceScore += 20;
+    }
+
+    if (
+      input.impactAssessment.affectedFiles.length > 0 ||
+      input.impactAssessment.affectedModules.length > 0
+    ) {
+      signalSources.push('impact-analysis');
+      confidenceScore += 15;
+    }
+
+    if (input.predictiveWarning) {
+      signalSources.push('predictive-warning');
+      confidenceScore += 10;
+    }
+
+    if (input.verifyReady) {
+      signalSources.push('verify-evidence-ready');
+      confidenceScore += 8;
+    }
+
+    if (!input.verifySuccess) {
+      signalSources.push('verify-failed');
+      confidenceScore -= 12;
+    }
+
+    if (input.actionPolicy.requiresImpactReview) {
+      confidenceScore += 5;
+    }
+
+    const confidence = Math.max(0, Math.min(100, confidenceScore));
+    const confidenceBand = this._derivePredictionConfidenceBand(confidence);
+    const relatedFiles = Array.from(
+      new Set([
+        ...input.impactAssessment.affectedFiles,
+        ...input.graphSnapshot.nodes
+          .map((node) => node.filePath)
+          .filter((filePath): filePath is string => Boolean(filePath)),
+      ])
+    ).slice(0, 8);
+
+    const recommendedFocus =
+      input.impactAssessment.likelyFailureMode || input.impactAssessment.verifyChecklist[0];
+
+    return {
+      confidence,
+      confidenceBand,
+      signalSources,
+      relatedFiles,
+      recommendedFocus,
+    };
+  }
+
   private async _buildIncidentWave2Contracts(input: {
     requestId?: string;
     conversationId?: string;
@@ -2531,6 +2735,12 @@ No markdown, no explanation outside the JSON.`;
     };
     verifyReady: boolean;
     verifySuccess: boolean;
+    rollbackRuntimePolicy?: {
+      approvalMode: 'never' | 'high-risk-only' | 'mutating-only' | 'always';
+      requiresManualApproval: boolean;
+      approvedByUser: boolean;
+      protectedPathPrefixes: string[];
+    };
   }): Promise<{
     systemGraphSnapshot: {
       requestId?: string;
@@ -2776,9 +2986,11 @@ No markdown, no explanation outside the JSON.`;
       (affectedFiles.length > 0 || affectedModules.length > 0 || affectedTests.length > 0);
     const verifyPathPresent = !input.actionPolicy.requiresVerifyPath || verifyChecklist.length > 0;
     const rollbackPathPresent =
-      input.actionPolicy.riskClass === 'informational' ||
-      input.actionPolicy.riskClass === 'non-mutating-executable' ||
-      input.verifyReady;
+      (input.actionPolicy.riskClass === 'informational' ||
+        input.actionPolicy.riskClass === 'non-mutating-executable' ||
+        input.verifyReady) &&
+      (!input.rollbackRuntimePolicy?.requiresManualApproval ||
+        input.rollbackRuntimePolicy.approvedByUser);
     const confidenceSufficient = confidence >= (input.actionPolicy.requiresImpactReview ? 60 : 50);
 
     const blockedReasons: string[] = [];
@@ -2789,7 +3001,16 @@ No markdown, no explanation outside the JSON.`;
       blockedReasons.push('Verification evidence is missing for a verify-first action.');
     }
     if (!rollbackPathPresent) {
-      blockedReasons.push('Rollback path is unavailable for this risk class.');
+      if (
+        input.rollbackRuntimePolicy?.requiresManualApproval &&
+        !input.rollbackRuntimePolicy.approvedByUser
+      ) {
+        blockedReasons.push(
+          `Rollback policy (${input.rollbackRuntimePolicy.approvalMode}) requires manual approval before auto-restore can run.`
+        );
+      } else {
+        blockedReasons.push('Rollback path is unavailable for this risk class.');
+      }
     }
     if (!confidenceSufficient) {
       blockedReasons.push('Impact confidence is below release-safe threshold.');
@@ -3865,9 +4086,18 @@ No markdown, no explanation outside the JSON.`;
     const verifyEvidenceAvailable = Boolean(doctorEvidence);
     const verifyReady = !actionPolicy.requiresVerifyPath || verifyEvidenceAvailable;
     const verifySuccess = verifyReady && (doctorEvidence?.errors ?? 0) === 0;
+    const rollbackRuntimePolicy = this._resolveIncidentRollbackRuntimePolicy({
+      workspacePath: activeWorkspacePath,
+      actionPolicy,
+      rollbackApprovalToken: data?.rollbackApproval,
+    });
     const rollbackEvidence =
       !verifySuccess && shouldAttemptAutoRollback && activeWorkspacePath
-        ? await this._attemptIncidentAutoRollback(activeWorkspacePath, rollbackBaselineEntries)
+        ? await this._attemptIncidentAutoRollback(
+            activeWorkspacePath,
+            rollbackBaselineEntries,
+            rollbackRuntimePolicy
+          )
         : undefined;
     const wave2Contracts = await this._buildIncidentWave2Contracts({
       requestId,
@@ -3880,6 +4110,16 @@ No markdown, no explanation outside the JSON.`;
       doctorEvidence,
       verifyReady,
       verifySuccess,
+      rollbackRuntimePolicy,
+    });
+    const diagnosisEvidence = this._buildIncidentDiagnosisEvidence({
+      actionPolicy,
+      verifyReady,
+      verifySuccess,
+      doctorEvidence,
+      impactAssessment: wave2Contracts.impactAssessment,
+      predictiveWarning: wave2Contracts.predictiveWarning,
+      graphSnapshot: wave2Contracts.systemGraphSnapshot,
     });
 
     if (conv && wave2Contracts.predictiveWarning) {
@@ -4036,6 +4276,7 @@ No markdown, no explanation outside the JSON.`;
               ...doctorEvidence,
             }
           : undefined,
+        diagnosis: diagnosisEvidence,
         rollback: rollbackEvidence,
         systemGraphSnapshot: wave2Contracts.systemGraphSnapshot,
         impactAssessment: wave2Contracts.impactAssessment,
@@ -4058,6 +4299,7 @@ No markdown, no explanation outside the JSON.`;
       onboardingSummary: any;
       ctaVariantBreakdown?: any;
       studioHardGateStatus?: any;
+      studioRollbackKpiStatus?: any;
       doctorSummary?: any;
       timestamp: number;
     }>(cacheKey);
@@ -4080,20 +4322,27 @@ No markdown, no explanation outside the JSON.`;
     }
 
     // Fetch fresh data if cache miss or expired
-    const [commandSummary, onboardingSummary, ctaVariantBreakdown, studioHardGateStatus] =
-      await Promise.all([
-        tracker.getCommandTelemetrySummary(workspacePath, 'last7d'),
-        tracker.getOnboardingExperimentStats(workspacePath, 'last7d'),
-        tracker.getStudioCtaVariantBreakdown(workspacePath, 'last7d'),
-        tracker.getStudioHardGateStatus(workspacePath, 'last7d'),
-      ]);
+    const [
+      commandSummary,
+      onboardingSummary,
+      ctaVariantBreakdown,
+      studioHardGateStatus,
+      studioRollbackKpiStatus,
+    ] = await Promise.all([
+      tracker.getCommandTelemetrySummary(workspacePath, 'last7d'),
+      tracker.getOnboardingExperimentStats(workspacePath, 'last7d'),
+      tracker.getStudioCtaVariantBreakdown(workspacePath, 'last7d'),
+      tracker.getStudioHardGateStatus(workspacePath, 'last7d'),
+      tracker.getStudioRollbackKpiStatus(workspacePath, 'last7d'),
+    ]);
 
     const telemetryData = buildIncidentStudioTelemetryPayload(
       commandSummary,
       onboardingSummary,
       ctaVariantBreakdown,
       doctorSummary,
-      studioHardGateStatus
+      studioHardGateStatus,
+      studioRollbackKpiStatus
     );
 
     // Store in cache
@@ -4113,6 +4362,8 @@ No markdown, no explanation outside the JSON.`;
     incidentUserMode: 'guided' | 'standard' | 'expert';
     incidentAutoLearningPrompt: boolean;
     incidentPrimaryCtaExperimentVariant: 'single' | 'multi';
+    incidentRollbackApprovalMode: 'never' | 'high-risk-only' | 'mutating-only' | 'always';
+    incidentRollbackProtectedPaths: string[];
   } {
     const prefs = this._context.globalState.get<Record<string, unknown>>(
       WelcomePanel.UI_PREFS_KEY,
@@ -4129,6 +4380,12 @@ No markdown, no explanation outside the JSON.`;
       incidentUserMode,
       incidentAutoLearningPrompt: prefs?.incidentAutoLearningPrompt !== false,
       incidentPrimaryCtaExperimentVariant: this._getIncidentPrimaryCtaExperimentVariant(),
+      incidentRollbackApprovalMode: this._normalizeIncidentRollbackApprovalMode(
+        prefs?.incidentRollbackApprovalMode
+      ),
+      incidentRollbackProtectedPaths: this._normalizeIncidentRollbackProtectedPaths(
+        prefs?.incidentRollbackProtectedPaths
+      ),
     };
   }
 
@@ -4520,7 +4777,13 @@ No markdown, no explanation outside the JSON.`;
 
   private async _attemptIncidentAutoRollback(
     workspacePath: string,
-    baselineEntries: Array<{ path: string; untracked: boolean }> | null
+    baselineEntries: Array<{ path: string; untracked: boolean }> | null,
+    runtimePolicy?: {
+      approvalMode: 'never' | 'high-risk-only' | 'mutating-only' | 'always';
+      requiresManualApproval: boolean;
+      approvedByUser: boolean;
+      protectedPathPrefixes: string[];
+    }
   ): Promise<{
     attempted: boolean;
     status: 'succeeded' | 'failed' | 'partial' | 'skipped' | 'unavailable';
@@ -4562,12 +4825,51 @@ No markdown, no explanation outside the JSON.`;
       };
     }
 
+    const allCandidateFiles = deltaEntries.map((entry) => entry.path);
+    if (runtimePolicy?.requiresManualApproval && !runtimePolicy.approvedByUser) {
+      return {
+        attempted: false,
+        status: 'skipped',
+        reason: `Rollback policy (${runtimePolicy.approvalMode}) requires manual approval before auto-restore.`,
+        attemptedAt,
+        candidateFiles: allCandidateFiles,
+        restoredFiles: [],
+        failedFiles: allCandidateFiles,
+        suggestedNextStep:
+          'Approve rollback for this action in the UI or run manual `git restore` for affected files.',
+      };
+    }
+
     const trackedCandidates = deltaEntries
       .filter((entry) => !entry.untracked)
       .map((entry) => entry.path);
     const untrackedCandidates = deltaEntries
       .filter((entry) => entry.untracked)
       .map((entry) => entry.path);
+    const protectedCandidates = trackedCandidates.filter((candidatePath) =>
+      this._isIncidentRollbackProtectedPath(
+        candidatePath,
+        runtimePolicy?.protectedPathPrefixes ?? []
+      )
+    );
+    const eligibleTrackedCandidates = trackedCandidates.filter(
+      (candidatePath) => !protectedCandidates.includes(candidatePath)
+    );
+
+    if (eligibleTrackedCandidates.length === 0 && protectedCandidates.length > 0) {
+      return {
+        attempted: false,
+        status: 'skipped',
+        reason:
+          'All tracked rollback candidates are protected by policy and require manual restore.',
+        attemptedAt,
+        candidateFiles: allCandidateFiles,
+        restoredFiles: [],
+        failedFiles: [...protectedCandidates, ...untrackedCandidates],
+        suggestedNextStep:
+          'Review protected files and run a manual rollback after explicit approval.',
+      };
+    }
 
     if (trackedCandidates.length === 0) {
       return {
@@ -4585,7 +4887,7 @@ No markdown, no explanation outside the JSON.`;
 
     let restoreResult = await run(
       'git',
-      ['restore', '--staged', '--worktree', '--', ...trackedCandidates],
+      ['restore', '--staged', '--worktree', '--', ...eligibleTrackedCandidates],
       {
         cwd: workspacePath,
         timeout: 6000,
@@ -4593,19 +4895,25 @@ No markdown, no explanation outside the JSON.`;
     );
 
     if (restoreResult.exitCode !== 0) {
-      restoreResult = await run('git', ['restore', '--worktree', '--', ...trackedCandidates], {
-        cwd: workspacePath,
-        timeout: 6000,
-      });
+      restoreResult = await run(
+        'git',
+        ['restore', '--worktree', '--', ...eligibleTrackedCandidates],
+        {
+          cwd: workspacePath,
+          timeout: 6000,
+        }
+      );
     }
 
     const afterRestoreEntries = await this._readGitDirtyEntries(workspacePath);
     const afterRestoreSet = new Set((afterRestoreEntries || []).map((entry) => entry.path));
-    const restoredFiles = trackedCandidates.filter((filePath) => !afterRestoreSet.has(filePath));
-    const failedTrackedFiles = trackedCandidates.filter((filePath) =>
+    const restoredFiles = eligibleTrackedCandidates.filter(
+      (filePath) => !afterRestoreSet.has(filePath)
+    );
+    const failedTrackedFiles = eligibleTrackedCandidates.filter((filePath) =>
       afterRestoreSet.has(filePath)
     );
-    const failedFiles = [...failedTrackedFiles, ...untrackedCandidates];
+    const failedFiles = [...failedTrackedFiles, ...protectedCandidates, ...untrackedCandidates];
 
     const status: 'succeeded' | 'failed' | 'partial' =
       failedFiles.length === 0 ? 'succeeded' : restoredFiles.length > 0 ? 'partial' : 'failed';
@@ -4613,14 +4921,20 @@ No markdown, no explanation outside the JSON.`;
     const reason =
       restoreResult.exitCode !== 0
         ? 'Auto-rollback command exited with errors; some files may need manual restore.'
-        : undefined;
+        : protectedCandidates.length > 0
+          ? 'Protected rollback files were skipped and need manual restore approval.'
+          : undefined;
 
     return {
       attempted: true,
       status,
       reason,
       attemptedAt,
-      candidateFiles: [...trackedCandidates, ...untrackedCandidates],
+      candidateFiles: [
+        ...eligibleTrackedCandidates,
+        ...protectedCandidates,
+        ...untrackedCandidates,
+      ],
       restoredFiles,
       failedFiles,
       suggestedNextStep:

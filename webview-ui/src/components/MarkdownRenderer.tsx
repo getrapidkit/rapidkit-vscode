@@ -234,8 +234,8 @@ export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps
         switch (block.type) {
             case 'heading': {
                 const cls = `md-h${block.level}`;
-                if (block.level === 1) return <h1 key={idx} className={cls}>{renderInline(block.text, keyPfx)}</h1>;
-                if (block.level === 2) return <h2 key={idx} className={cls}>{renderInline(block.text, keyPfx)}</h2>;
+                if (block.level === 1) {return <h1 key={idx} className={cls}>{renderInline(block.text, keyPfx)}</h1>;}
+                if (block.level === 2) {return <h2 key={idx} className={cls}>{renderInline(block.text, keyPfx)}</h2>;}
                 return <h3 key={idx} className={cls}>{renderInline(block.text, keyPfx)}</h3>;
             }
             case 'codeblock':

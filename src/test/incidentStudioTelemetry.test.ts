@@ -70,6 +70,29 @@ describe('incidentStudioTelemetry', () => {
           overallPass: false,
         },
       },
+      studioRollbackKpiStatus: {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-04-18T04:00:00.000Z',
+        windowEndAt: '2026-04-25T04:00:00.000Z',
+        thresholds: {
+          verifyAutoRollbackSuccessRateMin: 60,
+          falseConfidenceRateMax: 40,
+        },
+        metrics: {
+          verifyFailed: 3,
+          rollbackAttempted: 2,
+          rollbackSucceeded: 1,
+          verifyAutoRollbackSuccessRate: 50,
+          falseConfidenceRate: 66.67,
+        },
+        gates: {
+          telemetryEvidencePass: true,
+          verifyAutoRollbackSuccessRatePass: false,
+          falseConfidenceRatePass: false,
+          overallPass: false,
+        },
+      },
       doctorSummary: {
         workspaceName: 'stale-workspace',
         generatedAt: '2026-04-25T03:55:00.000Z',
@@ -88,6 +111,7 @@ describe('incidentStudioTelemetry', () => {
       onboardingSummary: cachedData.onboardingSummary,
       ctaVariantBreakdown: cachedData.ctaVariantBreakdown,
       studioHardGateStatus: cachedData.studioHardGateStatus,
+      studioRollbackKpiStatus: cachedData.studioRollbackKpiStatus,
       doctorSummary: {
         ...freshDoctorSummary,
         ctaVariantBreakdown: cachedData.ctaVariantBreakdown,
@@ -189,6 +213,29 @@ describe('incidentStudioTelemetry', () => {
             telemetryEvidencePass: true,
             overallPass: false,
           },
+        },
+        {
+          workspacePath: '/tmp/demo',
+          timeWindow: 'last7d',
+          windowStartAt: '2026-04-18T04:00:00.000Z',
+          windowEndAt: '2026-04-25T04:10:00.000Z',
+          thresholds: {
+            verifyAutoRollbackSuccessRateMin: 60,
+            falseConfidenceRateMax: 40,
+          },
+          metrics: {
+            verifyFailed: 4,
+            rollbackAttempted: 3,
+            rollbackSucceeded: 2,
+            verifyAutoRollbackSuccessRate: 66.67,
+            falseConfidenceRate: 50,
+          },
+          gates: {
+            telemetryEvidencePass: true,
+            verifyAutoRollbackSuccessRatePass: true,
+            falseConfidenceRatePass: false,
+            overallPass: false,
+          },
         }
       )
     ).toEqual({
@@ -249,6 +296,29 @@ describe('incidentStudioTelemetry', () => {
           verifyPhaseReachPass: true,
           bridgeRouteCompletionPass: false,
           telemetryEvidencePass: true,
+          overallPass: false,
+        },
+      },
+      studioRollbackKpiStatus: {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-04-18T04:00:00.000Z',
+        windowEndAt: '2026-04-25T04:10:00.000Z',
+        thresholds: {
+          verifyAutoRollbackSuccessRateMin: 60,
+          falseConfidenceRateMax: 40,
+        },
+        metrics: {
+          verifyFailed: 4,
+          rollbackAttempted: 3,
+          rollbackSucceeded: 2,
+          verifyAutoRollbackSuccessRate: 66.67,
+          falseConfidenceRate: 50,
+        },
+        gates: {
+          telemetryEvidencePass: true,
+          verifyAutoRollbackSuccessRatePass: true,
+          falseConfidenceRatePass: false,
           overallPass: false,
         },
       },

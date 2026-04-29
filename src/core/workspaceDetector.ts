@@ -124,16 +124,48 @@ export class WorkspaceDetector {
       let kit = 'unknown';
       const modules: string[] = [];
 
+      // ── Bug fix 1: Read kit_name directly from .rapidkit/project.json when present.
+      // project.json is the authoritative source written by the CLI at project creation.
+      const rapidkitDir = path.join(projectPath, '.rapidkit');
+      const projectJsonPath = path.join(rapidkitDir, 'project.json');
+      if (await fs.pathExists(projectJsonPath)) {
+        try {
+          const projectJson = await fs.readJson(projectJsonPath);
+          if (typeof projectJson.kit_name === 'string' && projectJson.kit_name !== '') {
+            kit = projectJson.kit_name;
+            // Derive type from kit_name prefix so downstream logic is consistent.
+            if (kit.startsWith('fastapi')) {
+              type = 'fastapi';
+            } else if (kit.startsWith('nestjs')) {
+              type = 'nestjs';
+            } else if (
+              kit.startsWith('gofiber') ||
+              kit.startsWith('gogin') ||
+              kit.startsWith('go')
+            ) {
+              type = 'go';
+            } else if (kit.startsWith('springboot')) {
+              type = 'springboot';
+            }
+          }
+        } catch {
+          // project.json unreadable — fall through to heuristic detection below
+        }
+      }
+
+      // ── Heuristic detection (only runs when project.json didn't give us a kit) ──
+
       const goModPath = path.join(projectPath, 'go.mod');
       const goSumPath = path.join(projectPath, 'go.sum');
       const goMainPath = path.join(projectPath, 'main.go');
       const goCmdMainPath = path.join(projectPath, 'cmd', 'main.go');
 
       if (
-        (await fs.pathExists(goModPath)) ||
-        (await fs.pathExists(goSumPath)) ||
-        (await fs.pathExists(goMainPath)) ||
-        (await fs.pathExists(goCmdMainPath))
+        kit === 'unknown' &&
+        ((await fs.pathExists(goModPath)) ||
+          (await fs.pathExists(goSumPath)) ||
+          (await fs.pathExists(goMainPath)) ||
+          (await fs.pathExists(goCmdMainPath)))
       ) {
         type = 'go';
         try {
@@ -162,6 +194,7 @@ export class WorkspaceDetector {
       const javaSrcPath = path.join(projectPath, 'src', 'main', 'java');
 
       if (
+        kit === 'unknown' &&
         type !== 'go' &&
         ((await fs.pathExists(pomXmlPath)) ||
           (await fs.pathExists(gradlePath)) ||
@@ -169,30 +202,34 @@ export class WorkspaceDetector {
           (await fs.pathExists(javaSrcPath)))
       ) {
         type = 'springboot';
-        try {
-          if (await fs.pathExists(pomXmlPath)) {
-            kit = 'springboot.standard';
-          } else {
-            kit = 'springboot.standard';
-          }
-        } catch {
-          kit = 'springboot.standard';
-        }
+        kit = 'springboot.standard';
       }
 
       // Check pyproject.toml for FastAPI
       const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-      if (type !== 'go' && type !== 'springboot' && (await fs.pathExists(pyprojectPath))) {
+      if (
+        kit === 'unknown' &&
+        type !== 'go' &&
+        type !== 'springboot' &&
+        (await fs.pathExists(pyprojectPath))
+      ) {
         type = 'fastapi';
         const content = await fs.readFile(pyprojectPath, 'utf-8');
-        if (content.includes('rapidkit')) {
+        // Bug fix 2: case-insensitive match — pyproject.toml may say "RapidKit" (mixed case)
+        if (content.toLowerCase().includes('rapidkit')) {
           kit = 'fastapi.standard';
         }
       }
 
       // Check package.json for NestJS
       const packageJsonPath = path.join(projectPath, 'package.json');
-      if (type !== 'go' && type !== 'springboot' && (await fs.pathExists(packageJsonPath))) {
+      if (
+        kit === 'unknown' &&
+        type !== 'go' &&
+        type !== 'springboot' &&
+        type !== 'fastapi' &&
+        (await fs.pathExists(packageJsonPath))
+      ) {
         type = 'nestjs';
         const packageJson = await fs.readJson(packageJsonPath);
         if (packageJson.dependencies?.['@nestjs/core']) {
@@ -200,14 +237,25 @@ export class WorkspaceDetector {
         }
       }
 
-      // Check for .rapidkit directory
-      const rapidkitDir = path.join(projectPath, '.rapidkit');
+      // ── Bug fix 3: Read modules from .rapidkit/vendor/ subdirectory names.
+      // The CLI stores installed modules as directories under vendor/, not in modules.json.
       if (await fs.pathExists(rapidkitDir)) {
-        // Read installed modules
-        const modulesPath = path.join(rapidkitDir, 'modules.json');
-        if (await fs.pathExists(modulesPath)) {
-          const modulesData = await fs.readJson(modulesPath);
-          modules.push(...(modulesData.installed || []));
+        const vendorPath = path.join(rapidkitDir, 'vendor');
+        if (await fs.pathExists(vendorPath)) {
+          try {
+            const entries = await fs.readdir(vendorPath, { withFileTypes: true });
+            modules.push(...entries.filter((e) => e.isDirectory()).map((e) => e.name));
+          } catch {
+            // vendor unreadable — leave modules empty
+          }
+        }
+        // Fallback: legacy modules.json (kept for backwards compatibility)
+        if (modules.length === 0) {
+          const modulesPath = path.join(rapidkitDir, 'modules.json');
+          if (await fs.pathExists(modulesPath)) {
+            const modulesData = await fs.readJson(modulesPath);
+            modules.push(...(modulesData.installed || []));
+          }
         }
       }
 

@@ -45,7 +45,7 @@ interface ModuleBrowserProps {
 export function ModuleBrowser({
     modules,
     workspaceStatus,
-    categoryInfo,
+    categoryInfo: _categoryInfo,
     onRefresh,
     onInstall,
     onShowDetails,
@@ -96,8 +96,8 @@ export function ModuleBrowser({
         for (let i = 0; i < Math.max(availParts.length, instParts.length); i++) {
             const a = availParts[i] || 0;
             const b = instParts[i] || 0;
-            if (a > b) return true;
-            if (a < b) return false;
+            if (a > b) { return true; }
+            if (a < b) { return false; }
         }
         return false;
     };

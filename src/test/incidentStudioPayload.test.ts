@@ -4,6 +4,7 @@ import {
   buildIncidentActionExecutionMetadata,
   buildIncidentChatExecuteActionPayload,
   buildIncidentChatQueryPayload,
+  buildIncidentChatSyncWorkspacePayload,
   buildIncidentChatStartPayload,
   isIncidentDuplicateRequest,
   normalizeIncidentActionProgressPayload,
@@ -106,6 +107,30 @@ describe('incidentStudioPayload', () => {
       requestId: 'cbq-1',
       modelId: undefined,
       message: 'show launch blockers',
+    });
+  });
+
+  it('builds aiChatSyncWorkspace payload with optional force refresh', () => {
+    expect(
+      buildIncidentChatSyncWorkspacePayload({
+        workspacePath: '/tmp/wsp',
+        requestId: 'sync-1',
+        forceRefresh: true,
+      })
+    ).toEqual({
+      workspacePath: '/tmp/wsp',
+      requestId: 'sync-1',
+      forceRefresh: true,
+    });
+
+    expect(
+      buildIncidentChatSyncWorkspacePayload({
+        workspacePath: '/tmp/wsp',
+        requestId: 'sync-2',
+      })
+    ).toEqual({
+      workspacePath: '/tmp/wsp',
+      requestId: 'sync-2',
     });
   });
 
@@ -528,6 +553,27 @@ describe('incidentStudioPayload', () => {
       restoredFiles: ['src/orders/service.ts'],
       failedFiles: ['src/orders/worker.ts'],
       suggestedNextStep: 'Run git status and restore remaining files manually.',
+    });
+  });
+
+  it('normalizes diagnosis evidence in action-result payload', () => {
+    const normalized = normalizeIncidentActionResultPayload({
+      success: false,
+      diagnosis: {
+        confidence: 82,
+        confidenceBand: ' HIGH ',
+        signalSources: ['doctor-evidence', 'system-graph', 'doctor-evidence'],
+        relatedFiles: ['src/orders/service.ts', 'src/orders/controller.ts'],
+        recommendedFocus: 'authorization: Bearer secret-token',
+      },
+    });
+
+    expect(normalized.diagnosis).toEqual({
+      confidence: 82,
+      confidenceBand: 'high',
+      signalSources: ['doctor-evidence', 'system-graph'],
+      relatedFiles: ['src/orders/service.ts', 'src/orders/controller.ts'],
+      recommendedFocus: 'authorization:[REDACTED]',
     });
   });
 

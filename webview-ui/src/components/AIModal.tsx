@@ -59,27 +59,35 @@ function getQuickPrompts(ctx: AIModalContext, mode: Mode): string[] {
     }
     if (ctx.type === 'project') {
         const fw = ctx.framework || '';
-        if (fw === 'fastapi') return [
-            'How do I add a new endpoint following this project\'s DDD structure?',
-            'What is the correct way to add a new SQLAlchemy model here?',
-            'How should I add a new Workspai module to this project?',
-            'How do I write a unit test for a use-case in the application layer?',
-        ];
-        if (fw === 'nestjs') return [
-            'How do I create a new feature module following NestJS conventions here?',
-            'How should I add a new database table with TypeORM in this project?',
-            'How do I add a new Workspai module to this project?',
-        ];
-        if (fw === 'go') return [
-            'How do I add a new HTTP handler in internal/handlers following this project\'s conventions?',
-            'How should I add a new service function with dependency injection here?',
-            'How do I add a new Workspai module to this Go project?',
-        ];
-        if (fw === 'springboot') return [
-            'How do I add a new Spring REST controller following this project\'s package structure?',
-            'How should I add a service class and constructor-based dependency injection here?',
-            'How do I expose a new endpoint in OpenAPI/Swagger for this Spring project?',
-        ];
+        if (fw === 'fastapi') {
+            return [
+                'How do I add a new endpoint following this project\'s DDD structure?',
+                'What is the correct way to add a new SQLAlchemy model here?',
+                'How should I add a new Workspai module to this project?',
+                'How do I write a unit test for a use-case in the application layer?',
+            ];
+        }
+        if (fw === 'nestjs') {
+            return [
+                'How do I create a new feature module following NestJS conventions here?',
+                'How should I add a new database table with TypeORM in this project?',
+                'How do I add a new Workspai module to this project?',
+            ];
+        }
+        if (fw === 'go') {
+            return [
+                'How do I add a new HTTP handler in internal/handlers following this project\'s conventions?',
+                'How should I add a new service function with dependency injection here?',
+                'How do I add a new Workspai module to this Go project?',
+            ];
+        }
+        if (fw === 'springboot') {
+            return [
+                'How do I add a new Spring REST controller following this project\'s package structure?',
+                'How should I add a service class and constructor-based dependency injection here?',
+                'How do I expose a new endpoint in OpenAPI/Swagger for this Spring project?',
+            ];
+        }
         return [
             'How do I add a feature to this project following its conventions?',
             'What Workspai modules should I add to this project?',
@@ -101,7 +109,7 @@ export function AIModal({
     isStreaming,
     streamContent,
     streamError,
-    modelId,
+    modelId: _modelId,
     availableModels = [],
     selectedModelId,
     onModelChange,
@@ -116,7 +124,7 @@ export function AIModal({
 
     const adjustTextareaHeight = useCallback(() => {
         const el = textareaRef.current;
-        if (!el) return;
+        if (!el) { return; }
         el.style.height = 'auto';
         el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
     }, []);
@@ -149,12 +157,12 @@ export function AIModal({
         }
     }, [streamContent]);
 
-    if (!isOpen || !context) return null;
+    if (!isOpen || !context) { return null; }
 
     const quickPrompts = getQuickPrompts(context, mode);
 
     const handleSubmit = () => {
-        if (!input.trim() || isStreaming) return;
+        if (!input.trim() || isStreaming) { return; }
         onQuery(mode, input.trim(), context);
     };
 

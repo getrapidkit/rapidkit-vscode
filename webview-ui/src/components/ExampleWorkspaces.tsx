@@ -18,31 +18,10 @@ interface ExampleWorkspacesProps {
 }
 
 const getProjectTypeEmoji = (type: 'fastapi' | 'nestjs' | 'go' | 'springboot'): string => {
-    if (type === 'fastapi') return '⚡';
-    if (type === 'nestjs') return '🐱';
-    if (type === 'go') return '🔵';
+    if (type === 'fastapi') { return '⚡'; }
+    if (type === 'nestjs') { return '🐱'; }
+    if (type === 'go') { return '🔵'; }
     return '☕';
-};
-
-const getStatusBadge = (status?: 'not-cloned' | 'cloned' | 'update-available') => {
-    switch (status) {
-        case 'cloned':
-            return (
-                <span className="status-badge status-badge--success">
-                    <CheckCircle2 size={12} />
-                    Cloned
-                </span>
-            );
-        case 'update-available':
-            return (
-                <span className="status-badge status-badge--warning">
-                    <RefreshCw size={12} />
-                    Update Available
-                </span>
-            );
-        default:
-            return null;
-    }
 };
 
 export function ExampleWorkspaces({ examples, onClone, onUpdate, cloningExample, updatingExample }: ExampleWorkspacesProps) {

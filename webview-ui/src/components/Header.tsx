@@ -2,7 +2,7 @@ interface HeaderProps {
     version: string;
 }
 
-export function Header({ version }: HeaderProps) {
+export function Header({ version: _version }: HeaderProps) {
     return (
         <div className="header">
             <img className="logo" src={(window as any).ICON_URI} alt="Workspai Logo" />

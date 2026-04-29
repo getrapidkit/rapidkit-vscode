@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { isWorkspaiConfigurationFile } from './workspaiConfigFiles';
 
 export class WorkspaiCompletionProvider implements vscode.CompletionItemProvider {
   provideCompletionItems(
@@ -15,7 +16,7 @@ export class WorkspaiCompletionProvider implements vscode.CompletionItemProvider
     const linePrefix = document.lineAt(position).text.substr(0, position.character);
 
     // Configuration file completions
-    if (document.fileName.endsWith('.rapidkitrc.json')) {
+    if (isWorkspaiConfigurationFile(document.fileName)) {
       return this.getConfigurationCompletions(linePrefix);
     }
 

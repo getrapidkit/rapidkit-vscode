@@ -97,6 +97,29 @@ interface IncidentTelemetrySnapshot {
             overallPass: boolean;
         };
     } | null;
+    studioRollbackKpiStatus?: {
+        workspacePath: string;
+        timeWindow: 'all' | 'last24h' | 'last7d';
+        windowStartAt: string | null;
+        windowEndAt: string;
+        thresholds: {
+            verifyAutoRollbackSuccessRateMin: number;
+            falseConfidenceRateMax: number;
+        };
+        metrics: {
+            verifyFailed: number;
+            rollbackAttempted: number;
+            rollbackSucceeded: number;
+            verifyAutoRollbackSuccessRate: number | null;
+            falseConfidenceRate: number | null;
+        };
+        gates: {
+            telemetryEvidencePass: boolean;
+            verifyAutoRollbackSuccessRatePass: boolean;
+            falseConfidenceRatePass: boolean;
+            overallPass: boolean;
+        };
+    } | null;
     doctorSummary?: {
         workspaceName?: string;
         generatedAt?: string;
@@ -572,6 +595,7 @@ export function AIIncidentStudio({
     const onboardingSummary = telemetry?.onboardingSummary ?? null;
     const ctaVariantBreakdown = telemetry?.ctaVariantBreakdown ?? null;
     const studioHardGateStatus = telemetry?.studioHardGateStatus ?? null;
+    const studioRollbackKpiStatus = telemetry?.studioRollbackKpiStatus ?? null;
     const doctorSummary = telemetry?.doctorSummary ?? null;
     const hasDoctorSnapshot = Boolean(doctorSummary);
     const snapshotHealthPercent = hasDoctorSnapshot ? doctorSummary!.health.percent : confidence;
@@ -589,6 +613,10 @@ export function AIIncidentStudio({
     const hardGateBridgeCompletion = studioHardGateStatus?.metrics.bridgeRouteCompletionRate ?? null;
     const hardGateVerifyMeter = Math.max(0, Math.min(100, hardGateVerifyReach ?? 0));
     const hardGateBridgeMeter = Math.max(0, Math.min(100, hardGateBridgeCompletion ?? 0));
+    const rollbackAutoSuccessRate = studioRollbackKpiStatus?.metrics.verifyAutoRollbackSuccessRate ?? null;
+    const rollbackFalseConfidenceRate = studioRollbackKpiStatus?.metrics.falseConfidenceRate ?? null;
+    const rollbackSuccessMeter = Math.max(0, Math.min(100, rollbackAutoSuccessRate ?? 0));
+    const rollbackFalseConfidenceMeter = Math.max(0, Math.min(100, rollbackFalseConfidenceRate ?? 0));
 
     const studioEventLabelMap: Record<string, string> = {
         'workspai.studio.next_action_clicked': 'Actions triggered',
@@ -1650,6 +1678,54 @@ export function AIIncidentStudio({
                             </details>
                         ) : null}
 
+                        {studioRollbackKpiStatus ? (
+                            <details className="incident-collapse incident-collapse--snapshot incident-health-section">
+                                <summary>
+                                    <span>Rollback KPI gate</span>
+                                    <small>{studioRollbackKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                </summary>
+                                <div className="incident-metric-card">
+                                    <span>Auto-rollback success rate</span>
+                                    <strong>
+                                        {rollbackAutoSuccessRate === null ? 'N/A' : `${rollbackAutoSuccessRate}%`} / min{' '}
+                                        {studioRollbackKpiStatus.thresholds.verifyAutoRollbackSuccessRateMin}%
+                                    </strong>
+                                    <div className="incident-meter">
+                                        <span style={{ width: `${rollbackSuccessMeter}%` }} />
+                                    </div>
+                                </div>
+                                <div className="incident-metric-card">
+                                    <span>False-confidence rate</span>
+                                    <strong>
+                                        {rollbackFalseConfidenceRate === null ? 'N/A' : `${rollbackFalseConfidenceRate}%`} / max{' '}
+                                        {studioRollbackKpiStatus.thresholds.falseConfidenceRateMax}%
+                                    </strong>
+                                    <div className="incident-meter">
+                                        <span style={{ width: `${rollbackFalseConfidenceMeter}%` }} />
+                                    </div>
+                                </div>
+                                <div className="incident-stats-row">
+                                    <div>
+                                        <RotateCw size={12} />
+                                        <span>
+                                            attempts: {studioRollbackKpiStatus.metrics.rollbackAttempted} / verify failed{' '}
+                                            {studioRollbackKpiStatus.metrics.verifyFailed}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <CheckCircle2 size={12} />
+                                        <span>succeeded: {studioRollbackKpiStatus.metrics.rollbackSucceeded}</span>
+                                    </div>
+                                    <div>
+                                        <Activity size={12} />
+                                        <span>
+                                            evidence: {studioRollbackKpiStatus.gates.telemetryEvidencePass ? 'present' : 'missing'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </details>
+                        ) : null}
+
                         {hasDoctorSnapshot ? (
                             <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                 <summary>
@@ -1948,6 +2024,28 @@ export function AIIncidentStudio({
                                                 <p>
                                                     Generated: {new Date(chatBrainActionResult.evidence.generatedAt).toLocaleString()}
                                                 </p>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                    {chatBrainActionResult.diagnosis ? (
+                                        <div className="incident-verify-evidence">
+                                            <strong>Diagnosis confidence</strong>
+                                            <p>
+                                                Confidence: {chatBrainActionResult.diagnosis.confidence}% ({chatBrainActionResult.diagnosis.confidenceBand})
+                                            </p>
+                                            {chatBrainActionResult.diagnosis.signalSources.length > 0 ? (
+                                                <p>
+                                                    Signals: {chatBrainActionResult.diagnosis.signalSources.slice(0, 5).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.diagnosis.relatedFiles.length > 0 ? (
+                                                <p>
+                                                    Related files ({chatBrainActionResult.diagnosis.relatedFiles.length}):{' '}
+                                                    {chatBrainActionResult.diagnosis.relatedFiles.slice(0, 5).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.diagnosis.recommendedFocus ? (
+                                                <p>Focus: {chatBrainActionResult.diagnosis.recommendedFocus}</p>
                                             ) : null}
                                         </div>
                                     ) : null}

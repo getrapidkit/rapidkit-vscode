@@ -46,6 +46,14 @@ export type IncidentActionEvidence = {
   errors?: number;
 };
 
+export type IncidentDiagnosisEvidence = {
+  confidence: number;
+  confidenceBand: 'low' | 'medium' | 'high';
+  signalSources: string[];
+  relatedFiles: string[];
+  recommendedFocus?: string;
+};
+
 export type IncidentRollbackEvidence = {
   attempted: boolean;
   status: 'succeeded' | 'failed' | 'partial' | 'skipped' | 'unavailable';
@@ -63,6 +71,7 @@ export type NormalizedIncidentActionResultPayload = {
   verificationRequired?: boolean;
   verifyPolicy?: IncidentVerifyPolicy;
   evidence?: IncidentActionEvidence;
+  diagnosis?: IncidentDiagnosisEvidence;
   rollback?: IncidentRollbackEvidence;
 };
 
@@ -394,6 +403,7 @@ export function normalizeIncidentActionResultPayload(
   const record = asRecord(value);
   const verifyPolicyRecord = asRecord(record.verifyPolicy);
   const evidenceRecord = asRecord(record.evidence);
+  const diagnosisRecord = asRecord(record.diagnosis);
   const rollbackRecord = asRecord(record.rollback);
 
   const verifyPolicy: IncidentVerifyPolicy = {
@@ -425,6 +435,30 @@ export function normalizeIncidentActionResultPayload(
     typeof evidence.passed === 'number' ||
     typeof evidence.warnings === 'number' ||
     typeof evidence.errors === 'number';
+
+  const diagnosisConfidence = clampNumber(asNumber(diagnosisRecord.confidence, 0), 0, 100);
+  const diagnosisBand = cleanText(diagnosisRecord.confidenceBand)?.toLowerCase();
+  const diagnosis: IncidentDiagnosisEvidence = {
+    confidence: diagnosisConfidence,
+    confidenceBand:
+      diagnosisBand === 'low' || diagnosisBand === 'medium' || diagnosisBand === 'high'
+        ? diagnosisBand
+        : diagnosisConfidence >= 75
+          ? 'high'
+          : diagnosisConfidence >= 50
+            ? 'medium'
+            : 'low',
+    signalSources: sanitizeStringArray(diagnosisRecord.signalSources, 80, 10),
+    relatedFiles: sanitizeStringArray(diagnosisRecord.relatedFiles, 240, 12),
+    recommendedFocus: sanitizeIncidentText(diagnosisRecord.recommendedFocus, 320),
+  };
+
+  const hasDiagnosisField =
+    Array.isArray(diagnosisRecord.signalSources) ||
+    Array.isArray(diagnosisRecord.relatedFiles) ||
+    typeof diagnosisRecord.confidence === 'number' ||
+    typeof diagnosisRecord.confidenceBand === 'string' ||
+    typeof diagnosisRecord.recommendedFocus === 'string';
 
   const rollbackStatus = cleanText(rollbackRecord.status);
   const rollback: IncidentRollbackEvidence = {
@@ -460,6 +494,7 @@ export function normalizeIncidentActionResultPayload(
     verificationRequired: asOptionalBoolean(record.verificationRequired),
     verifyPolicy: hasVerifyPolicyField ? verifyPolicy : undefined,
     evidence: hasEvidenceField ? evidence : undefined,
+    diagnosis: hasDiagnosisField ? diagnosis : undefined,
     rollback: hasRollbackField ? rollback : undefined,
   };
 }
@@ -836,6 +871,18 @@ export function buildIncidentChatQueryPayload(input: {
     },
     input.projectSelection
   );
+}
+
+export function buildIncidentChatSyncWorkspacePayload(input: {
+  workspacePath: string;
+  requestId: string;
+  forceRefresh?: boolean;
+}) {
+  return {
+    workspacePath: input.workspacePath,
+    requestId: input.requestId,
+    ...(input.forceRefresh ? { forceRefresh: true } : {}),
+  };
 }
 
 export function buildIncidentChatExecuteActionPayload(input: {

@@ -23,6 +23,7 @@ const {
     getCommandTelemetrySummary: vi.fn(),
     getStudioHardGateStatus: vi.fn(),
     getStudioPredictionKpiStatus: vi.fn(),
+    getStudioRollbackKpiStatus: vi.fn(),
     getOnboardingExperimentStats: vi.fn(),
     clearCommandTelemetry: vi.fn(),
   },
@@ -174,6 +175,30 @@ describe('projectContextAndLogs telemetry summary contract', () => {
         overallPass: true,
       },
     });
+
+    trackerMock.getStudioRollbackKpiStatus.mockResolvedValue({
+      workspacePath: '/tmp/demo-workspace',
+      timeWindow: 'last24h',
+      windowStartAt: '2026-04-21T12:30:00.000Z',
+      windowEndAt: '2026-04-22T12:30:00.000Z',
+      thresholds: {
+        verifyAutoRollbackSuccessRateMin: 60,
+        falseConfidenceRateMax: 40,
+      },
+      metrics: {
+        verifyFailed: 4,
+        rollbackAttempted: 3,
+        rollbackSucceeded: 2,
+        verifyAutoRollbackSuccessRate: 66.67,
+        falseConfidenceRate: 50,
+      },
+      gates: {
+        telemetryEvidencePass: true,
+        verifyAutoRollbackSuccessRatePass: true,
+        falseConfidenceRatePass: false,
+        overallPass: false,
+      },
+    });
   });
 
   it('includes action-vs-ask and surface mix in copied quick summary', async () => {
@@ -195,6 +220,10 @@ describe('projectContextAndLogs telemetry summary contract', () => {
       '/tmp/demo-workspace',
       'last24h'
     );
+    expect(trackerMock.getStudioRollbackKpiStatus).toHaveBeenCalledWith(
+      '/tmp/demo-workspace',
+      'last24h'
+    );
 
     expect(writeTextMock).toHaveBeenCalledTimes(1);
     const quickSummary = writeTextMock.mock.calls[0][0] as string;
@@ -205,11 +234,15 @@ describe('projectContextAndLogs telemetry summary contract', () => {
     expect(quickSummary).toContain('aimodal: 1 (10%)');
     expect(quickSummary).toContain('Predictive KPI overall: PASS');
     expect(quickSummary).toContain('Predictive precision: 71.43%');
+    expect(quickSummary).toContain('Rollback KPI overall: FAIL');
+    expect(quickSummary).toContain('Rollback auto success rate: 66.67%');
+    expect(quickSummary).toContain('Rollback false-confidence rate: 50%');
 
     expect(openTextDocumentMock).toHaveBeenCalledTimes(1);
     const openDocArgs = openTextDocumentMock.mock.calls[0][0] as { content: string };
     expect(openDocArgs.content).toContain('"surfaceBreakdown"');
     expect(openDocArgs.content).toContain('"actionVsAskShare": 60');
     expect(openDocArgs.content).toContain('"studioPredictionKpiStatus"');
+    expect(openDocArgs.content).toContain('"studioRollbackKpiStatus"');
   });
 });

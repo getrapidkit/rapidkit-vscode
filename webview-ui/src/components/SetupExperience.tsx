@@ -160,10 +160,10 @@ const INSTALL_METHOD_OPTIONS = [
 ];
 
 function parseSemver(version?: string | null) {
-    if (!version) return null;
+    if (!version) {return null;}
     const cleaned = version.trim().replace(/^v/i, '');
     const match = cleaned.match(/^(\d+)\.(\d+)\.(\d+)/);
-    if (!match) return null;
+    if (!match) {return null;}
     return {
         major: Number(match[1]),
         minor: Number(match[2]),
@@ -174,9 +174,9 @@ function parseSemver(version?: string | null) {
 function hasNewerVersion(current?: string | null, latest?: string | null) {
     const c = parseSemver(current);
     const l = parseSemver(latest);
-    if (!c || !l) return false;
-    if (l.major !== c.major) return l.major > c.major;
-    if (l.minor !== c.minor) return l.minor > c.minor;
+    if (!c || !l) {return false;}
+    if (l.major !== c.major) {return l.major > c.major;}
+    if (l.minor !== c.minor) {return l.minor > c.minor;}
     return l.patch > c.patch;
 }
 

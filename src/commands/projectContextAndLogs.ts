@@ -91,6 +91,11 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
           selectedWorkspace?.path,
           timeWindowPick.value
         );
+      const rollbackKpiStatus =
+        await WorkspaceUsageTracker.getInstance().getStudioRollbackKpiStatus(
+          selectedWorkspace?.path,
+          timeWindowPick.value
+        );
 
       if (!summary) {
         vscode.window.showWarningMessage(
@@ -132,6 +137,11 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
           `(threshold: <=${predictionKpiStatus?.thresholds.falseAlarmRateMax ?? 'n/a'}%)`,
         `Prevented incident rate: ${predictionKpiStatus?.metrics.preventedIncidentRate ?? 'n/a'}% ` +
           `(threshold: ${predictionKpiStatus?.thresholds.preventedIncidentRateMin ?? 'n/a'}%)`,
+        `Rollback KPI overall: ${rollbackKpiStatus?.gates.overallPass ? 'PASS' : 'FAIL'}`,
+        `Rollback auto success rate: ${rollbackKpiStatus?.metrics.verifyAutoRollbackSuccessRate ?? 'n/a'}% ` +
+          `(threshold: ${rollbackKpiStatus?.thresholds.verifyAutoRollbackSuccessRateMin ?? 'n/a'}%)`,
+        `Rollback false-confidence rate: ${rollbackKpiStatus?.metrics.falseConfidenceRate ?? 'n/a'}% ` +
+          `(threshold: <=${rollbackKpiStatus?.thresholds.falseConfidenceRateMax ?? 'n/a'}%)`,
         `Surface mix:\n${surfaceRows || 'n/a'}`,
       ].join('\n');
 
@@ -140,6 +150,7 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
         topCommands,
         studioHardGateStatus: gateStatus,
         studioPredictionKpiStatus: predictionKpiStatus,
+        studioRollbackKpiStatus: rollbackKpiStatus,
       };
 
       const doc = await vscode.workspace.openTextDocument({

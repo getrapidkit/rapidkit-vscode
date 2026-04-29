@@ -4,6 +4,10 @@
  */
 
 import * as vscode from 'vscode';
+import {
+  buildMissingFrameworkDocumentText,
+  isWorkspaiConfigurationFile,
+} from './workspaiConfigFiles';
 
 export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [
@@ -53,10 +57,7 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     // Quick fixes for configuration files
-    if (
-      document.fileName.endsWith('.rapidkitrc.json') ||
-      document.fileName.endsWith('rapidkit.json')
-    ) {
+    if (isWorkspaiConfigurationFile(document.fileName)) {
       actions.push(...this.getConfigurationQuickFixes(document, range, context));
     }
 
@@ -162,11 +163,10 @@ export class WorkspaiCodeActionsProvider implements vscode.CodeActionProvider {
         vscode.CodeActionKind.QuickFix
       );
       action.edit = new vscode.WorkspaceEdit();
-      // Insert a placeholder — user must choose the correct kit for their project
-      action.edit.insert(
+      action.edit.replace(
         document.uri,
-        new vscode.Position(1, 0),
-        '  "framework": "",  // e.g. fastapi, nestjs, go, springboot\n'
+        new vscode.Range(document.positionAt(0), document.positionAt(text.length)),
+        buildMissingFrameworkDocumentText(text)
       );
       actions.push(action);
     }

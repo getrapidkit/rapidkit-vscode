@@ -1,5 +1,3 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Rocket, Loader2, Sparkles } from 'lucide-react';
 
 interface HeroActionProps {

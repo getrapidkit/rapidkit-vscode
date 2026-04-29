@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { isWorkspaiConfigurationFile } from './workspaiConfigFiles';
 
 export class WorkspaiHoverProvider implements vscode.HoverProvider {
   provideHover(
@@ -19,10 +20,7 @@ export class WorkspaiHoverProvider implements vscode.HoverProvider {
     const word = document.getText(range);
 
     // Configuration file hovers
-    if (
-      document.fileName.endsWith('.rapidkitrc.json') ||
-      document.fileName.endsWith('rapidkit.json')
-    ) {
+    if (isWorkspaiConfigurationFile(document.fileName)) {
       return this.getConfigurationHover(word);
     }
 

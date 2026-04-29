@@ -158,7 +158,7 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, 
         else if (e.key === 'Escape') { onClose(); }
     };
 
-    if (!isOpen) return null;
+    if (!isOpen) {return null;}
 
     /* ── shared tokens ──────────────────────────────────────────────────── */
     const primary = '#6C5CE7';
@@ -250,8 +250,8 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, 
                                     fontFamily: 'var(--vscode-font-family)',
                                     transition: 'border-color 0.2s',
                                 }}
-                                onFocus={e => { if (!error) e.target.style.borderColor = primary; }}
-                                onBlur={e => { if (!error) e.target.style.borderColor = 'var(--vscode-input-border)'; }}
+                                onFocus={e => { if (!error) {e.target.style.borderColor = primary;} }}
+                                onBlur={e => { if (!error) {e.target.style.borderColor = 'var(--vscode-input-border)';} }}
                             />
                             {error ? (
                                 <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px', color: '#f44336', fontSize: '12px' }}>
@@ -479,8 +479,8 @@ export function CreateWorkspaceModal({ isOpen, onClose, onCreate, onSwitchToAI, 
                                     opacity: workspaceName.trim() && !error ? 1 : 0.5,
                                     transition: 'background-color 0.2s, opacity 0.2s',
                                 }}
-                                onMouseEnter={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = '#00b8a8'; }}
-                                onMouseLeave={e => { if (workspaceName.trim() && !error) e.currentTarget.style.backgroundColor = primary; }}
+                                onMouseEnter={e => { if (workspaceName.trim() && !error) {e.currentTarget.style.backgroundColor = '#00b8a8';} }}
+                                onMouseLeave={e => { if (workspaceName.trim() && !error) {e.currentTarget.style.backgroundColor = primary;} }}
                             >
                                 Create Workspace
                             </button>

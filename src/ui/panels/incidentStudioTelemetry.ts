@@ -63,6 +63,29 @@ export type IncidentStudioTelemetryPayload = {
       overallPass: boolean;
     };
   } | null;
+  studioRollbackKpiStatus?: {
+    workspacePath: string;
+    timeWindow: 'all' | 'last24h' | 'last7d';
+    windowStartAt: string | null;
+    windowEndAt: string;
+    thresholds: {
+      verifyAutoRollbackSuccessRateMin: number;
+      falseConfidenceRateMax: number;
+    };
+    metrics: {
+      verifyFailed: number;
+      rollbackAttempted: number;
+      rollbackSucceeded: number;
+      verifyAutoRollbackSuccessRate: number | null;
+      falseConfidenceRate: number | null;
+    };
+    gates: {
+      telemetryEvidencePass: boolean;
+      verifyAutoRollbackSuccessRatePass: boolean;
+      falseConfidenceRatePass: boolean;
+      overallPass: boolean;
+    };
+  } | null;
   doctorSummary?: unknown | null;
 };
 
@@ -101,6 +124,7 @@ export function buildIncidentStudioTelemetryFromCache(
     onboardingSummary: cachedData.onboardingSummary,
     ctaVariantBreakdown: cachedData.ctaVariantBreakdown ?? null,
     studioHardGateStatus: cachedData.studioHardGateStatus ?? null,
+    studioRollbackKpiStatus: cachedData.studioRollbackKpiStatus ?? null,
     // Always prefer the doctor snapshot freshly read from disk.
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(
       doctorSummary,
@@ -145,7 +169,8 @@ export function buildIncidentStudioTelemetryPayload(
     }>;
   } | null,
   doctorSummary: unknown | null,
-  studioHardGateStatus?: IncidentStudioTelemetryPayload['studioHardGateStatus']
+  studioHardGateStatus?: IncidentStudioTelemetryPayload['studioHardGateStatus'],
+  studioRollbackKpiStatus?: IncidentStudioTelemetryPayload['studioRollbackKpiStatus']
 ): IncidentStudioTelemetryPayload {
   return {
     commandSummary: commandSummary
@@ -178,6 +203,7 @@ export function buildIncidentStudioTelemetryPayload(
         }
       : null,
     studioHardGateStatus: studioHardGateStatus ?? null,
+    studioRollbackKpiStatus: studioRollbackKpiStatus ?? null,
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(doctorSummary, ctaVariantBreakdown),
   };
 }

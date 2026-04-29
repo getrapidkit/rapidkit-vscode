@@ -31,7 +31,7 @@ const categoryIcons: Record<string, any> = {
 export function ModuleDetailsModal({ module, onClose }: ModuleDetailsModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
 
-    if (!module) return null;
+    if (!module) {return null;}
 
     const IconComponent = categoryIcons[module.category] || Package;
 

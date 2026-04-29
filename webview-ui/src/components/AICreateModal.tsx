@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Sparkles, Wand2, ArrowLeft, Check, ChevronRight, Loader2, Minus } from 'lucide-react';
-import type { Kit } from '@/types';
 
 // ─── Plan type (mirrors aiService.ts AICreationPlan) ────────────────────────
 export type AICreateProfile =
@@ -483,7 +482,7 @@ export function AICreateModal({
 
     // Auto-restore minimize when creation finishes
     useEffect(() => {
-        if (!isCreating && !isThinking) setIsMinimized(false);
+        if (!isCreating && !isThinking) { setIsMinimized(false); }
     }, [isCreating, isThinking]);
 
     // Reset when modal opens
@@ -527,7 +526,7 @@ export function AICreateModal({
 
     const hasExtraPresets = rankedPresetCategories.some((category) => category.options.length > 3);
 
-    if (!isOpen) return null;
+    if (!isOpen) { return null; }
 
     // ── Minimized pill ────────────────────────────────────────────────────────
     if (isMinimized) {
@@ -542,7 +541,7 @@ export function AICreateModal({
     }
 
     const handleSubmit = () => {
-        if (!prompt.trim() || isThinking) return;
+        if (!prompt.trim() || isThinking) { return; }
         onPromptSubmit(prompt.trim(), mode, framework);
     };
 
@@ -557,7 +556,7 @@ export function AICreateModal({
     };
 
     const handleConfirm = () => {
-        if (!plan) return;
+        if (!plan) { return; }
         onConfirm({
             ...plan,
             workspaceName: editedWorkspaceName.trim() || plan.workspaceName,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Code, AlertCircle, Package, Sparkles, Loader2 } from 'lucide-react';
+import { X, AlertCircle, Package, Sparkles, Loader2 } from 'lucide-react';
 import { vscode } from '@/vscode';
 import type { Kit } from '@/types';
 import type { WorkspaceToolStatus } from '@/types';
@@ -63,8 +63,8 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
                 const { loading, suggestions, error: err } = e.data.data ?? {};
                 if (!loading) {
                     setAiSuggestLoading(false);
-                    if (err) setAiSuggestError(err);
-                    else setAiSuggestions(suggestions ?? []);
+                    if (err) { setAiSuggestError(err); }
+                    else { setAiSuggestions(suggestions ?? []); }
                     window.removeEventListener('message', listener);
                     suggestListenerRef.current = null;
                 }
@@ -150,7 +150,7 @@ export function CreateProjectModal({ isOpen, framework, availableKits, onClose, 
         }
     };
 
-    if (!isOpen) return null;
+    if (!isOpen) { return null; }
 
     return (
         <>

@@ -40,6 +40,7 @@ import {
 import {
     buildIncidentChatExecuteActionPayload,
     buildIncidentChatQueryPayload,
+    buildIncidentChatSyncWorkspacePayload,
     buildIncidentChatStartPayload,
     isIncidentDuplicateRequest,
     normalizeIncidentPartialFailurePayload,
@@ -129,6 +130,29 @@ export function App() {
                 verifyPhaseReachPass: boolean;
                 bridgeRouteCompletionPass: boolean;
                 telemetryEvidencePass: boolean;
+                overallPass: boolean;
+            };
+        } | null;
+        studioRollbackKpiStatus?: {
+            workspacePath: string;
+            timeWindow: 'all' | 'last24h' | 'last7d';
+            windowStartAt: string | null;
+            windowEndAt: string;
+            thresholds: {
+                verifyAutoRollbackSuccessRateMin: number;
+                falseConfidenceRateMax: number;
+            };
+            metrics: {
+                verifyFailed: number;
+                rollbackAttempted: number;
+                rollbackSucceeded: number;
+                verifyAutoRollbackSuccessRate: number | null;
+                falseConfidenceRate: number | null;
+            };
+            gates: {
+                telemetryEvidencePass: boolean;
+                verifyAutoRollbackSuccessRatePass: boolean;
+                falseConfidenceRatePass: boolean;
                 overallPass: boolean;
             };
         } | null;
@@ -1025,10 +1049,14 @@ export function App() {
         });
 
         if (chatBrainConversationId) {
-            vscode.postMessage('aiChatSyncWorkspace', {
-                workspacePath,
-                requestId: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            });
+            vscode.postMessage(
+                'aiChatSyncWorkspace',
+                buildIncidentChatSyncWorkspacePayload({
+                    workspacePath,
+                    requestId: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    forceRefresh: true,
+                })
+            );
         }
     };
 
@@ -1099,7 +1127,10 @@ export function App() {
                     projectSelection,
                 })
             );
-            vscode.postMessage('aiChatSyncWorkspace', { workspacePath, requestId });
+            vscode.postMessage(
+                'aiChatSyncWorkspace',
+                buildIncidentChatSyncWorkspacePayload({ workspacePath, requestId })
+            );
 
             if (runInitialQuery) {
                 vscode.postMessage(
