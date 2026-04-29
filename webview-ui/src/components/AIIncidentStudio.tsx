@@ -19,6 +19,7 @@ import {
     getActionResultPresentation,
     getBoardActionGuardHint,
 } from '../lib/incidentStudioVerifyPolicy';
+import { buildIncidentArchitectureLens } from '../lib/incidentArchitectureLens';
 import type {
     NormalizedIncidentActionResultPayload,
     NormalizedIncidentImpactAssessmentPayload,
@@ -866,10 +867,20 @@ export function AIIncidentStudio({
     const resumeTimestamp = incidentResume?.lastActivityAt
         ? new Date(incidentResume.lastActivityAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : null;
-    const impactRiskTone = riskTone(chatBrainImpactAssessment?.riskLevel);
-    const impactConfidence = chatBrainImpactAssessment?.confidence ?? 0;
-    const predictiveWarningTone = chatBrainPredictiveWarning?.confidenceBand ?? 'medium';
-    const releaseGateBlocked = Boolean(chatBrainReleaseGateEvidence?.blockedReasons?.length);
+    const architectureLens = useMemo(
+        () => buildIncidentArchitectureLens({
+            graphSnapshot: chatBrainSystemGraphSnapshot,
+            impactAssessment: chatBrainImpactAssessment,
+            predictiveWarning: chatBrainPredictiveWarning,
+            releaseGateEvidence: chatBrainReleaseGateEvidence,
+        }),
+        [
+            chatBrainSystemGraphSnapshot,
+            chatBrainImpactAssessment,
+            chatBrainPredictiveWarning,
+            chatBrainReleaseGateEvidence,
+        ]
+    );
     const intentChips = useMemo(() => {
         const chips: IncidentIntentChip[] = [];
         const seen = new Set<string>();
@@ -1296,74 +1307,93 @@ export function AIIncidentStudio({
                                     </div>
                                 ) : null}
                             </details>
-                            {chatBrainImpactAssessment ? (
-                                <div className={`incident-impact-card risk-${impactRiskTone}`}>
-                                    <div className="incident-impact-head">
-                                        <span>Architecture impact</span>
-                                        <small>{chatBrainImpactAssessment.riskLevel.toUpperCase()} · {impactConfidence}% confidence</small>
+                            {architectureLens ? (
+                                <section className={`incident-architecture-lens risk-${architectureLens.riskTone}${architectureLens.blocked ? ' is-blocked' : ''}`}>
+                                    <div className="incident-architecture-lens-head">
+                                        <div>
+                                            <span className="incident-architecture-lens-kicker">Architecture lens</span>
+                                            <h4>{architectureLens.title}</h4>
+                                        </div>
+                                        <div className="incident-architecture-lens-status">
+                                            <strong>{architectureLens.statusLabel}</strong>
+                                            <small>{architectureLens.graphSummary}</small>
+                                        </div>
                                     </div>
-                                    {chatBrainImpactAssessment.likelyFailureMode ? (
-                                        <p className="incident-impact-summary">{chatBrainImpactAssessment.likelyFailureMode}</p>
+                                    <p className="incident-architecture-lens-summary">{architectureLens.headline}</p>
+                                    <div className="incident-architecture-lens-grid">
+                                        <div className="incident-architecture-lens-section">
+                                            <span>Why Workspai thinks so</span>
+                                            {architectureLens.reasons.length > 0 ? (
+                                                architectureLens.reasons.map((reason, index) => (
+                                                    <small key={`lens-reason-${index}`}>{reason}</small>
+                                                ))
+                                            ) : (
+                                                <small>Evidence is still being assembled from the system graph and verification layer.</small>
+                                            )}
+                                        </div>
+                                        <div className="incident-architecture-lens-section">
+                                            <span>What is affected</span>
+                                            <small>
+                                                Modules: {architectureLens.affectedModules.length > 0
+                                                    ? architectureLens.affectedModules.join(', ')
+                                                    : 'unknown'}
+                                            </small>
+                                            <small>
+                                                Files: {architectureLens.affectedFiles.length > 0
+                                                    ? architectureLens.affectedFiles.join(', ')
+                                                    : 'unknown'}
+                                            </small>
+                                            <small>
+                                                Tests: {architectureLens.affectedTests.length > 0
+                                                    ? architectureLens.affectedTests.join(', ')
+                                                    : 'none suggested yet'}
+                                            </small>
+                                        </div>
+                                        <div className="incident-architecture-lens-section">
+                                            <span>How to verify safely</span>
+                                            {architectureLens.verifyChecklist.length > 0 ? (
+                                                architectureLens.verifyChecklist.map((item, index) => (
+                                                    <small key={`lens-verify-${index}`}>{item}</small>
+                                                ))
+                                            ) : (
+                                                <small>Run deterministic verification before any completion claim.</small>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {architectureLens.focusNodes.length > 0 ? (
+                                        <div className="incident-architecture-lens-focus">
+                                            <span>Top graph signals</span>
+                                            <div className="incident-architecture-lens-node-list">
+                                                {architectureLens.focusNodes.map((node) => (
+                                                    <div key={node.id} className="incident-architecture-lens-node">
+                                                        <strong>{node.label}</strong>
+                                                        <small>{node.type} · {node.confidence}% confidence</small>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     ) : null}
-                                    <div className="incident-impact-scopes">
-                                        <span>
-                                            Modules: {chatBrainImpactAssessment.affectedModules.length > 0
-                                                ? chatBrainImpactAssessment.affectedModules.join(', ')
-                                                : 'unknown'}
-                                        </span>
-                                        <span>
-                                            Files: {chatBrainImpactAssessment.affectedFiles.length > 0
-                                                ? chatBrainImpactAssessment.affectedFiles.slice(0, 3).join(', ')
-                                                : 'unknown'}
-                                        </span>
-                                        <span>
-                                            Tests: {chatBrainImpactAssessment.affectedTests.length > 0
-                                                ? chatBrainImpactAssessment.affectedTests.slice(0, 2).join(', ')
-                                                : 'none suggested'}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            {chatBrainPredictiveWarning ? (
-                                <div className={`incident-predictive-card tone-${predictiveWarningTone}`}>
-                                    <div className="incident-predictive-head">
-                                        <span>Predictive warning</span>
-                                        <small>{predictiveWarningTone.toUpperCase()} confidence</small>
-                                    </div>
-                                    <p>{chatBrainPredictiveWarning.predictedFailure || 'Potential downstream failure risk detected.'}</p>
-                                    {chatBrainPredictiveWarning.affectedScopeSummary ? (
-                                        <small className="incident-predictive-scope">{chatBrainPredictiveWarning.affectedScopeSummary}</small>
-                                    ) : null}
-                                    {chatBrainPredictiveWarning.verifyChecklist.length > 0 ? (
-                                        <div className="incident-predictive-checklist">
-                                            {chatBrainPredictiveWarning.verifyChecklist.slice(0, 3).map((item, index) => (
-                                                <span key={`${chatBrainPredictiveWarning.warningId}-check-${index}`}>• {item}</span>
+                                    {architectureLens.blockedReasons.length > 0 ? (
+                                        <div className="incident-architecture-lens-blockers">
+                                            <span>Blocked until</span>
+                                            {architectureLens.blockedReasons.map((reason, index) => (
+                                                <small key={`lens-blocked-${index}`}>{reason}</small>
                                             ))}
                                         </div>
                                     ) : null}
-                                    {chatBrainPredictiveWarning.nextSafeAction ? (
-                                        <button
-                                            type="button"
-                                            className="incident-btn primary"
-                                            onClick={runPredictiveSafeAction}
-                                        >
-                                            Use safe next action
-                                        </button>
+                                    {architectureLens.nextSafeAction ? (
+                                        <div className="incident-architecture-lens-actions">
+                                            <button
+                                                type="button"
+                                                className="incident-btn primary"
+                                                onClick={runPredictiveSafeAction}
+                                            >
+                                                Use safe next action
+                                            </button>
+                                            <small>{architectureLens.nextSafeAction}</small>
+                                        </div>
                                     ) : null}
-                                </div>
-                            ) : null}
-
-                            {chatBrainReleaseGateEvidence ? (
-                                <div className={`incident-release-gate-badge ${releaseGateBlocked ? 'is-blocked' : 'is-open'}`}>
-                                    <strong>{releaseGateBlocked ? 'Release gate blocked' : 'Release gate ready'}</strong>
-                                    <span>
-                                        scope {chatBrainReleaseGateEvidence.scopeKnown ? 'known' : 'unknown'} · verify {chatBrainReleaseGateEvidence.verifyPathPresent ? 'ready' : 'missing'} · rollback {chatBrainReleaseGateEvidence.rollbackPathPresent ? 'ready' : 'missing'}
-                                    </span>
-                                    {releaseGateBlocked ? (
-                                        <em>{chatBrainReleaseGateEvidence.blockedReasons.slice(0, 2).join(' | ')}</em>
-                                    ) : null}
-                                </div>
+                                </section>
                             ) : null}
                             {intentChips.length > 0 ? (
                                 <div className="incident-intent-section">
@@ -1454,12 +1484,12 @@ export function AIIncidentStudio({
                                 </div>
                             ) : null}
 
-                            {chatBrainSystemGraphSnapshot ? (
+                            {architectureLens ? (
                                 <div className="incident-focus-command-card incident-focus-command-card--impact">
                                     <div className="incident-focus-command-head">System graph</div>
                                     <div className="incident-focus-graph-meta">
-                                        <span>{chatBrainSystemGraphSnapshot.summary.supportedTopology}</span>
-                                        <strong>{chatBrainSystemGraphSnapshot.summary.nodeCount} nodes · {chatBrainSystemGraphSnapshot.summary.edgeCount} edges</strong>
+                                        <span>{architectureLens.graphSummary}</span>
+                                        <strong>{architectureLens.focusNodes.length > 0 ? architectureLens.focusNodes[0].label : 'Awaiting graph focus nodes'}</strong>
                                     </div>
                                 </div>
                             ) : null}

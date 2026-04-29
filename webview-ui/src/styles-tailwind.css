@@ -3284,6 +3284,149 @@
     font-size: 10.5px;
   }
 
+  .incident-architecture-lens {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 12px;
+    padding: 11px 12px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 95%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .incident-architecture-lens.risk-high,
+  .incident-architecture-lens.risk-critical,
+  .incident-architecture-lens.is-blocked {
+    border-color: color-mix(in srgb, #e17055 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #e17055 9%, var(--vscode-editor-background));
+  }
+
+  .incident-architecture-lens.risk-medium {
+    border-color: color-mix(in srgb, #fdcb6e 40%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #fdcb6e 8%, var(--vscode-editor-background));
+  }
+
+  .incident-architecture-lens.risk-low {
+    border-color: color-mix(in srgb, #00cec9 34%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #00cec9 8%, var(--vscode-editor-background));
+  }
+
+  .incident-architecture-lens-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .incident-architecture-lens-kicker {
+    display: inline-flex;
+    margin-bottom: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-head h4 {
+    margin: 0;
+    font-size: 13px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-status {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: right;
+  }
+
+  .incident-architecture-lens-status strong {
+    font-size: 10px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-status small {
+    font-size: 9.5px;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-summary {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .incident-architecture-lens-section,
+  .incident-architecture-lens-focus,
+  .incident-architecture-lens-blockers,
+  .incident-architecture-lens-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .incident-architecture-lens-section span,
+  .incident-architecture-lens-focus span,
+  .incident-architecture-lens-blockers span {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-section small,
+  .incident-architecture-lens-focus small,
+  .incident-architecture-lens-blockers small,
+  .incident-architecture-lens-actions small {
+    font-size: 10px;
+    line-height: 1.45;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-node-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-node {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 8px;
+    padding: 6px 7px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 97%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .incident-architecture-lens-node strong {
+    font-size: 10px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-actions {
+    align-items: flex-start;
+  }
+
+  @media (max-width: 980px) {
+    .incident-architecture-lens-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .incident-architecture-lens-node-list {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .incident-impact-card {
     border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
     border-radius: 10px;

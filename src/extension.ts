@@ -32,6 +32,8 @@ import { ConfigurationManager } from './core/configurationManager';
 import { WorkspaceDetector } from './core/workspaceDetector';
 import { Logger } from './utils/logger';
 import { WorkspaiCodeActionsProvider } from './providers/codeActionsProvider';
+import { WorkspaiArchitectureCodeLensProvider } from './providers/architectureLensCodeLensProvider';
+import { WorkspaiArchitectureInlineDecorationController } from './providers/architectureLensInlineDecorationController';
 import { WorkspaiCompletionProvider } from './providers/completionProvider';
 import { WorkspaiHoverProvider } from './providers/hoverProvider';
 import { WorkspaceUsageTracker } from './utils/workspaceUsageTracker';
@@ -57,6 +59,7 @@ let workspaceExplorer: WorkspaceExplorerProvider;
 let projectExplorer: ProjectExplorerProvider;
 let moduleExplorer: ModuleExplorerProvider;
 let doctorEvidenceExplorer: DoctorEvidenceProvider;
+let architectureInlineDecorations: WorkspaiArchitectureInlineDecorationController;
 // templateExplorer removed
 
 const PROJECT_WATCHER_REFRESH_DEBOUNCE_MS = 250;
@@ -616,6 +619,19 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       ),
 
+      vscode.languages.registerCodeLensProvider(
+        [
+          { language: 'python' },
+          { language: 'typescript' },
+          { language: 'javascript' },
+          { language: 'go' },
+          { language: 'java' },
+          { language: 'typescriptreact' },
+          { language: 'javascriptreact' },
+        ],
+        new WorkspaiArchitectureCodeLensProvider()
+      ),
+
       // Completion provider
       vscode.languages.registerCompletionItemProvider(
         [
@@ -639,6 +655,9 @@ export async function activate(context: vscode.ExtensionContext) {
         new WorkspaiHoverProvider()
       )
     );
+
+    architectureInlineDecorations = new WorkspaiArchitectureInlineDecorationController();
+    context.subscriptions.push(architectureInlineDecorations);
 
     logger.info('Step 8: IntelliSense providers registered');
 
