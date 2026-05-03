@@ -8,6 +8,13 @@ export type IncidentMemoryReuseInput = {
   conventions?: string[];
   decisions?: string[];
   doctorFixCommands?: string[];
+  queryText?: string;
+  actionType?: string;
+};
+
+export type IncidentSimilarityRankedItem = {
+  decision: string;
+  score: number;
 };
 
 export type IncidentReplayLearningInput = {
@@ -62,6 +69,67 @@ function dedupeKeepOrder(lines: string[], maxItems: number): string[] {
   return [...new Set(lines.map((line) => compactLine(line)).filter(Boolean))].slice(0, maxItems);
 }
 
+function tokenize(input: string): string[] {
+  return compactLine(input)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3)
+    .slice(0, 48);
+}
+
+function buildTokenSet(input: string): Set<string> {
+  return new Set(tokenize(input));
+}
+
+export function rankSimilarIncidentDecisions(input: {
+  decisions?: string[];
+  queryText?: string;
+  actionType?: string;
+  maxItems?: number;
+}): IncidentSimilarityRankedItem[] {
+  const decisionLines = dedupeKeepOrder(input.decisions || [], 64).filter((line) =>
+    /^incident replay\s+/i.test(line)
+  );
+  if (decisionLines.length === 0) {
+    return [];
+  }
+
+  const queryTokens = buildTokenSet(input.queryText || '');
+  const actionTypeToken = compactLine(input.actionType || '').toLowerCase();
+
+  const ranked = decisionLines
+    .map((decision) => {
+      const decisionTokens = buildTokenSet(decision);
+      const overlapCount = Array.from(queryTokens).filter((token) =>
+        decisionTokens.has(token)
+      ).length;
+      const overlapRatio = queryTokens.size > 0 ? overlapCount / queryTokens.size : 0;
+
+      let score = 10;
+      if (/verify with:/i.test(decision)) {
+        score += 10;
+      }
+      if (actionTypeToken && decision.toLowerCase().includes(actionTypeToken)) {
+        score += 15;
+      }
+      score += Math.min(60, Math.round(overlapRatio * 100));
+
+      return {
+        decision,
+        score,
+      };
+    })
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.decision.localeCompare(b.decision);
+    });
+
+  return ranked.slice(0, Math.max(1, input.maxItems || 2));
+}
+
 export function buildIncidentMemoryReuseSnapshot(
   input: IncidentMemoryReuseInput
 ): IncidentMemoryReuseSnapshot | null {
@@ -78,6 +146,14 @@ export function buildIncidentMemoryReuseSnapshot(
     .slice(0, 2)
     .map((line) => `Decision: ${line}`);
   bullets.push(...decisions);
+
+  const similarIncidentBullets = rankSimilarIncidentDecisions({
+    decisions: input.decisions,
+    queryText: input.queryText,
+    actionType: input.actionType,
+    maxItems: 2,
+  }).map((item) => `Similar incident: ${shortenLine(item.decision, 150)}`);
+  bullets.push(...similarIncidentBullets);
 
   const conventions = (input.conventions || [])
     .map((line) => shortenLine(line))

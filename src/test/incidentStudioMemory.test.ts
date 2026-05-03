@@ -6,6 +6,7 @@ import {
   buildIncidentMemoryReuseSnapshot,
   mergeIncidentReplayLearningIntoMemory,
   prependIncidentMemoryReuseBlock,
+  rankSimilarIncidentDecisions,
   shouldAttachIncidentMemoryReuse,
 } from '../ui/panels/incidentStudioMemory';
 
@@ -134,5 +135,37 @@ describe('incidentStudioMemory', () => {
         verifyChecklist: ['pnpm test'],
       })
     ).toBeNull();
+  });
+
+  it('ranks similar incident decisions by query overlap and action context', () => {
+    const ranked = rankSimilarIncidentDecisions({
+      decisions: [
+        'Incident replay repro-2 (medium) — resolved cache miss storm — Verify with: pnpm test cache',
+        'Incident replay repro-1 (high) — resolved migration checksum mismatch — Verify with: pnpm test --filter orders-api',
+        'Use additive migrations only',
+      ],
+      queryText: 'orders migration checksum mismatch failing verification',
+      actionType: 'incident-repro-pack',
+    });
+
+    expect(ranked).toHaveLength(2);
+    expect(ranked[0].decision).toContain('repro-1');
+    expect(ranked[0].score).toBeGreaterThanOrEqual(ranked[1].score);
+  });
+
+  it('injects top similar incident bullets into first-response memory snapshot', () => {
+    const snapshot = buildIncidentMemoryReuseSnapshot({
+      workspaceMemoryContext: 'Orders backend',
+      decisions: [
+        'Incident replay repro-9 (high) — resolved migration checksum mismatch — Verify with: pnpm test --filter orders-api',
+        'Incident replay repro-4 (medium) — resolved cache miss storm — Verify with: pnpm test cache',
+      ],
+      queryText: 'checksum mismatch in orders migration',
+      actionType: 'incident-repro-pack',
+    });
+
+    expect(snapshot).not.toBeNull();
+    expect(snapshot?.bullets.some((line) => line.startsWith('Similar incident:'))).toBe(true);
+    expect(snapshot?.bullets.join('\n')).toContain('repro-9');
   });
 });

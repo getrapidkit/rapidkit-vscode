@@ -4067,7 +4067,12 @@ No markdown, no explanation outside the JSON.`;
     }
   }
 
-  private async _buildIncidentMemoryReuseSnapshot(workspacePath?: string) {
+  private async _buildIncidentMemoryReuseSnapshot(input: {
+    workspacePath?: string;
+    queryText?: string;
+    actionType?: string;
+  }) {
+    const workspacePath = input.workspacePath;
     if (!workspacePath) {
       return null;
     }
@@ -4084,6 +4089,8 @@ No markdown, no explanation outside the JSON.`;
         conventions: memory.conventions,
         decisions: memory.decisions,
         doctorFixCommands: doctorSummary?.fixCommands,
+        queryText: input.queryText,
+        actionType: input.actionType,
       });
     } catch {
       return null;
@@ -4350,7 +4357,11 @@ No markdown, no explanation outside the JSON.`;
     const actionPolicy = classifyIncidentActionPolicy(actionType);
     const isFirstQuery = current.queryCount === 1;
     const memoryReuseSnapshot = isFirstQuery
-      ? await this._buildIncidentMemoryReuseSnapshot(current.workspacePath)
+      ? await this._buildIncidentMemoryReuseSnapshot({
+          workspacePath: current.workspacePath,
+          queryText: message,
+          actionType,
+        })
       : null;
     const memoryPromptHint = buildIncidentMemoryPromptHint(memoryReuseSnapshot);
     let assistantText = '';
