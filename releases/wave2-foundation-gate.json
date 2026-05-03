@@ -61,6 +61,14 @@
         {
             "path": "releases/fixtures/wave2-kpi-marker.json",
             "contains": "incident_replay_memory_enriched"
+        },
+        {
+            "path": "scripts/release-stop-gate.mjs",
+            "contains": "firstChunkLatencyP95MaxMs"
+        },
+        {
+            "path": "releases/fixtures/wave2-kpi-marker.json",
+            "contains": "workspai.perf.first_chunk_latency"
         }
     ]
 }

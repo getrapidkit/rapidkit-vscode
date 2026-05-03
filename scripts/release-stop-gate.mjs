@@ -73,6 +73,9 @@ function parseArgs(argv) {
       ['WORKSPAI_GATE_PREVENTED_INCIDENT_RATE_TIGHTENED_MIN'],
       30
     ),
+    firstChunkLatencyP95MaxMs: parseEnvNumber(['WORKSPAI_GATE_FIRST_CHUNK_LATENCY_P95_MAX_MS'], 3000),
+    syncLatencyP95MaxMs: parseEnvNumber(['WORKSPAI_GATE_SYNC_LATENCY_P95_MAX_MS'], 2000),
+    boardRenderLatencyP95MaxMs: parseEnvNumber(['WORKSPAI_GATE_BOARD_RENDER_LATENCY_P95_MAX_MS'], 500),
     allowOverride: false,
     overrideOwner: process.env.WORKSPAI_GATE_OVERRIDE_OWNER || '',
     overrideReason: process.env.WORKSPAI_GATE_OVERRIDE_REASON || '',
@@ -641,6 +644,30 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
     replayToResolutionRate !== null &&
     replayToResolutionRate >= effectiveThresholds.replayToResolutionRateMin;
 
+  // D04: performance SLO — compute P95 from latency samples stored in the marker
+  const latencySamplesRaw = Array.isArray(telemetry?.latencySamples) ? telemetry.latencySamples : [];
+  const latencySamples = latencySamplesRaw.filter(
+    (s) => s && typeof s === 'object' && typeof s.event === 'string' && typeof s.ms === 'number'
+  );
+  const computeP95 = (values) => {
+    if (values.length === 0) { return null; }
+    const sorted = [...values].sort((a, b) => a - b);
+    const idx = Math.ceil(sorted.length * 0.95) - 1;
+    return sorted[Math.max(0, idx)];
+  };
+  const firstChunkMs = latencySamples.filter((s) => s.event === 'workspai.perf.first_chunk_latency').map((s) => s.ms);
+  const syncMs = latencySamples.filter((s) => s.event === 'workspai.perf.sync_latency').map((s) => s.ms);
+  const boardRenderMs = latencySamples.filter((s) => s.event === 'workspai.perf.board_render_latency').map((s) => s.ms);
+  const firstChunkP95 = computeP95(firstChunkMs);
+  const syncP95 = computeP95(syncMs);
+  const boardRenderP95 = computeP95(boardRenderMs);
+  const firstChunkLatencyPass =
+    firstChunkP95 === null || firstChunkP95 <= effectiveThresholds.firstChunkLatencyP95MaxMs;
+  const syncLatencyPass =
+    syncP95 === null || syncP95 <= effectiveThresholds.syncLatencyP95MaxMs;
+  const boardRenderLatencyPass =
+    boardRenderP95 === null || boardRenderP95 <= effectiveThresholds.boardRenderLatencyP95MaxMs;
+
   const gates = {
     verifyPhaseReachPass:
       verifyPhaseReach !== null && verifyPhaseReach >= effectiveThresholds.verifyPhaseReachMin,
@@ -659,6 +686,9 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
     rollbackTelemetryEvidencePass,
     verifyAutoRollbackSuccessRatePass,
     falseConfidenceRatePass,
+    firstChunkLatencyPass,
+    syncLatencyPass,
+    boardRenderLatencyPass,
   };
 
   return {
@@ -697,6 +727,12 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
       rollbackSucceeded,
       verifyAutoRollbackSuccessRate,
       falseConfidenceRate,
+      firstChunkP95,
+      syncP95,
+      boardRenderP95,
+      firstChunkSampleCount: firstChunkMs.length,
+      syncSampleCount: syncMs.length,
+      boardRenderSampleCount: boardRenderMs.length,
     },
     gates: {
       ...gates,
@@ -711,7 +747,10 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
         gates.replayToResolutionRatePass &&
         gates.rollbackTelemetryEvidencePass &&
         gates.verifyAutoRollbackSuccessRatePass &&
-        gates.falseConfidenceRatePass,
+        gates.falseConfidenceRatePass &&
+        gates.firstChunkLatencyPass &&
+        gates.syncLatencyPass &&
+        gates.boardRenderLatencyPass,
     },
   };
 }
@@ -771,6 +810,9 @@ function main() {
     replayToResolutionRateMin: options.replayToResolutionRateMin,
     verifyAutoRollbackSuccessRateMin: options.verifyAutoRollbackSuccessRateMin,
     falseConfidenceRateMax: options.falseConfidenceRateMax,
+    firstChunkLatencyP95MaxMs: options.firstChunkLatencyP95MaxMs,
+    syncLatencyP95MaxMs: options.syncLatencyP95MaxMs,
+    boardRenderLatencyP95MaxMs: options.boardRenderLatencyP95MaxMs,
     },
     {
       predictiveCalibrationMode: options.predictiveCalibrationMode,

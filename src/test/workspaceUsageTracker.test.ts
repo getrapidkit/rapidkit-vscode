@@ -998,4 +998,126 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(statusFail?.gates.overallPass).toBe(false);
     expect(statusFail?.thresholds.clarificationRateVsAskMax).toBe(20);
   });
+
+  it('recordLatencySample and getPerformanceSloStatus: all three SLO gates pass when P95 is within threshold', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-slo-pass');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+
+    // first_chunk: 10 samples well within 3000 ms default
+    for (let i = 1; i <= 10; i += 1) {
+      await tracker.recordLatencySample(
+        'workspai.perf.first_chunk_latency',
+        i * 200,
+        workspacePath
+      );
+    }
+    // sync: 10 samples well within 2000 ms default
+    for (let i = 1; i <= 10; i += 1) {
+      await tracker.recordLatencySample('workspai.perf.sync_latency', i * 100, workspacePath);
+    }
+    // board_render: 10 samples well within 500 ms default
+    for (let i = 1; i <= 10; i += 1) {
+      await tracker.recordLatencySample(
+        'workspai.perf.board_render_latency',
+        i * 40,
+        workspacePath
+      );
+    }
+
+    const status = await tracker.getPerformanceSloStatus(workspacePath, 'all');
+    expect(status).not.toBeNull();
+    expect(status?.metrics.firstChunkSampleCount).toBe(10);
+    expect(status?.metrics.syncSampleCount).toBe(10);
+    expect(status?.metrics.boardRenderSampleCount).toBe(10);
+    // P95 of [200, 400, ..., 2000] (10 items): idx=ceil(10*0.95)-1=9 → sorted[9]=2000
+    expect(status?.metrics.firstChunkLatencyP95Ms).toBe(2000);
+    // P95 of [100, 200, ..., 1000] (10 items): sorted[9]=1000
+    expect(status?.metrics.syncLatencyP95Ms).toBe(1000);
+    // P95 of [40, 80, ..., 400] (10 items): sorted[9]=400
+    expect(status?.metrics.boardRenderLatencyP95Ms).toBe(400);
+    expect(status?.gates.telemetryEvidencePass).toBe(true);
+    expect(status?.gates.firstChunkLatencyPass).toBe(true);
+    expect(status?.gates.syncLatencyPass).toBe(true);
+    expect(status?.gates.boardRenderLatencyPass).toBe(true);
+    expect(status?.gates.overallPass).toBe(true);
+    expect(status?.thresholds.firstChunkLatencyP95MaxMs).toBe(3000);
+    expect(status?.thresholds.syncLatencyP95MaxMs).toBe(2000);
+    expect(status?.thresholds.boardRenderLatencyP95MaxMs).toBe(500);
+  });
+
+  it('getPerformanceSloStatus: fails individual SLO gate when P95 exceeds threshold', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-slo-fail');
+
+    // pre-populate a marker with latency samples that violate the board-render threshold
+    createWorkspaceMarker(workspacePath, {
+      latencySamples: [
+        ...Array.from({ length: 10 }, (_, i) => ({
+          event: 'workspai.perf.first_chunk_latency',
+          ms: (i + 1) * 100,
+          at: '2026-04-28T10:00:00.000Z',
+        })),
+        ...Array.from({ length: 10 }, (_, i) => ({
+          event: 'workspai.perf.sync_latency',
+          ms: (i + 1) * 80,
+          at: '2026-04-28T10:00:00.000Z',
+        })),
+        // board render samples: P95 will be 950ms (> 500ms default threshold)
+        ...Array.from({ length: 20 }, (_, i) => ({
+          event: 'workspai.perf.board_render_latency',
+          ms: (i + 1) * 50,
+          at: '2026-04-28T10:00:00.000Z',
+        })),
+      ],
+    });
+
+    const status = await WorkspaceUsageTracker.getInstance().getPerformanceSloStatus(
+      workspacePath,
+      'all'
+    );
+    expect(status).not.toBeNull();
+    expect(status?.metrics.firstChunkSampleCount).toBe(10);
+    expect(status?.metrics.syncSampleCount).toBe(10);
+    expect(status?.metrics.boardRenderSampleCount).toBe(20);
+    // first_chunk P95 of [(i+1)*100, i=0..9]=[100..1000]: idx=ceil(10*0.95)-1=9 → sorted[9]=1000
+    expect(status?.metrics.firstChunkLatencyP95Ms).toBe(1000);
+    expect(status?.gates.firstChunkLatencyPass).toBe(true);
+    // sync P95 of [(i+1)*80, i=0..9]=[80..800]: sorted[9]=800
+    expect(status?.metrics.syncLatencyP95Ms).toBe(800);
+    expect(status?.gates.syncLatencyPass).toBe(true);
+    // board_render P95 of [50,100,...,1000] (20 items): idx=ceil(20*0.95)-1=18 → sorted[18]=950
+    expect(status?.metrics.boardRenderLatencyP95Ms).toBe(950);
+    expect(status?.gates.boardRenderLatencyPass).toBe(false); // 950 > 500
+    expect(status?.gates.overallPass).toBe(false);
+  });
+
+  it('getPerformanceSloStatus: returns null telemetryEvidencePass=false when no samples recorded', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-slo-empty');
+    createWorkspaceMarker(workspacePath);
+
+    const status = await WorkspaceUsageTracker.getInstance().getPerformanceSloStatus(
+      workspacePath,
+      'all',
+      { firstChunkLatencyP95MaxMs: 1000, syncLatencyP95MaxMs: 500, boardRenderLatencyP95MaxMs: 200 }
+    );
+    expect(status).not.toBeNull();
+    expect(status?.metrics.firstChunkSampleCount).toBe(0);
+    expect(status?.metrics.syncSampleCount).toBe(0);
+    expect(status?.metrics.boardRenderSampleCount).toBe(0);
+    expect(status?.metrics.firstChunkLatencyP95Ms).toBeNull();
+    expect(status?.metrics.syncLatencyP95Ms).toBeNull();
+    expect(status?.metrics.boardRenderLatencyP95Ms).toBeNull();
+    expect(status?.gates.telemetryEvidencePass).toBe(false);
+    // all latency gates pass when no samples (null → not a violation)
+    expect(status?.gates.firstChunkLatencyPass).toBe(true);
+    expect(status?.gates.syncLatencyPass).toBe(true);
+    expect(status?.gates.boardRenderLatencyPass).toBe(true);
+    expect(status?.gates.overallPass).toBe(false); // evidence gate fails
+    expect(status?.thresholds).toEqual({
+      firstChunkLatencyP95MaxMs: 1000,
+      syncLatencyP95MaxMs: 500,
+      boardRenderLatencyP95MaxMs: 200,
+    });
+  });
 });

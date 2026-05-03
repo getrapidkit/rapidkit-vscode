@@ -339,6 +339,35 @@ export interface ClarificationGateKpiStatus {
   };
 }
 
+export interface PerformanceSloThresholds {
+  firstChunkLatencyP95MaxMs: number;
+  syncLatencyP95MaxMs: number;
+  boardRenderLatencyP95MaxMs: number;
+}
+
+export interface PerformanceSloStatus {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  thresholds: PerformanceSloThresholds;
+  metrics: {
+    firstChunkSampleCount: number;
+    syncSampleCount: number;
+    boardRenderSampleCount: number;
+    firstChunkLatencyP95Ms: number | null;
+    syncLatencyP95Ms: number | null;
+    boardRenderLatencyP95Ms: number | null;
+  };
+  gates: {
+    telemetryEvidencePass: boolean;
+    firstChunkLatencyPass: boolean;
+    syncLatencyPass: boolean;
+    boardRenderLatencyPass: boolean;
+    overallPass: boolean;
+  };
+}
+
 export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
@@ -374,6 +403,16 @@ interface TelemetrySurfaceAllowlistRule {
 
 const MAX_RECENT_COMMAND_EVENTS = 500;
 const MAX_HOURLY_USAGE_BUCKETS = 24 * 14;
+const MAX_LATENCY_SAMPLES = 500;
+
+interface LatencySampleEvent {
+  event:
+    | 'workspai.perf.first_chunk_latency'
+    | 'workspai.perf.sync_latency'
+    | 'workspai.perf.board_render_latency';
+  ms: number;
+  at: string;
+}
 
 const TELEMETRY_SURFACE_ORDER: TelemetrySurface[] = [
   'action',
@@ -2495,6 +2534,197 @@ export class WorkspaceUsageTracker {
       };
     } catch (error) {
       this.logger.debug(`Failed to read clarification gate KPI status: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Records a latency sample for a named performance SLO event (first-chunk, sync, board-render).
+   * Samples are stored in the workspace marker under workspaiTelemetry.latencySamples.
+   */
+  async recordLatencySample(
+    event: LatencySampleEvent['event'],
+    ms: number,
+    preferredWorkspacePath?: string
+  ): Promise<boolean> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return false;
+    }
+
+    const key = workspacePath;
+    const writeOp = (this.commandTelemetryWriteQueue.get(key) ?? Promise.resolve()).then(
+      async () => {
+        try {
+          const marker = await readWorkspaceMarker(workspacePath);
+          if (!marker) {
+            return;
+          }
+
+          const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+          const telemetry: Record<string, unknown> =
+            telemetryRaw && typeof telemetryRaw === 'object'
+              ? { ...(telemetryRaw as Record<string, unknown>) }
+              : {};
+
+          const rawSamples = telemetry.latencySamples;
+          const existingSamples: LatencySampleEvent[] = Array.isArray(rawSamples)
+            ? (rawSamples as LatencySampleEvent[]).filter(
+                (s) =>
+                  s &&
+                  typeof s === 'object' &&
+                  typeof s.event === 'string' &&
+                  typeof s.ms === 'number' &&
+                  typeof s.at === 'string'
+              )
+            : [];
+
+          const newSample: LatencySampleEvent = { event, ms, at: new Date().toISOString() };
+          const updatedSamples = [...existingSamples, newSample].slice(-MAX_LATENCY_SAMPLES);
+
+          telemetry.latencySamples = updatedSamples;
+
+          await updateWorkspaceMetadata(workspacePath, {
+            custom: {
+              ...(marker.metadata?.custom ?? {}),
+              workspaiTelemetry: telemetry,
+            },
+          });
+        } catch (err) {
+          this.logger.debug(`Failed to record latency sample: ${err}`);
+        }
+      }
+    );
+
+    this.commandTelemetryWriteQueue.set(key, writeOp);
+    await writeOp;
+    return true;
+  }
+
+  /**
+   * Returns P95 latency SLO compliance status for first-chunk, sync, and board-render events.
+   */
+  async getPerformanceSloStatus(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last7d',
+    thresholds: Partial<PerformanceSloThresholds> = {}
+  ): Promise<PerformanceSloStatus | null> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const marker = await readWorkspaceMarker(workspacePath);
+      if (!marker) {
+        return null;
+      }
+
+      const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+      const telemetry =
+        telemetryRaw && typeof telemetryRaw === 'object'
+          ? (telemetryRaw as Record<string, unknown>)
+          : {};
+
+      const rawSamples = telemetry.latencySamples;
+      const allSamples: LatencySampleEvent[] = Array.isArray(rawSamples)
+        ? (rawSamples as LatencySampleEvent[]).filter(
+            (s) =>
+              s &&
+              typeof s === 'object' &&
+              typeof s.event === 'string' &&
+              typeof s.ms === 'number' &&
+              typeof s.at === 'string' &&
+              !Number.isNaN(Date.parse(s.at))
+          )
+        : [];
+
+      const nowMs = Date.now();
+      const windowStartMs = this.getWindowStartMs(timeWindow, nowMs);
+
+      const windowedSamples =
+        windowStartMs === null
+          ? allSamples
+          : allSamples.filter((s) => {
+              const t = Date.parse(s.at);
+              return t >= windowStartMs && t <= nowMs;
+            });
+
+      const pick = (eventName: LatencySampleEvent['event']) =>
+        windowedSamples.filter((s) => s.event === eventName).map((s) => s.ms);
+
+      const computeP95 = (values: number[]): number | null => {
+        if (values.length === 0) {
+          return null;
+        }
+        const sorted = [...values].sort((a, b) => a - b);
+        const idx = Math.ceil(sorted.length * 0.95) - 1;
+        return sorted[Math.max(0, idx)];
+      };
+
+      const firstChunkSamples = pick('workspai.perf.first_chunk_latency');
+      const syncSamples = pick('workspai.perf.sync_latency');
+      const boardRenderSamples = pick('workspai.perf.board_render_latency');
+
+      const firstChunkLatencyP95Ms = computeP95(firstChunkSamples);
+      const syncLatencyP95Ms = computeP95(syncSamples);
+      const boardRenderLatencyP95Ms = computeP95(boardRenderSamples);
+
+      const resolvedThresholds: PerformanceSloThresholds = {
+        firstChunkLatencyP95MaxMs:
+          typeof thresholds.firstChunkLatencyP95MaxMs === 'number'
+            ? thresholds.firstChunkLatencyP95MaxMs
+            : 3000,
+        syncLatencyP95MaxMs:
+          typeof thresholds.syncLatencyP95MaxMs === 'number'
+            ? thresholds.syncLatencyP95MaxMs
+            : 2000,
+        boardRenderLatencyP95MaxMs:
+          typeof thresholds.boardRenderLatencyP95MaxMs === 'number'
+            ? thresholds.boardRenderLatencyP95MaxMs
+            : 500,
+      };
+
+      const telemetryEvidencePass =
+        firstChunkSamples.length > 0 || syncSamples.length > 0 || boardRenderSamples.length > 0;
+
+      const firstChunkLatencyPass =
+        firstChunkLatencyP95Ms === null ||
+        firstChunkLatencyP95Ms <= resolvedThresholds.firstChunkLatencyP95MaxMs;
+      const syncLatencyPass =
+        syncLatencyP95Ms === null || syncLatencyP95Ms <= resolvedThresholds.syncLatencyP95MaxMs;
+      const boardRenderLatencyPass =
+        boardRenderLatencyP95Ms === null ||
+        boardRenderLatencyP95Ms <= resolvedThresholds.boardRenderLatencyP95MaxMs;
+
+      return {
+        workspacePath,
+        timeWindow,
+        windowStartAt: windowStartMs === null ? null : new Date(windowStartMs).toISOString(),
+        windowEndAt: new Date(nowMs).toISOString(),
+        thresholds: resolvedThresholds,
+        metrics: {
+          firstChunkSampleCount: firstChunkSamples.length,
+          syncSampleCount: syncSamples.length,
+          boardRenderSampleCount: boardRenderSamples.length,
+          firstChunkLatencyP95Ms,
+          syncLatencyP95Ms,
+          boardRenderLatencyP95Ms,
+        },
+        gates: {
+          telemetryEvidencePass,
+          firstChunkLatencyPass,
+          syncLatencyPass,
+          boardRenderLatencyPass,
+          overallPass:
+            telemetryEvidencePass &&
+            firstChunkLatencyPass &&
+            syncLatencyPass &&
+            boardRenderLatencyPass,
+        },
+      };
+    } catch (error) {
+      this.logger.debug(`Failed to read performance SLO status: ${error}`);
       return null;
     }
   }

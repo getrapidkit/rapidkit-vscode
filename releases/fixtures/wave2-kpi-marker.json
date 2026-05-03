@@ -244,6 +244,158 @@
                         "command": "workspai.studio.incident_replay_memory_enriched",
                         "at": "2026-04-28T10:07:31.000Z"
                     }
+                ],
+                "latencySamples": [
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 800,
+                        "at": "2026-04-28T10:10:00.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 950,
+                        "at": "2026-04-28T10:10:01.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1100,
+                        "at": "2026-04-28T10:10:02.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1250,
+                        "at": "2026-04-28T10:10:03.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1400,
+                        "at": "2026-04-28T10:10:04.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1550,
+                        "at": "2026-04-28T10:10:05.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1700,
+                        "at": "2026-04-28T10:10:06.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 1850,
+                        "at": "2026-04-28T10:10:07.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 2000,
+                        "at": "2026-04-28T10:10:08.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.first_chunk_latency",
+                        "ms": 2100,
+                        "at": "2026-04-28T10:10:09.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 300,
+                        "at": "2026-04-28T10:11:00.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 400,
+                        "at": "2026-04-28T10:11:01.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 500,
+                        "at": "2026-04-28T10:11:02.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 600,
+                        "at": "2026-04-28T10:11:03.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 700,
+                        "at": "2026-04-28T10:11:04.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 800,
+                        "at": "2026-04-28T10:11:05.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 900,
+                        "at": "2026-04-28T10:11:06.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 1000,
+                        "at": "2026-04-28T10:11:07.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 1100,
+                        "at": "2026-04-28T10:11:08.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.sync_latency",
+                        "ms": 1200,
+                        "at": "2026-04-28T10:11:09.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 80,
+                        "at": "2026-04-28T10:12:00.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 110,
+                        "at": "2026-04-28T10:12:01.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 140,
+                        "at": "2026-04-28T10:12:02.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 170,
+                        "at": "2026-04-28T10:12:03.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 200,
+                        "at": "2026-04-28T10:12:04.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 230,
+                        "at": "2026-04-28T10:12:05.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 260,
+                        "at": "2026-04-28T10:12:06.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 290,
+                        "at": "2026-04-28T10:12:07.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 320,
+                        "at": "2026-04-28T10:12:08.000Z"
+                    },
+                    {
+                        "event": "workspai.perf.board_render_latency",
+                        "ms": 350,
+                        "at": "2026-04-28T10:12:09.000Z"
+                    }
                 ]
             }
         }
