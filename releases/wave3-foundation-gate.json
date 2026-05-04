@@ -1,0 +1,70 @@
+{
+    "name": "WAVE3_FOUNDATION_GATE",
+    "requiredFiles": [
+        "releases/fixtures/wave3-kpi-marker.json",
+        "releases/wave3-claim-checklist.md",
+        ".github/workflows/release-gate-wave3.yml",
+        "webview-ui/src/components/AIIncidentStudio.tsx",
+        "webview-ui/src/styles-tailwind.css",
+        "webview-ui/src/App.tsx",
+        "src/ui/panels/welcomePanel.ts",
+        "src/commands/importProject.ts",
+        "src/commands/coreCommands.ts",
+        "src/extension.ts"
+    ],
+    "requiredVitestTests": [
+        "src/test/incidentStudioPreferences.test.ts",
+        "src/test/releaseStopGateManifest.test.ts",
+        "src/test/incidentStudioPayload.test.ts",
+        "src/test/incidentStudioFlowE2E.test.ts",
+        "src/test/importProjectUtils.test.ts",
+        "src/test/importedProjectsRegistry.test.ts",
+        "src/test/coreCommandsImportProject.test.ts"
+    ],
+    "requiredContents": [
+        {
+            "path": "package.json",
+            "contains": "\"release:stop-gate:wave3\": \"node scripts/release-stop-gate.mjs --manifest releases/wave3-foundation-gate.json --claim-checklist releases/wave3-claim-checklist.md --enforce-claim-checklist --marker releases/fixtures/wave3-kpi-marker.json\""
+        },
+        {
+            "path": ".github/workflows/release-gate-wave3.yml",
+            "contains": "npm run release:stop-gate:wave3"
+        },
+        {
+            "path": "webview-ui/src/App.tsx",
+            "contains": "incidentStudioDisplayMode"
+        },
+        {
+            "path": "webview-ui/src/components/AIIncidentStudio.tsx",
+            "contains": "studioDisplayMode"
+        },
+        {
+            "path": "webview-ui/src/components/AIIncidentStudio.tsx",
+            "contains": "architectureLensViewMode"
+        },
+        {
+            "path": "webview-ui/src/styles-tailwind.css",
+            "contains": ".incident-architecture-lens-view-panel"
+        },
+        {
+            "path": "src/ui/panels/welcomePanel.ts",
+            "contains": "incidentStudioDisplayModeByWorkspace"
+        },
+        {
+            "path": "src/commands/importProject.ts",
+            "contains": "drag-drop-helper"
+        },
+        {
+            "path": "src/commands/importProject.ts",
+            "contains": "toTelemetryImportSource"
+        },
+        {
+            "path": "src/extension.ts",
+            "contains": "dragAndDropController"
+        },
+        {
+            "path": "releases/fixtures/wave3-kpi-marker.json",
+            "contains": "productionWindows"
+        }
+    ]
+}

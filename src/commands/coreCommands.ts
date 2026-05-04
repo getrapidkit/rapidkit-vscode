@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { createWorkspaceCommand } from './createWorkspace';
 import { createProjectCommand } from './createProject';
+import { importProjectCommand } from './importProject';
 import { addModuleCommand } from './addModule';
 import { previewTemplateCommand } from './previewTemplate';
 import { doctorCommand } from './doctor';
@@ -10,7 +11,8 @@ import { showWelcomeCommand } from './showWelcome';
 import { WelcomePanel } from '../ui/panels/welcomePanel';
 import { SetupPanel } from '../ui/panels/setupExperiencePanel';
 
-type WorkspaceLike = { path: string };
+type WorkspaceLike = { path: string; name?: string };
+type ProjectLike = { path: string; name: string; type: string; workspacePath?: string };
 
 type WorkspaceExplorerLike = {
   refresh: () => void;
@@ -19,6 +21,7 @@ type WorkspaceExplorerLike = {
 
 type ProjectExplorerLike = {
   refresh: () => void;
+  getSelectedProject?: () => ProjectLike | null | undefined;
 };
 
 export function registerCoreCommands(options: {
@@ -86,6 +89,78 @@ export function registerCoreCommands(options: {
         }
       }
     ),
+
+    vscode.commands.registerCommand('workspai.importProject', async (seed?: unknown) => {
+      try {
+        logger.info('Executing importProject command');
+        await importProjectCommand(
+          {
+            getWorkspaceExplorer,
+            getProjectExplorer,
+          },
+          seed
+        );
+      } catch (error) {
+        logger.error('Failed to import project', error);
+        vscode.window.showErrorMessage(
+          `Failed to import project: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }),
+
+    vscode.commands.registerCommand('workspai.openArchitectureMap', async (item?: any) => {
+      const selectedProject = getProjectExplorer()?.getSelectedProject?.();
+      const selectedWorkspace = getWorkspaceExplorer()?.getSelectedWorkspace();
+
+      const projectFromItem = item?.project;
+      const workspaceFromItem = item?.workspace;
+
+      const projectName =
+        (typeof projectFromItem?.name === 'string' && projectFromItem.name) ||
+        selectedProject?.name;
+      const projectPath =
+        (typeof projectFromItem?.path === 'string' && projectFromItem.path) ||
+        selectedProject?.path;
+      const projectType =
+        (typeof projectFromItem?.type === 'string' && projectFromItem.type) ||
+        selectedProject?.type;
+
+      const workspacePath =
+        (typeof workspaceFromItem?.path === 'string' && workspaceFromItem.path) ||
+        (typeof projectFromItem?.workspacePath === 'string' && projectFromItem.workspacePath) ||
+        selectedWorkspace?.path;
+      const workspaceName =
+        (typeof workspaceFromItem?.name === 'string' && workspaceFromItem.name) ||
+        selectedWorkspace?.name;
+
+      if (!workspacePath) {
+        vscode.window.showWarningMessage('Select a workspace first.');
+        return;
+      }
+
+      if (projectPath && projectName) {
+        WelcomePanel.showAIModal(context, {
+          type: 'project',
+          name: projectName,
+          path: projectPath,
+          framework: projectType,
+          prefillMode: 'ask',
+          prefillQuestion:
+            `Build an architecture map for project ${projectName}. ` +
+            'Show entry points, main modules, dependency map, and top production risks.',
+        });
+        return;
+      }
+
+      WelcomePanel.showAIModal(context, {
+        type: 'workspace',
+        name: workspaceName ?? 'Workspace',
+        path: workspacePath,
+        prefillMode: 'ask',
+        prefillQuestion:
+          'Build a workspace-level architecture map. Highlight project boundaries, dependencies, runtime flows, and top risks.',
+      });
+    }),
 
     vscode.commands.registerCommand(
       'workspai.createFastAPIProject',

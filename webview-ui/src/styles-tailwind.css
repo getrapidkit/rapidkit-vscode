@@ -2401,6 +2401,124 @@
     overflow: visible;
   }
 
+  .incident-lite-shell {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .incident-lite-card {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+    border-radius: 10px;
+    padding: 10px;
+    background:
+      radial-gradient(circle at top right, color-mix(in srgb, #00b894 10%, transparent), transparent 46%),
+      color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 148px;
+  }
+
+  .incident-lite-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .incident-lite-kicker {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--vscode-descriptionForeground) 86%, transparent);
+    font-weight: 700;
+  }
+
+  .incident-lite-head h4 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-lite-content {
+    display: grid;
+    gap: 4px;
+  }
+
+  .incident-lite-content p {
+    margin: 0;
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-lite-content strong,
+  .incident-lite-list strong,
+  .incident-lite-single-action {
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-lite-list {
+    margin: 0;
+    padding-left: 16px;
+    display: grid;
+    gap: 5px;
+  }
+
+  .incident-lite-list li {
+    display: grid;
+    gap: 2px;
+    font-size: 9.5px;
+    line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-lite-empty {
+    display: grid;
+    gap: 7px;
+  }
+
+  .incident-lite-empty p {
+    margin: 0;
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-lite-single-action {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.45;
+    font-weight: 700;
+  }
+
+  .incident-lite-guard {
+    font-size: 9px;
+    line-height: 1.4;
+    color: color-mix(in srgb, #ff7675 84%, var(--vscode-descriptionForeground));
+  }
+
+  .incident-lite-code {
+    font-size: 9px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 75%, transparent);
+    background: color-mix(in srgb, var(--vscode-textCodeBlock-background) 90%, transparent);
+    color: var(--vscode-textPreformat-foreground);
+    word-break: break-all;
+  }
+
+  .incident-lite-source {
+    margin-top: auto;
+    font-size: 8px;
+    line-height: 1.4;
+    color: color-mix(in srgb, var(--vscode-descriptionForeground) 88%, transparent);
+  }
+
   .incident-phase-rail {
     --incident-phase-gap: 10px;
     display: grid;
@@ -3358,6 +3476,197 @@
     color: var(--vscode-editor-foreground);
   }
 
+  .incident-architecture-lens-view-switch {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-view-panel {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 97%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .incident-architecture-lens-tree,
+  .incident-architecture-lens-dependency,
+  .incident-architecture-lens-runtime {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .incident-architecture-lens-tree-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-tree-title {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-tree-items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-node-link {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 8px;
+    padding: 6px 7px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 98%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+  }
+
+  .incident-architecture-lens-node-link:hover {
+    border-color: color-mix(in srgb, var(--vscode-focusBorder) 76%, transparent);
+    background: color-mix(in srgb, var(--vscode-focusBorder) 8%, var(--vscode-editor-background));
+    transform: translateY(-1px);
+  }
+
+  .incident-architecture-lens-node-link strong {
+    font-size: 10px;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-node-link small {
+    font-size: 9.5px;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-node-link.is-readonly,
+  .incident-architecture-lens-edge-link.is-readonly {
+    opacity: 0.72;
+    cursor: default;
+  }
+
+  .incident-architecture-lens-edge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-edge-row,
+  .incident-architecture-runtime-step {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 74%, transparent);
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 98%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .incident-architecture-lens-edge-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .incident-architecture-lens-edge-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--vscode-editor-foreground);
+    cursor: pointer;
+  }
+
+  .incident-architecture-lens-edge-link:hover {
+    color: var(--vscode-textLink-foreground);
+  }
+
+  .incident-architecture-lens-edge-arrow {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .incident-architecture-lens-edge-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-risk-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+    padding: 2px 6px;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vscode-editor-foreground);
+  }
+
+  .incident-architecture-lens-risk-chip.risk-high,
+  .incident-architecture-lens-risk-chip.risk-critical {
+    border-color: color-mix(in srgb, #e17055 60%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #e17055 16%, transparent);
+  }
+
+  .incident-architecture-lens-risk-chip.risk-medium {
+    border-color: color-mix(in srgb, #fdcb6e 62%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #fdcb6e 16%, transparent);
+  }
+
+  .incident-architecture-lens-risk-chip.risk-low {
+    border-color: color-mix(in srgb, #00cec9 62%, var(--vscode-panel-border));
+    background: color-mix(in srgb, #00cec9 16%, transparent);
+  }
+
+  .incident-architecture-runtime-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .incident-architecture-lens-unresolved {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px dashed color-mix(in srgb, #e17055 40%, var(--vscode-panel-border));
+    border-radius: 8px;
+    padding: 6px 7px;
+    background: color-mix(in srgb, #e17055 8%, transparent);
+  }
+
+  .incident-architecture-lens-unresolved span {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, #e17055 80%, var(--vscode-editor-foreground));
+  }
+
+  .incident-architecture-lens-unresolved small,
+  .incident-architecture-lens-empty {
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+  }
+
   .incident-architecture-lens-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3491,6 +3800,10 @@
   }
 
   @media (max-width: 980px) {
+    .incident-architecture-lens-tree-items {
+      grid-template-columns: 1fr;
+    }
+
     .incident-architecture-lens-grid {
       grid-template-columns: 1fr;
     }

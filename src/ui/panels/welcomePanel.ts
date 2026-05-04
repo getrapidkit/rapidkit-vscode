@@ -1220,11 +1220,15 @@ No markdown, no explanation outside the JSON.`;
             this._sendRecentWorkspaces();
             break;
           case 'getUiPreferences':
-            this._sendUiPreferences();
+            this._sendUiPreferences(message.data?.workspacePath);
             break;
           case 'setUiPreference':
             if (message.data?.key) {
-              await this._setUiPreference(String(message.data.key), message.data.value);
+              await this._setUiPreference(
+                String(message.data.key),
+                message.data.value,
+                message.data.workspacePath
+              );
             }
             break;
           case 'cloneExample':
@@ -6191,9 +6195,54 @@ No markdown, no explanation outside the JSON.`;
     });
   }
 
-  private _getUiPreferences(): {
+  private _resolveUiPreferenceWorkspacePath(explicitWorkspacePath?: unknown): string | undefined {
+    if (typeof explicitWorkspacePath === 'string' && explicitWorkspacePath.trim().length > 0) {
+      return explicitWorkspacePath;
+    }
+
+    const selectedWorkspace = WelcomePanel._workspaceExplorer?.getSelectedWorkspace();
+    if (selectedWorkspace?.path) {
+      return selectedWorkspace.path;
+    }
+
+    return undefined;
+  }
+
+  private _normalizeIncidentStudioDisplayMode(value: unknown): 'lite' | 'full' {
+    return value === 'full' ? 'full' : 'lite';
+  }
+
+  private _getIncidentStudioDisplayMode(
+    prefs: Record<string, unknown>,
+    workspacePath?: string
+  ): 'lite' | 'full' {
+    const displayModeByWorkspace =
+      prefs?.incidentStudioDisplayModeByWorkspace &&
+      typeof prefs.incidentStudioDisplayModeByWorkspace === 'object'
+        ? (prefs.incidentStudioDisplayModeByWorkspace as Record<string, unknown>)
+        : {};
+
+    if (workspacePath) {
+      const scoped = displayModeByWorkspace[workspacePath];
+      if (scoped === 'lite' || scoped === 'full') {
+        return scoped;
+      }
+    }
+
+    if (
+      prefs?.incidentStudioDisplayMode === 'lite' ||
+      prefs?.incidentStudioDisplayMode === 'full'
+    ) {
+      return prefs.incidentStudioDisplayMode as 'lite' | 'full';
+    }
+
+    return 'lite';
+  }
+
+  private _getUiPreferences(workspacePath?: string): {
     setupStatusCardHidden: boolean;
     incidentUserMode: 'guided' | 'standard' | 'expert';
+    incidentStudioDisplayMode: 'lite' | 'full';
     incidentAutoLearningPrompt: boolean;
     incidentPrimaryCtaExperimentVariant: 'single' | 'multi';
     incidentRollbackApprovalMode: 'never' | 'high-risk-only' | 'mutating-only' | 'always';
@@ -6212,6 +6261,7 @@ No markdown, no explanation outside the JSON.`;
     return {
       setupStatusCardHidden: prefs?.setupStatusCardHidden === true,
       incidentUserMode,
+      incidentStudioDisplayMode: this._getIncidentStudioDisplayMode(prefs, workspacePath),
       incidentAutoLearningPrompt: prefs?.incidentAutoLearningPrompt !== false,
       incidentPrimaryCtaExperimentVariant: this._getIncidentPrimaryCtaExperimentVariant(),
       incidentRollbackApprovalMode: this._normalizeIncidentRollbackApprovalMode(
@@ -6223,24 +6273,54 @@ No markdown, no explanation outside the JSON.`;
     };
   }
 
-  private _sendUiPreferences() {
+  private _sendUiPreferences(workspacePath?: string) {
     this._panel.webview.postMessage({
       command: 'uiPreferences',
-      data: this._getUiPreferences(),
+      data: this._getUiPreferences(workspacePath),
     });
   }
 
-  private async _setUiPreference(key: string, value: unknown) {
+  private async _setUiPreference(key: string, value: unknown, workspacePath?: unknown) {
     const current = this._context.globalState.get<Record<string, unknown>>(
       WelcomePanel.UI_PREFS_KEY,
       {}
     );
-    const next = {
+
+    let next: Record<string, unknown>;
+
+    if (key === 'incidentStudioDisplayMode') {
+      const resolvedWorkspacePath = this._resolveUiPreferenceWorkspacePath(workspacePath);
+      const normalizedDisplayMode = this._normalizeIncidentStudioDisplayMode(value);
+      const existingByWorkspace =
+        current?.incidentStudioDisplayModeByWorkspace &&
+        typeof current.incidentStudioDisplayModeByWorkspace === 'object'
+          ? (current.incidentStudioDisplayModeByWorkspace as Record<string, unknown>)
+          : {};
+      const nextByWorkspace = {
+        ...existingByWorkspace,
+      };
+
+      if (resolvedWorkspacePath) {
+        nextByWorkspace[resolvedWorkspacePath] = normalizedDisplayMode;
+      }
+
+      next = {
+        ...current,
+        incidentStudioDisplayMode: normalizedDisplayMode,
+        incidentStudioDisplayModeByWorkspace: nextByWorkspace,
+      };
+      await this._context.globalState.update(WelcomePanel.UI_PREFS_KEY, next);
+      this._sendUiPreferences(resolvedWorkspacePath);
+      return;
+    }
+
+    next = {
       ...current,
       [key]: value,
     };
+
     await this._context.globalState.update(WelcomePanel.UI_PREFS_KEY, next);
-    this._sendUiPreferences();
+    this._sendUiPreferences(this._resolveUiPreferenceWorkspacePath(workspacePath));
   }
 
   private _sendVersion() {

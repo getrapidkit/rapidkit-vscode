@@ -7,6 +7,32 @@ import { execFileSync } from 'child_process';
 const repoRoot = path.resolve(__dirname, '..', '..');
 
 describe('releaseStopGate manifest mode', () => {
+  it('passes the Wave 3 manifest with enforced claim checklist and marker fixture', () => {
+    const output = execFileSync(
+      process.execPath,
+      [
+        'scripts/release-stop-gate.mjs',
+        '--skip-contract-checks',
+        '--manifest',
+        'releases/wave3-foundation-gate.json',
+        '--claim-checklist',
+        'releases/wave3-claim-checklist.md',
+        '--enforce-claim-checklist',
+        '--marker',
+        'releases/fixtures/wave3-kpi-marker.json',
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf-8',
+      }
+    );
+
+    expect(output).toContain('Manifest checks passed: WAVE3_FOUNDATION_GATE');
+    expect(output).toContain('Claim checklist gates are fully checked.');
+    expect(output).toContain('KPI gate result:');
+    expect(output).toContain('All release stop conditions passed.');
+  });
+
   it('passes the Wave 2 manifest when required artifacts exist', () => {
     const output = execFileSync(
       process.execPath,

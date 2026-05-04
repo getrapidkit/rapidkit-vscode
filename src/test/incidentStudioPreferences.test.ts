@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE,
   DEFAULT_INCIDENT_USER_MODE,
   normalizeIncidentPrimaryCtaExperimentVariant,
+  normalizeIncidentStudioDisplayMode,
   normalizeIncidentUserMode,
   primaryCtaModeForIncidentUserMode,
   resolveIncidentPrimaryCtaMode,
@@ -16,6 +18,17 @@ describe('incidentStudioPreferences', () => {
     expect(normalizeIncidentUserMode('invalid-mode')).toBe(DEFAULT_INCIDENT_USER_MODE);
     expect(normalizeIncidentUserMode(undefined)).toBe(DEFAULT_INCIDENT_USER_MODE);
     expect(normalizeIncidentUserMode(null)).toBe(DEFAULT_INCIDENT_USER_MODE);
+  });
+
+  it('normalizes studio display mode values and defaults to lite', () => {
+    expect(normalizeIncidentStudioDisplayMode('lite')).toBe('lite');
+    expect(normalizeIncidentStudioDisplayMode('full')).toBe('full');
+    expect(normalizeIncidentStudioDisplayMode('unknown')).toBe(
+      DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE
+    );
+    expect(normalizeIncidentStudioDisplayMode(undefined)).toBe(
+      DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE
+    );
   });
 
   it('keeps expert mode multi-cta while guided and standard remain single-cta', () => {

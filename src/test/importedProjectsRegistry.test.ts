@@ -1,0 +1,91 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import * as fs from 'fs-extra';
+import * as os from 'os';
+import * as path from 'path';
+
+import {
+  readImportedProjectsRegistry,
+  upsertImportedProjectsRegistry,
+} from '../utils/importedProjectsRegistry';
+
+describe('importedProjectsRegistry', () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempRoots.map((dirPath) => fs.remove(dirPath)));
+    tempRoots.length = 0;
+  });
+
+  async function createWorkspace(): Promise<string> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'rk-registry-'));
+    tempRoots.push(workspacePath);
+    return workspacePath;
+  }
+
+  it('returns empty list when registry file does not exist', async () => {
+    const workspacePath = await createWorkspace();
+    const entries = await readImportedProjectsRegistry(workspacePath);
+    expect(entries).toEqual([]);
+  });
+
+  it('upserts entries by path and keeps latest record', async () => {
+    const workspacePath = await createWorkspace();
+
+    await upsertImportedProjectsRegistry(workspacePath, [
+      {
+        name: 'api-a',
+        path: path.join(workspacePath, 'api-a'),
+        stack: 'unknown',
+        confidence: 'medium',
+        source: 'local-folder',
+        importedAt: '2026-05-04T10:00:00.000Z',
+      },
+    ]);
+
+    await upsertImportedProjectsRegistry(workspacePath, [
+      {
+        name: 'api-a-renamed',
+        path: path.join(workspacePath, 'api-a'),
+        stack: 'fastapi',
+        confidence: 'high',
+        source: 'drag-drop',
+        importedAt: '2026-05-04T11:00:00.000Z',
+      },
+      {
+        name: 'api-b',
+        path: path.join(workspacePath, 'api-b'),
+        stack: 'unknown',
+        confidence: 'low',
+        source: 'git-url',
+        importedAt: '2026-05-04T11:05:00.000Z',
+      },
+    ]);
+
+    const entries = await readImportedProjectsRegistry(workspacePath);
+    expect(entries).toHaveLength(2);
+
+    const byPath = new Map(entries.map((item) => [item.path, item] as const));
+    expect(byPath.get(path.join(workspacePath, 'api-a'))?.name).toBe('api-a-renamed');
+    expect(byPath.get(path.join(workspacePath, 'api-a'))?.stack).toBe('fastapi');
+    expect(byPath.get(path.join(workspacePath, 'api-b'))?.source).toBe('git-url');
+  });
+
+  it('ignores malformed registry payloads safely', async () => {
+    const workspacePath = await createWorkspace();
+    const malformedPath = path.join(workspacePath, '.rapidkit', 'imported-projects.json');
+
+    await fs.ensureDir(path.dirname(malformedPath));
+    await fs.writeJSON(
+      malformedPath,
+      {
+        version: 1,
+        updatedAt: '2026-05-04T12:00:00.000Z',
+        projects: [{ bogus: true }, { name: 'x', path: '/tmp/x' }],
+      },
+      { spaces: 2 }
+    );
+
+    const entries = await readImportedProjectsRegistry(workspacePath);
+    expect(entries).toEqual([]);
+  });
+});

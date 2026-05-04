@@ -25,10 +25,13 @@ import { Footer } from '@/components/Footer';
 import { AIActions } from '@/components/AIActions';
 import { AIIncidentStudio } from '@/components/AIIncidentStudio';
 import {
+    DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE,
     DEFAULT_INCIDENT_USER_MODE,
+    normalizeIncidentStudioDisplayMode,
     normalizeIncidentPrimaryCtaExperimentVariant,
     normalizeIncidentUserMode,
     resolveIncidentPrimaryCtaMode,
+    type IncidentStudioDisplayMode,
     type IncidentPrimaryCtaExperimentVariant,
     type IncidentUserMode,
 } from '@/lib/incidentStudioPreferences';
@@ -313,6 +316,8 @@ export function App() {
     const [importedWorkspaceShare, setImportedWorkspaceShare] =
         useState<ImportedWorkspaceShareSummary | null>(null);
     const [incidentUserMode, setIncidentUserMode] = useState<IncidentUserMode>(DEFAULT_INCIDENT_USER_MODE);
+    const [incidentStudioDisplayMode, setIncidentStudioDisplayMode] =
+        useState<IncidentStudioDisplayMode>(DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE);
     const [incidentPrimaryCtaExperimentVariant, setIncidentPrimaryCtaExperimentVariant] =
         useState<IncidentPrimaryCtaExperimentVariant | null>(null);
     const [incidentAutoLearningPrompt, setIncidentAutoLearningPrompt] = useState(true);
@@ -358,6 +363,19 @@ export function App() {
         vscode.postMessage('setUiPreference', {
             key: 'incidentUserMode',
             value: normalizedMode,
+        });
+    };
+
+    const resolveIncidentPreferenceWorkspacePath = () =>
+        selectedWorkspaceForAnalysis || workspaceStatus.workspacePath || undefined;
+
+    const updateIncidentStudioDisplayMode = (mode: IncidentStudioDisplayMode) => {
+        const normalizedMode = normalizeIncidentStudioDisplayMode(mode);
+        setIncidentStudioDisplayMode(normalizedMode);
+        vscode.postMessage('setUiPreference', {
+            key: 'incidentStudioDisplayMode',
+            value: normalizedMode,
+            workspacePath: resolveIncidentPreferenceWorkspacePath(),
         });
     };
 
@@ -932,6 +950,9 @@ export function App() {
                         setIsSetupCardHidden(message.data.setupStatusCardHidden);
                     }
                     setIncidentUserMode(normalizeIncidentUserMode(message.data?.incidentUserMode));
+                    setIncidentStudioDisplayMode(
+                        normalizeIncidentStudioDisplayMode(message.data?.incidentStudioDisplayMode)
+                    );
                     setIncidentPrimaryCtaExperimentVariant(
                         normalizeIncidentPrimaryCtaExperimentVariant(
                             message.data?.incidentPrimaryCtaExperimentVariant
@@ -1162,6 +1183,7 @@ export function App() {
         setIncidentResume(null);
 
         window.setTimeout(() => {
+            vscode.postMessage('getUiPreferences', { workspacePath });
             vscode.postMessage('requestIncidentStudioTelemetry', { workspacePath });
             vscode.postMessage(
                 'aiChatStart',
@@ -1583,6 +1605,23 @@ export function App() {
                                     Expert
                                 </button>
                             </div>
+                            <div className="incident-mode-group" role="group" aria-label="Studio display mode">
+                                <span className="incident-mode-group-label">Studio View</span>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip ${incidentStudioDisplayMode === 'lite' ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentStudioDisplayMode('lite')}
+                                >
+                                    Lite
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`incident-mode-chip ${incidentStudioDisplayMode === 'full' ? 'is-active' : ''}`}
+                                    onClick={() => updateIncidentStudioDisplayMode('full')}
+                                >
+                                    Full
+                                </button>
+                            </div>
                             <div className="incident-mode-group" role="group" aria-label="Automation controls">
                                 <span className="incident-mode-group-label">Automation</span>
                                 <button
@@ -1664,6 +1703,7 @@ export function App() {
                         onImportIncidentReproPack={handleImportIncidentReproPack}
                         executingCommand={chatBrainExecutingCommand}
                         primaryCtaMode={incidentPrimaryCtaMode}
+                        studioDisplayMode={incidentStudioDisplayMode}
                         userMode={incidentUserMode}
                         onUserModeChange={updateIncidentUserMode}
                         hasProjectSelected={Boolean(workspaceStatus.hasProjectSelected)}

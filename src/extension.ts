@@ -69,6 +69,21 @@ const AI_ONBOARDING_TOAST_VARIANT_KEY = 'workspai.aiOnboarding.toastVariant';
 
 type AIFollowupToastVariant = 'control' | 'compact';
 
+function parseUriListToFsPaths(uriList: string): string[] {
+  return uriList
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => Boolean(line) && !line.startsWith('#'))
+    .map((line) => {
+      try {
+        return vscode.Uri.parse(line).fsPath;
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
 // Track running dev servers per project (exported for ProjectExplorer)
 export const runningServers: Map<string, vscode.Terminal> = new Map();
 
@@ -492,8 +507,33 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.window.registerWebviewViewProvider('rapidkitActionsWebview', actionsWebviewProvider),
       vscode.window.registerTreeDataProvider('rapidkitWorkspaces', workspaceExplorer)
     );
+    const projectsDropController: vscode.TreeDragAndDropController<ProjectTreeItem> = {
+      dragMimeTypes: [],
+      dropMimeTypes: ['text/uri-list'],
+      handleDrag: async () => {
+        // Drag export is intentionally disabled; this controller is for import-only drops.
+      },
+      handleDrop: async (_target, dataTransfer) => {
+        const uriListItem = dataTransfer.get('text/uri-list');
+        if (!uriListItem) {
+          return;
+        }
+
+        const droppedPaths = parseUriListToFsPaths(await uriListItem.asString());
+        if (droppedPaths.length === 0) {
+          return;
+        }
+
+        await vscode.commands.executeCommand('workspai.importProject', {
+          source: 'drag-drop',
+          droppedPaths,
+        });
+      },
+    };
+
     const projectsTreeView = vscode.window.createTreeView('rapidkitProjects', {
       treeDataProvider: projectExplorer,
+      dragAndDropController: projectsDropController,
     });
     context.subscriptions.push(projectsTreeView);
     projectsTreeView.onDidChangeSelection((e) => {

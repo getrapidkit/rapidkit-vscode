@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import { CommandTelemetryTimeWindow, WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
 import { openProjectFolder, copyProjectPath, deleteProject } from './projectContextMenu';
+import { adoptProjectCommand } from './adoptProject';
 
 export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
   return [
@@ -24,6 +25,22 @@ export function registerProjectContextAndLogCommands(): vscode.Disposable[] {
       if (projectPath) {
         await deleteProject(projectPath);
       }
+    }),
+
+    vscode.commands.registerCommand('workspai.convertProjectToManaged', async (item: any) => {
+      const project = item?.project;
+      const projectPath = project?.path || item?.projectPath;
+      if (!projectPath) {
+        vscode.window.showWarningMessage('Select a project first.');
+        return;
+      }
+
+      await adoptProjectCommand({
+        projectPath,
+        projectName: project?.name,
+        projectType: project?.type,
+        workspacePath: project?.workspacePath,
+      });
     }),
 
     vscode.commands.registerCommand('workspai.openProjectDashboard', async (projectItem: any) => {

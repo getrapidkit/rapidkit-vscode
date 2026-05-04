@@ -8,6 +8,8 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { WorkspaiProject, WorkspaiWorkspace } from '../../types';
 import { runningServers } from '../../extension';
+import { detectProjectStackFromSignals } from '../../commands/importProjectUtils';
+import { readImportedProjectsRegistry } from '../../utils/importedProjectsRegistry';
 
 // Store extension path for icons
 let extensionPath: string = '';
@@ -87,7 +89,26 @@ function frameworkLabel(type: string): string {
   if (type === 'springboot') {
     return 'Spring Boot';
   }
+  if (type === 'unknown') {
+    return 'Generic';
+  }
   return type;
+}
+
+function inferKit(type: WorkspaiProject['type']): string {
+  if (type === 'fastapi') {
+    return 'fastapi.standard';
+  }
+  if (type === 'nestjs') {
+    return 'nestjs.standard';
+  }
+  if (type === 'go') {
+    return 'go.standard';
+  }
+  if (type === 'springboot') {
+    return 'springboot.standard';
+  }
+  return 'generic.imported';
 }
 
 export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectTreeItem> {
@@ -318,6 +339,11 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
     const wsPath = this.selectedWorkspace.path;
 
     try {
+      const importedRegistryEntries = await readImportedProjectsRegistry(wsPath);
+      const importedByPath = new Map(
+        importedRegistryEntries.map((entry) => [entry.path, entry] as const)
+      );
+
       const entries = await fs.readdir(wsPath, { withFileTypes: true });
       const projectDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
 
@@ -325,6 +351,7 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
       const detected = await Promise.all(
         projectDirs.map(async (entry) => {
           const projectPath = path.join(wsPath, entry.name);
+          const registryEntry = importedByPath.get(projectPath);
 
           const [hasPyproject, hasPackageJson, hasGoMod, hasPomXml, hasGradle, hasGradleKts] =
             await Promise.all([
@@ -336,39 +363,50 @@ export class ProjectExplorerProvider implements vscode.TreeDataProvider<ProjectT
               fs.pathExists(path.join(projectPath, 'build.gradle.kts')),
             ]);
 
+          const [hasRapidkitProjectJson, hasRapidkitContextJson] = await Promise.all([
+            fs.pathExists(path.join(projectPath, '.rapidkit', 'project.json')),
+            fs.pathExists(path.join(projectPath, '.rapidkit', 'context.json')),
+          ]);
+
+          let hasNestDependency = false;
+          if (hasPackageJson) {
+            try {
+              const packageJson = await fs.readJSON(path.join(projectPath, 'package.json'));
+              hasNestDependency = Boolean(packageJson.dependencies?.['@nestjs/core']);
+            } catch {
+              hasNestDependency = false;
+            }
+          }
+
+          const detection = detectProjectStackFromSignals({
+            hasPyProject: hasPyproject,
+            hasGoMod,
+            hasPomXml,
+            hasGradle,
+            hasGradleKts,
+            hasPackageJson,
+            hasNestDependency,
+          });
+
+          const hasRapidkitProjectMarker = hasRapidkitProjectJson || hasRapidkitContextJson;
+          const registryStack = registryEntry?.stack;
+          const projectType: WorkspaiProject['type'] =
+            registryStack && registryStack !== 'unknown' ? registryStack : detection.stack;
+
+          if (projectType === 'unknown' && !registryEntry && !hasRapidkitProjectMarker) {
+            return null;
+          }
+
           const base: Omit<WorkspaiProject, 'type'> = {
             name: entry.name,
             path: projectPath,
-            kit: 'standard',
+            kit: inferKit(projectType),
             modules: [],
             isValid: true,
             workspacePath: wsPath,
           };
 
-          if (hasPyproject) {
-            return { ...base, type: 'fastapi' } as WorkspaiProject;
-          }
-
-          if (hasPackageJson) {
-            try {
-              const packageJson = await fs.readJSON(path.join(projectPath, 'package.json'));
-              if (packageJson.dependencies?.['@nestjs/core']) {
-                return { ...base, type: 'nestjs' } as WorkspaiProject;
-              }
-            } catch {
-              // Invalid package.json — skip
-            }
-          }
-
-          if (hasGoMod) {
-            return { ...base, type: 'go' } as WorkspaiProject;
-          }
-
-          if (hasPomXml || hasGradle || hasGradleKts) {
-            return { ...base, type: 'springboot' } as WorkspaiProject;
-          }
-
-          return null;
+          return { ...base, type: projectType } as WorkspaiProject;
         })
       );
 
@@ -407,15 +445,19 @@ export class ProjectTreeItem extends vscode.TreeItem {
 
       // Use custom framework icons
       if (extensionPath) {
-        const iconName =
-          project.type === 'fastapi'
-            ? 'fastapi.svg'
-            : project.type === 'nestjs'
-              ? 'nestjs.svg'
-              : project.type === 'springboot'
-                ? 'springboot.svg'
-                : 'go.svg';
-        this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+        if (project.type === 'unknown') {
+          this.iconPath = new vscode.ThemeIcon('package', new vscode.ThemeColor('charts.gray'));
+        } else {
+          const iconName =
+            project.type === 'fastapi'
+              ? 'fastapi.svg'
+              : project.type === 'nestjs'
+                ? 'nestjs.svg'
+                : project.type === 'springboot'
+                  ? 'springboot.svg'
+                  : 'go.svg';
+          this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+        }
       } else {
         const iconId =
           project.type === 'fastapi'
@@ -424,7 +466,9 @@ export class ProjectTreeItem extends vscode.TreeItem {
               ? 'symbol-class'
               : project.type === 'springboot'
                 ? 'symbol-structure'
-                : 'symbol-namespace';
+                : project.type === 'go'
+                  ? 'symbol-namespace'
+                  : 'package';
         const colorId = isSelected
           ? 'charts.blue'
           : project.type === 'fastapi'
@@ -433,7 +477,9 @@ export class ProjectTreeItem extends vscode.TreeItem {
               ? 'charts.red'
               : project.type === 'springboot'
                 ? 'charts.green'
-                : 'charts.blue';
+                : project.type === 'go'
+                  ? 'charts.blue'
+                  : 'charts.gray';
         this.iconPath = new vscode.ThemeIcon(iconId, new vscode.ThemeColor(colorId));
       }
 
@@ -452,15 +498,22 @@ export class ProjectTreeItem extends vscode.TreeItem {
 
       // Use custom framework icons with running indicator
       if (extensionPath) {
-        const iconName =
-          project.type === 'fastapi'
-            ? 'fastapi.svg'
-            : project.type === 'nestjs'
-              ? 'nestjs.svg'
-              : project.type === 'springboot'
-                ? 'springboot.svg'
-                : 'go.svg';
-        this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+        if (project.type === 'unknown') {
+          this.iconPath = new vscode.ThemeIcon(
+            'vm-running',
+            new vscode.ThemeColor(isSelected ? 'charts.blue' : 'testing.runAction')
+          );
+        } else {
+          const iconName =
+            project.type === 'fastapi'
+              ? 'fastapi.svg'
+              : project.type === 'nestjs'
+                ? 'nestjs.svg'
+                : project.type === 'springboot'
+                  ? 'springboot.svg'
+                  : 'go.svg';
+          this.iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icons', iconName));
+        }
       } else {
         this.iconPath = new vscode.ThemeIcon(
           'vm-running',

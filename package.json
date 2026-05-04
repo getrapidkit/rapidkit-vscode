@@ -93,6 +93,18 @@
         "icon": "$(new-folder)"
       },
       {
+        "command": "workspai.importProject",
+        "title": "Import Project",
+        "category": "Workspai",
+        "icon": "$(repo-pull)"
+      },
+      {
+        "command": "workspai.openArchitectureMap",
+        "title": "Open Architecture Map",
+        "category": "Workspai",
+        "icon": "$(graph)"
+      },
+      {
         "command": "workspai.aiCreateProject",
         "title": "Create Project with AI",
         "category": "Workspai",
@@ -247,6 +259,12 @@
         "title": "Copy Path",
         "category": "Workspai",
         "icon": "$(copy)"
+      },
+      {
+        "command": "workspai.convertProjectToManaged",
+        "title": "Convert Generic Project to Managed Workspai",
+        "category": "Workspai",
+        "icon": "$(shield)"
       },
       {
         "command": "workspai.discoverWorkspaces",
@@ -683,6 +701,12 @@
           "command": "workspai.createProject"
         },
         {
+          "command": "workspai.importProject"
+        },
+        {
+          "command": "workspai.openArchitectureMap"
+        },
+        {
           "command": "workspai.addModule"
         },
         {
@@ -691,6 +715,10 @@
         },
         {
           "command": "workspai.openProjectDashboard",
+          "when": "workspai:hasProjects"
+        },
+        {
+          "command": "workspai.convertProjectToManaged",
           "when": "workspai:hasProjects"
         },
         {
@@ -852,9 +880,14 @@
           "group": "navigation@1"
         },
         {
-          "command": "workspai.refreshProjects",
+          "command": "workspai.importProject",
           "when": "view == rapidkitProjects",
           "group": "navigation@2"
+        },
+        {
+          "command": "workspai.refreshProjects",
+          "when": "view == rapidkitProjects",
+          "group": "navigation@3"
         },
         {
           "command": "workspai.doctorEvidence.rerun",
@@ -889,9 +922,14 @@
           "group": "inline@0"
         },
         {
-          "command": "workspai.aiQuickActions",
+          "command": "workspai.openArchitectureMap",
           "when": "view == rapidkitWorkspaces && viewItem == workspace",
           "group": "inline@2"
+        },
+        {
+          "command": "workspai.aiQuickActions",
+          "when": "view == rapidkitWorkspaces && viewItem == workspace",
+          "group": "inline@3"
         },
         {
           "command": "workspai.exportWorkspace",
@@ -1029,6 +1067,11 @@
           "group": "project@2"
         },
         {
+          "command": "workspai.convertProjectToManaged",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "project@3"
+        },
+        {
           "command": "workspai.openProjectFolder",
           "when": "view == rapidkitProjects && viewItem == project",
           "group": "navigation@1"
@@ -1054,44 +1097,49 @@
           "group": "inline@0"
         },
         {
-          "command": "workspai.aiChangeImpactLite",
+          "command": "workspai.openArchitectureMap",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@2"
         },
         {
-          "command": "workspai.aiQuickActions",
+          "command": "workspai.aiChangeImpactLite",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@3"
         },
         {
-          "command": "workspai.projectTerminal",
+          "command": "workspai.aiQuickActions",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@4"
         },
         {
-          "command": "workspai.projectInit",
+          "command": "workspai.projectTerminal",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
           "group": "inline@5"
         },
         {
+          "command": "workspai.projectInit",
+          "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
+          "group": "inline@6"
+        },
+        {
           "command": "workspai.projectDev",
           "when": "view == rapidkitProjects && viewItem == project",
-          "group": "inline@6"
+          "group": "inline@7"
         },
         {
           "command": "workspai.projectStop",
           "when": "view == rapidkitProjects && viewItem == project-running",
-          "group": "inline@6"
+          "group": "inline@7"
         },
         {
           "command": "workspai.projectTest",
           "when": "view == rapidkitProjects && viewItem =~ /^project(-running)?$/",
-          "group": "inline@7"
+          "group": "inline@8"
         },
         {
           "command": "workspai.projectBrowser",
           "when": "view == rapidkitProjects && viewItem == project-running",
-          "group": "inline@8"
+          "group": "inline@9"
         },
         {
           "command": "workspai.newFile",
@@ -1361,6 +1409,7 @@
     "test:vscode": "vscode-test",
     "release:stop-gate": "node scripts/release-stop-gate.mjs",
     "release:stop-gate:wave2": "node scripts/release-stop-gate.mjs --manifest releases/wave2-foundation-gate.json --marker releases/fixtures/wave2-kpi-marker.json",
+    "release:stop-gate:wave3": "node scripts/release-stop-gate.mjs --manifest releases/wave3-foundation-gate.json --claim-checklist releases/wave3-claim-checklist.md --enforce-claim-checklist --marker releases/fixtures/wave3-kpi-marker.json",
     "sync:modules": "node scripts/sync-modules.mjs",
     "package": "vsce package",
     "publish": "vsce publish",
