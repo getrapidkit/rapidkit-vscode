@@ -1,0 +1,1 @@
+export { FastApiArchitectureMapper } from '../architectureMapper';

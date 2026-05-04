@@ -15,6 +15,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getAllProfiles, getFrameworkProfile } from './byopFrameworkProfiles';
 
 // ============================================================================
 // Types
@@ -118,146 +119,50 @@ export class ByopDiscoveryEngine {
       timestamp: new Date().toISOString(),
     };
 
-    // Check package.json (Node.js)
-    const packageJsonPath = path.join(this.projectPath, 'package.json');
-    if (this.fileExists(packageJsonPath)) {
-      const packageJson = this.readJson(packageJsonPath);
-      if (packageJson?.dependencies || packageJson?.devDependencies) {
-        const allDeps = {
-          ...packageJson.dependencies,
-          ...packageJson.devDependencies,
-        };
+    const manifestSpecs: Array<{ fileName: string; runtime: RuntimeType }> = [
+      { fileName: 'package.json', runtime: 'nodejs' },
+      { fileName: 'pyproject.toml', runtime: 'python' },
+      { fileName: 'requirements.txt', runtime: 'python' },
+      { fileName: 'go.mod', runtime: 'go' },
+      { fileName: 'pom.xml', runtime: 'java' },
+      { fileName: 'build.gradle', runtime: 'java' },
+      { fileName: 'build.gradle.kts', runtime: 'java' },
+      { fileName: 'Gemfile', runtime: 'ruby' },
+    ];
 
-        if (allDeps['fastapi']) {
-          signalSet.signals.push({
-            source: 'packageManager',
-            runtime: 'nodejs',
-            framework: 'fastapi',
-            confidence: 0.95,
-            evidence: 'package.json contains fastapi dependency',
-          });
-        }
-        if (allDeps['@nestjs/core']) {
-          signalSet.signals.push({
-            source: 'packageManager',
-            runtime: 'nodejs',
-            framework: 'nestjs',
-            confidence: 0.98,
-            evidence: 'package.json contains @nestjs/core',
-          });
-        }
-        if (allDeps['express']) {
-          signalSet.signals.push({
-            source: 'packageManager',
-            runtime: 'nodejs',
-            framework: 'express',
-            confidence: 0.9,
-            evidence: 'package.json contains express',
-          });
-        }
-        if (allDeps['koa']) {
-          signalSet.signals.push({
-            source: 'packageManager',
-            runtime: 'nodejs',
-            framework: 'koa',
-            confidence: 0.85,
-            evidence: 'package.json contains koa',
-          });
-        }
-        if (signalSet.signals.length === 0) {
-          signalSet.signals.push({
-            source: 'packageManager',
-            runtime: 'nodejs',
-            confidence: 0.7,
-            evidence: 'package.json present, Node.js runtime detected',
-          });
-        }
+    const csprojFiles = this.findFilesWithExtension(this.projectPath, '.csproj', 3).map((f) => ({
+      fileName: this.toProjectRelative(f),
+      runtime: 'csharp' as RuntimeType,
+    }));
+
+    const runtimeHintAdded = new Set<RuntimeType>();
+    const allSpecs = [...manifestSpecs, ...csprojFiles];
+    for (const spec of allSpecs) {
+      const manifestPath = path.isAbsolute(spec.fileName)
+        ? spec.fileName
+        : path.join(this.projectPath, spec.fileName);
+      if (!this.fileExists(manifestPath)) {
+        continue;
       }
+
+      const content = fs.readFileSync(manifestPath, 'utf-8');
+      const rel = this.toProjectRelative(manifestPath);
+
+      if (!runtimeHintAdded.has(spec.runtime)) {
+        runtimeHintAdded.add(spec.runtime);
+        signalSet.signals.push({
+          source: 'packageManager',
+          runtime: spec.runtime,
+          confidence: 0.72,
+          evidence: `${rel} present`,
+        });
+      }
+
+      const frameworkSignals = this.detectFrameworkSignalsFromManifest(content, spec.runtime, rel);
+      signalSet.signals.push(...frameworkSignals);
     }
 
-    // Check pyproject.toml (Python)
-    const pyprojectPath = path.join(this.projectPath, 'pyproject.toml');
-    if (this.fileExists(pyprojectPath)) {
-      const pyprojectContent = fs.readFileSync(pyprojectPath, 'utf-8');
-
-      if (pyprojectContent.includes('fastapi')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'python',
-          framework: 'fastapi',
-          confidence: 0.95,
-          evidence: 'pyproject.toml contains fastapi',
-        });
-      }
-      if (pyprojectContent.includes('django')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'python',
-          framework: 'django',
-          confidence: 0.95,
-          evidence: 'pyproject.toml contains django',
-        });
-      }
-      if (pyprojectContent.includes('flask')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'python',
-          framework: 'flask',
-          confidence: 0.9,
-          evidence: 'pyproject.toml contains flask',
-        });
-      }
-      if (signalSet.signals.length === 0) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'python',
-          confidence: 0.7,
-          evidence: 'pyproject.toml present, Python runtime detected',
-        });
-      }
-    }
-
-    // Check go.mod (Go)
-    const goModPath = path.join(this.projectPath, 'go.mod');
-    if (this.fileExists(goModPath)) {
-      const goModContent = fs.readFileSync(goModPath, 'utf-8');
-
-      if (goModContent.includes('github.com/gin-gonic/gin')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'go',
-          framework: 'gin',
-          confidence: 0.95,
-          evidence: 'go.mod contains github.com/gin-gonic/gin',
-        });
-      }
-      if (goModContent.includes('github.com/labstack/echo')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'go',
-          framework: 'echo',
-          confidence: 0.95,
-          evidence: 'go.mod contains github.com/labstack/echo',
-        });
-      }
-      if (goModContent.includes('github.com/valyala/fasthttp')) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'go',
-          framework: 'fasthttp',
-          confidence: 0.85,
-          evidence: 'go.mod contains github.com/valyala/fasthttp',
-        });
-      }
-      if (signalSet.signals.length === 0) {
-        signalSet.signals.push({
-          source: 'packageManager',
-          runtime: 'go',
-          confidence: 0.8,
-          evidence: 'go.mod present, Go runtime detected',
-        });
-      }
-    }
+    this.dedupeSignals(signalSet.signals);
 
     if (signalSet.signals.length > 0) {
       this.signals.push(signalSet);
@@ -360,102 +265,48 @@ export class ByopDiscoveryEngine {
       timestamp: new Date().toISOString(),
     };
 
-    // Check for Python entry points
-    const pythonFiles = ['main.py', 'app.py', 'server.py', 'wsgi.py', 'run.py'];
-    for (const file of pythonFiles) {
-      const filePath = path.join(this.projectPath, file);
-      if (this.fileExists(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        if (content.includes('FastAPI(')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'python',
-            framework: 'fastapi',
-            confidence: 0.95,
-            evidence: `Found ${file} with FastAPI() instantiation`,
-          });
-          break;
+    const sourceFiles = this.findFilesWithExtension(this.projectPath, '.py', 7)
+      .concat(this.findFilesWithExtension(this.projectPath, '.ts', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.js', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.go', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.java', 8))
+      .concat(this.findFilesWithExtension(this.projectPath, '.rb', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.cs', 8));
+
+    for (const profile of getAllProfiles()) {
+      const byFilePattern = sourceFiles.filter((filePath) => {
+        const rel = this.toProjectRelative(filePath);
+        return profile.filePatterns.some((pattern) => pattern.test(rel));
+      });
+
+      const candidates = byFilePattern.length > 0 ? byFilePattern : sourceFiles;
+      for (const filePath of candidates.slice(0, 60)) {
+        const content = safeRead(filePath);
+        if (!content) {
+          continue;
         }
-        if (content.includes('Flask(')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'python',
-            framework: 'flask',
-            confidence: 0.95,
-            evidence: `Found ${file} with Flask() instantiation`,
-          });
-          break;
+        const rel = this.toProjectRelative(filePath);
+        const hasEntryPattern = profile.entryPointPatterns.some((pattern) => pattern.test(content));
+        const hasSignalPattern = profile.detectionSignals
+          .filter((signal) => signal.source === 'entrypoint')
+          .some((signal) => this.matchesPattern(signal.pattern, content));
+
+        if (!hasEntryPattern && !hasSignalPattern) {
+          continue;
         }
-        if (content.includes('django')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'python',
-            framework: 'django',
-            confidence: 0.85,
-            evidence: `Found ${file} with Django references`,
-          });
-          break;
-        }
+
+        signalSet.signals.push({
+          source: 'entryPoint',
+          runtime: profile.runtime as RuntimeType,
+          framework: profile.name,
+          confidence: this.maxSignalWeight(profile, 'entrypoint', hasEntryPattern ? 0.92 : 0.86),
+          evidence: `Entrypoint pattern matched for ${profile.name} in ${rel}`,
+        });
+        break;
       }
     }
 
-    // Check for Node.js entry points
-    const nodeFiles = ['server.js', 'index.js', 'app.js', 'main.js'];
-    for (const file of nodeFiles) {
-      const filePath = path.join(this.projectPath, file);
-      if (this.fileExists(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        if (content.includes('NestFactory.create') || content.includes('@nestjs')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'nodejs',
-            framework: 'nestjs',
-            confidence: 0.95,
-            evidence: `Found ${file} with NestJS patterns`,
-          });
-          break;
-        }
-        if (content.includes('express()') || content.includes('new express.Router')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'nodejs',
-            framework: 'express',
-            confidence: 0.95,
-            evidence: `Found ${file} with Express patterns`,
-          });
-          break;
-        }
-      }
-    }
-
-    // Check for Go entry points
-    const goFiles = ['main.go'];
-    for (const file of goFiles) {
-      const filePath = path.join(this.projectPath, file);
-      if (this.fileExists(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        if (content.includes('github.com/gin-gonic/gin')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'go',
-            framework: 'gin',
-            confidence: 0.9,
-            evidence: `Found ${file} with Gin framework`,
-          });
-          break;
-        }
-        if (content.includes('github.com/labstack/echo')) {
-          signalSet.signals.push({
-            source: 'entryPoint',
-            runtime: 'go',
-            framework: 'echo',
-            confidence: 0.9,
-            evidence: `Found ${file} with Echo framework`,
-          });
-          break;
-        }
-      }
-    }
+    this.dedupeSignals(signalSet.signals);
 
     if (signalSet.signals.length > 0) {
       this.signals.push(signalSet);
@@ -472,71 +323,47 @@ export class ByopDiscoveryEngine {
       timestamp: new Date().toISOString(),
     };
 
-    // Sample imports from Python files
-    const pythonDir = path.join(this.projectPath, 'src');
-    if (fs.existsSync(pythonDir)) {
-      const pyFiles = this.findFilesWithExtension(pythonDir, '.py', 5);
-      for (const file of pyFiles.slice(0, 10)) {
-        // Sample first 10 files
-        const content = fs.readFileSync(file, 'utf-8');
-        const imports = content.split('\n').slice(0, 50).join('\n'); // First 50 lines
+    const files = this.findFilesWithExtension(this.projectPath, '.py', 7)
+      .concat(this.findFilesWithExtension(this.projectPath, '.ts', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.js', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.go', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.java', 8))
+      .concat(this.findFilesWithExtension(this.projectPath, '.rb', 7))
+      .concat(this.findFilesWithExtension(this.projectPath, '.cs', 8));
 
-        if (imports.includes('from fastapi import')) {
-          signalSet.signals.push({
-            source: 'imports',
-            runtime: 'python',
-            framework: 'fastapi',
-            confidence: 0.9,
-            evidence: `Found 'from fastapi import' in ${path.basename(file)}`,
-          });
-          break;
+    const foundFrameworks = new Set<string>();
+    for (const filePath of files.slice(0, 180)) {
+      const content = safeRead(filePath);
+      if (!content) {
+        continue;
+      }
+      const importsSample = content.split('\n').slice(0, 80).join('\n');
+      const rel = this.toProjectRelative(filePath);
+
+      for (const profile of getAllProfiles()) {
+        if (foundFrameworks.has(profile.name)) {
+          continue;
         }
-        if (imports.includes('from flask import')) {
-          signalSet.signals.push({
-            source: 'imports',
-            runtime: 'python',
-            framework: 'flask',
-            confidence: 0.9,
-            evidence: `Found 'from flask import' in ${path.basename(file)}`,
-          });
-          break;
+        const hasImportSignal = profile.detectionSignals
+          .filter((signal) => signal.source === 'imports')
+          .some((signal) => this.matchesPattern(signal.pattern, importsSample));
+
+        if (!hasImportSignal) {
+          continue;
         }
+
+        foundFrameworks.add(profile.name);
+        signalSet.signals.push({
+          source: 'imports',
+          runtime: profile.runtime as RuntimeType,
+          framework: profile.name,
+          confidence: this.maxSignalWeight(profile, 'imports', 0.82),
+          evidence: `Import pattern matched for ${profile.name} in ${rel}`,
+        });
       }
     }
 
-    // Sample imports from Node.js files
-    const srcDir = path.join(this.projectPath, 'src');
-    if (fs.existsSync(srcDir)) {
-      const tsFiles = this.findFilesWithExtension(srcDir, '.ts', 5);
-      const jsFiles = this.findFilesWithExtension(srcDir, '.js', 5);
-      const allFiles = [...tsFiles, ...jsFiles];
-
-      for (const file of allFiles.slice(0, 10)) {
-        const content = fs.readFileSync(file, 'utf-8');
-        const imports = content.split('\n').slice(0, 50).join('\n');
-
-        if (imports.includes('@nestjs/core')) {
-          signalSet.signals.push({
-            source: 'imports',
-            runtime: 'nodejs',
-            framework: 'nestjs',
-            confidence: 0.9,
-            evidence: `Found @nestjs/core import in ${path.basename(file)}`,
-          });
-          break;
-        }
-        if (imports.includes('express')) {
-          signalSet.signals.push({
-            source: 'imports',
-            runtime: 'nodejs',
-            framework: 'express',
-            confidence: 0.75,
-            evidence: `Found express import in ${path.basename(file)}`,
-          });
-          break;
-        }
-      }
-    }
+    this.dedupeSignals(signalSet.signals);
 
     if (signalSet.signals.length > 0) {
       this.signals.push(signalSet);
@@ -595,7 +422,93 @@ export class ByopDiscoveryEngine {
           evidence: 'docker-compose.yml contains node service',
         });
       }
+      if (dockerComposeContent.includes('openjdk') || dockerComposeContent.includes('java')) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'java',
+          confidence: 0.68,
+          evidence: 'docker-compose.yml contains java/openjdk service',
+        });
+      }
+      if (dockerComposeContent.includes('ruby')) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'ruby',
+          confidence: 0.68,
+          evidence: 'docker-compose.yml contains ruby service',
+        });
+      }
+      if (dockerComposeContent.includes('dotnet')) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'csharp',
+          confidence: 0.68,
+          evidence: 'docker-compose.yml contains dotnet service',
+        });
+      }
     }
+
+    const pomPath = path.join(this.projectPath, 'pom.xml');
+    if (this.fileExists(pomPath)) {
+      const pom = fs.readFileSync(pomPath, 'utf-8');
+      signalSet.signals.push({
+        source: 'buildConfig',
+        runtime: 'java',
+        confidence: 0.72,
+        evidence: 'pom.xml present',
+      });
+      if (/spring-boot|org\.springframework\.boot/i.test(pom)) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'java',
+          framework: 'spring',
+          confidence: 0.9,
+          evidence: 'pom.xml contains Spring Boot dependencies',
+        });
+      }
+    }
+
+    const gemfilePath = path.join(this.projectPath, 'Gemfile');
+    if (this.fileExists(gemfilePath)) {
+      const gemfile = fs.readFileSync(gemfilePath, 'utf-8');
+      signalSet.signals.push({
+        source: 'buildConfig',
+        runtime: 'ruby',
+        confidence: 0.72,
+        evidence: 'Gemfile present',
+      });
+      if (/gem\s+['"]rails['"]/i.test(gemfile)) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'ruby',
+          framework: 'rails',
+          confidence: 0.9,
+          evidence: 'Gemfile contains rails gem',
+        });
+      }
+    }
+
+    const csprojFiles = this.findFilesWithExtension(this.projectPath, '.csproj', 3);
+    if (csprojFiles.length > 0) {
+      signalSet.signals.push({
+        source: 'buildConfig',
+        runtime: 'csharp',
+        confidence: 0.72,
+        evidence: `${this.toProjectRelative(csprojFiles[0])} present`,
+      });
+      const csprojContent = safeRead(csprojFiles[0]);
+      if (/Microsoft\.AspNetCore/i.test(csprojContent)) {
+        signalSet.signals.push({
+          source: 'buildConfig',
+          runtime: 'csharp',
+          framework: 'dotnet',
+          confidence: 0.9,
+          evidence: 'csproj contains Microsoft.AspNetCore packages',
+        });
+      }
+    }
+
+    this.dedupeSignals(signalSet.signals);
 
     if (signalSet.signals.length > 0) {
       this.signals.push(signalSet);
@@ -658,19 +571,26 @@ export class ByopDiscoveryEngine {
       }
     });
 
+    if (maxRuntime === 'unknown' && framework) {
+      const profile = getFrameworkProfile(framework as any);
+      if (profile) {
+        maxRuntime = profile.runtime as RuntimeType;
+      }
+    }
+
     // Calculate confidence level
     let confidenceLevel: ConfidenceLevel = 'low';
     const averageConfidence = runtimeSignalCount > 0 ? maxRuntimeScore / runtimeSignalCount : 0;
-    if (averageConfidence >= 0.8) {
+    if (averageConfidence >= 0.7) {
       confidenceLevel = 'high';
-    } else if (averageConfidence >= 0.5) {
+    } else if (averageConfidence >= 0.45) {
       confidenceLevel = 'medium';
     } else {
       confidenceLevel = 'low';
     }
 
     // Build reason
-    let reason = `Discovery completed with ${runtimeSignalCount} signals. `;
+    let reason = `Discovery completed with ${runtimeSignalCount} runtime signals. `;
     if (maxRuntime !== 'unknown') {
       reason += `Runtime: ${maxRuntime} (confidence: ${confidenceLevel}).`;
     } else {
@@ -688,6 +608,83 @@ export class ByopDiscoveryEngine {
     };
   }
 
+  private detectFrameworkSignalsFromManifest(
+    content: string,
+    runtime: RuntimeType,
+    fileName: string
+  ): DiscoverySignal[] {
+    const matches: DiscoverySignal[] = [];
+    for (const profile of getAllProfiles()) {
+      if (profile.runtime !== runtime) {
+        continue;
+      }
+
+      let bestWeight = 0;
+      for (const signal of profile.detectionSignals.filter((s) => s.source === 'packageManager')) {
+        if (this.matchesPattern(signal.pattern, content)) {
+          bestWeight = Math.max(bestWeight, signal.weight);
+        }
+      }
+
+      for (const depPattern of profile.dependencyPatterns) {
+        if (depPattern.test(content)) {
+          bestWeight = Math.max(bestWeight, 0.9);
+        }
+      }
+
+      if (bestWeight <= 0) {
+        continue;
+      }
+
+      matches.push({
+        source: 'packageManager',
+        runtime,
+        framework: profile.name,
+        confidence: Math.min(0.99, Math.max(0.78, bestWeight)),
+        evidence: `Dependency pattern matched for ${profile.name} in ${fileName}`,
+      });
+    }
+
+    return matches;
+  }
+
+  private matchesPattern(pattern: RegExp | string, content: string): boolean {
+    if (typeof pattern === 'string') {
+      return content.includes(pattern);
+    }
+    return pattern.test(content);
+  }
+
+  private maxSignalWeight(
+    profile: ReturnType<typeof getAllProfiles>[number],
+    source: 'packageManager' | 'imports' | 'entrypoint',
+    fallback: number
+  ): number {
+    const candidates = profile.detectionSignals.filter((signal) => signal.source === source);
+    if (candidates.length === 0) {
+      return fallback;
+    }
+    return Math.max(...candidates.map((c) => c.weight));
+  }
+
+  private dedupeSignals(signals: DiscoverySignal[]): void {
+    const seen = new Set<string>();
+    const next: DiscoverySignal[] = [];
+    for (const signal of signals) {
+      const key = `${signal.source}|${signal.runtime ?? ''}|${signal.framework ?? ''}|${signal.evidence ?? ''}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      next.push(signal);
+    }
+    signals.splice(0, signals.length, ...next);
+  }
+
+  private toProjectRelative(filePath: string): string {
+    return path.relative(this.projectPath, filePath).replace(/\\/g, '/');
+  }
+
   /**
    * Helper: Check if file exists
    */
@@ -696,18 +693,6 @@ export class ByopDiscoveryEngine {
       return fs.existsSync(filePath);
     } catch {
       return false;
-    }
-  }
-
-  /**
-   * Helper: Read JSON file safely
-   */
-  private readJson(filePath: string): any {
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(content);
-    } catch {
-      return null;
     }
   }
 
@@ -745,5 +730,13 @@ export class ByopDiscoveryEngine {
     }
 
     return files;
+  }
+}
+
+function safeRead(filePath: string): string {
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return '';
   }
 }

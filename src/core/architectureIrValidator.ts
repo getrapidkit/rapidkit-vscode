@@ -5,7 +5,15 @@
  * validates confidence levels, and checks for consistency.
  */
 
-import { ArchitectureIR, IRValidationResult, ValidationError } from './architectureIr';
+import {
+  ArchitectureIR,
+  IRValidationResult,
+  ValidationError,
+  createArchitectureIR,
+  createDataStoreComponent,
+  createServiceComponent,
+  RuntimeType,
+} from './architectureIr';
 
 export class ArchitectureIRValidator {
   private errors: ValidationError[] = [];
@@ -104,6 +112,61 @@ export class ArchitectureIRValidator {
 
     if (!ir.mapping || typeof ir.mapping !== 'object') {
       this.addError('MISSING_MAPPING', 'mapping must be an object', '$.mapping', 'error');
+    }
+
+    if (
+      ir.metadata &&
+      ir.metadata.scopeCoverage !== undefined &&
+      !['known', 'partial', 'unknown'].includes(ir.metadata.scopeCoverage)
+    ) {
+      this.addWarning(
+        'INVALID_SCOPE_COVERAGE',
+        "metadata.scopeCoverage should be one of: 'known', 'partial', 'unknown'",
+        '$.metadata.scopeCoverage',
+        'warning'
+      );
+    }
+
+    if (
+      ir.metadata &&
+      ir.metadata.scopeConfidenceScore !== undefined &&
+      (!Number.isFinite(ir.metadata.scopeConfidenceScore) ||
+        ir.metadata.scopeConfidenceScore < 0 ||
+        ir.metadata.scopeConfidenceScore > 1)
+    ) {
+      this.addWarning(
+        'INVALID_SCOPE_CONFIDENCE_SCORE',
+        'metadata.scopeConfidenceScore should be a number between 0 and 1',
+        '$.metadata.scopeConfidenceScore',
+        'warning'
+      );
+    }
+
+    if (
+      ir.metadata &&
+      ir.metadata.blockMutationWhenScopeUnknown !== undefined &&
+      typeof ir.metadata.blockMutationWhenScopeUnknown !== 'boolean'
+    ) {
+      this.addWarning(
+        'INVALID_BLOCK_MUTATION_FLAG',
+        'metadata.blockMutationWhenScopeUnknown should be a boolean',
+        '$.metadata.blockMutationWhenScopeUnknown',
+        'warning'
+      );
+    }
+
+    if (
+      ir.metadata &&
+      ir.metadata.blockedReasons !== undefined &&
+      (!Array.isArray(ir.metadata.blockedReasons) ||
+        ir.metadata.blockedReasons.some((reason) => typeof reason !== 'string'))
+    ) {
+      this.addWarning(
+        'INVALID_BLOCKED_REASONS',
+        'metadata.blockedReasons should be a string array',
+        '$.metadata.blockedReasons',
+        'warning'
+      );
     }
 
     // Check timestamps
@@ -499,6 +562,120 @@ export class ArchitectureIRValidator {
   }
 
   /**
+   * Migrate historical/non-conformant payloads to ArchitectureIR v1.
+   */
+  migrateIR(oldIr: any, fromVersion: string = 'v0'): ArchitectureIR {
+    if (oldIr?.schemaVersion === 'v1') {
+      return oldIr as ArchitectureIR;
+    }
+
+    const runtime = this.normalizeRuntime(oldIr?.runtime ?? oldIr?.language ?? 'unknown');
+    const projectId = oldIr?.projectId ?? oldIr?.id ?? oldIr?.project?.id ?? 'migrated-project';
+    const projectName =
+      oldIr?.projectName ?? oldIr?.name ?? oldIr?.project?.name ?? 'Migrated Project';
+
+    const next = createArchitectureIR(projectId, projectName, runtime);
+    next.framework = oldIr?.framework;
+    next.metadata.mapperType = 'manual';
+    next.metadata.confidenceLevel = 'medium';
+    next.metadata.confidenceReason = `Migrated from ${fromVersion} to v1`;
+
+    const services = oldIr?.topology?.services ?? oldIr?.services ?? [];
+    for (const serviceLike of services) {
+      const id = serviceLike?.id ?? serviceLike?.serviceId;
+      if (!id || typeof id !== 'string') {
+        continue;
+      }
+      const service = createServiceComponent(
+        id,
+        serviceLike?.name ?? id,
+        this.normalizeRuntime(serviceLike?.runtime ?? runtime),
+        serviceLike?.path ?? '.',
+        serviceLike?.entryPoint ?? serviceLike?.sourceFile ?? 'unknown'
+      );
+      service.framework = serviceLike?.framework ?? oldIr?.framework;
+      service.confidenceLevel = this.normalizeConfidence(serviceLike?.confidenceLevel, 'medium');
+
+      const handlers = serviceLike?.handlers ?? serviceLike?.routes ?? serviceLike?.endpoints ?? [];
+      service.handlers = handlers
+        .map((handlerLike: any, index: number) => {
+          const method = String(handlerLike?.method ?? 'ANY').toUpperCase();
+          const allowed = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ANY'];
+          return {
+            id: handlerLike?.id ?? `${id}-handler-${index + 1}`,
+            method: (allowed.includes(method) ? method : 'ANY') as
+              | 'GET'
+              | 'POST'
+              | 'PUT'
+              | 'DELETE'
+              | 'PATCH'
+              | 'ANY',
+            path: handlerLike?.path ?? handlerLike?.route ?? '/',
+            sourceFile: handlerLike?.sourceFile ?? service.entryPoint,
+            confidence: Number.isFinite(handlerLike?.confidence) ? handlerLike.confidence : 0.7,
+          };
+        })
+        .filter((h: any) => typeof h.path === 'string');
+
+      const dependencies = serviceLike?.dependencies ?? [];
+      service.dependencies = dependencies
+        .map((depLike: any) => {
+          if (typeof depLike === 'string') {
+            return {
+              componentId: depLike,
+              componentType: 'service' as const,
+              direction: 'outbound' as const,
+            };
+          }
+          if (depLike?.componentId) {
+            return {
+              componentId: depLike.componentId,
+              componentType: depLike.componentType ?? 'service',
+              direction: depLike.direction ?? 'outbound',
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      next.topology.services.push(service);
+      next.mapping[id] = {
+        sourceFile: service.entryPoint,
+        lineRange: [1, 1],
+        confidence: 0.7,
+        mappedAt: new Date().toISOString(),
+        mapperType: 'manual',
+        evidence: [`Migrated service '${id}' from ${fromVersion}`],
+      };
+    }
+
+    const dataStores = oldIr?.topology?.dataStores ?? oldIr?.dataStores ?? oldIr?.datastores ?? [];
+    for (const dataStoreLike of dataStores) {
+      const id = dataStoreLike?.id ?? dataStoreLike?.storeId;
+      if (!id || typeof id !== 'string') {
+        continue;
+      }
+      const type = this.normalizeDataStoreType(dataStoreLike?.type ?? dataStoreLike?.kind);
+      const dataStore = createDataStoreComponent(id, dataStoreLike?.name ?? id, type);
+      dataStore.confidenceLevel = this.normalizeConfidence(
+        dataStoreLike?.confidenceLevel,
+        'medium'
+      );
+      next.topology.dataStores.push(dataStore);
+      next.mapping[id] = {
+        sourceFile: dataStoreLike?.sourceFile ?? 'unknown',
+        lineRange: [1, 1],
+        confidence: 0.65,
+        mappedAt: new Date().toISOString(),
+        mapperType: 'manual',
+        evidence: [`Migrated datastore '${id}' from ${fromVersion}`],
+      };
+    }
+
+    return next;
+  }
+
+  /**
    * Helper: Check if timestamp is valid ISO 8601
    */
   private isValidISOTimestamp(timestamp: string): boolean {
@@ -515,6 +692,82 @@ export class ArchitectureIRValidator {
    */
   private isValidConfidenceLevel(level: any): boolean {
     return level === 'high' || level === 'medium' || level === 'low';
+  }
+
+  private normalizeRuntime(value: string): RuntimeType {
+    const lower = String(value ?? 'unknown').toLowerCase();
+    if (lower.includes('python')) {
+      return 'python';
+    }
+    if (lower.includes('node') || lower.includes('typescript') || lower.includes('javascript')) {
+      return 'nodejs';
+    }
+    if (lower.includes('go')) {
+      return 'go';
+    }
+    if (lower.includes('java') || lower.includes('spring')) {
+      return 'java';
+    }
+    if (lower.includes('ruby') || lower.includes('rails')) {
+      return 'ruby';
+    }
+    if (lower.includes('c#') || lower.includes('csharp') || lower.includes('dotnet')) {
+      return 'csharp';
+    }
+    if (lower.includes('rust')) {
+      return 'rust';
+    }
+    return 'unknown';
+  }
+
+  private normalizeConfidence(
+    value: string | undefined,
+    fallback: 'high' | 'medium' | 'low'
+  ): 'high' | 'medium' | 'low' {
+    if (value === 'high' || value === 'medium' || value === 'low') {
+      return value;
+    }
+    return fallback;
+  }
+
+  private normalizeDataStoreType(
+    value: string
+  ):
+    | 'postgres'
+    | 'mysql'
+    | 'mongodb'
+    | 'redis'
+    | 'dynamodb'
+    | 's3'
+    | 'firestore'
+    | 'elasticsearch'
+    | 'other' {
+    const lower = String(value ?? 'other').toLowerCase();
+    if (lower.includes('postgres')) {
+      return 'postgres';
+    }
+    if (lower.includes('mysql')) {
+      return 'mysql';
+    }
+    if (lower.includes('mongo')) {
+      return 'mongodb';
+    }
+    if (lower.includes('redis')) {
+      return 'redis';
+    }
+    if (lower.includes('dynamo')) {
+      return 'dynamodb';
+    }
+    if (lower === 's3' || lower.includes('boto')) {
+      return 's3';
+    }
+    if (lower.includes('firestore')) {
+      return 'firestore';
+    }
+    if (lower.includes('elastic') || lower.includes('opensearch')) {
+      return 'elasticsearch';
+    }
+    return 'other';
   }
 
   /**
@@ -548,4 +801,9 @@ export class ArchitectureIRValidator {
 export function validateArchitectureIR(ir: ArchitectureIR): IRValidationResult {
   const validator = new ArchitectureIRValidator();
   return validator.validate(ir);
+}
+
+export function migrateArchitectureIR(oldIr: any, fromVersion: string = 'v0'): ArchitectureIR {
+  const validator = new ArchitectureIRValidator();
+  return validator.migrateIR(oldIr, fromVersion);
 }

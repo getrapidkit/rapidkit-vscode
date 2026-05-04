@@ -53,6 +53,10 @@ export interface IRMetadata {
   confidenceLevel: ConfidenceLevel;
   confidenceReason?: string;
   lastValidated?: string; // ISO timestamp of last schema validation
+  scopeCoverage?: 'known' | 'partial' | 'unknown';
+  scopeConfidenceScore?: number; // 0.0-1.0 score for mapped coverage certainty
+  blockMutationWhenScopeUnknown?: boolean;
+  blockedReasons?: string[];
 }
 
 // ───────────────────────────────────────────────────────────────────

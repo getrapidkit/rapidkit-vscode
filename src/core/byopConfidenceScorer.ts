@@ -264,6 +264,7 @@ export class ConfidenceScorerForByop {
       'gin',
       'echo', // Go
       'spring', // Java
+      'springboot', // Java alias
       'rails', // Ruby
       'dotnet', // C#
     ];
@@ -286,6 +287,7 @@ export function isSupportedFramework(framework: string | undefined): boolean {
     'gin',
     'echo', // Go
     'spring', // Java
+    'springboot', // Java alias
     'rails', // Ruby
     'dotnet', // C#
   ];
@@ -312,7 +314,7 @@ export function getCapabilityLevelDescription(level: CapabilityLevel): string {
   const descriptions: Record<CapabilityLevel, string> = {
     L0: 'Workspai cannot automatically discover your architecture. Please create a .workspai/architecture.config.yaml file to declare your topology.',
     L1: 'Workspai can detect your framework and generate heuristic IR mappings with medium-high confidence. Review and refine the mapping with architecture.config.yaml.',
-    L2: 'Workspai has full native support for your framework. IR mappings are auto-generated with high confidence (95%+ accuracy).',
+    L2: 'Workspai has native support for your framework. IR mappings are generated with high confidence when discovery and mapping evidence agree; always verify before mutating apply.',
   };
   return descriptions[level];
 }

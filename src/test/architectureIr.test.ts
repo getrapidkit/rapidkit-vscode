@@ -15,7 +15,11 @@ import {
   isServiceComponent,
   isDataStoreComponent,
 } from '../core/architectureIr';
-import { ArchitectureIRValidator, validateArchitectureIR } from '../core/architectureIrValidator';
+import {
+  ArchitectureIRValidator,
+  migrateArchitectureIR,
+  validateArchitectureIR,
+} from '../core/architectureIrValidator';
 
 describe('C01: Universal Architecture IR v1', () => {
   // ─────────────────────────────────────────────────────────────
@@ -117,6 +121,44 @@ describe('C01: Universal Architecture IR v1', () => {
       const result = validateArchitectureIR(bad);
       expect(result.isValid).toBe(false);
       expect(result.errors.some((e) => e.code === 'MISSING_TOPOLOGY')).toBe(true);
+    });
+
+    it('should migrate legacy v0 payload to valid v1 IR', () => {
+      const legacy = {
+        id: 'legacy-app',
+        name: 'Legacy App',
+        runtime: 'python-fastapi',
+        framework: 'fastapi',
+        services: [
+          {
+            id: 'svc-auth',
+            name: 'Auth',
+            path: 'src/auth',
+            entryPoint: 'src/auth/main.py',
+            routes: [{ method: 'GET', route: '/health' }],
+            dependencies: ['svc-user'],
+          },
+        ],
+        datastores: [{ id: 'db-main', type: 'postgres' }],
+      };
+
+      const migrated = migrateArchitectureIR(legacy, 'v0');
+      const result = validateArchitectureIR(migrated);
+
+      expect(migrated.schemaVersion).toBe('v1');
+      expect(migrated.projectId).toBe('legacy-app');
+      expect(migrated.runtime).toBe('python');
+      expect(migrated.topology.services.length).toBeGreaterThan(0);
+      expect(migrated.topology.dataStores.length).toBeGreaterThan(0);
+      expect(result.errors.length).toBe(0);
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should return v1 payload unchanged through migrator', () => {
+      const ir = createArchitectureIR('stable-app', 'Stable App', 'nodejs');
+      const migrated = migrateArchitectureIR(ir, 'v1');
+      expect(migrated).toBe(ir);
+      expect(migrated.schemaVersion).toBe('v1');
     });
   });
 

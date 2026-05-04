@@ -1,0 +1,1 @@
+export { NestjsArchitectureMapper } from '../architectureMapper';
