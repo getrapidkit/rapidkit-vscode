@@ -29,6 +29,7 @@ import {
   applyPatches,
   type MultiFilePatchResult,
 } from '../../core/patchApplyEngine';
+import { evaluateIncidentC07Gates } from '../../core/incidentC07Integration';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
 import { run } from '../../utils/exec';
@@ -3886,8 +3887,32 @@ No markdown, no explanation outside the JSON.`;
       );
     }
 
+    const c07GateEvaluation = await evaluateIncidentC07Gates({
+      workspacePath,
+      projectPath: selectedProjectPath,
+      actionType: input.actionType,
+      actionPolicy: {
+        riskClass: input.actionPolicy.riskClass,
+        riskLevel: input.actionPolicy.riskLevel,
+        requiresImpactReview: input.actionPolicy.requiresImpactReview,
+        requiresVerifyPath: input.actionPolicy.requiresVerifyPath,
+      },
+      verifyReady: input.verifyReady,
+      verifySuccess: input.verifySuccess,
+      verifyChecklist,
+      doctorErrors: input.doctorEvidence?.errors ?? 0,
+      rollbackApproved:
+        !input.rollbackRuntimePolicy?.requiresManualApproval ||
+        input.rollbackRuntimePolicy.approvedByUser,
+    });
+
+    if (c07GateEvaluation.scopeBlocked) {
+      verifyChecklist.push('C07 gate blocked mutation: architecture scope is uncertain.');
+    }
+
     const scopeKnown =
       deterministicScore.scopeKnown &&
+      !c07GateEvaluation.scopeBlocked &&
       (affectedFiles.length > 0 || affectedModules.length > 0 || affectedTests.length > 0);
     const verifyPathPresent = !input.actionPolicy.requiresVerifyPath || verifyChecklist.length > 0;
     const rollbackPathPresent =
@@ -3924,15 +3949,23 @@ No markdown, no explanation outside the JSON.`;
       blockedReasons.push(`${input.doctorEvidence?.errors} doctor error(s) remain unresolved.`);
     }
     blockedReasons.push(...deterministicScore.blockedReasons);
+    blockedReasons.push(...c07GateEvaluation.blockedReasons);
 
     const architectureWarnings = Array.from(
       new Set(
-        deterministicScore.architectureWarnings
+        [
+          ...deterministicScore.architectureWarnings,
+          ...(c07GateEvaluation.scopeBlocked
+            ? ['C07 gate blocked mutation due to uncertain architecture scope.']
+            : []),
+        ]
           .filter((warning) => typeof warning === 'string' && warning.trim().length > 0)
           .map((warning) => warning.trim())
       )
     );
-    const unknownScopeBlocked = blockedReasons.some((reason) => /scope is unknown/i.test(reason));
+    const unknownScopeBlocked =
+      c07GateEvaluation.scopeBlocked ||
+      blockedReasons.some((reason) => /scope is unknown|scope is uncertain/i.test(reason));
 
     const predictiveWarningNeeded =
       input.actionPolicy.requiresImpactReview || (input.doctorEvidence?.errors ?? 0) > 0;
@@ -3952,6 +3985,13 @@ No markdown, no explanation outside the JSON.`;
               input.actionPolicy.requiresImpactReview
                 ? 'Action policy requires impact review before completion claim.'
                 : 'Action policy allows lower-risk execution path.',
+              ...(c07GateEvaluation.evaluated
+                ? [
+                    c07GateEvaluation.scopeBlocked
+                      ? 'C07 architecture gates blocked mutation due to uncertain mapping scope.'
+                      : 'C07 architecture gates passed for the current action path.',
+                  ]
+                : []),
               ...deterministicScore.architectureWarnings.slice(0, 2),
               ...deterministicScore.rationale.slice(0, 3),
             ],
@@ -4009,12 +4049,21 @@ No markdown, no explanation outside the JSON.`;
           input.actionPolicy.requiresImpactReview
             ? 'Action policy requires impact review before completion claim.'
             : 'Action policy allows lower-risk execution path.',
+          ...(c07GateEvaluation.evaluated
+            ? [
+                c07GateEvaluation.scopeBlocked
+                  ? 'C07 architecture gates blocked mutation due to uncertain mapping scope.'
+                  : 'C07 architecture gates passed for the current action path.',
+              ]
+            : []),
           ...deterministicScore.architectureWarnings.slice(0, 2),
           ...deterministicScore.rationale.slice(0, 3),
         ],
         verifyChecklist,
         blockMutationWhenScopeUnknown:
-          input.actionPolicy.requiresImpactReview || input.actionPolicy.requiresVerifyPath,
+          input.actionPolicy.requiresImpactReview ||
+          input.actionPolicy.requiresVerifyPath ||
+          c07GateEvaluation.scopeBlocked,
       },
       predictiveWarning: predictiveWarning
         ? {
@@ -5249,11 +5298,18 @@ No markdown, no explanation outside the JSON.`;
       verifySuccess,
       rollbackRuntimePolicy,
     });
+    const releaseGateBlockedReasons = wave2Contracts.releaseGateEvidence.blockedReasons;
+    const isMutatingAction =
+      actionPolicy.riskClass === 'guarded-mutating' ||
+      actionPolicy.riskClass === 'high-risk-mutating';
+    const releaseGateCompletionBlocked =
+      (isMutatingAction || actionPolicy.requiresImpactReview || actionPolicy.requiresVerifyPath) &&
+      releaseGateBlockedReasons.length > 0;
     const unknownScopeMutationBlocked =
       actionPolicy.requiresImpactReview &&
       wave2Contracts.impactAssessment.blockMutationWhenScopeUnknown &&
       !wave2Contracts.releaseGateEvidence.scopeKnown;
-    const effectiveVerifySuccess = verifySuccess && !unknownScopeMutationBlocked;
+    const effectiveVerifySuccess = verifySuccess && !releaseGateCompletionBlocked;
     const sandboxEvidence =
       activeWorkspacePath &&
       (actionPolicy.riskClass === 'guarded-mutating' ||
@@ -5341,6 +5397,8 @@ No markdown, no explanation outside the JSON.`;
           actionType,
           verifyReady,
           unknownScopeMutationBlocked,
+          releaseGateCompletionBlocked,
+          releaseGateBlockedReasonCount: releaseGateBlockedReasons.length,
           framework: conv.framework ?? 'unknown',
           errors: doctorEvidence?.errors ?? 0,
           warnings: doctorEvidence?.warnings ?? 0,
@@ -5538,6 +5596,7 @@ No markdown, no explanation outside the JSON.`;
           const shouldAutoApply =
             actionType === 'apply-debug-patch' &&
             !unknownScopeMutationBlocked &&
+            !releaseGateCompletionBlocked &&
             sandboxEvidence?.safeToApply === true &&
             actionPolicy.riskClass !== 'high-risk-mutating';
 
@@ -5584,8 +5643,11 @@ No markdown, no explanation outside the JSON.`;
         conversationId,
         actionId,
         success: effectiveVerifySuccess,
-        outputSummary: unknownScopeMutationBlocked
-          ? `${actionType} - blocked: affected scope is unknown for a mutating action`
+        outputSummary: releaseGateCompletionBlocked
+          ? `${actionType} - blocked by release gate: ${
+              releaseGateBlockedReasons[0] ||
+              'verify, scope, and rollback requirements are not satisfied'
+            }`
           : effectiveVerifySuccess
             ? `${actionType} \u2014 result shown in conversation above`
             : rollbackEvidence

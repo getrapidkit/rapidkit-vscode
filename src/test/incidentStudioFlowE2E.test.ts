@@ -173,12 +173,16 @@ describe('incidentStudioFlowE2E', () => {
         affectedFiles: [fixture.projectPath],
         affectedTests: fixture.modules.slice(0, 1).map((name) => `tests/${name}.spec.ts`),
         likelyFailureMode: 'downstream service regression risk',
+        rationale: ['C07 architecture gates passed for the current action path.'],
         verifyChecklist: ['Run deterministic verification command'],
         blockMutationWhenScopeUnknown: true,
       });
 
       expect(impactAssessment.blockMutationWhenScopeUnknown).toBe(true);
       expect(impactAssessment.affectedModules.length).toBeGreaterThan(0);
+      expect(impactAssessment.rationale).toContain(
+        'C07 architecture gates passed for the current action path.'
+      );
 
       const predictiveWarning = normalizeIncidentPredictiveWarningPayload({
         requestId: 'predictive-flow-1',
@@ -209,6 +213,7 @@ describe('incidentStudioFlowE2E', () => {
       expect(releaseGateEvidence.scopeKnown).toBe(true);
       expect(releaseGateEvidence.verifyPathPresent).toBe(true);
       expect(releaseGateEvidence.confidenceSufficient).toBe(true);
+      expect(releaseGateEvidence.blockedReasons).toEqual([]);
     }
   });
 
@@ -330,6 +335,19 @@ describe('incidentStudioFlowE2E', () => {
     expect(policy.requiresImpactReview).toBe(true);
     expect(policy.requiresVerifyPath).toBe(true);
 
+    const defaultFailClosedImpact = normalizeIncidentImpactAssessmentPayload({
+      requestId: 'impact-default-c07',
+      source: ['graph'],
+      confidence: 62,
+      riskLevel: 'high',
+      affectedFiles: ['src/orders/service.ts'],
+      affectedModules: ['orders'],
+      affectedTests: ['tests/orders.spec.ts'],
+      verifyChecklist: ['Run deterministic verify command'],
+    });
+
+    expect(defaultFailClosedImpact.blockMutationWhenScopeUnknown).toBe(true);
+
     const releaseGateEvidence = normalizeIncidentReleaseGateEvidencePayload({
       requestId: ' gate-unknown-1 ',
       scopeKnown: false,
@@ -338,6 +356,8 @@ describe('incidentStudioFlowE2E', () => {
       confidenceSufficient: false,
       blockedReasons: [
         'Affected scope is unknown while impact review is required.',
+        'C07 gate evaluation unavailable; block mutation until architecture scope is confirmed. token=raw-secret',
+        'C07 gate evaluation unavailable; block mutation until architecture scope is confirmed. token=raw-secret',
         'Scope is unknown for an impact-reviewed action.',
         'Verification evidence is missing for a verify-first action.',
         'Affected scope is unknown while impact review is required.',
@@ -352,6 +372,7 @@ describe('incidentStudioFlowE2E', () => {
       confidenceSufficient: false,
       blockedReasons: [
         'Affected scope is unknown while impact review is required.',
+        'C07 gate evaluation unavailable; block mutation until architecture scope is confirmed. token=[REDACTED]',
         'Scope is unknown for an impact-reviewed action.',
         'Verification evidence is missing for a verify-first action.',
       ],
