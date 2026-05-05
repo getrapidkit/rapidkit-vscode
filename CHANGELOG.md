@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-05
+
+### Added
+
+- 🧭 **Enterprise import and BYOP readiness surfaces** — expanded import command flow, workspace/project integration points, and extension wiring for safer multi-workspace onboarding and drift control.
+- 📈 **W07/W08 validation instrumentation** — added release-readiness decision outcome tracking (`GO`/`NO-GO`) and artifact-linked validation telemetry to support decision accuracy and incident-prevention KPIs.
+- 🌙 **Nightly Incident Studio soak workflow** — introduced dedicated soak automation workflow to continuously exercise Incident Studio stability paths.
+- 🧪 **Contract runtime and stress regression coverage** — added `workspaiContractRuntime` module and tests plus broader release-stop/stress validation suites.
+
+### Changed
+
+- 🚦 **Wave 3 release-stop gate visibility** — gate output now includes release-readiness validation metrics and clearer KPI evidence blocks alongside existing hard-gate signals.
+- 🧩 **Incident Studio host/webview contract parity** — synchronized payload normalization, prompt policy, telemetry typing, and panel behavior across extension and webview layers.
+- ⚙️ **Core command and workspace orchestration** — refined command routing and workspace operations for stronger enterprise reliability in cross-project flows.
+
+### Fixed
+
+- 🛡️ **Claim and scope safety alignment** — tightened shipped-scope wording and evidence alignment to avoid over-claiming behavior outside verified release boundaries.
+- 🔧 **Telemetry type and gate regression mismatches** — resolved time-window compatibility and stabilized targeted release-gate regressions for newly added KPIs.
+
 ## [0.22.0] - 2026-04-29
 
 ### Added

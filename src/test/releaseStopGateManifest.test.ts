@@ -309,4 +309,380 @@ describe('releaseStopGate manifest mode', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('blocks GO release readiness commander artifact when scope/verify/rollback gates fail', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workspai-rrc-go-invalid-'));
+    const artifactPath = path.join(tempDir, 'release-readiness-go-invalid.json');
+
+    fs.writeFileSync(
+      artifactPath,
+      JSON.stringify(
+        {
+          release_readiness_commander: {
+            schemaVersion: 'v1',
+            artifactId: 'rrc-go-invalid-001',
+            generatedAt: '2026-05-05T08:00:00.000Z',
+            workspacePath: '/tmp/workspace',
+            actionId: 'action-rrc-go-invalid',
+            decision: 'go',
+            confidence: 78,
+            blockingReasons: ['verify path missing'],
+            evidence: {
+              verifyPackContractStatus: 'passed',
+              sandboxStatus: 'passed',
+              doctorErrors: 0,
+              doctorWarnings: 0,
+              scopeKnown: true,
+              verifyPathPresent: false,
+              rollbackPathPresent: true,
+            },
+            summary: {
+              goNoGoRationale: 'Looks mostly safe.',
+              recommendedNextStep: 'Ship now.',
+            },
+          },
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+
+    try {
+      execFileSync(
+        process.execPath,
+        [
+          'scripts/release-stop-gate.mjs',
+          '--skip-kpi',
+          '--skip-contract-checks',
+          '--release-readiness-commander',
+          artifactPath,
+        ],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }
+      );
+
+      throw new Error('Expected release gate to block GO artifact with failed mandatory gates.');
+    } catch (error) {
+      const failure = error as { status?: number; stderr?: string | Buffer };
+      const stderr = String(failure.stderr || '');
+      expect(failure.status).toBe(1);
+      expect(stderr).toContain('failed mandatory release gates');
+      expect(stderr).toContain('verifyPathPresent=false');
+      expect(stderr).toContain('blockingReasons_present');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('blocks KPI gate when verify-pack readiness threshold is enabled and not met', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workspai-verify-pack-threshold-'));
+    const markerPath = path.join(tempDir, 'wave3-kpi-marker-readiness-low.json');
+    const baseMarkerPath = path.join(repoRoot, 'releases', 'fixtures', 'wave3-kpi-marker.json');
+    const marker = JSON.parse(fs.readFileSync(baseMarkerPath, 'utf-8'));
+    const telemetry = marker?.metadata?.custom?.workspaiTelemetry;
+    const recentEvents = Array.isArray(telemetry?.recentEvents) ? telemetry.recentEvents : [];
+
+    telemetry.recentEvents = [
+      ...recentEvents,
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:00:00.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:00:01.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:00:02.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:00:03.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_ready',
+        at: '2026-04-28T11:00:04.000Z',
+      },
+    ];
+
+    fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf-8');
+
+    try {
+      execFileSync(
+        process.execPath,
+        [
+          'scripts/release-stop-gate.mjs',
+          '--skip-contract-checks',
+          '--marker',
+          markerPath,
+          '--verify-pack-readiness-min',
+          '80',
+        ],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }
+      );
+
+      throw new Error('Expected KPI gate to fail when verify-pack readiness threshold is unmet.');
+    } catch (error) {
+      const failure = error as {
+        status?: number;
+        stderr?: string | Buffer;
+        stdout?: string | Buffer;
+      };
+      const stderr = String(failure.stderr || '');
+      const stdout = String(failure.stdout || '');
+
+      expect(failure.status).toBe(1);
+      expect(stderr).toContain('Release blocked: KPI hard-gate failed.');
+      expect(stdout).toContain('"verifyPackAutopilotReadinessRate"');
+      expect(stdout).toContain('"verifyPackAutopilotReadinessRatePass": false');
+      expect(stdout).toContain('"verifyPackAutopilotReadinessRateMin": 80');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps KPI pass in warn mode even when verify-pack readiness threshold is unmet', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workspai-verify-pack-warn-mode-'));
+    const markerPath = path.join(tempDir, 'wave3-kpi-marker-readiness-warn.json');
+    const baseMarkerPath = path.join(repoRoot, 'releases', 'fixtures', 'wave3-kpi-marker.json');
+    const marker = JSON.parse(fs.readFileSync(baseMarkerPath, 'utf-8'));
+    const telemetry = marker?.metadata?.custom?.workspaiTelemetry;
+    const recentEvents = Array.isArray(telemetry?.recentEvents) ? telemetry.recentEvents : [];
+
+    telemetry.recentEvents = [
+      ...recentEvents,
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:10:00.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:10:01.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:10:02.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_generated',
+        at: '2026-04-28T11:10:03.000Z',
+      },
+      {
+        command: 'workspai.studio.verify_pack_autopilot_ready',
+        at: '2026-04-28T11:10:04.000Z',
+      },
+    ];
+
+    fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf-8');
+
+    try {
+      const output = execFileSync(
+        process.execPath,
+        [
+          'scripts/release-stop-gate.mjs',
+          '--skip-contract-checks',
+          '--marker',
+          markerPath,
+          '--verify-pack-readiness-min',
+          '80',
+          '--verify-pack-readiness-mode',
+          'warn',
+        ],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }
+      );
+
+      expect(output).toContain('"verifyPackAutopilotReadinessRatePass": true');
+      expect(output).toContain('"mode": "warn"');
+      expect(output).toContain('"wouldPass": false');
+      expect(output).toContain('"enforced": false');
+      expect(output).toContain('All release stop conditions passed.');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('enforces auto mode when verify-pack evidence volume reaches threshold', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workspai-verify-pack-auto-mode-'));
+    const markerPath = path.join(tempDir, 'wave3-kpi-marker-readiness-auto.json');
+    const baseMarkerPath = path.join(repoRoot, 'releases', 'fixtures', 'wave3-kpi-marker.json');
+    const marker = JSON.parse(fs.readFileSync(baseMarkerPath, 'utf-8'));
+    const telemetry = marker?.metadata?.custom?.workspaiTelemetry;
+    const recentEvents = Array.isArray(telemetry?.recentEvents) ? telemetry.recentEvents : [];
+
+    const generatedEvents = Array.from({ length: 10 }, (_, index) => ({
+      command: 'workspai.studio.verify_pack_autopilot_generated',
+      at: `2026-04-28T11:20:${String(index).padStart(2, '0')}.000Z`,
+    }));
+    const readyEvents = Array.from({ length: 5 }, (_, index) => ({
+      command: 'workspai.studio.verify_pack_autopilot_ready',
+      at: `2026-04-28T11:21:${String(index).padStart(2, '0')}.000Z`,
+    }));
+
+    telemetry.recentEvents = [...recentEvents, ...generatedEvents, ...readyEvents];
+    fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf-8');
+
+    try {
+      execFileSync(
+        process.execPath,
+        [
+          'scripts/release-stop-gate.mjs',
+          '--skip-contract-checks',
+          '--marker',
+          markerPath,
+          '--verify-pack-readiness-min',
+          '80',
+          '--verify-pack-readiness-mode',
+          'auto',
+          '--verify-pack-generated-min',
+          '10',
+        ],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }
+      );
+
+      throw new Error(
+        'Expected KPI gate to fail when auto mode becomes enforced and readiness is below threshold.'
+      );
+    } catch (error) {
+      const failure = error as {
+        status?: number;
+        stderr?: string | Buffer;
+        stdout?: string | Buffer;
+      };
+      const stderr = String(failure.stderr || '');
+      const stdout = String(failure.stdout || '');
+
+      expect(failure.status).toBe(1);
+      expect(stderr).toContain('Release blocked: KPI hard-gate failed.');
+      expect(stdout).toContain('"mode": "auto"');
+      expect(stdout).toContain('"evidenceEnoughForEnforcement": true');
+      expect(stdout).toContain('"enforced": true');
+      expect(stdout).toContain('"verifyPackAutopilotReadinessRatePass": false');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports release-readiness validation KPIs when artifact outcomes are recorded', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workspai-release-readiness-kpi-'));
+    const markerPath = path.join(tempDir, 'wave3-kpi-marker-release-readiness.json');
+    const baseMarkerPath = path.join(repoRoot, 'releases', 'fixtures', 'wave3-kpi-marker.json');
+    const marker = JSON.parse(fs.readFileSync(baseMarkerPath, 'utf-8'));
+    const telemetry = marker?.metadata?.custom?.workspaiTelemetry;
+    const recentEvents = Array.isArray(telemetry?.recentEvents) ? telemetry.recentEvents : [];
+
+    telemetry.recentEvents = [
+      ...recentEvents,
+      {
+        command: 'workspai.studio.release_readiness_artifact_exported',
+        at: '2026-05-04T11:00:00.000Z',
+        props: { artifactId: 'artifact-go-1', decision: 'go' },
+      },
+      {
+        command: 'workspai.studio.release_readiness_go_decision_exported',
+        at: '2026-05-04T11:00:01.000Z',
+        props: { artifactId: 'artifact-go-1', decision: 'go' },
+      },
+      {
+        command: 'workspai.studio.release_readiness_decision_validated',
+        at: '2026-05-04T11:05:00.000Z',
+        props: {
+          artifactId: 'artifact-go-1',
+          originalDecision: 'GO',
+          validationOutcome: 'go-confirmed',
+        },
+      },
+      {
+        command: 'workspai.studio.release_readiness_decision_correct',
+        at: '2026-05-04T11:05:01.000Z',
+        props: {
+          artifactId: 'artifact-go-1',
+          originalDecision: 'GO',
+          validationOutcome: 'go-confirmed',
+        },
+      },
+      {
+        command: 'workspai.studio.release_readiness_artifact_exported',
+        at: '2026-05-04T11:06:00.000Z',
+        props: { artifactId: 'artifact-no-go-1', decision: 'no-go' },
+      },
+      {
+        command: 'workspai.studio.release_readiness_no_go_decision_exported',
+        at: '2026-05-04T11:06:01.000Z',
+        props: { artifactId: 'artifact-no-go-1', decision: 'no-go' },
+      },
+      {
+        command: 'workspai.studio.release_readiness_decision_validated',
+        at: '2026-05-04T11:10:00.000Z',
+        props: {
+          artifactId: 'artifact-no-go-1',
+          originalDecision: 'NO-GO',
+          validationOutcome: 'no-go-prevented-incident',
+        },
+      },
+      {
+        command: 'workspai.studio.release_readiness_decision_correct',
+        at: '2026-05-04T11:10:01.000Z',
+        props: {
+          artifactId: 'artifact-no-go-1',
+          originalDecision: 'NO-GO',
+          validationOutcome: 'no-go-prevented-incident',
+        },
+      },
+      {
+        command: 'workspai.studio.release_readiness_no_go_decision_validated',
+        at: '2026-05-04T11:10:02.000Z',
+        props: {
+          artifactId: 'artifact-no-go-1',
+          originalDecision: 'NO-GO',
+          validationOutcome: 'no-go-prevented-incident',
+        },
+      },
+      {
+        command: 'workspai.studio.release_readiness_no_go_prevented_incident',
+        at: '2026-05-04T11:10:03.000Z',
+        props: {
+          artifactId: 'artifact-no-go-1',
+          originalDecision: 'NO-GO',
+          validationOutcome: 'no-go-prevented-incident',
+        },
+      },
+    ];
+    fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf-8');
+
+    try {
+      const output = execFileSync(
+        process.execPath,
+        ['scripts/release-stop-gate.mjs', '--skip-contract-checks', '--marker', markerPath],
+        {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        }
+      );
+
+      expect(output).toContain('"releaseReadinessDecisionAccuracy": 100');
+      expect(output).toContain('"noGoPreventedIncidentRate": 100');
+      expect(output).toContain('"releaseReadinessDecisionAccuracyAvailable": true');
+      expect(output).toContain('"noGoPreventedIncidentRateAvailable": true');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -313,6 +313,30 @@ export interface StudioReproPackKpiStatus {
   };
 }
 
+export interface ReleaseReadinessValidationKpiStatus {
+  workspacePath: string;
+  timeWindow: CommandTelemetryTimeWindow;
+  windowStartAt: string | null;
+  windowEndAt: string;
+  metrics: {
+    releaseReadinessArtifactsExported: number;
+    goDecisionsExported: number;
+    noGoDecisionsExported: number;
+    decisionsValidated: number;
+    decisionsCorrect: number;
+    noGoDecisionsValidated: number;
+    noGoPreventedIncident: number;
+    releaseReadinessDecisionAccuracy: number | null;
+    noGoPreventedIncidentRate: number | null;
+  };
+  gates: {
+    telemetryEvidencePass: boolean;
+    releaseReadinessDecisionAccuracyAvailable: boolean;
+    noGoPreventedIncidentRateAvailable: boolean;
+    overallPass: boolean;
+  };
+}
+
 export interface ClarificationGateKpiThresholds {
   clarificationRateVsAskMax: number;
 }
@@ -368,7 +392,7 @@ export interface PerformanceSloStatus {
   };
 }
 
-export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d';
+export type CommandTelemetryTimeWindow = 'all' | 'last24h' | 'last7d' | 'last30d';
 
 type TelemetrySurface = 'action' | 'chat' | 'aimodal' | 'onboarding' | 'other';
 
@@ -2438,6 +2462,106 @@ export class WorkspaceUsageTracker {
       };
     } catch (error) {
       this.logger.debug(`Failed to read studio repro pack KPI status: ${error}`);
+      return null;
+    }
+  }
+
+  async getReleaseReadinessValidationKpiStatus(
+    preferredWorkspacePath?: string,
+    timeWindow: CommandTelemetryTimeWindow = 'last30d'
+  ): Promise<ReleaseReadinessValidationKpiStatus | null> {
+    const workspacePath = this.resolveWorkspacePath(preferredWorkspacePath);
+    if (!workspacePath) {
+      return null;
+    }
+
+    try {
+      const marker = await readWorkspaceMarker(workspacePath);
+      if (!marker) {
+        return null;
+      }
+
+      const telemetryRaw = marker.metadata?.custom?.workspaiTelemetry;
+      const telemetry =
+        telemetryRaw && typeof telemetryRaw === 'object'
+          ? (telemetryRaw as Record<string, unknown>)
+          : {};
+
+      const recentEvents = this.parseRecentEvents(telemetry.recentEvents);
+      const hourlyUsage = this.parseHourlyUsage(telemetry.hourlyUsage);
+      const nowMs = Date.now();
+      const windowStartMs = this.getWindowStartMs(timeWindow, nowMs);
+      const usageMap = this.buildStudioUsageMap({
+        commandUsage: telemetry.commandUsage,
+        hourlyUsage,
+        recentEvents,
+        timeWindow,
+        windowStartMs,
+        windowEndMs: nowMs,
+        preferredCommands: [
+          'workspai.studio.release_readiness_artifact_exported',
+          'workspai.studio.release_readiness_go_decision_exported',
+          'workspai.studio.release_readiness_no_go_decision_exported',
+          'workspai.studio.release_readiness_decision_validated',
+          'workspai.studio.release_readiness_decision_correct',
+          'workspai.studio.release_readiness_no_go_decision_validated',
+          'workspai.studio.release_readiness_no_go_prevented_incident',
+        ],
+      });
+
+      const releaseReadinessArtifactsExported =
+        usageMap.get('workspai.studio.release_readiness_artifact_exported') ?? 0;
+      const goDecisionsExported =
+        usageMap.get('workspai.studio.release_readiness_go_decision_exported') ?? 0;
+      const noGoDecisionsExported =
+        usageMap.get('workspai.studio.release_readiness_no_go_decision_exported') ?? 0;
+      const decisionsValidated =
+        usageMap.get('workspai.studio.release_readiness_decision_validated') ?? 0;
+      const decisionsCorrect =
+        usageMap.get('workspai.studio.release_readiness_decision_correct') ?? 0;
+      const noGoDecisionsValidated =
+        usageMap.get('workspai.studio.release_readiness_no_go_decision_validated') ?? 0;
+      const noGoPreventedIncident =
+        usageMap.get('workspai.studio.release_readiness_no_go_prevented_incident') ?? 0;
+
+      const releaseReadinessDecisionAccuracy = this.percent(decisionsCorrect, decisionsValidated);
+      const noGoPreventedIncidentRate = this.percent(noGoPreventedIncident, noGoDecisionsValidated);
+
+      const telemetryEvidencePass =
+        releaseReadinessArtifactsExported > 0 ||
+        decisionsValidated > 0 ||
+        noGoDecisionsExported > 0;
+      const releaseReadinessDecisionAccuracyAvailable = decisionsValidated > 0;
+      const noGoPreventedIncidentRateAvailable = noGoDecisionsValidated > 0;
+
+      return {
+        workspacePath,
+        timeWindow,
+        windowStartAt: windowStartMs === null ? null : new Date(windowStartMs).toISOString(),
+        windowEndAt: new Date(nowMs).toISOString(),
+        metrics: {
+          releaseReadinessArtifactsExported,
+          goDecisionsExported,
+          noGoDecisionsExported,
+          decisionsValidated,
+          decisionsCorrect,
+          noGoDecisionsValidated,
+          noGoPreventedIncident,
+          releaseReadinessDecisionAccuracy,
+          noGoPreventedIncidentRate,
+        },
+        gates: {
+          telemetryEvidencePass,
+          releaseReadinessDecisionAccuracyAvailable,
+          noGoPreventedIncidentRateAvailable,
+          overallPass:
+            telemetryEvidencePass &&
+            releaseReadinessDecisionAccuracyAvailable &&
+            noGoPreventedIncidentRateAvailable,
+        },
+      };
+    } catch (error) {
+      this.logger.debug(`Failed to read release readiness validation KPI status: ${error}`);
       return null;
     }
   }

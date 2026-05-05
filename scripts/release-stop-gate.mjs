@@ -9,6 +9,8 @@ const DEFAULT_TEST_FILES = [
   'src/test/incidentStudioPayload.test.ts',
   'src/test/incidentStudioPromptPolicy.test.ts',
   'src/test/workspaceUsageTracker.test.ts',
+  'src/test/incidentStudioLifecycle.test.ts',
+  'src/test/incidentStudioStressGate.test.ts',
 ];
 
 function parseEnvNumber(envKeys, fallback) {
@@ -60,6 +62,17 @@ function parseArgs(argv) {
     replayToResolutionRateMin: parseEnvNumber(['WORKSPAI_GATE_REPLAY_TO_RESOLUTION_RATE_MIN'], 60),
     verifyAutoRollbackSuccessRateMin: parseEnvNumber(['WORKSPAI_GATE_ROLLBACK_SUCCESS_RATE_MIN'], 60),
     falseConfidenceRateMax: parseEnvNumber(['WORKSPAI_GATE_FALSE_CONFIDENCE_RATE_MAX'], 40),
+    verifyPackAutopilotReadinessRateMin: parseEnvNumber(
+      ['WORKSPAI_GATE_VERIFY_PACK_AUTOPILOT_READINESS_RATE_MIN'],
+      0
+    ),
+    verifyPackAutopilotReadinessMode: String(
+      process.env.WORKSPAI_GATE_VERIFY_PACK_AUTOPILOT_READINESS_MODE || 'enforce'
+    ).toLowerCase(),
+    verifyPackAutopilotGeneratedMinForEnforcement: parseEnvNumber(
+      ['WORKSPAI_GATE_VERIFY_PACK_AUTOPILOT_GENERATED_MIN_FOR_ENFORCEMENT'],
+      20
+    ),
     predictiveCalibrationMode: String(
       process.env.WORKSPAI_GATE_PREDICTIVE_CALIBRATION_MODE || 'off'
     ).toLowerCase(),
@@ -218,6 +231,30 @@ function parseArgs(argv) {
       const value = Number(argv[i + 1]);
       if (Number.isFinite(value)) {
         options.falseConfidenceRateMax = value;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (arg === '--verify-pack-readiness-min') {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value)) {
+        options.verifyPackAutopilotReadinessRateMin = value;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (arg === '--verify-pack-readiness-mode') {
+      options.verifyPackAutopilotReadinessMode = String(argv[i + 1] || 'enforce').toLowerCase();
+      i += 1;
+      continue;
+    }
+
+    if (arg === '--verify-pack-generated-min') {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value)) {
+        options.verifyPackAutopilotGeneratedMinForEnforcement = value;
       }
       i += 1;
       continue;
@@ -386,6 +423,32 @@ function buildReleaseReadinessCommanderStatus(artifactPath) {
       ok: false,
       artifactPath: resolvedPath,
       message: 'Release readiness commander artifact is malformed or unsupported.',
+    };
+  }
+
+  const failedReleaseGates = [];
+  if (!evidence.scopeKnown) {
+    failedReleaseGates.push('scopeKnown=false');
+  }
+  if (!evidence.verifyPathPresent) {
+    failedReleaseGates.push('verifyPathPresent=false');
+  }
+  if (!evidence.rollbackPathPresent) {
+    failedReleaseGates.push('rollbackPathPresent=false');
+  }
+  if (decision === 'go' && blockingReasons.length > 0) {
+    failedReleaseGates.push('blockingReasons_present');
+  }
+
+  if (decision === 'go' && failedReleaseGates.length > 0) {
+    return {
+      ok: false,
+      artifactPath: resolvedPath,
+      decision,
+      confidence,
+      blockingReasonCount: blockingReasons.length,
+      failedReleaseGates,
+      message: `Release readiness commander GO artifact failed mandatory release gates: ${failedReleaseGates.join(', ')}.`,
     };
   }
 
@@ -726,6 +789,15 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
   let incidentReplayMemoryEnriched = 0;
   let rollbackAttempted = 0;
   let rollbackSucceeded = 0;
+  let verifyPackAutopilotGenerated = 0;
+  let verifyPackAutopilotReady = 0;
+  let releaseReadinessArtifactsExported = 0;
+  let goDecisionsExported = 0;
+  let noGoDecisionsExported = 0;
+  let decisionsValidated = 0;
+  let decisionsCorrect = 0;
+  let noGoDecisionsValidated = 0;
+  let noGoPreventedIncident = 0;
 
   for (const entry of recentEvents) {
     if (!entry || typeof entry !== 'object') {
@@ -765,8 +837,31 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
       rollbackAttempted += 1;
     } else if (command === 'workspai.studio.rollback_succeeded') {
       rollbackSucceeded += 1;
+    } else if (command === 'workspai.studio.verify_pack_autopilot_generated') {
+      verifyPackAutopilotGenerated += 1;
+    } else if (command === 'workspai.studio.verify_pack_autopilot_ready') {
+      verifyPackAutopilotReady += 1;
+    } else if (command === 'workspai.studio.release_readiness_artifact_exported') {
+      releaseReadinessArtifactsExported += 1;
+    } else if (command === 'workspai.studio.release_readiness_go_decision_exported') {
+      goDecisionsExported += 1;
+    } else if (command === 'workspai.studio.release_readiness_no_go_decision_exported') {
+      noGoDecisionsExported += 1;
+    } else if (command === 'workspai.studio.release_readiness_decision_validated') {
+      decisionsValidated += 1;
+    } else if (command === 'workspai.studio.release_readiness_decision_correct') {
+      decisionsCorrect += 1;
+    } else if (command === 'workspai.studio.release_readiness_no_go_decision_validated') {
+      noGoDecisionsValidated += 1;
+    } else if (command === 'workspai.studio.release_readiness_no_go_prevented_incident') {
+      noGoPreventedIncident += 1;
     }
   }
+
+  const verifyPackAutopilotReadinessRate =
+    verifyPackAutopilotGenerated > 0
+      ? Number(((verifyPackAutopilotReady / verifyPackAutopilotGenerated) * 100).toFixed(2))
+      : null;
 
   const verifyOutcomes = verifyPassed + verifyFailed;
   const verifyPhaseReach =
@@ -817,6 +912,8 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
 
   const reproPackShareRate = percent(reproPackExported, reproPackCaptured);
   const replayToResolutionRate = percent(incidentReplayMemoryEnriched, reproPackImported);
+  const releaseReadinessDecisionAccuracy = percent(decisionsCorrect, decisionsValidated);
+  const noGoPreventedIncidentRate = percent(noGoPreventedIncident, noGoDecisionsValidated);
   const rollbackTelemetryEvidencePass = rollbackAttempted > 0;
   const verifyAutoRollbackSuccessRatePass =
     verifyAutoRollbackSuccessRate !== null &&
@@ -829,6 +926,38 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
   const replayToResolutionRatePass =
     replayToResolutionRate !== null &&
     replayToResolutionRate >= effectiveThresholds.replayToResolutionRateMin;
+  const verifyPackReadinessModeRaw = String(
+    calibrationOptions.verifyPackAutopilotReadinessMode || 'enforce'
+  ).toLowerCase();
+  const verifyPackReadinessMode =
+    verifyPackReadinessModeRaw === 'off' ||
+    verifyPackReadinessModeRaw === 'warn' ||
+    verifyPackReadinessModeRaw === 'enforce' ||
+    verifyPackReadinessModeRaw === 'auto'
+      ? verifyPackReadinessModeRaw
+      : 'enforce';
+  const verifyPackGeneratedMinForEnforcement = Math.max(
+    1,
+    Number.isFinite(calibrationOptions.verifyPackAutopilotGeneratedMinForEnforcement)
+      ? Math.round(calibrationOptions.verifyPackAutopilotGeneratedMinForEnforcement)
+      : 20
+  );
+  const verifyPackReadinessThresholdEnabled =
+    effectiveThresholds.verifyPackAutopilotReadinessRateMin > 0;
+  const verifyPackReadinessEvidenceEnough =
+    verifyPackAutopilotGenerated >= verifyPackGeneratedMinForEnforcement;
+  const verifyPackReadinessWouldPass =
+    verifyPackAutopilotReadinessRate !== null &&
+    verifyPackAutopilotReadinessRate >= effectiveThresholds.verifyPackAutopilotReadinessRateMin;
+  const verifyPackReadinessEnforced =
+    verifyPackReadinessThresholdEnabled &&
+    (verifyPackReadinessMode === 'enforce' ||
+      (verifyPackReadinessMode === 'auto' && verifyPackReadinessEvidenceEnough));
+  const verifyPackAutopilotReadinessRatePass =
+    !verifyPackReadinessThresholdEnabled ||
+    verifyPackReadinessMode === 'off' ||
+    verifyPackReadinessMode === 'warn' ||
+    (verifyPackReadinessEnforced && verifyPackReadinessWouldPass);
 
   // D04: performance SLO — compute P95 from latency samples stored in the marker
   const latencySamplesRaw = Array.isArray(telemetry?.latencySamples) ? telemetry.latencySamples : [];
@@ -869,6 +998,7 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
       preventedIncidentRate !== null && preventedIncidentRate >= effectiveThresholds.preventedIncidentRateMin,
     reproPackShareRatePass,
     replayToResolutionRatePass,
+    verifyPackAutopilotReadinessRatePass,
     rollbackTelemetryEvidencePass,
     verifyAutoRollbackSuccessRatePass,
     falseConfidenceRatePass,
@@ -881,6 +1011,20 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
     markerPath,
     evaluatedAt: toIsoNow(),
     thresholds: effectiveThresholds,
+    verifyPackReadinessRollout: {
+      mode: verifyPackReadinessMode,
+      thresholdEnabled: verifyPackReadinessThresholdEnabled,
+      generatedMinForEnforcement: verifyPackGeneratedMinForEnforcement,
+      evidenceEnoughForEnforcement: verifyPackReadinessEvidenceEnough,
+      enforced: verifyPackReadinessEnforced,
+      wouldPass: verifyPackReadinessWouldPass,
+    },
+    releaseReadinessValidation: {
+      telemetryEvidencePass:
+        releaseReadinessArtifactsExported > 0 || decisionsValidated > 0 || noGoDecisionsExported > 0,
+      releaseReadinessDecisionAccuracyAvailable: decisionsValidated > 0,
+      noGoPreventedIncidentRateAvailable: noGoDecisionsValidated > 0,
+    },
     predictiveCalibration: predictiveCalibration.calibration,
     aggregation: predictionAggregation,
     metrics: {
@@ -913,6 +1057,18 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
       rollbackSucceeded,
       verifyAutoRollbackSuccessRate,
       falseConfidenceRate,
+      verifyPackAutopilotGenerated,
+      verifyPackAutopilotReady,
+      verifyPackAutopilotReadinessRate,
+      releaseReadinessArtifactsExported,
+      goDecisionsExported,
+      noGoDecisionsExported,
+      decisionsValidated,
+      decisionsCorrect,
+      noGoDecisionsValidated,
+      noGoPreventedIncident,
+      releaseReadinessDecisionAccuracy,
+      noGoPreventedIncidentRate,
       firstChunkP95,
       syncP95,
       boardRenderP95,
@@ -931,6 +1087,7 @@ function buildKpiGateStatus(markerPath, thresholds, calibrationOptions) {
         gates.preventedIncidentRatePass &&
         gates.reproPackShareRatePass &&
         gates.replayToResolutionRatePass &&
+        gates.verifyPackAutopilotReadinessRatePass &&
         gates.rollbackTelemetryEvidencePass &&
         gates.verifyAutoRollbackSuccessRatePass &&
         gates.falseConfidenceRatePass &&
@@ -1035,6 +1192,7 @@ function main() {
     replayToResolutionRateMin: options.replayToResolutionRateMin,
     verifyAutoRollbackSuccessRateMin: options.verifyAutoRollbackSuccessRateMin,
     falseConfidenceRateMax: options.falseConfidenceRateMax,
+    verifyPackAutopilotReadinessRateMin: options.verifyPackAutopilotReadinessRateMin,
     firstChunkLatencyP95MaxMs: options.firstChunkLatencyP95MaxMs,
     syncLatencyP95MaxMs: options.syncLatencyP95MaxMs,
     boardRenderLatencyP95MaxMs: options.boardRenderLatencyP95MaxMs,
@@ -1048,11 +1206,26 @@ function main() {
       predictivePrecisionTightenedMin: options.predictivePrecisionTightenedMin,
       falseAlarmRateTightenedMax: options.falseAlarmRateTightenedMax,
       preventedIncidentRateTightenedMin: options.preventedIncidentRateTightenedMin,
+      verifyPackAutopilotReadinessMode: options.verifyPackAutopilotReadinessMode,
+      verifyPackAutopilotGeneratedMinForEnforcement:
+        options.verifyPackAutopilotGeneratedMinForEnforcement,
     }
   );
 
   console.log('[release-stop-gate] KPI gate result:');
   console.log(JSON.stringify(gateStatus, null, 2));
+
+  const verifyPackRollout = gateStatus.verifyPackReadinessRollout;
+  if (
+    verifyPackRollout &&
+    verifyPackRollout.thresholdEnabled &&
+    verifyPackRollout.wouldPass === false &&
+    verifyPackRollout.enforced === false
+  ) {
+    console.warn(
+      `[release-stop-gate] Verify-pack readiness below threshold but not enforced (mode=${verifyPackRollout.mode}, evidenceEnough=${verifyPackRollout.evidenceEnoughForEnforcement}).`
+    );
+  }
 
   if (!gateStatus.gates.overallPass) {
     const override = validateOverrideInput(options);

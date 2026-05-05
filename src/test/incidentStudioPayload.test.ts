@@ -35,6 +35,8 @@ describe('incidentStudioPayload', () => {
       projectName: ' Orders API ',
       projectType: ' springboot ',
       initialQuery: ' analyze launch blockers ',
+      preferredDisplayMode: ' full ',
+      preferredArchitectureLensView: ' dependency ',
     });
 
     expect(normalized).toEqual({
@@ -46,6 +48,8 @@ describe('incidentStudioPayload', () => {
         name: 'Orders API',
         type: 'springboot',
       },
+      preferredDisplayMode: 'full',
+      preferredArchitectureLensView: 'dependency',
     });
   });
 
@@ -63,6 +67,25 @@ describe('incidentStudioPayload', () => {
       workspaceName: '/tmp/wsp',
       initialQuery: undefined,
       projectSelection: null,
+      preferredDisplayMode: undefined,
+      preferredArchitectureLensView: undefined,
+    });
+  });
+
+  it('drops unsupported Incident Studio preferences', () => {
+    const normalized = normalizeIncomingIncidentStudioOpen({
+      workspacePath: '/tmp/wsp',
+      preferredDisplayMode: 'advanced',
+      preferredArchitectureLensView: 'force-graph',
+    });
+
+    expect(normalized).toEqual({
+      workspacePath: '/tmp/wsp',
+      workspaceName: '/tmp/wsp',
+      initialQuery: undefined,
+      projectSelection: null,
+      preferredDisplayMode: undefined,
+      preferredArchitectureLensView: undefined,
     });
   });
 
@@ -198,6 +221,7 @@ describe('incidentStudioPayload', () => {
       'workspace-memory-wizard',
       'doctor-fix',
       'recipe-pack',
+      'verify-pack-autopilot',
       'incident-repro-pack',
       'release-readiness-commander',
       'inline-command',
@@ -762,6 +786,78 @@ describe('incidentStudioPayload', () => {
         goNoGoRationale: 'authorization:[REDACTED]',
         recommendedNextStep: 'token=[REDACTED]',
       },
+    });
+  });
+
+  it('normalizes C06 contract runtime evidence in action-result payload', () => {
+    const normalized = normalizeIncidentActionResultPayload({
+      success: false,
+      contractRuntimeEvidence: {
+        evaluated: true,
+        source: ' mixed ',
+        availableKinds: ['architecture.config', 'project.mapping', 'project.mapping'],
+        missingKinds: ['execution.policy'],
+        errors: ['C06 contract error: execution.policy version is required'],
+        warnings: ['C06 contract warning: architecture.config has no services'],
+        summary: 'token=abc123',
+      },
+    });
+
+    expect(normalized.contractRuntimeEvidence).toEqual({
+      evaluated: true,
+      source: 'mixed',
+      availableKinds: ['architecture.config', 'project.mapping'],
+      missingKinds: ['execution.policy'],
+      errors: ['C06 contract error: execution.policy version is required'],
+      warnings: ['C06 contract warning: architecture.config has no services'],
+      summary: 'token=[REDACTED]',
+    });
+  });
+
+  it('normalizes verify command pack evidence in action-result payload', () => {
+    const normalized = normalizeIncidentActionResultPayload({
+      success: false,
+      verifyCommandPack: {
+        qualityScore: 88.7,
+        readiness: ' ready ',
+        rationale: 'token=abc123',
+        commands: [
+          {
+            label: ' Workspace doctor ',
+            command: ' rapidkit doctor workspace ',
+            scope: ' workspace ',
+            required: true,
+          },
+          {
+            label: ' Targeted test ',
+            command: ' vitest run src/test/incidentStudioStressGate.test.ts ',
+            scope: ' project ',
+            required: false,
+          },
+        ],
+        blockedReasons: ['scope unknown', 'scope unknown'],
+      },
+    });
+
+    expect(normalized.verifyCommandPack).toEqual({
+      qualityScore: 88.7,
+      readiness: 'ready',
+      rationale: 'token=[REDACTED]',
+      commands: [
+        {
+          label: 'Workspace doctor',
+          command: 'rapidkit doctor workspace',
+          scope: 'workspace',
+          required: true,
+        },
+        {
+          label: 'Targeted test',
+          command: 'vitest run src/test/incidentStudioStressGate.test.ts',
+          scope: 'project',
+          required: false,
+        },
+      ],
+      blockedReasons: ['scope unknown'],
     });
   });
 

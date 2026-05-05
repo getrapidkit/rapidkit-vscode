@@ -150,6 +150,29 @@ export type IncidentReleaseReadinessCommanderArtifact = {
   };
 };
 
+export type IncidentContractRuntimeEvidence = {
+  evaluated: boolean;
+  source: 'project' | 'workspace' | 'mixed' | 'none';
+  availableKinds: string[];
+  missingKinds: string[];
+  errors: string[];
+  warnings: string[];
+  summary?: string;
+};
+
+export type IncidentVerifyCommandPack = {
+  qualityScore: number;
+  readiness: 'ready' | 'needs-attention';
+  rationale: string;
+  commands: Array<{
+    label: string;
+    command: string;
+    scope: 'workspace' | 'project';
+    required: boolean;
+  }>;
+  blockedReasons: string[];
+};
+
 // ─── Multi-file patch apply/reject workflow (A02 / A03) ─────────────────────
 
 export type FilePatchStatus = 'pending' | 'accepted' | 'rejected' | 'applied' | 'failed';
@@ -198,6 +221,8 @@ export type NormalizedIncidentActionResultPayload = {
   sandboxSimulation?: IncidentSandboxSimulationEvidence;
   incidentReproPack?: IncidentReproPackEvidence;
   releaseReadinessCommander?: IncidentReleaseReadinessCommanderArtifact;
+  contractRuntimeEvidence?: IncidentContractRuntimeEvidence;
+  verifyCommandPack?: IncidentVerifyCommandPack;
 };
 
 export type NormalizedIncidentActionProgressPayload = {
@@ -349,6 +374,8 @@ export type NormalizedIncidentStudioOpen = {
   workspaceName: string;
   initialQuery?: string;
   projectSelection: IncidentProjectSelection | null;
+  preferredDisplayMode?: 'lite' | 'full';
+  preferredArchitectureLensView?: 'tree' | 'dependency' | 'runtime';
 };
 
 function cleanText(value: unknown): string | undefined {
@@ -535,6 +562,8 @@ export function normalizeIncidentActionResultPayload(
   const sandboxRecord = asRecord(record.sandboxSimulation);
   const reproPackRecord = asRecord(record.incidentReproPack);
   const commanderRecord = asRecord(record.releaseReadinessCommander);
+  const contractRuntimeRecord = asRecord(record.contractRuntimeEvidence);
+  const verifyCommandPackRecord = asRecord(record.verifyCommandPack);
 
   const verifyPolicy: IncidentVerifyPolicy = {
     requiresVerifyPath: asOptionalBoolean(verifyPolicyRecord.requiresVerifyPath),
@@ -801,6 +830,79 @@ export function normalizeIncidentActionResultPayload(
     Array.isArray(commanderRecord.blockingReasons) ||
     typeof commanderRecord.workspacePath === 'string';
 
+  const contractSource = cleanText(contractRuntimeRecord.source)?.toLowerCase();
+  const contractRuntimeEvidence: IncidentContractRuntimeEvidence = {
+    evaluated: asBoolean(contractRuntimeRecord.evaluated, false),
+    source:
+      contractSource === 'project' ||
+      contractSource === 'workspace' ||
+      contractSource === 'mixed' ||
+      contractSource === 'none'
+        ? contractSource
+        : 'none',
+    availableKinds: sanitizeStringArray(contractRuntimeRecord.availableKinds, 80, 10),
+    missingKinds: sanitizeStringArray(contractRuntimeRecord.missingKinds, 80, 10),
+    errors: sanitizeStringArray(contractRuntimeRecord.errors, 240, 12),
+    warnings: sanitizeStringArray(contractRuntimeRecord.warnings, 240, 12),
+    summary: sanitizeIncidentText(contractRuntimeRecord.summary, 320),
+  };
+
+  const hasContractRuntimeField =
+    typeof contractRuntimeRecord.evaluated === 'boolean' ||
+    typeof contractRuntimeRecord.source === 'string' ||
+    Array.isArray(contractRuntimeRecord.availableKinds) ||
+    Array.isArray(contractRuntimeRecord.missingKinds) ||
+    Array.isArray(contractRuntimeRecord.errors) ||
+    Array.isArray(contractRuntimeRecord.warnings) ||
+    typeof contractRuntimeRecord.summary === 'string';
+
+  const verifyPackCommands = Array.isArray(verifyCommandPackRecord.commands)
+    ? verifyCommandPackRecord.commands
+        .map((entry) => {
+          const commandRecord = asRecord(entry);
+          const command = cleanText(commandRecord.command);
+          if (!command) {
+            return null;
+          }
+
+          const rawScope = cleanText(commandRecord.scope)?.toLowerCase();
+          return {
+            label: sanitizeIncidentText(commandRecord.label, 120) || command,
+            command,
+            scope: rawScope === 'project' ? 'project' : 'workspace',
+            required: asBoolean(commandRecord.required, true),
+          };
+        })
+        .filter(
+          (
+            entry
+          ): entry is {
+            label: string;
+            command: string;
+            scope: 'workspace' | 'project';
+            required: boolean;
+          } => entry !== null
+        )
+    : [];
+
+  const rawReadiness = cleanText(verifyCommandPackRecord.readiness)?.toLowerCase();
+  const verifyCommandPack: IncidentVerifyCommandPack = {
+    qualityScore: clampNumber(asNumber(verifyCommandPackRecord.qualityScore, 0), 0, 100),
+    readiness: rawReadiness === 'ready' ? 'ready' : 'needs-attention',
+    rationale:
+      sanitizeIncidentText(verifyCommandPackRecord.rationale, 320) ||
+      'Deterministic verify path needs additional evidence.',
+    commands: verifyPackCommands,
+    blockedReasons: sanitizeStringArray(verifyCommandPackRecord.blockedReasons, 220, 12),
+  };
+
+  const hasVerifyCommandPackField =
+    typeof verifyCommandPackRecord.qualityScore === 'number' ||
+    typeof verifyCommandPackRecord.readiness === 'string' ||
+    typeof verifyCommandPackRecord.rationale === 'string' ||
+    Array.isArray(verifyCommandPackRecord.commands) ||
+    Array.isArray(verifyCommandPackRecord.blockedReasons);
+
   return {
     success: Boolean(record.success),
     outputSummary: sanitizeIncidentText(record.outputSummary, 1200),
@@ -812,6 +914,8 @@ export function normalizeIncidentActionResultPayload(
     sandboxSimulation: hasSandboxField ? sandboxSimulation : undefined,
     incidentReproPack: hasReproPackField ? incidentReproPack : undefined,
     releaseReadinessCommander: hasCommanderField ? releaseReadinessCommander : undefined,
+    contractRuntimeEvidence: hasContractRuntimeField ? contractRuntimeEvidence : undefined,
+    verifyCommandPack: hasVerifyCommandPackField ? verifyCommandPack : undefined,
   };
 }
 
@@ -986,18 +1090,21 @@ export function buildIncidentActionExecutionMetadata(
     normalized === 'fix-preview-lite' ||
     normalized === 'workspace-memory-wizard' ||
     normalized === 'recipe-pack' ||
+    normalized === 'verify-pack-autopilot' ||
     normalized === 'incident-repro-pack' ||
     normalized === 'release-readiness-commander'
   ) {
     return {
       riskClass: 'non-mutating-executable',
       riskLevel:
-        normalized === 'incident-repro-pack' || normalized === 'release-readiness-commander'
+        normalized === 'verify-pack-autopilot' ||
+        normalized === 'incident-repro-pack' ||
+        normalized === 'release-readiness-commander'
           ? 'medium'
           : 'low',
       requiresImpactReview: false,
-      requiresVerifyPath: false,
-      allowCompletionClaimWithoutVerify: true,
+      requiresVerifyPath: normalized === 'verify-pack-autopilot',
+      allowCompletionClaimWithoutVerify: normalized !== 'verify-pack-autopilot',
     };
   }
 
@@ -1143,6 +1250,18 @@ export function normalizeIncomingIncidentStudioOpen(
 
   const workspaceName = sanitizeIncidentText(message.workspaceName, 200) || workspacePath;
   const initialQuery = sanitizeIncidentText(message.initialQuery, 4000);
+  const rawPreferredDisplayMode = cleanText(message.preferredDisplayMode);
+  const rawPreferredArchitectureLensView = cleanText(message.preferredArchitectureLensView);
+  const preferredDisplayMode =
+    rawPreferredDisplayMode === 'full' || rawPreferredDisplayMode === 'lite'
+      ? rawPreferredDisplayMode
+      : undefined;
+  const preferredArchitectureLensView =
+    rawPreferredArchitectureLensView === 'tree' ||
+    rawPreferredArchitectureLensView === 'dependency' ||
+    rawPreferredArchitectureLensView === 'runtime'
+      ? rawPreferredArchitectureLensView
+      : undefined;
   const projectPath = cleanText(message.projectPath);
   const projectSelection = projectPath
     ? {
@@ -1157,6 +1276,8 @@ export function normalizeIncomingIncidentStudioOpen(
     workspaceName,
     initialQuery,
     projectSelection,
+    preferredDisplayMode,
+    preferredArchitectureLensView,
   };
 }
 

@@ -326,10 +326,6 @@ export class ActionsWebviewProvider implements vscode.WebviewViewProvider {
             <span class="t-icon">${icons.docs}</span>
             <span class="t-text">Docs</span>
         </button>
-        <button class="tool-btn ai" onclick="send('releaseReadinessCommander')" title="Run release-readiness commander Go/No-Go flow">
-          <span class="t-icon">${icons.release}</span>
-          <span class="t-text">Release Ready</span>
-        </button>
     </div>
 
     <script>

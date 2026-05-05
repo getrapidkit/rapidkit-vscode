@@ -32,6 +32,7 @@ interface AIQuickAction {
     | 'fix-preview'
     | 'change-impact'
     | 'terminal-bridge'
+    | 'release-outcome-validation'
     | 'memory-wizard'
     | 'recipe-packs'
     | 'release-readiness';
@@ -240,6 +241,13 @@ const AI_QUICK_ACTIONS: AIQuickAction[] = [
     label: 'Release Readiness Commander',
     detail: 'Run a one-click Go/No-Go decision flow in Incident Studio',
     command: 'workspai.aiReleaseReadinessCommander',
+    category: 'Planning & Safety',
+  },
+  {
+    id: 'release-outcome-validation',
+    label: 'Record Release Outcome Validation',
+    detail: 'Attach validated GO/NO-GO outcomes to a release-readiness artifact',
+    command: 'workspai.aiRecordReleaseOutcomeValidation',
     category: 'Planning & Safety',
   },
   {
@@ -551,6 +559,91 @@ async function collectListEntries(
   return values;
 }
 
+async function promptReleaseOutcomeValidation(): Promise<{
+  artifactId: string;
+  originalDecision: 'GO' | 'NO-GO';
+  validationOutcome:
+    | 'go-confirmed'
+    | 'go-missed-incident'
+    | 'no-go-prevented-incident'
+    | 'no-go-unnecessary';
+  isCorrect: boolean;
+  preventedIncident: boolean;
+} | null> {
+  const artifactIdInput = await vscode.window.showInputBox({
+    title: 'Record Release Outcome Validation',
+    prompt: 'Enter the release-readiness artifact ID',
+    placeHolder: 'E.g. rrc_2026_05_04_billing_api',
+    ignoreFocusOut: true,
+  });
+
+  if (artifactIdInput === undefined) {
+    return null;
+  }
+
+  const artifactId = artifactIdInput.trim();
+  if (!artifactId) {
+    vscode.window.showWarningMessage(
+      'Artifact ID is required to record release outcome validation.'
+    );
+    return null;
+  }
+
+  const validationPick = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'GO was correct',
+        description: 'Release shipped cleanly and the GO decision held up',
+        originalDecision: 'GO' as const,
+        validationOutcome: 'go-confirmed' as const,
+        isCorrect: true,
+        preventedIncident: false,
+      },
+      {
+        label: 'GO missed an incident',
+        description: 'Release shipped, but the commander should have blocked it',
+        originalDecision: 'GO' as const,
+        validationOutcome: 'go-missed-incident' as const,
+        isCorrect: false,
+        preventedIncident: false,
+      },
+      {
+        label: 'NO-GO prevented an incident',
+        description: 'The block was justified and avoided a risky release',
+        originalDecision: 'NO-GO' as const,
+        validationOutcome: 'no-go-prevented-incident' as const,
+        isCorrect: true,
+        preventedIncident: true,
+      },
+      {
+        label: 'NO-GO was unnecessary',
+        description: 'The block was later cleared without finding a real release risk',
+        originalDecision: 'NO-GO' as const,
+        validationOutcome: 'no-go-unnecessary' as const,
+        isCorrect: false,
+        preventedIncident: false,
+      },
+    ],
+    {
+      title: 'Validated Outcome',
+      placeHolder: 'Choose the validated outcome for this artifact',
+      ignoreFocusOut: true,
+    }
+  );
+
+  if (!validationPick) {
+    return null;
+  }
+
+  return {
+    artifactId,
+    originalDecision: validationPick.originalDecision,
+    validationOutcome: validationPick.validationOutcome,
+    isCorrect: validationPick.isCorrect,
+    preventedIncident: validationPick.preventedIncident,
+  };
+}
+
 async function trackAIFreeCommandEvent(
   command: string,
   aiContext?: AIModalContext,
@@ -716,6 +809,74 @@ export function registerAIFreeFeatureCommands(
         });
       }
     ),
+
+    vscode.commands.registerCommand('workspai.aiRecordReleaseOutcomeValidation', async () => {
+      const aiContext = await resolvePreferredAIContext();
+      const launchTarget = await resolveIncidentStudioLaunchTarget();
+
+      if (!launchTarget) {
+        vscode.window.showWarningMessage('Select or open a workspace first.');
+        await trackAIFreeCommandEvent('workspai.aiRecordReleaseOutcomeValidation', aiContext, {
+          result: 'no-workspace',
+        });
+        return;
+      }
+
+      const validation = await promptReleaseOutcomeValidation();
+      if (!validation) {
+        await trackAIFreeCommandEvent('workspai.aiRecordReleaseOutcomeValidation', aiContext, {
+          result: 'cancelled',
+        });
+        return;
+      }
+
+      const sharedProps = {
+        artifactId: validation.artifactId,
+        originalDecision: validation.originalDecision,
+        validationOutcome: validation.validationOutcome,
+      };
+
+      const tracker = WorkspaceUsageTracker.getInstance();
+      await tracker.trackCommandEvent(
+        'workspai.studio.release_readiness_decision_validated',
+        launchTarget.workspacePath,
+        sharedProps
+      );
+
+      if (validation.isCorrect) {
+        await tracker.trackCommandEvent(
+          'workspai.studio.release_readiness_decision_correct',
+          launchTarget.workspacePath,
+          sharedProps
+        );
+      }
+
+      if (validation.originalDecision === 'NO-GO') {
+        await tracker.trackCommandEvent(
+          'workspai.studio.release_readiness_no_go_decision_validated',
+          launchTarget.workspacePath,
+          sharedProps
+        );
+      }
+
+      if (validation.preventedIncident) {
+        await tracker.trackCommandEvent(
+          'workspai.studio.release_readiness_no_go_prevented_incident',
+          launchTarget.workspacePath,
+          sharedProps
+        );
+      }
+
+      await trackAIFreeCommandEvent('workspai.aiRecordReleaseOutcomeValidation', aiContext, {
+        result: 'recorded',
+        originalDecision: validation.originalDecision,
+        validationOutcome: validation.validationOutcome,
+      });
+
+      vscode.window.showInformationMessage(
+        `Recorded ${validation.originalDecision} validation for artifact ${validation.artifactId}.`
+      );
+    }),
 
     vscode.commands.registerCommand('workspai.aiFixPreviewLite', async (seed?: unknown) => {
       const aiContext = await resolvePreferredAIContext();

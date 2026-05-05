@@ -22,6 +22,7 @@ const INCIDENT_ACTION_ALLOWLIST = new Set<string>([
   'workspace-memory-wizard',
   'doctor-fix',
   'recipe-pack',
+  'verify-pack-autopilot',
   'inline-command',
   // KF5: capture a reproducible incident pack + replay payload
   'incident-repro-pack',
@@ -60,6 +61,7 @@ export function classifyIncidentActionPolicy(actionType: string): IncidentAction
     case 'workspace-memory-wizard':
     case 'doctor-fix':
     case 'recipe-pack':
+    case 'verify-pack-autopilot':
     case 'incident-repro-pack':
     case 'release-readiness-commander':
       return {
@@ -67,13 +69,15 @@ export function classifyIncidentActionPolicy(actionType: string): IncidentAction
         riskClass: 'non-mutating-executable',
         riskLevel:
           normalized === 'doctor-fix' ||
+          normalized === 'verify-pack-autopilot' ||
           normalized === 'incident-repro-pack' ||
           normalized === 'release-readiness-commander'
             ? 'medium'
             : 'low',
         requiresImpactReview: false,
-        requiresVerifyPath: normalized === 'doctor-fix',
-        allowCompletionClaimWithoutVerify: normalized !== 'doctor-fix',
+        requiresVerifyPath: normalized === 'doctor-fix' || normalized === 'verify-pack-autopilot',
+        allowCompletionClaimWithoutVerify:
+          normalized !== 'doctor-fix' && normalized !== 'verify-pack-autopilot',
       };
     case 'inline-command':
       return {

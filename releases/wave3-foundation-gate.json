@@ -4,22 +4,27 @@
         "releases/fixtures/wave3-kpi-marker.json",
         "releases/wave3-claim-checklist.md",
         ".github/workflows/release-gate-wave3.yml",
+        ".github/workflows/incident-studio-soak.yml",
         "webview-ui/src/components/AIIncidentStudio.tsx",
         "webview-ui/src/styles-tailwind.css",
         "webview-ui/src/App.tsx",
         "src/ui/panels/welcomePanel.ts",
         "src/commands/importProject.ts",
         "src/commands/coreCommands.ts",
-        "src/extension.ts"
+        "src/extension.ts",
+        "src/core/workspaiContractRuntime.ts"
     ],
     "requiredVitestTests": [
         "src/test/incidentStudioPreferences.test.ts",
+        "src/test/incidentStudioLifecycle.test.ts",
+        "src/test/incidentStudioStressGate.test.ts",
         "src/test/releaseStopGateManifest.test.ts",
         "src/test/incidentStudioPayload.test.ts",
         "src/test/incidentStudioFlowE2E.test.ts",
         "src/test/importProjectUtils.test.ts",
         "src/test/importedProjectsRegistry.test.ts",
-        "src/test/coreCommandsImportProject.test.ts"
+        "src/test/coreCommandsImportProject.test.ts",
+        "src/test/workspaiContractRuntime.test.ts"
     ],
     "requiredContents": [
         {

@@ -38,5 +38,13 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+      - name: Incident Studio stress soak (3 passes)
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            echo "[soak] pass ${i}/3"
+            npm run test:stress:incident-studio
+          done
+
       - name: Wave 3 release gate
         run: npm run release:stop-gate:wave3

@@ -73,6 +73,7 @@ describe('incidentStudioPromptPolicy', () => {
     expect(isIncidentActionAllowlisted('doctor-fix')).toBe(true);
     expect(isIncidentActionAllowlisted('inline-command')).toBe(true);
     expect(isIncidentActionAllowlisted('  recipe-pack  ')).toBe(true);
+    expect(isIncidentActionAllowlisted('verify-pack-autopilot')).toBe(true);
     expect(isIncidentActionAllowlisted('incident-repro-pack')).toBe(true);
     expect(isIncidentActionAllowlisted('release-readiness-commander')).toBe(true);
 
@@ -89,6 +90,7 @@ describe('incidentStudioPromptPolicy', () => {
       'workspace-memory-wizard',
       'doctor-fix',
       'recipe-pack',
+      'verify-pack-autopilot',
       'incident-repro-pack',
       'release-readiness-commander',
       'inline-command',

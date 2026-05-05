@@ -18,7 +18,7 @@ export type IncidentStudioOnboardingSummary = {
 
 export type IncidentStudioCtaVariantBreakdown = {
   workspacePath: string;
-  timeWindow: 'all' | 'last24h' | 'last7d';
+  timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
   windowStartAt: string | null;
   windowEndAt: string;
   variants: Array<{
@@ -41,7 +41,7 @@ export type IncidentStudioTelemetryPayload = {
   ctaVariantBreakdown?: IncidentStudioCtaVariantBreakdown | null;
   studioHardGateStatus?: {
     workspacePath: string;
-    timeWindow: 'all' | 'last24h' | 'last7d';
+    timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
     windowStartAt: string | null;
     windowEndAt: string;
     thresholds: {
@@ -65,7 +65,7 @@ export type IncidentStudioTelemetryPayload = {
   } | null;
   studioRollbackKpiStatus?: {
     workspacePath: string;
-    timeWindow: 'all' | 'last24h' | 'last7d';
+    timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
     windowStartAt: string | null;
     windowEndAt: string;
     thresholds: {
@@ -88,7 +88,7 @@ export type IncidentStudioTelemetryPayload = {
   } | null;
   studioReproPackKpiStatus?: {
     workspacePath: string;
-    timeWindow: 'all' | 'last24h' | 'last7d';
+    timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
     windowStartAt: string | null;
     windowEndAt: string;
     thresholds: {
@@ -178,7 +178,7 @@ export function buildIncidentStudioTelemetryPayload(
   } | null,
   ctaVariantBreakdown: {
     workspacePath: string;
-    timeWindow: 'all' | 'last24h' | 'last7d';
+    timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
     windowStartAt: string | null;
     windowEndAt: string;
     variants: Array<{

@@ -382,6 +382,16 @@ export async function activate(context: vscode.ExtensionContext) {
               ? projectFromItem.type
               : undefined,
           initialQuery,
+          preferredDisplayMode:
+            item?.preferredDisplayMode === 'full' || item?.preferredDisplayMode === 'lite'
+              ? item.preferredDisplayMode
+              : undefined,
+          preferredArchitectureLensView:
+            item?.preferredArchitectureLensView === 'dependency' ||
+            item?.preferredArchitectureLensView === 'runtime' ||
+            item?.preferredArchitectureLensView === 'tree'
+              ? item.preferredArchitectureLensView
+              : undefined,
         });
       }),
       vscode.commands.registerCommand('workspai.importWorkspaceShareBundle', async () => {

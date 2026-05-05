@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { registeredCommands, importProjectCommandMock, showErrorMessageMock } = vi.hoisted(() => ({
+const {
+  registeredCommands,
+  importProjectCommandMock,
+  openIncidentStudioMock,
+  showErrorMessageMock,
+} = vi.hoisted(() => ({
   registeredCommands: new Map<string, (...args: unknown[]) => unknown>(),
   importProjectCommandMock: vi.fn(),
+  openIncidentStudioMock: vi.fn(),
   showErrorMessageMock: vi.fn(),
 }));
 
@@ -65,6 +71,7 @@ vi.mock('../ui/panels/welcomePanel', () => ({
     showModuleInstallModal: vi.fn(),
     openProjectModal: vi.fn(),
     openWorkspaceModal: vi.fn(),
+    openIncidentStudio: openIncidentStudioMock,
     showAIModal: vi.fn(),
   },
 }));
@@ -125,5 +132,51 @@ describe('coreCommands importProject seed forwarding', () => {
       seed
     );
     expect(showErrorMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('routes architecture map into full Incident Studio with graph preferences', async () => {
+    const logger = {
+      info: vi.fn(),
+      error: vi.fn(),
+    } as any;
+
+    const getWorkspaceExplorer = () => ({
+      refresh: vi.fn(),
+      getSelectedWorkspace: () => ({ path: '/tmp/ws', name: 'Workspace Alpha' }),
+    });
+
+    const getProjectExplorer = () => ({
+      refresh: vi.fn(),
+      getSelectedProject: () => ({
+        path: '/tmp/ws/orders-api',
+        name: 'orders-api',
+        type: 'nestjs',
+      }),
+    });
+
+    registerCoreCommands({
+      context: {} as any,
+      logger,
+      getWorkspaceExplorer,
+      getProjectExplorer,
+    });
+
+    const handler = registeredCommands.get('workspai.openArchitectureMap');
+    expect(handler).toBeTypeOf('function');
+
+    await handler?.();
+
+    expect(openIncidentStudioMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        workspacePath: '/tmp/ws',
+        workspaceName: 'Workspace Alpha',
+        projectPath: '/tmp/ws/orders-api',
+        projectName: 'orders-api',
+        projectType: 'nestjs',
+        preferredDisplayMode: 'full',
+        preferredArchitectureLensView: 'tree',
+      })
+    );
   });
 });

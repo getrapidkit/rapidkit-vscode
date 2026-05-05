@@ -8,6 +8,7 @@ import { Logger } from '../utils/logger';
 import { upsertImportedProjectsRegistry } from '../utils/importedProjectsRegistry';
 import { writeWorkspaceMarker } from '../utils/workspaceMarker';
 import { WorkspaceUsageTracker } from '../utils/workspaceUsageTracker';
+import { evaluateWorkspaiContractRuntime } from '../core/workspaiContractRuntime';
 import {
   detectProjectStackFromSignals,
   deriveProjectNameFromGitUrl,
@@ -65,6 +66,18 @@ const OPEN_STUDIO_ACTION = 'Open Studio';
 const VIEW_ARCHITECTURE_ACTION = 'View Architecture Map';
 const HEALTH_CHECK_ACTION = 'Run Health Check';
 const BATCH_IMPORT_CONCURRENCY = 3;
+
+function summarizeC06Status(input: {
+  evaluated: boolean;
+  errors: string[];
+  warnings: string[];
+  availableKinds: string[];
+}): string {
+  if (!input.evaluated) {
+    return 'C06 contracts: not found';
+  }
+  return `C06 contracts: ${input.availableKinds.length} loaded, ${input.errors.length} error(s), ${input.warnings.length} warning(s)`;
+}
 
 function toTelemetryImportSource(source: ImportSourceType): ImportTelemetrySource {
   return source === 'drag-drop' ? 'dragdrop' : source;
@@ -906,9 +919,16 @@ async function postImportActions(
     return;
   }
 
+  const primaryProjectPath = importedProjects.length === 1 ? importedProjects[0].path : undefined;
+  const contractRuntime = await evaluateWorkspaiContractRuntime({
+    workspacePath: workspace.path,
+    projectPath: primaryProjectPath,
+  });
+  const c06StatusSummary = summarizeC06Status(contractRuntime);
+
   if (importedProjects.length > 1) {
     const action = await vscode.window.showInformationMessage(
-      `Import done. ${importedProjects.length} projects imported. Analysis ready.`,
+      `Import done. ${importedProjects.length} projects imported. Analysis ready. ${c06StatusSummary}.`,
       OPEN_STUDIO_ACTION,
       VIEW_ARCHITECTURE_ACTION,
       HEALTH_CHECK_ACTION
@@ -957,7 +977,7 @@ async function postImportActions(
 
   const stackDetected = `${stackLabel(project.detection.stack)} (${project.detection.confidence})`;
   const action = await vscode.window.showInformationMessage(
-    `Import done. Stack detected: ${stackDetected}. Analysis ready.`,
+    `Import done. Stack detected: ${stackDetected}. Analysis ready. ${c06StatusSummary}.`,
     OPEN_STUDIO_ACTION,
     VIEW_ARCHITECTURE_ACTION,
     HEALTH_CHECK_ACTION

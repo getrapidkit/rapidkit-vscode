@@ -77,7 +77,7 @@ This release packages the full 37-commit train currently ahead of `origin/main`,
 - Lint: pass
 - Build: pass
 - Compile: pass
-- VSIX package: pending final run on release state
+- VSIX package: pass
 - Full test suite: 182/182 pass
 - Production audit (`npm audit --omit=dev`): 0 vulnerabilities
 - Full audit: only dev-tooling vulnerabilities remain, blocked upstream by `@vscode/test-cli` -> `mocha` -> `serialize-javascript` and one nested `brace-expansion` path

@@ -5,10 +5,23 @@ import {
   runRapidkitCommandsInTerminal,
   runShellCommandInTerminal,
 } from '../utils/terminalExecutor';
+import { evaluateWorkspaiContractRuntime } from '../core/workspaiContractRuntime';
 
 type WorkspaceExplorerLike = {
   getSelectedWorkspace?: () => { path: string; name?: string } | null | undefined;
 };
+
+function summarizeC06Health(input: {
+  evaluated: boolean;
+  errors: string[];
+  warnings: string[];
+  availableKinds: string[];
+}): string {
+  if (!input.evaluated) {
+    return 'C06: contracts not found';
+  }
+  return `C06: ${input.availableKinds.length} loaded, ${input.errors.length} error(s), ${input.warnings.length} warning(s)`;
+}
 
 export function registerWorkspaceOperationsCommands(options: {
   logger: Logger;
@@ -506,6 +519,9 @@ export function registerWorkspaceOperationsCommands(options: {
 
       logger.info('Running doctor check for workspace:', workspaceName);
 
+      const contractRuntime = await evaluateWorkspaiContractRuntime({ workspacePath });
+      const c06HealthSummary = summarizeC06Health(contractRuntime);
+
       const { CoreVersionService } = await import('../core/coreVersionService.js');
       const versionService = CoreVersionService.getInstance();
       const versionInfo = await versionService.getVersionInfo(workspacePath);
@@ -526,7 +542,7 @@ export function registerWorkspaceOperationsCommands(options: {
 
       const selection = await vscode.window.showQuickPick(actions, {
         placeHolder: `Workspai: Health & Version - ${workspaceName}`,
-        title: versionService.getStatusMessage(versionInfo),
+        title: `${versionService.getStatusMessage(versionInfo)} · ${c06HealthSummary}`,
       });
 
       if (!selection) {
@@ -554,7 +570,7 @@ export function registerWorkspaceOperationsCommands(options: {
                 progress.report({ increment: 100, message: 'Complete!' });
 
                 vscode.window.showInformationMessage(
-                  `Health check running for "${workspaceName}". Check the terminal for results.`,
+                  `Health check running for "${workspaceName}". ${c06HealthSummary}. Check the terminal for results.`,
                   'OK'
                 );
               } catch (error) {
@@ -587,7 +603,7 @@ export function registerWorkspaceOperationsCommands(options: {
                 progress.report({ increment: 100, message: 'Complete!' });
 
                 vscode.window.showInformationMessage(
-                  `Doctor fix is running for "${workspaceName}". Check the terminal for details.`,
+                  `Doctor fix is running for "${workspaceName}". ${c06HealthSummary}. Check the terminal for details.`,
                   'OK'
                 );
               } catch (error) {

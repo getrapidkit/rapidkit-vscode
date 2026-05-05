@@ -165,6 +165,121 @@ describe('workspaceUsageTracker telemetry stability', () => {
     expect(bySurface.find((entry) => entry.surface === 'onboarding')?.count).toBe(2);
   });
 
+  it('calculates release-readiness validation KPIs from artifact-linked events', async () => {
+    const workspacePath = path.join(tempRoot, 'ws-release-readiness');
+    createWorkspaceMarker(workspacePath);
+
+    const tracker = WorkspaceUsageTracker.getInstance();
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_artifact_exported',
+      workspacePath,
+      { artifactId: 'artifact-go-1', decision: 'go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_go_decision_exported',
+      workspacePath,
+      { artifactId: 'artifact-go-1', decision: 'go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_decision_validated',
+      workspacePath,
+      { artifactId: 'artifact-go-1', originalDecision: 'GO', validationOutcome: 'go-confirmed' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_decision_correct',
+      workspacePath,
+      { artifactId: 'artifact-go-1', originalDecision: 'GO', validationOutcome: 'go-confirmed' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_artifact_exported',
+      workspacePath,
+      { artifactId: 'artifact-no-go-1', decision: 'no-go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_no_go_decision_exported',
+      workspacePath,
+      { artifactId: 'artifact-no-go-1', decision: 'no-go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_decision_validated',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-1',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-prevented-incident',
+      }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_decision_correct',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-1',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-prevented-incident',
+      }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_no_go_decision_validated',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-1',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-prevented-incident',
+      }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_no_go_prevented_incident',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-1',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-prevented-incident',
+      }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_artifact_exported',
+      workspacePath,
+      { artifactId: 'artifact-no-go-2', decision: 'no-go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_no_go_decision_exported',
+      workspacePath,
+      { artifactId: 'artifact-no-go-2', decision: 'no-go' }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_decision_validated',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-2',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-unnecessary',
+      }
+    );
+    await tracker.trackCommandEvent(
+      'workspai.studio.release_readiness_no_go_decision_validated',
+      workspacePath,
+      {
+        artifactId: 'artifact-no-go-2',
+        originalDecision: 'NO-GO',
+        validationOutcome: 'no-go-unnecessary',
+      }
+    );
+
+    const status = await tracker.getReleaseReadinessValidationKpiStatus(workspacePath, 'all');
+
+    expect(status).not.toBeNull();
+    expect(status?.metrics.releaseReadinessArtifactsExported).toBe(3);
+    expect(status?.metrics.goDecisionsExported).toBe(1);
+    expect(status?.metrics.noGoDecisionsExported).toBe(2);
+    expect(status?.metrics.decisionsValidated).toBe(3);
+    expect(status?.metrics.decisionsCorrect).toBe(2);
+    expect(status?.metrics.noGoDecisionsValidated).toBe(2);
+    expect(status?.metrics.noGoPreventedIncident).toBe(1);
+    expect(status?.metrics.releaseReadinessDecisionAccuracy).toBe(66.67);
+    expect(status?.metrics.noGoPreventedIncidentRate).toBe(50);
+    expect(status?.gates.overallPass).toBe(true);
+  });
+
   it('counts clarification-gate telemetry under ask surfaces for rate analysis', async () => {
     const workspacePath = path.join(tempRoot, 'ws-clarification-gates');
 

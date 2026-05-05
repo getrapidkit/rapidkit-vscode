@@ -318,6 +318,8 @@ export function App() {
     const [incidentUserMode, setIncidentUserMode] = useState<IncidentUserMode>(DEFAULT_INCIDENT_USER_MODE);
     const [incidentStudioDisplayMode, setIncidentStudioDisplayMode] =
         useState<IncidentStudioDisplayMode>(DEFAULT_INCIDENT_STUDIO_DISPLAY_MODE);
+    const [incidentArchitectureLensViewOverride, setIncidentArchitectureLensViewOverride] =
+        useState<'tree' | 'dependency' | 'runtime' | null>(null);
     const [incidentPrimaryCtaExperimentVariant, setIncidentPrimaryCtaExperimentVariant] =
         useState<IncidentPrimaryCtaExperimentVariant | null>(null);
     const [incidentAutoLearningPrompt, setIncidentAutoLearningPrompt] = useState(true);
@@ -333,6 +335,7 @@ export function App() {
     const chatBrainLastPartialFailureRequestIdRef = useRef<string | null>(null);
     const chatBrainLastErrorRequestIdRef = useRef<string | null>(null);
     const lastIncidentBootstrapWorkspaceRef = useRef<string | null>(null);
+    const incidentStudioDisplayModeOverrideRef = useRef<IncidentStudioDisplayMode | null>(null);
 
     const activeWorkspace =
         recentWorkspaces.find((workspace) => workspace.path === workspaceStatus.workspacePath) || null;
@@ -371,6 +374,7 @@ export function App() {
 
     const updateIncidentStudioDisplayMode = (mode: IncidentStudioDisplayMode) => {
         const normalizedMode = normalizeIncidentStudioDisplayMode(mode);
+        incidentStudioDisplayModeOverrideRef.current = null;
         setIncidentStudioDisplayMode(normalizedMode);
         vscode.postMessage('setUiPreference', {
             key: 'incidentStudioDisplayMode',
@@ -599,6 +603,18 @@ export function App() {
                     const normalizedOpen = normalizeIncomingIncidentStudioOpen(message.data);
                     if (!normalizedOpen) {
                         break;
+                    }
+
+                    const displayModeOverride = normalizedOpen.preferredDisplayMode
+                        ? normalizeIncidentStudioDisplayMode(normalizedOpen.preferredDisplayMode)
+                        : null;
+
+                    incidentStudioDisplayModeOverrideRef.current = displayModeOverride;
+                    setIncidentArchitectureLensViewOverride(
+                        normalizedOpen.preferredArchitectureLensView || null
+                    );
+                    if (displayModeOverride) {
+                        setIncidentStudioDisplayMode(displayModeOverride);
                     }
 
                     setActiveView('incident-studio');
@@ -950,9 +966,11 @@ export function App() {
                         setIsSetupCardHidden(message.data.setupStatusCardHidden);
                     }
                     setIncidentUserMode(normalizeIncidentUserMode(message.data?.incidentUserMode));
-                    setIncidentStudioDisplayMode(
-                        normalizeIncidentStudioDisplayMode(message.data?.incidentStudioDisplayMode)
-                    );
+                    if (!incidentStudioDisplayModeOverrideRef.current) {
+                        setIncidentStudioDisplayMode(
+                            normalizeIncidentStudioDisplayMode(message.data?.incidentStudioDisplayMode)
+                        );
+                    }
                     setIncidentPrimaryCtaExperimentVariant(
                         normalizeIncidentPrimaryCtaExperimentVariant(
                             message.data?.incidentPrimaryCtaExperimentVariant
@@ -1157,6 +1175,7 @@ export function App() {
             vscode.postMessage('aiChatClose', { conversationId: conversationIdToClose });
         }
 
+        lastIncidentBootstrapWorkspaceRef.current = workspacePath;
         setSelectedWorkspaceForAnalysis(workspacePath);
         setSelectedProjectForAnalysis(projectSelection || null);
         setChatBrainConversationId(conversationId);
@@ -1704,9 +1723,12 @@ export function App() {
                         executingCommand={chatBrainExecutingCommand}
                         primaryCtaMode={incidentPrimaryCtaMode}
                         studioDisplayMode={incidentStudioDisplayMode}
+                        preferredArchitectureLensView={incidentArchitectureLensViewOverride}
                         userMode={incidentUserMode}
                         onUserModeChange={updateIncidentUserMode}
-                        hasProjectSelected={Boolean(workspaceStatus.hasProjectSelected)}
+                        hasProjectSelected={Boolean(
+                            selectedProjectForAnalysis?.path || workspaceStatus.hasProjectSelected
+                        )}
                     />
                 </>
             )}

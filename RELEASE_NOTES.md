@@ -1,5 +1,45 @@
 # Release Notes
 
+## Latest Release: v0.23.0 (May 5, 2026)
+
+### ✦ Enterprise Import + Incident Studio Release Readiness Maturity
+
+**Summary:** This release consolidates the full local train ahead of `origin/main` plus the current working-tree stabilization set. It ships enterprise import flows, universal architecture discovery foundations, Incident Studio release-readiness hardening, W07/W08 KPI availability, and claim-safe Wave 3 release governance.
+
+#### Added
+
+- **Enterprise import and BYOP surfaces**
+  Added stronger import flows, cross-project wiring, and backend project onboarding paths with more deterministic command routing and extension activation integration.
+- **Release outcome validation loop (W07/W08)**
+  Added release-readiness decision validation telemetry and command surface to record GO/NO-GO outcomes linked to artifact IDs.
+- **Nightly Incident Studio soak workflow**
+  Added dedicated soak workflow coverage for stability checks beyond mainline release gate execution.
+- **Contract runtime and stress coverage expansion**
+  Added contract runtime module/test coverage and expanded stress/release-gate tests for Incident Studio and wave3 policy enforcement.
+
+#### Changed
+
+- **Wave 3 release-stop gate depth**
+  Expanded KPI reporting to include release-readiness validation metrics, readiness rollout visibility, and stronger gate output evidence.
+- **Incident Studio host/webview parity**
+  Updated payload contracts, panel telemetry typing, prompt policy, and UI behavior so release-readiness and verify-pack flows are consistent across layers.
+- **Core command/import/workspace orchestration**
+  Refined command handlers and workspace/project operations to reduce cross-surface drift and improve reliability in multi-workspace setups.
+
+#### Fixed
+
+- **Claim safety and wording parity**
+  Aligned shipped-scope language across docs and product-facing surfaces to avoid over-claiming auto-mutation or unsupported readiness guarantees.
+- **Type and gate consistency issues**
+  Resolved telemetry time-window/type mismatches and stabilized release-gate regression coverage for new KPI outputs.
+
+#### Validation Snapshot
+
+- `npm run test -- src/test/workspaceUsageTracker.test.ts src/test/releaseStopGateManifest.test.ts`: pass
+- `npm run release:stop-gate:wave3`: pass
+
+---
+
 ## Latest Release: v0.22.0 (April 29, 2026)
 
 ### ✦ Incident Studio + Setup UX + Workspace Sharing + Graph-Aware Release Controls
@@ -59,7 +99,7 @@
 - Lint: pass
 - Build: pass
 - Compile: pass
-- VSIX package: pending final run on release state
+- VSIX package: pass
 - Full test suite: 182/182 pass
 - Production audit (`npm audit --omit=dev`): 0 vulnerabilities
 - Full audit: only dev-tooling vulnerabilities remain, blocked upstream by `@vscode/test-cli` -> `mocha` -> `serialize-javascript` and one nested `brace-expansion` path

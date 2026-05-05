@@ -30,6 +30,10 @@ import {
   type MultiFilePatchResult,
 } from '../../core/patchApplyEngine';
 import { evaluateIncidentC07Gates } from '../../core/incidentC07Integration';
+import {
+  evaluateWorkspaiContractRuntime,
+  type WorkspaiContractRuntimeEvidence,
+} from '../../core/workspaiContractRuntime';
 import { MODULES, ModuleData } from '../../data/modules';
 import { runningServers } from '../../extension';
 import { run } from '../../utils/exec';
@@ -157,6 +161,8 @@ export class WelcomePanel {
     projectName?: string;
     projectType?: string;
     initialQuery?: string;
+    preferredDisplayMode?: 'lite' | 'full';
+    preferredArchitectureLensView?: 'tree' | 'dependency' | 'runtime';
   } | null = null;
   /** Whether the webview has fired its first 'ready' event for the current panel instance */
   private _isReady = false;
@@ -291,6 +297,8 @@ export class WelcomePanel {
       projectName?: string;
       projectType?: string;
       initialQuery?: string;
+      preferredDisplayMode?: 'lite' | 'full';
+      preferredArchitectureLensView?: 'tree' | 'dependency' | 'runtime';
     }
   ): void {
     if (WelcomePanel.currentPanel?._isReady) {
@@ -2475,6 +2483,7 @@ No markdown, no explanation outside the JSON.`;
     | 'terminal-bridge'
     | 'change-impact-lite'
     | 'fix-preview-lite'
+    | 'verify-pack-autopilot'
     | 'workspace-memory-wizard'
     | 'doctor-fix'
     | 'recipe-pack'
@@ -2491,6 +2500,15 @@ No markdown, no explanation outside the JSON.`;
       normalized.includes('commander artifact')
     ) {
       return 'release-readiness-commander';
+    }
+    if (
+      normalized.includes('verify pack') ||
+      normalized.includes('verification pack') ||
+      normalized.includes('proof of success') ||
+      normalized.includes('verify checklist') ||
+      normalized.includes('deterministic verify')
+    ) {
+      return 'verify-pack-autopilot';
     }
     if (
       normalized.includes('error') ||
@@ -2708,6 +2726,16 @@ No markdown, no explanation outside the JSON.`;
         'Export the Go/No-Go artifact for team signoff',
         'Show me blocking reasons ranked by risk',
         'Generate the exact release-stop-gate command for this decision',
+      ];
+    }
+    if (
+      actionType === 'verify-pack-autopilot' ||
+      /verify|proof|checklist|deterministic/i.test(message)
+    ) {
+      return [
+        'Generate a deterministic verify command pack for this change',
+        'Rank verification commands by confidence and execution scope',
+        'Show blockers that still prevent a completion claim',
       ];
     }
     return [
@@ -3024,6 +3052,134 @@ No markdown, no explanation outside the JSON.`;
     return false;
   }
 
+  private _deriveIncidentVerifyCommandPack(input: {
+    actionType: string;
+    actionPolicy: ReturnType<typeof classifyIncidentActionPolicy>;
+    workspacePath?: string;
+    projectPath?: string;
+    projectType?: string;
+    impactAssessment: {
+      verifyChecklist: string[];
+      affectedTests: string[];
+    };
+    releaseGateEvidence: {
+      scopeKnown: boolean;
+      verifyPathPresent: boolean;
+      rollbackPathPresent: boolean;
+      blockedReasons: string[];
+    };
+    doctorEvidence?: {
+      errors?: number;
+      warnings?: number;
+    };
+  }): {
+    qualityScore: number;
+    readiness: 'ready' | 'needs-attention';
+    rationale: string;
+    commands: Array<{
+      label: string;
+      command: string;
+      scope: 'workspace' | 'project';
+      required: boolean;
+    }>;
+    blockedReasons: string[];
+  } {
+    const commands: Array<{
+      label: string;
+      command: string;
+      scope: 'workspace' | 'project';
+      required: boolean;
+    }> = [];
+
+    const addCommand = (candidate: {
+      label: string;
+      command: string;
+      scope: 'workspace' | 'project';
+      required: boolean;
+    }) => {
+      const normalized = candidate.command.trim();
+      if (!normalized) {
+        return;
+      }
+      if (commands.some((entry) => entry.command === normalized)) {
+        return;
+      }
+      commands.push({ ...candidate, command: normalized });
+    };
+
+    addCommand({
+      label: 'Workspace doctor proof',
+      command: 'rapidkit doctor workspace',
+      scope: 'workspace',
+      required: true,
+    });
+
+    if (input.projectPath) {
+      addCommand({
+        label: 'Project scope + diff proof',
+        command: `git -C "${input.projectPath}" status --short`,
+        scope: 'project',
+        required: true,
+      });
+    }
+
+    if (input.impactAssessment.affectedTests.length > 0) {
+      const topTest = input.impactAssessment.affectedTests[0];
+      if (/\.spec\.|\.test\./i.test(topTest)) {
+        addCommand({
+          label: 'Targeted impacted test',
+          command: `vitest run "${topTest}"`,
+          scope: 'project',
+          required: false,
+        });
+      }
+    }
+
+    let qualityScore = 35;
+    if (input.releaseGateEvidence.scopeKnown) {
+      qualityScore += 20;
+    }
+    if (input.releaseGateEvidence.verifyPathPresent) {
+      qualityScore += 20;
+    }
+    if (input.releaseGateEvidence.rollbackPathPresent) {
+      qualityScore += 10;
+    }
+    if ((input.doctorEvidence?.errors ?? 0) === 0) {
+      qualityScore += 10;
+    }
+    qualityScore += Math.min(10, commands.length * 3);
+    qualityScore -= Math.min(24, input.releaseGateEvidence.blockedReasons.length * 8);
+
+    if (input.actionPolicy.requiresVerifyPath && commands.length === 0) {
+      qualityScore -= 15;
+    }
+
+    qualityScore = Math.max(0, Math.min(100, Math.round(qualityScore)));
+
+    const blockedReasons = Array.from(new Set(input.releaseGateEvidence.blockedReasons)).slice(
+      0,
+      6
+    );
+    const readiness: 'ready' | 'needs-attention' =
+      qualityScore >= 70 && blockedReasons.length === 0 ? 'ready' : 'needs-attention';
+
+    const rationale =
+      readiness === 'ready'
+        ? 'Deterministic verify path is complete and release gates are currently satisfied.'
+        : blockedReasons.length > 0
+          ? `Verify path needs attention: ${blockedReasons[0]}`
+          : 'Verify path needs attention: collect stronger deterministic evidence before completion claim.';
+
+    return {
+      qualityScore,
+      readiness,
+      rationale,
+      commands,
+      blockedReasons,
+    };
+  }
+
   private _buildIncidentDiagnosisEvidence(input: {
     actionPolicy: ReturnType<typeof classifyIncidentActionPolicy>;
     verifyReady: boolean;
@@ -3043,6 +3199,11 @@ No markdown, no explanation outside the JSON.`;
     };
     predictiveWarning?: {
       warningId: string;
+    };
+    contractRuntimeEvidence?: WorkspaiContractRuntimeEvidence;
+    verifyCommandPack?: {
+      qualityScore: number;
+      readiness: 'ready' | 'needs-attention';
     };
     graphSnapshot: {
       nodes: Array<{ filePath?: string }>;
@@ -3078,6 +3239,19 @@ No markdown, no explanation outside the JSON.`;
     if (input.predictiveWarning) {
       signalSources.push('predictive-warning');
       confidenceScore += 10;
+    }
+
+    if (input.contractRuntimeEvidence?.evaluated) {
+      signalSources.push('contract-validation');
+      confidenceScore += input.contractRuntimeEvidence.errors.length > 0 ? -8 : 8;
+    }
+
+    if (input.verifyCommandPack) {
+      signalSources.push('verify-command-pack');
+      confidenceScore += input.verifyCommandPack.readiness === 'ready' ? 8 : -10;
+      if (input.verifyCommandPack.qualityScore < 60) {
+        confidenceScore -= 6;
+      }
     }
 
     if (input.verifyReady) {
@@ -3689,6 +3863,7 @@ No markdown, no explanation outside the JSON.`;
       warnings: string[];
       unknownScopeBlocked: boolean;
     };
+    contractRuntimeEvidence: WorkspaiContractRuntimeEvidence;
   }> {
     const workspacePath =
       input.workspacePath ||
@@ -3808,6 +3983,11 @@ No markdown, no explanation outside the JSON.`;
       }
     }
 
+    const contractRuntimeEvidence = await evaluateWorkspaiContractRuntime({
+      workspacePath,
+      projectPath: selectedProjectPath,
+    });
+
     const sources = ['graph'];
     if (input.graphSnapshot.evidence.hasDoctorEvidence) {
       sources.push('doctor');
@@ -3817,6 +3997,9 @@ No markdown, no explanation outside the JSON.`;
     }
     if (selectedProjectPath) {
       sources.push('selection');
+    }
+    if (contractRuntimeEvidence.evaluated) {
+      sources.push('contracts');
     }
 
     const confidence = Math.max(0, Math.min(100, deterministicScore.confidence));
@@ -3890,6 +4073,21 @@ No markdown, no explanation outside the JSON.`;
         `Architecture warning: ${deterministicScore.architectureWarnings[0]}. Run focused impact review before apply.`
       );
     }
+    if (contractRuntimeEvidence.errors.length > 0) {
+      verifyChecklist.push(
+        `Fix Workspai contract errors before apply: ${contractRuntimeEvidence.errors[0]}`
+      );
+    }
+    if (contractRuntimeEvidence.warnings.length > 0) {
+      verifyChecklist.push(
+        `Review Workspai contract warnings: ${contractRuntimeEvidence.warnings[0]}`
+      );
+    }
+    if (!contractRuntimeEvidence.evaluated && input.actionPolicy.requiresImpactReview) {
+      verifyChecklist.push(
+        'No C06 Workspai contracts found. Add architecture.config, project.mapping, and execution.policy for stronger architecture control.'
+      );
+    }
 
     const c07GateEvaluation = await evaluateIncidentC07Gates({
       workspacePath,
@@ -3952,12 +4150,15 @@ No markdown, no explanation outside the JSON.`;
     if (!input.verifySuccess && (input.doctorEvidence?.errors ?? 0) > 0) {
       blockedReasons.push(`${input.doctorEvidence?.errors} doctor error(s) remain unresolved.`);
     }
+    blockedReasons.push(...contractRuntimeEvidence.errors);
     blockedReasons.push(...deterministicScore.blockedReasons);
     blockedReasons.push(...c07GateEvaluation.blockedReasons);
 
     const architectureWarnings = Array.from(
       new Set(
         [
+          ...contractRuntimeEvidence.warnings,
+          ...(contractRuntimeEvidence.evaluated ? [contractRuntimeEvidence.summary] : []),
           ...deterministicScore.architectureWarnings,
           ...(c07GateEvaluation.scopeBlocked
             ? ['C07 gate blocked mutation due to uncertain architecture scope.']
@@ -4050,6 +4251,7 @@ No markdown, no explanation outside the JSON.`;
         likelyFailureMode,
         rationale: [
           'Impact is derived from workspace graph topology and doctor/runtime evidence.',
+          ...(contractRuntimeEvidence.evaluated ? [contractRuntimeEvidence.summary] : []),
           input.actionPolicy.requiresImpactReview
             ? 'Action policy requires impact review before completion claim.'
             : 'Action policy allows lower-risk execution path.',
@@ -4097,6 +4299,7 @@ No markdown, no explanation outside the JSON.`;
         warnings: architectureWarnings.slice(0, 4),
         unknownScopeBlocked,
       },
+      contractRuntimeEvidence,
     };
   }
 
@@ -4799,6 +5002,16 @@ No markdown, no explanation outside the JSON.`;
                     },
                   ]
                 : []),
+              ...(actionType !== 'verify-pack-autopilot'
+                ? [
+                    {
+                      id: `action-verify-pack-${Date.now()}`,
+                      label: 'Generate deterministic verify command pack',
+                      actionType: 'verify-pack-autopilot',
+                      riskLevel: 'medium',
+                    },
+                  ]
+                : []),
               ...(actionType === 'terminal-bridge'
                 ? [
                     {
@@ -5079,6 +5292,20 @@ No markdown, no explanation outside the JSON.`;
       ].join('\n');
     }
 
+    // ── verify-pack-autopilot ───────────────────────────────────────────────
+    if (actionType === 'verify-pack-autopilot') {
+      return [
+        'Generate a deterministic verify command pack for this incident context.',
+        'Prioritize commands by confidence and execution scope (workspace vs project).',
+        'Flag blockers that still prevent completion claim.',
+        'Return exactly these sections:',
+        '1) Verify pack quality score (0-100)',
+        '2) Required commands (max 3)',
+        '3) Optional commands (max 2)',
+        '4) Blocking reasons (if any)',
+      ].join('\n');
+    }
+
     // ── generic/orchestrate fallback ──────────────────────────────────────────
     const label = typeof payload?.label === 'string' ? payload.label : actionType;
     return `Perform the following action for my workspace: ${label}. Analyze the current state and provide specific, actionable guidance.`;
@@ -5336,6 +5563,44 @@ No markdown, no explanation outside the JSON.`;
             defaultTimeoutMs: 20000,
           })
         : undefined;
+    const verifyCommandPack = this._deriveIncidentVerifyCommandPack({
+      actionType,
+      actionPolicy,
+      workspacePath: activeWorkspacePath,
+      projectPath: data?.projectPath,
+      projectType: data?.projectType,
+      impactAssessment: wave2Contracts.impactAssessment,
+      releaseGateEvidence: wave2Contracts.releaseGateEvidence,
+      doctorEvidence,
+    });
+
+    if (conv && actionType === 'verify-pack-autopilot') {
+      this._trackStudioEvent(
+        'workspai.studio.verify_pack_autopilot_generated',
+        conv.workspacePath,
+        {
+          conversationId,
+          actionId,
+          actionType,
+          qualityScore: verifyCommandPack.qualityScore,
+          readiness: verifyCommandPack.readiness,
+          requiredCommandCount: verifyCommandPack.commands.filter((entry) => entry.required).length,
+          blockedReasonCount: verifyCommandPack.blockedReasons.length,
+          framework: conv.framework ?? 'unknown',
+        }
+      );
+
+      if (verifyCommandPack.readiness === 'ready') {
+        this._trackStudioEvent('workspai.studio.verify_pack_autopilot_ready', conv.workspacePath, {
+          conversationId,
+          actionId,
+          actionType,
+          qualityScore: verifyCommandPack.qualityScore,
+          requiredCommandCount: verifyCommandPack.commands.filter((entry) => entry.required).length,
+          framework: conv.framework ?? 'unknown',
+        });
+      }
+    }
     const diagnosisEvidence = this._buildIncidentDiagnosisEvidence({
       actionPolicy,
       verifyReady,
@@ -5343,6 +5608,8 @@ No markdown, no explanation outside the JSON.`;
       doctorEvidence,
       impactAssessment: wave2Contracts.impactAssessment,
       predictiveWarning: wave2Contracts.predictiveWarning,
+      contractRuntimeEvidence: wave2Contracts.contractRuntimeEvidence,
+      verifyCommandPack,
       graphSnapshot: wave2Contracts.systemGraphSnapshot,
     });
     const incidentReproPackEvidence = this._buildIncidentReproPackEvidence({
@@ -5681,6 +5948,8 @@ No markdown, no explanation outside the JSON.`;
         impactAssessment: wave2Contracts.impactAssessment,
         predictiveWarning: wave2Contracts.predictiveWarning,
         releaseGateEvidence: wave2Contracts.releaseGateEvidence,
+        contractRuntimeEvidence: wave2Contracts.contractRuntimeEvidence,
+        verifyCommandPack,
       },
       meta: { requestId, version: 'v1' },
     });
@@ -6094,6 +6363,17 @@ No markdown, no explanation outside the JSON.`;
         artifactId: payload.release_readiness_commander.artifactId,
         decision: payload.release_readiness_commander.decision,
         blockingReasonCount: payload.release_readiness_commander.blockingReasons.length,
+      }
+    );
+
+    await WorkspaceUsageTracker.getInstance().trackCommandEvent(
+      payload.release_readiness_commander.decision === 'go'
+        ? 'workspai.studio.release_readiness_go_decision_exported'
+        : 'workspai.studio.release_readiness_no_go_decision_exported',
+      workspacePathInput,
+      {
+        artifactId: payload.release_readiness_commander.artifactId,
+        decision: payload.release_readiness_commander.decision,
       }
     );
 

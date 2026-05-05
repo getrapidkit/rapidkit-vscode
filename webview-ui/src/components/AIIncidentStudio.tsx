@@ -262,6 +262,7 @@ interface AIIncidentStudioProps {
     executingCommand?: string | null;
     primaryCtaMode?: PrimaryCtaMode;
     studioDisplayMode?: IncidentStudioDisplayMode;
+    preferredArchitectureLensView?: ArchitectureLensViewMode | null;
     hasProjectSelected?: boolean;
     userMode?: IncidentUserMode;
     onUserModeChange?: (mode: IncidentUserMode) => void;
@@ -358,6 +359,9 @@ function actionExecutionHint(actionType: string): string {
     }
     if (actionType === 'doctor-fix') {
         return 'Use this to resolve structured doctor issues with guided fix steps.';
+    }
+    if (actionType === 'verify-pack-autopilot') {
+        return 'Use this to build and run a deterministic verify command pack before claiming completion.';
     }
     return 'Run this action to continue the current diagnosis flow.';
 }
@@ -606,6 +610,16 @@ function intentFromBoardAction(action: { id: string; label: string; actionType: 
             actionId: action.id,
         };
     }
+    if (action.actionType === 'verify-pack-autopilot') {
+        return {
+            id: action.id,
+            label: 'Run verify autopilot',
+            detail: 'Generate deterministic verification commands and execute proof checks safely.',
+            kind: 'board-action',
+            actionType: action.actionType,
+            actionId: action.id,
+        };
+    }
 
     return {
         id: action.id,
@@ -655,6 +669,7 @@ export function AIIncidentStudio({
     executingCommand,
     primaryCtaMode = 'single',
     studioDisplayMode = 'lite',
+    preferredArchitectureLensView = null,
     hasProjectSelected = false,
     userMode = 'standard',
     onUserModeChange,
@@ -667,6 +682,7 @@ export function AIIncidentStudio({
     const [shouldAutoScrollThread, setShouldAutoScrollThread] = useState(true);
     const [architectureLensViewMode, setArchitectureLensViewMode] = useState<ArchitectureLensViewMode>('tree');
     const threadRef = useRef<HTMLDivElement>(null);
+    const architectureLensScopeRef = useRef<string | null>(null);
     const isLiteDisplay = studioDisplayMode === 'lite';
     const isFullDisplay = studioDisplayMode === 'full';
 
@@ -695,6 +711,31 @@ export function AIIncidentStudio({
         });
         return () => cancelAnimationFrame(frame);
     }, [chatBrainHistory?.length, chatBrainStreamText, shouldAutoScrollThread]);
+
+    useEffect(() => {
+        if (preferredArchitectureLensView) {
+            setArchitectureLensViewMode(preferredArchitectureLensView);
+        }
+    }, [preferredArchitectureLensView]);
+
+    useEffect(() => {
+        const scopeKey = [
+            chatBrainSystemGraphSnapshot?.workspacePath || '',
+            chatBrainSystemGraphSnapshot?.projectPath || '',
+        ].join('::');
+
+        if (architectureLensScopeRef.current === scopeKey) {
+            return;
+        }
+
+        architectureLensScopeRef.current = scopeKey;
+        setArchitectureLensViewMode(preferredArchitectureLensView || 'tree');
+    }, [
+        chatBrainSystemGraphSnapshot?.workspacePath,
+        chatBrainSystemGraphSnapshot?.projectPath,
+        preferredArchitectureLensView,
+    ]);
+
     const aiUnavailable = isNetworkFailure(lastError);
     const analysisDepth = Math.min(100, 45 + conversationTurns * 8);
     const confidence = aiUnavailable ? 42 : Math.min(94, 68 + conversationTurns * 5);
@@ -1116,13 +1157,6 @@ export function AIIncidentStudio({
         [graphEdgeRows]
     );
 
-    useEffect(() => {
-        setArchitectureLensViewMode('tree');
-    }, [
-        chatBrainSystemGraphSnapshot?.requestId,
-        chatBrainSystemGraphSnapshot?.workspacePath,
-        chatBrainSystemGraphSnapshot?.projectPath,
-    ]);
     const intentChips = useMemo(() => {
         const chips: IncidentIntentChip[] = [];
         const seen = new Set<string>();
@@ -1297,7 +1331,12 @@ export function AIIncidentStudio({
     };
 
     const runStudioAction = (
-        actionType: 'terminal-bridge' | 'fix-preview-lite' | 'change-impact-lite' | 'workspace-memory-wizard',
+        actionType:
+            | 'terminal-bridge'
+            | 'fix-preview-lite'
+            | 'change-impact-lite'
+            | 'workspace-memory-wizard'
+            | 'verify-pack-autopilot',
         fallback?: () => void
     ) => {
         if (onChatBrainExecuteAction) {
@@ -1364,6 +1403,21 @@ export function AIIncidentStudio({
             return;
         }
         setShouldAutoScrollThread(isThreadNearBottom(element));
+    };
+
+    const runVerifyCommandPack = (
+        pack: NonNullable<NormalizedIncidentActionResultPayload['verifyCommandPack']>
+    ) => {
+        const requiredCommands = pack.commands.filter((entry) => entry.required);
+        if (requiredCommands.length === 0) {
+            return;
+        }
+
+        requiredCommands.forEach((entry, index) => {
+            window.setTimeout(() => {
+                runCommand(entry.command);
+            }, index * 80);
+        });
     };
 
     const handleChatSubmit = (e: React.FormEvent) => {
@@ -1603,7 +1657,7 @@ export function AIIncidentStudio({
                 </section>
             ) : null}
 
-            <div className="incident-studio-grid">
+            {isFullDisplay ? <div className="incident-studio-grid">
                 <main className="incident-analysis-panel">
                     <div className="incident-panel-heading incident-panel-heading--brand">
                         <Activity size={13} />
@@ -2563,6 +2617,15 @@ export function AIIncidentStudio({
                             <BarChart3 size={12} />
                             <span>Impact</span>
                         </button>
+                        <button
+                            type="button"
+                            className="incident-chat-toolbar-btn"
+                            onClick={() => runStudioAction('verify-pack-autopilot')}
+                            title="Generate deterministic verify command pack"
+                        >
+                            <ShieldCheck size={12} />
+                            <span>Verify</span>
+                        </button>
                     </div>
 
                     <div className="incident-history-shell">
@@ -2705,6 +2768,105 @@ export function AIIncidentStudio({
                                             ) : null}
                                             {chatBrainActionResult.diagnosis.recommendedFocus ? (
                                                 <p>Focus: {chatBrainActionResult.diagnosis.recommendedFocus}</p>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                    {chatBrainActionResult.verifyCommandPack ? (
+                                        <div className={`incident-rollback-evidence is-${chatBrainActionResult.verifyCommandPack.readiness === 'ready' ? 'passed' : 'warning'}`}>
+                                            <strong>Deterministic verify command pack</strong>
+                                            <p>
+                                                Quality score: {chatBrainActionResult.verifyCommandPack.qualityScore}%
+                                                {' · Readiness: '}
+                                                {chatBrainActionResult.verifyCommandPack.readiness}
+                                            </p>
+                                            <p>{chatBrainActionResult.verifyCommandPack.rationale}</p>
+                                            {chatBrainActionResult.verifyCommandPack.commands.length > 0 ? (
+                                                <div className="incident-doctor-fixes">
+                                                    {chatBrainActionResult.verifyCommandPack.commands.slice(0, 4).map((entry, index) => {
+                                                        const normalized = normalizeCommandText(entry.command);
+                                                        const isExecutingVerify = !!(
+                                                            executingCommand && normalizeCommandText(executingCommand) === normalized
+                                                        );
+                                                        return (
+                                                            <div key={`${entry.command}-${index}`} className="incident-doctor-fix-item">
+                                                                <code>{normalized}</code>
+                                                                <div className={`incident-command-scope incident-command-scope--${entry.scope}`}>
+                                                                    {entry.scope === 'project' ? 'Run in project root' : 'Run in workspace root'}
+                                                                    {entry.required ? ' · required' : ' · optional'}
+                                                                </div>
+                                                                <div className="incident-command-actions">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="incident-btn"
+                                                                        onClick={() => copyCommand(normalized)}
+                                                                        disabled={isExecutingVerify}
+                                                                    >
+                                                                        {lastCopiedCommand === normalized ? 'Copied' : 'Copy'}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="incident-btn primary"
+                                                                        onClick={() => runCommand(normalized)}
+                                                                        disabled={isExecutingVerify}
+                                                                    >
+                                                                        {isExecutingVerify ? 'Running' : 'Run'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : null}
+                                            {chatBrainActionResult.verifyCommandPack.blockedReasons.length > 0 ? (
+                                                <p>
+                                                    Blocked reasons: {chatBrainActionResult.verifyCommandPack.blockedReasons.slice(0, 3).join(' | ')}
+                                                </p>
+                                            ) : null}
+                                            <div className="incident-command-actions">
+                                                <button
+                                                    type="button"
+                                                    className="incident-btn primary"
+                                                    onClick={() => runVerifyCommandPack(chatBrainActionResult.verifyCommandPack!)}
+                                                >
+                                                    Run required verify commands
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                    {chatBrainActionResult.contractRuntimeEvidence ? (
+                                        <div className={`incident-rollback-evidence is-${chatBrainActionResult.contractRuntimeEvidence.errors.length > 0 ? 'failed' : chatBrainActionResult.contractRuntimeEvidence.warnings.length > 0 ? 'warning' : 'passed'}`}>
+                                            <strong>C06 contract runtime evidence</strong>
+                                            <p>
+                                                Source: {chatBrainActionResult.contractRuntimeEvidence.source}
+                                                {' · '}Loaded: {chatBrainActionResult.contractRuntimeEvidence.availableKinds.length}
+                                                {' · '}Missing: {chatBrainActionResult.contractRuntimeEvidence.missingKinds.length}
+                                            </p>
+                                            <p>
+                                                Errors: {chatBrainActionResult.contractRuntimeEvidence.errors.length}
+                                                {' · '}Warnings: {chatBrainActionResult.contractRuntimeEvidence.warnings.length}
+                                            </p>
+                                            {chatBrainActionResult.contractRuntimeEvidence.summary ? (
+                                                <p>{chatBrainActionResult.contractRuntimeEvidence.summary}</p>
+                                            ) : null}
+                                            {chatBrainActionResult.contractRuntimeEvidence.availableKinds.length > 0 ? (
+                                                <p>
+                                                    Available kinds: {chatBrainActionResult.contractRuntimeEvidence.availableKinds.slice(0, 3).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.contractRuntimeEvidence.missingKinds.length > 0 ? (
+                                                <p>
+                                                    Missing kinds: {chatBrainActionResult.contractRuntimeEvidence.missingKinds.slice(0, 3).join(', ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.contractRuntimeEvidence.errors.length > 0 ? (
+                                                <p>
+                                                    Contract errors: {chatBrainActionResult.contractRuntimeEvidence.errors.slice(0, 2).join(' | ')}
+                                                </p>
+                                            ) : null}
+                                            {chatBrainActionResult.contractRuntimeEvidence.warnings.length > 0 ? (
+                                                <p>
+                                                    Contract warnings: {chatBrainActionResult.contractRuntimeEvidence.warnings.slice(0, 2).join(' | ')}
+                                                </p>
                                             ) : null}
                                         </div>
                                     ) : null}
@@ -3097,7 +3259,7 @@ export function AIIncidentStudio({
                         </div>
                     </div>
                 </aside>
-            </div>
+            </div> : null}
         </section>
     );
 }

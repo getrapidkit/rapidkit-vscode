@@ -139,26 +139,28 @@ export function registerCoreCommands(options: {
       }
 
       if (projectPath && projectName) {
-        WelcomePanel.showAIModal(context, {
-          type: 'project',
-          name: projectName,
-          path: projectPath,
-          framework: projectType,
-          prefillMode: 'ask',
-          prefillQuestion:
+        WelcomePanel.openIncidentStudio(context, {
+          workspacePath,
+          workspaceName,
+          projectPath,
+          projectName,
+          projectType,
+          preferredDisplayMode: 'full',
+          preferredArchitectureLensView: 'tree',
+          initialQuery:
             `Build an architecture map for project ${projectName}. ` +
-            'Show entry points, main modules, dependency map, and top production risks.',
+            'Start with the tree view, then expand to dependency graph and runtime flow, highlighting top production risks and verify-safe next actions.',
         });
         return;
       }
 
-      WelcomePanel.showAIModal(context, {
-        type: 'workspace',
-        name: workspaceName ?? 'Workspace',
-        path: workspacePath,
-        prefillMode: 'ask',
-        prefillQuestion:
-          'Build a workspace-level architecture map. Highlight project boundaries, dependencies, runtime flows, and top risks.',
+      WelcomePanel.openIncidentStudio(context, {
+        workspacePath,
+        workspaceName: workspaceName ?? 'Workspace',
+        preferredDisplayMode: 'full',
+        preferredArchitectureLensView: 'tree',
+        initialQuery:
+          'Build a workspace-level architecture map. Start with the tree view, then highlight project boundaries, dependencies, runtime flows, top risks, and safe verification paths.',
       });
     }),
 
