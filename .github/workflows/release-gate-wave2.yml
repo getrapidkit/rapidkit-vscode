@@ -129,6 +129,19 @@ jobs:
           });
           NODE
 
+      - name: Refresh wave2 marker timestamp
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const markerPath = 'releases/fixtures/wave2-kpi-marker.json';
+          const marker = JSON.parse(fs.readFileSync(markerPath, 'utf-8'));
+          marker.createdAt = new Date().toISOString();
+          fs.writeFileSync(markerPath, `${JSON.stringify(marker, null, 2)}\n`, 'utf-8');
+          console.log(`Refreshed marker timestamp: ${markerPath} -> ${marker.createdAt}`);
+          NODE
+
       - name: Wave 2 release gate
         run: |
           npm run release:stop-gate:wave2 -- \
