@@ -2,7 +2,7 @@
     "name": "WAVE3_FOUNDATION_GATE",
     "requiredFiles": [
         "releases/fixtures/wave3-kpi-marker.json",
-        "releases/wave3-claim-checklist.md",
+        "releases/fixtures/wave3-claim-checklist.md",
         ".github/workflows/release-gate-wave3.yml",
         ".github/workflows/incident-studio-soak.yml",
         "webview-ui/src/components/AIIncidentStudio.tsx",
@@ -29,7 +29,7 @@
     "requiredContents": [
         {
             "path": "package.json",
-            "contains": "\"release:stop-gate:wave3\": \"node scripts/release-stop-gate.mjs --manifest releases/wave3-foundation-gate.json --claim-checklist releases/wave3-claim-checklist.md --enforce-claim-checklist --marker releases/fixtures/wave3-kpi-marker.json\""
+            "contains": "\"release:stop-gate:wave3\": \"node scripts/release-stop-gate.mjs --manifest releases/wave3-foundation-gate.json --claim-checklist releases/fixtures/wave3-claim-checklist.md --enforce-claim-checklist --marker releases/fixtures/wave3-kpi-marker.json\""
         },
         {
             "path": ".github/workflows/release-gate-wave3.yml",
