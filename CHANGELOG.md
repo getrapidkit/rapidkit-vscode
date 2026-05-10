@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-05-10
+
+### Fixed
+
+- **Webview disposal safety** — prevented `Webview is disposed` uncaught errors in the Setup panel:
+  - All `postMessage` calls are now guarded by a `_safePostMessage()` helper that checks disposal state before sending
+  - Added `_isDisposing` flag set immediately on `onDidDispose` to stop any in-flight async callbacks
+  - Registered message listener via `this._disposables` for proper cleanup lifecycle
+  - Eliminated three uncaught errors (`Webview is disposed`) visible in the extension host output when closing the Setup panel
+
 ## [0.27.1] - 2026-05-10
 
 ### Added

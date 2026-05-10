@@ -69,757 +69,779 @@ export class SetupPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
   private _disposables: vscode.Disposable[] = [];
+  private _isDisposing = false;
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this._panel = panel;
     this._context = context;
     this._panel.webview.html = this._getHtmlContent(context);
 
-    this._panel.webview.onDidReceiveMessage(
-      async (message) => {
-        switch (message.command) {
-          case 'checkInstallStatus': {
-            const status = await this._checkInstallationStatus();
-            this._panel.webview.postMessage({ command: 'statusUpdate', status });
-            break;
-          }
-          case 'clearRequirementCache': {
-            try {
-              const { requirementCache } = await import('../../utils/requirementCache.js');
-              requirementCache.invalidateAll();
-              vscode.window.showInformationMessage(
-                '✅ Cache Cleared\n\nPython and Poetry checks will be performed fresh on next use.'
-              );
-              // Refresh status to show it's cleared
-              const status = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status });
-            } catch {
-              vscode.window.showErrorMessage('Failed to clear cache');
-            }
-            break;
-          }
-          case 'doctor':
-            vscode.commands.executeCommand('workspai.doctor');
-            break;
-          case 'showWelcome':
-            vscode.commands.executeCommand('workspai.showWelcome');
-            break;
-          case 'openUrl': {
-            const targetUrl = message.url || message.data?.url;
-            if (typeof targetUrl === 'string' && targetUrl.trim()) {
-              vscode.env.openExternal(vscode.Uri.parse(targetUrl));
-            }
-            break;
-          }
-          case 'showInfo': {
-            const infoMessage = message.message || message.data?.message;
-            if (typeof infoMessage === 'string' && infoMessage.trim()) {
-              vscode.window.showInformationMessage(infoMessage);
-            }
-            break;
-          }
-          case 'getSetupPreferences': {
-            const prefs = this._getSetupPreferences();
-            this._panel.webview.postMessage({ command: 'preferencesUpdate', preferences: prefs });
-            break;
-          }
-          case 'setManualPath': {
-            const tool = message.data?.tool as SetupToolKey | undefined;
-            const manualPath = message.data?.path as string | undefined;
-            if (!tool || !manualPath) {
-              break;
-            }
-            const saved = await this._setManualPath(tool, manualPath);
-            if (saved) {
-              const prefs = this._getSetupPreferences();
-              this._panel.webview.postMessage({ command: 'preferencesUpdate', preferences: prefs });
-              const status = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status });
-            }
-            break;
-          }
-          case 'clearManualPath': {
-            const tool = message.data?.tool as SetupToolKey | undefined;
-            if (!tool) {
-              break;
-            }
-            this._clearManualPath(tool);
-            const prefs = this._getSetupPreferences();
-            this._panel.webview.postMessage({ command: 'preferencesUpdate', preferences: prefs });
-            const status = await this._checkInstallationStatus();
-            this._panel.webview.postMessage({ command: 'statusUpdate', status });
-            break;
-          }
-          case 'pickManualPath': {
-            const tool = message.data?.tool as SetupToolKey | undefined;
-            if (!tool) {
-              break;
-            }
-            const selection = await vscode.window.showOpenDialog({
-              canSelectFiles: true,
-              canSelectFolders: false,
-              canSelectMany: false,
-              openLabel: 'Select executable',
-            });
-            const picked = selection?.[0]?.fsPath || '';
-            this._panel.webview.postMessage({ command: 'manualPathPicked', tool, path: picked });
-            break;
-          }
-          case 'setInstallMethod': {
-            const key = message.data?.key as InstallMethodKey | undefined;
-            const method = message.data?.method as string | undefined;
-            if (!key || !method) {
-              break;
-            }
-            this._setInstallMethod(key, method);
-            const prefs = this._getSetupPreferences();
-            this._panel.webview.postMessage({ command: 'preferencesUpdate', preferences: prefs });
-            const status = await this._checkInstallationStatus();
-            this._panel.webview.postMessage({ command: 'statusUpdate', status });
-            break;
-          }
-          case 'runPathDoctor': {
-            const report = this._runPathDoctor();
-            this._persistPathDoctorReport(report);
-            this._panel.webview.postMessage({ command: 'pathDoctorUpdate', report });
-            break;
-          }
-          case 'validateManualPath': {
-            const tool = message.data?.tool as SetupToolKey | undefined;
-            const manualPath = message.data?.path as string | undefined;
-            if (!tool) {
-              break;
-            }
-            const report =
-              this._getSetupPreferences().lastPathDoctorReport || this._runPathDoctor();
-            const result = await this._runSetupCheck(tool, manualPath, report);
-            this._panel.webview.postMessage({ command: 'manualPathValidation', result });
-            break;
-          }
-          case 'applyPathDoctorSuggestion': {
-            const suggestionId = message.data?.suggestionId as string | undefined;
-            if (!suggestionId) {
-              break;
-            }
-            const report =
-              this._getSetupPreferences().lastPathDoctorReport || this._runPathDoctor();
-            const applied = await this._applyPathDoctorSuggestion(report, suggestionId);
-            if (applied) {
-              const nextReport = this._runPathDoctor();
-              this._persistPathDoctorReport(nextReport);
-              this._panel.webview.postMessage({ command: 'pathDoctorUpdate', report: nextReport });
-            }
-            break;
-          }
-          case 'copyText': {
-            const text = message.data?.text;
-            if (typeof text === 'string' && text.trim()) {
-              await vscode.env.clipboard.writeText(text);
-              vscode.window.showInformationMessage('Copied to clipboard.');
-            }
-            break;
-          }
-          case 'exportSetupReport': {
-            const status = await this._checkInstallationStatus();
-            const preferences = this._getSetupPreferences();
-            const report = {
-              generatedAt: new Date().toISOString(),
-              status,
-              preferences,
-              pathDoctor: preferences.lastPathDoctorReport || this._runPathDoctor(),
-            };
+    // Handle panel disposal
+    this._disposables.push(
+      this._panel.onDidDispose(() => {
+        this._isDisposing = true;
+        this.dispose();
+      })
+    );
 
-            const uri = await vscode.window.showSaveDialog({
-              saveLabel: 'Export setup report',
-              filters: { JSON: ['json'] },
-              defaultUri: vscode.Uri.file(
-                `${require('os').homedir()}/workspai-setup-report-${Date.now()}.json`
-              ),
-            });
+    // Register message handler with proper cleanup
+    this._disposables.push(
+      this._panel.webview.onDidReceiveMessage(
+        async (message) => {
+          // Guard: don't process messages if disposing
+          if (this._isDisposing) {
+            return;
+          }
 
-            if (uri) {
-              const payload = Buffer.from(JSON.stringify(report, null, 2), 'utf8');
-              await vscode.workspace.fs.writeFile(uri, payload);
-              vscode.window.showInformationMessage(`Setup report exported: ${uri.fsPath}`);
+          switch (message.command) {
+            case 'checkInstallStatus': {
+              const status = await this._checkInstallationStatus();
+              this._safePostMessage({ command: 'statusUpdate', status });
+              break;
             }
-            break;
-          }
-          case 'installNpmGlobal': {
-            runCommandsInTerminal({
-              name: 'Install Workspai CLI',
-              commands: ['npm install -g rapidkit'],
-            });
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 8000);
-            break;
-          }
-          case 'upgradeNpmGlobal': {
-            runCommandsInTerminal({
-              name: 'Upgrade Workspai CLI',
-              commands: ['npm install -g rapidkit'],
-            });
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 8000);
-            break;
-          }
-          case 'installPipCore': {
-            runCommandsInTerminal({
-              name: 'Install RapidKit Core',
-              commands: [
-                process.platform === 'win32'
-                  ? 'python -m pipx install --force rapidkit-core'
-                  : 'pipx install --force rapidkit-core',
-              ],
-            });
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 10000);
-            break;
-          }
-          case 'upgradePipCore': {
-            runCommandsInTerminal({
-              name: 'Upgrade RapidKit Core',
-              commands: [
-                process.platform === 'win32'
-                  ? 'python -m pipx upgrade rapidkit-core'
-                  : 'pipx upgrade rapidkit-core',
-              ],
-            });
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 10000);
-            break;
-          }
-          case 'installPoetry': {
-            const poetryCommands =
-              process.platform === 'win32'
-                ? ['python -m pip install --user poetry']
-                : ['python3 -m pip install --user poetry'];
-            runCommandsInTerminal({
-              name: 'Install Poetry',
-              commands: poetryCommands,
-            });
-            vscode.window.showInformationMessage('Installing Poetry with pip (user mode).');
-            setTimeout(async () => {
-              // Invalidate Poetry cache after installation
+            case 'clearRequirementCache': {
               try {
                 const { requirementCache } = await import('../../utils/requirementCache.js');
-                requirementCache.invalidatePoetry();
+                requirementCache.invalidateAll();
+                vscode.window.showInformationMessage(
+                  '✅ Cache Cleared\n\nPython and Poetry checks will be performed fresh on next use.'
+                );
+                // Refresh status to show it's cleared
+                const status = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status });
               } catch {
-                // Ignore cache errors
+                vscode.window.showErrorMessage('Failed to clear cache');
               }
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 12000);
-            break;
-          }
-          case 'installPipx': {
-            const pipxCommands =
-              process.platform === 'win32'
-                ? ['python -m pip install --user pipx', 'python -m pipx ensurepath']
-                : ['python3 -m pip install --user pipx', 'python3 -m pipx ensurepath'];
-            runCommandsInTerminal({
-              name: 'Install pipx',
-              commands: pipxCommands,
-            });
-            vscode.window.showInformationMessage(
-              'pipx installed. Please restart your terminal or VS Code for PATH changes to take effect.'
-            );
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 8000);
-            break;
-          }
-          case 'installPipxThenCore': {
-            const toolchainCommands =
-              process.platform === 'win32'
-                ? [
-                    'python -m pip install --user pipx',
-                    'python -m pipx ensurepath',
-                    'python -m pipx install --force rapidkit-core',
-                  ]
-                : [
-                    'python3 -m pip install --user pipx',
-                    'python3 -m pipx ensurepath',
-                    'pipx install --force rapidkit-core',
-                  ];
-            runCommandsInTerminal({
-              name: 'Setup Workspai Toolchain',
-              commands: toolchainCommands,
-            });
-            vscode.window.showInformationMessage(
-              'Installing pipx and RapidKit Core. Please wait...'
-            );
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 15000);
-            break;
-          }
-          case 'installCoreFallback': {
-            const answer = await vscode.window.showWarningMessage(
-              'pipx not found. Install RapidKit Core with pip --user instead? (fallback mode)',
-              'Install with pip',
-              'Cancel'
-            );
-            if (answer === 'Install with pip') {
-              runCommandsInTerminal({
-                name: 'Install RapidKit Core (fallback)',
-                commands: [
-                  process.platform === 'win32'
-                    ? 'python -m pip install --user rapidkit-core'
-                    : 'python3 -m pip install --user rapidkit-core',
-                ],
-              });
-              vscode.window.showWarningMessage(
-                'RapidKit Core installed via pip. This may conflict with virtualenvs. Consider installing pipx later.'
-              );
-              setTimeout(async () => {
-                const newStatus = await this._checkInstallationStatus();
-                this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-              }, 10000);
-            }
-            break;
-          }
-          case 'installCoreSmart': {
-            const installStatus = await this._checkInstallationStatus();
-
-            if (!installStatus.pythonInstalled || !installStatus.pipInstalled) {
-              vscode.window.showWarningMessage(
-                'Python and pip are required before installing RapidKit Core. Please install Python 3.10+ first.'
-              );
               break;
             }
+            case 'doctor':
+              vscode.commands.executeCommand('workspai.doctor');
+              break;
+            case 'showWelcome':
+              vscode.commands.executeCommand('workspai.showWelcome');
+              break;
+            case 'openUrl': {
+              const targetUrl = message.url || message.data?.url;
+              if (typeof targetUrl === 'string' && targetUrl.trim()) {
+                vscode.env.openExternal(vscode.Uri.parse(targetUrl));
+              }
+              break;
+            }
+            case 'showInfo': {
+              const infoMessage = message.message || message.data?.message;
+              if (typeof infoMessage === 'string' && infoMessage.trim()) {
+                vscode.window.showInformationMessage(infoMessage);
+              }
+              break;
+            }
+            case 'getSetupPreferences': {
+              const prefs = this._getSetupPreferences();
+              this._safePostMessage({ command: 'preferencesUpdate', preferences: prefs });
+              break;
+            }
+            case 'setManualPath': {
+              const tool = message.data?.tool as SetupToolKey | undefined;
+              const manualPath = message.data?.path as string | undefined;
+              if (!tool || !manualPath) {
+                break;
+              }
+              const saved = await this._setManualPath(tool, manualPath);
+              if (saved) {
+                const prefs = this._getSetupPreferences();
+                this._safePostMessage({ command: 'preferencesUpdate', preferences: prefs });
+                const status = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status });
+              }
+              break;
+            }
+            case 'clearManualPath': {
+              const tool = message.data?.tool as SetupToolKey | undefined;
+              if (!tool) {
+                break;
+              }
+              this._clearManualPath(tool);
+              const prefs = this._getSetupPreferences();
+              this._safePostMessage({ command: 'preferencesUpdate', preferences: prefs });
+              const status = await this._checkInstallationStatus();
+              this._safePostMessage({ command: 'statusUpdate', status });
+              break;
+            }
+            case 'pickManualPath': {
+              const tool = message.data?.tool as SetupToolKey | undefined;
+              if (!tool) {
+                break;
+              }
+              const selection = await vscode.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                openLabel: 'Select executable',
+              });
+              const picked = selection?.[0]?.fsPath || '';
+              this._safePostMessage({ command: 'manualPathPicked', tool, path: picked });
+              break;
+            }
+            case 'setInstallMethod': {
+              const key = message.data?.key as InstallMethodKey | undefined;
+              const method = message.data?.method as string | undefined;
+              if (!key || !method) {
+                break;
+              }
+              this._setInstallMethod(key, method);
+              const prefs = this._getSetupPreferences();
+              this._safePostMessage({ command: 'preferencesUpdate', preferences: prefs });
+              const status = await this._checkInstallationStatus();
+              this._safePostMessage({ command: 'statusUpdate', status });
+              break;
+            }
+            case 'runPathDoctor': {
+              const report = this._runPathDoctor();
+              this._persistPathDoctorReport(report);
+              this._safePostMessage({ command: 'pathDoctorUpdate', report });
+              break;
+            }
+            case 'validateManualPath': {
+              const tool = message.data?.tool as SetupToolKey | undefined;
+              const manualPath = message.data?.path as string | undefined;
+              if (!tool) {
+                break;
+              }
+              const report =
+                this._getSetupPreferences().lastPathDoctorReport || this._runPathDoctor();
+              const result = await this._runSetupCheck(tool, manualPath, report);
+              this._safePostMessage({ command: 'manualPathValidation', result });
+              break;
+            }
+            case 'applyPathDoctorSuggestion': {
+              const suggestionId = message.data?.suggestionId as string | undefined;
+              if (!suggestionId) {
+                break;
+              }
+              const report =
+                this._getSetupPreferences().lastPathDoctorReport || this._runPathDoctor();
+              const applied = await this._applyPathDoctorSuggestion(report, suggestionId);
+              if (applied) {
+                const nextReport = this._runPathDoctor();
+                this._persistPathDoctorReport(nextReport);
+                this._safePostMessage({ command: 'pathDoctorUpdate', report: nextReport });
+              }
+              break;
+            }
+            case 'copyText': {
+              const text = message.data?.text;
+              if (typeof text === 'string' && text.trim()) {
+                await vscode.env.clipboard.writeText(text);
+                vscode.window.showInformationMessage('Copied to clipboard.');
+              }
+              break;
+            }
+            case 'exportSetupReport': {
+              const status = await this._checkInstallationStatus();
+              const preferences = this._getSetupPreferences();
+              const report = {
+                generatedAt: new Date().toISOString(),
+                status,
+                preferences,
+                pathDoctor: preferences.lastPathDoctorReport || this._runPathDoctor(),
+              };
 
-            if (installStatus.pipxInstalled) {
+              const uri = await vscode.window.showSaveDialog({
+                saveLabel: 'Export setup report',
+                filters: { JSON: ['json'] },
+                defaultUri: vscode.Uri.file(
+                  `${require('os').homedir()}/workspai-setup-report-${Date.now()}.json`
+                ),
+              });
+
+              if (uri) {
+                const payload = Buffer.from(JSON.stringify(report, null, 2), 'utf8');
+                await vscode.workspace.fs.writeFile(uri, payload);
+                vscode.window.showInformationMessage(`Setup report exported: ${uri.fsPath}`);
+              }
+              break;
+            }
+            case 'installNpmGlobal': {
               runCommandsInTerminal({
-                name: 'Install RapidKit Core (smart fallback)',
+                name: 'Install Workspai CLI',
+                commands: ['npm install -g rapidkit'],
+              });
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 8000);
+              break;
+            }
+            case 'upgradeNpmGlobal': {
+              runCommandsInTerminal({
+                name: 'Upgrade Workspai CLI',
+                commands: ['npm install -g rapidkit'],
+              });
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 8000);
+              break;
+            }
+            case 'installPipCore': {
+              runCommandsInTerminal({
+                name: 'Install RapidKit Core',
                 commands: [
                   process.platform === 'win32'
                     ? 'python -m pipx install --force rapidkit-core'
                     : 'pipx install --force rapidkit-core',
                 ],
               });
-              vscode.window.showInformationMessage(
-                'Installing RapidKit Core with pipx (recommended isolated mode).'
-              );
-            } else {
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 10000);
+              break;
+            }
+            case 'upgradePipCore': {
               runCommandsInTerminal({
-                name: 'Install RapidKit Core (smart fallback)',
+                name: 'Upgrade RapidKit Core',
                 commands: [
                   process.platform === 'win32'
-                    ? 'python -m pip install --user rapidkit-core'
-                    : 'python3 -m pip install --user rapidkit-core',
+                    ? 'python -m pipx upgrade rapidkit-core'
+                    : 'pipx upgrade rapidkit-core',
                 ],
               });
-              vscode.window.showInformationMessage(
-                'Installing RapidKit Core with pip fallback. You can install pipx later for better isolation.'
-              );
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 10000);
+              break;
             }
-
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 10000);
-            break;
-          }
-          case 'verifyPython': {
-            const prefs = this._getSetupPreferences();
-            const manualPython = prefs.manualPaths.python;
-            runCommandsInTerminal({
-              name: 'Verify Python',
-              commands: manualPython
-                ? [
-                    `${this._quoteExecutable(manualPython)} --version`,
-                    'python3 --version',
-                    'python --version',
-                  ]
-                : ['python3 --version', 'python --version'],
-            });
-            break;
-          }
-          case 'verifyPip': {
-            const prefs = this._getSetupPreferences();
-            const manualPip = prefs.manualPaths.pip;
-            runCommandsInTerminal({
-              name: 'Verify pip',
-              commands: [
-                ...(manualPip ? [`${this._quoteExecutable(manualPip)} --version`] : []),
+            case 'installPoetry': {
+              const poetryCommands =
                 process.platform === 'win32'
-                  ? 'python -m pip --version'
-                  : 'python3 -m pip --version',
-              ],
-            });
-            break;
-          }
-          case 'verifyPipx': {
-            const prefs = this._getSetupPreferences();
-            const manualPipx = prefs.manualPaths.pipx;
-            runCommandsInTerminal({
-              name: 'Verify pipx',
-              commands: [
-                ...(manualPipx ? [`${this._quoteExecutable(manualPipx)} --version`] : []),
-                process.platform === 'win32' ? 'python -m pipx --version' : 'pipx --version',
-              ],
-            });
-            break;
-          }
-          case 'verifyCore': {
-            const fs = await import('fs-extra');
-            const path = await import('path');
-            const quoteExecutable = (value: string) => (value.includes(' ') ? `"${value}"` : value);
-            const coreVerifyCommands: string[] = [];
-
-            const workspaceFolders = vscode.workspace.workspaceFolders || [];
-            for (const folder of workspaceFolders) {
-              const workspacePath = folder.uri.fsPath;
-              const workspacePython =
+                  ? ['python -m pip install --user poetry']
+                  : ['python3 -m pip install --user poetry'];
+              runCommandsInTerminal({
+                name: 'Install Poetry',
+                commands: poetryCommands,
+              });
+              vscode.window.showInformationMessage('Installing Poetry with pip (user mode).');
+              setTimeout(async () => {
+                // Invalidate Poetry cache after installation
+                try {
+                  const { requirementCache } = await import('../../utils/requirementCache.js');
+                  requirementCache.invalidatePoetry();
+                } catch {
+                  // Ignore cache errors
+                }
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 12000);
+              break;
+            }
+            case 'installPipx': {
+              const pipxCommands =
                 process.platform === 'win32'
-                  ? path.join(workspacePath, '.venv', 'Scripts', 'python.exe')
-                  : path.join(workspacePath, '.venv', 'bin', 'python');
-              const workspaceRapidkit =
+                  ? ['python -m pip install --user pipx', 'python -m pipx ensurepath']
+                  : ['python3 -m pip install --user pipx', 'python3 -m pipx ensurepath'];
+              runCommandsInTerminal({
+                name: 'Install pipx',
+                commands: pipxCommands,
+              });
+              vscode.window.showInformationMessage(
+                'pipx installed. Please restart your terminal or VS Code for PATH changes to take effect.'
+              );
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 8000);
+              break;
+            }
+            case 'installPipxThenCore': {
+              const toolchainCommands =
                 process.platform === 'win32'
-                  ? path.join(workspacePath, '.venv', 'Scripts', 'rapidkit.exe')
-                  : path.join(workspacePath, '.venv', 'bin', 'rapidkit');
+                  ? [
+                      'python -m pip install --user pipx',
+                      'python -m pipx ensurepath',
+                      'python -m pipx install --force rapidkit-core',
+                    ]
+                  : [
+                      'python3 -m pip install --user pipx',
+                      'python3 -m pipx ensurepath',
+                      'pipx install --force rapidkit-core',
+                    ];
+              runCommandsInTerminal({
+                name: 'Setup Workspai Toolchain',
+                commands: toolchainCommands,
+              });
+              vscode.window.showInformationMessage(
+                'Installing pipx and RapidKit Core. Please wait...'
+              );
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 15000);
+              break;
+            }
+            case 'installCoreFallback': {
+              const answer = await vscode.window.showWarningMessage(
+                'pipx not found. Install RapidKit Core with pip --user instead? (fallback mode)',
+                'Install with pip',
+                'Cancel'
+              );
+              if (answer === 'Install with pip') {
+                runCommandsInTerminal({
+                  name: 'Install RapidKit Core (fallback)',
+                  commands: [
+                    process.platform === 'win32'
+                      ? 'python -m pip install --user rapidkit-core'
+                      : 'python3 -m pip install --user rapidkit-core',
+                  ],
+                });
+                vscode.window.showWarningMessage(
+                  'RapidKit Core installed via pip. This may conflict with virtualenvs. Consider installing pipx later.'
+                );
+                setTimeout(async () => {
+                  const newStatus = await this._checkInstallationStatus();
+                  this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+                }, 10000);
+              }
+              break;
+            }
+            case 'installCoreSmart': {
+              const installStatus = await this._checkInstallationStatus();
 
-              if (await fs.pathExists(workspacePython)) {
-                const pythonExe = quoteExecutable(workspacePython);
-                coreVerifyCommands.push(
-                  `${pythonExe} -m rapidkit --version --json`,
-                  `${pythonExe} -m pip show rapidkit-core`
+              if (!installStatus.pythonInstalled || !installStatus.pipInstalled) {
+                vscode.window.showWarningMessage(
+                  'Python and pip are required before installing RapidKit Core. Please install Python 3.10+ first.'
+                );
+                break;
+              }
+
+              if (installStatus.pipxInstalled) {
+                runCommandsInTerminal({
+                  name: 'Install RapidKit Core (smart fallback)',
+                  commands: [
+                    process.platform === 'win32'
+                      ? 'python -m pipx install --force rapidkit-core'
+                      : 'pipx install --force rapidkit-core',
+                  ],
+                });
+                vscode.window.showInformationMessage(
+                  'Installing RapidKit Core with pipx (recommended isolated mode).'
+                );
+              } else {
+                runCommandsInTerminal({
+                  name: 'Install RapidKit Core (smart fallback)',
+                  commands: [
+                    process.platform === 'win32'
+                      ? 'python -m pip install --user rapidkit-core'
+                      : 'python3 -m pip install --user rapidkit-core',
+                  ],
+                });
+                vscode.window.showInformationMessage(
+                  'Installing RapidKit Core with pip fallback. You can install pipx later for better isolation.'
                 );
               }
 
-              if (await fs.pathExists(workspaceRapidkit)) {
-                const rapidkitExe = quoteExecutable(workspaceRapidkit);
-                coreVerifyCommands.push(`${rapidkitExe} --version --json`);
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 10000);
+              break;
+            }
+            case 'verifyPython': {
+              const prefs = this._getSetupPreferences();
+              const manualPython = prefs.manualPaths.python;
+              runCommandsInTerminal({
+                name: 'Verify Python',
+                commands: manualPython
+                  ? [
+                      `${this._quoteExecutable(manualPython)} --version`,
+                      'python3 --version',
+                      'python --version',
+                    ]
+                  : ['python3 --version', 'python --version'],
+              });
+              break;
+            }
+            case 'verifyPip': {
+              const prefs = this._getSetupPreferences();
+              const manualPip = prefs.manualPaths.pip;
+              runCommandsInTerminal({
+                name: 'Verify pip',
+                commands: [
+                  ...(manualPip ? [`${this._quoteExecutable(manualPip)} --version`] : []),
+                  process.platform === 'win32'
+                    ? 'python -m pip --version'
+                    : 'python3 -m pip --version',
+                ],
+              });
+              break;
+            }
+            case 'verifyPipx': {
+              const prefs = this._getSetupPreferences();
+              const manualPipx = prefs.manualPaths.pipx;
+              runCommandsInTerminal({
+                name: 'Verify pipx',
+                commands: [
+                  ...(manualPipx ? [`${this._quoteExecutable(manualPipx)} --version`] : []),
+                  process.platform === 'win32' ? 'python -m pipx --version' : 'pipx --version',
+                ],
+              });
+              break;
+            }
+            case 'verifyCore': {
+              const fs = await import('fs-extra');
+              const path = await import('path');
+              const quoteExecutable = (value: string) =>
+                value.includes(' ') ? `"${value}"` : value;
+              const coreVerifyCommands: string[] = [];
+
+              const workspaceFolders = vscode.workspace.workspaceFolders || [];
+              for (const folder of workspaceFolders) {
+                const workspacePath = folder.uri.fsPath;
+                const workspacePython =
+                  process.platform === 'win32'
+                    ? path.join(workspacePath, '.venv', 'Scripts', 'python.exe')
+                    : path.join(workspacePath, '.venv', 'bin', 'python');
+                const workspaceRapidkit =
+                  process.platform === 'win32'
+                    ? path.join(workspacePath, '.venv', 'Scripts', 'rapidkit.exe')
+                    : path.join(workspacePath, '.venv', 'bin', 'rapidkit');
+
+                if (await fs.pathExists(workspacePython)) {
+                  const pythonExe = quoteExecutable(workspacePython);
+                  coreVerifyCommands.push(
+                    `${pythonExe} -m rapidkit --version --json`,
+                    `${pythonExe} -m pip show rapidkit-core`
+                  );
+                }
+
+                if (await fs.pathExists(workspaceRapidkit)) {
+                  const rapidkitExe = quoteExecutable(workspaceRapidkit);
+                  coreVerifyCommands.push(`${rapidkitExe} --version --json`);
+                }
               }
+
+              if (process.platform === 'win32') {
+                coreVerifyCommands.push(
+                  'python -m pip show rapidkit-core',
+                  'py -3 -m pip show rapidkit-core',
+                  'python -m pipx list'
+                );
+              } else {
+                coreVerifyCommands.push(
+                  'python3 -m pip show rapidkit-core',
+                  'python -m pip show rapidkit-core',
+                  'python3 -m pipx list',
+                  'pipx list'
+                );
+              }
+
+              const dedupedCoreVerifyCommands = [...new Set(coreVerifyCommands)];
+              runCommandsInTerminal({
+                name: 'Verify RapidKit Core',
+                commands: dedupedCoreVerifyCommands,
+              });
+              break;
             }
-
-            if (process.platform === 'win32') {
-              coreVerifyCommands.push(
-                'python -m pip show rapidkit-core',
-                'py -3 -m pip show rapidkit-core',
-                'python -m pipx list'
-              );
-            } else {
-              coreVerifyCommands.push(
-                'python3 -m pip show rapidkit-core',
-                'python -m pip show rapidkit-core',
-                'python3 -m pipx list',
-                'pipx list'
-              );
+            case 'verifyNpm': {
+              runRapidkitCommandsInTerminal({
+                name: 'Verify Workspai CLI',
+                commands: [['--version']],
+              });
+              break;
             }
+            case 'verifyPoetry': {
+              const path = await import('path');
+              const fs = await import('fs-extra');
+              const quoteExecutable = (value: string) =>
+                value && value.includes(' ') ? `"${value}"` : value;
+              const prefs = this._getSetupPreferences();
+              const manualPoetry = prefs.manualPaths.poetry;
 
-            const dedupedCoreVerifyCommands = [...new Set(coreVerifyCommands)];
-            runCommandsInTerminal({
-              name: 'Verify RapidKit Core',
-              commands: dedupedCoreVerifyCommands,
-            });
-            break;
-          }
-          case 'verifyNpm': {
-            runRapidkitCommandsInTerminal({
-              name: 'Verify Workspai CLI',
-              commands: [['--version']],
-            });
-            break;
-          }
-          case 'verifyPoetry': {
-            const path = await import('path');
-            const fs = await import('fs-extra');
-            const quoteExecutable = (value: string) =>
-              value && value.includes(' ') ? `"${value}"` : value;
-            const prefs = this._getSetupPreferences();
-            const manualPoetry = prefs.manualPaths.poetry;
+              const windowsPoetryCandidates = [
+                path.join(process.env.APPDATA || '', 'Python', 'Scripts', 'poetry.exe'),
+                path.join(
+                  process.env.USERPROFILE || '',
+                  'AppData',
+                  'Roaming',
+                  'Python',
+                  'Scripts',
+                  'poetry.exe'
+                ),
+                path.join(process.env.USERPROFILE || '', '.local', 'bin', 'poetry.exe'),
+              ].filter((candidate) => !!candidate && !candidate.startsWith('Python'));
 
-            const windowsPoetryCandidates = [
-              path.join(process.env.APPDATA || '', 'Python', 'Scripts', 'poetry.exe'),
-              path.join(
-                process.env.USERPROFILE || '',
-                'AppData',
-                'Roaming',
-                'Python',
-                'Scripts',
-                'poetry.exe'
-              ),
-              path.join(process.env.USERPROFILE || '', '.local', 'bin', 'poetry.exe'),
-            ].filter((candidate) => !!candidate && !candidate.startsWith('Python'));
+              const existingWindowsPoetryCommands: string[] = [];
+              for (const candidate of windowsPoetryCandidates) {
+                try {
+                  if (await fs.pathExists(candidate)) {
+                    existingWindowsPoetryCommands.push(`${quoteExecutable(candidate)} --version`);
+                  }
+                } catch {
+                  // ignore filesystem check errors; we'll rely on standard commands below
+                }
+              }
 
-            const existingWindowsPoetryCommands: string[] = [];
-            for (const candidate of windowsPoetryCandidates) {
+              const linuxPoetryCandidate = path.join(
+                process.env.HOME || '',
+                '.local',
+                'bin',
+                'poetry'
+              );
+              const linuxPoetryCommands: string[] = [];
               try {
-                if (await fs.pathExists(candidate)) {
-                  existingWindowsPoetryCommands.push(`${quoteExecutable(candidate)} --version`);
+                if (await fs.pathExists(linuxPoetryCandidate)) {
+                  linuxPoetryCommands.push(`${quoteExecutable(linuxPoetryCandidate)} --version`);
                 }
               } catch {
-                // ignore filesystem check errors; we'll rely on standard commands below
+                // ignore filesystem check errors
               }
-            }
 
-            const linuxPoetryCandidate = path.join(
-              process.env.HOME || '',
-              '.local',
-              'bin',
-              'poetry'
-            );
-            const linuxPoetryCommands: string[] = [];
-            try {
-              if (await fs.pathExists(linuxPoetryCandidate)) {
-                linuxPoetryCommands.push(`${quoteExecutable(linuxPoetryCandidate)} --version`);
-              }
-            } catch {
-              // ignore filesystem check errors
+              const poetryVerifyCommands =
+                process.platform === 'win32'
+                  ? [
+                      ...(manualPoetry ? [`${quoteExecutable(manualPoetry)} --version`] : []),
+                      ...existingWindowsPoetryCommands,
+                      'poetry --version',
+                      'python -m poetry --version',
+                      'py -3 -m poetry --version',
+                    ]
+                  : [
+                      ...(manualPoetry ? [`${quoteExecutable(manualPoetry)} --version`] : []),
+                      ...linuxPoetryCommands,
+                      'poetry --version',
+                      'python3 -m poetry --version',
+                      'python -m poetry --version',
+                    ];
+              runCommandsInTerminal({
+                name: 'Verify Poetry',
+                commands: [...new Set(poetryVerifyCommands)],
+              });
+              break;
             }
+            case 'verifyGo': {
+              const path = await import('path');
+              const os = await import('os');
+              const fs = await import('fs-extra');
+              const quoteExecutable = (value: string) =>
+                value && value.includes(' ') ? `"${value}"` : value;
+              const prefs = this._getSetupPreferences();
+              const manualGo = prefs.manualPaths.go;
 
-            const poetryVerifyCommands =
-              process.platform === 'win32'
+              const isWindows = process.platform === 'win32';
+              const goCandidates = isWindows
                 ? [
-                    ...(manualPoetry ? [`${quoteExecutable(manualPoetry)} --version`] : []),
-                    ...existingWindowsPoetryCommands,
-                    'poetry --version',
-                    'python -m poetry --version',
-                    'py -3 -m poetry --version',
+                    manualGo || '',
+                    'go',
+                    'C:\\Go\\bin\\go.exe',
+                    'C:\\Program Files\\Go\\bin\\go.exe',
+                    process.env.GOROOT ? path.join(process.env.GOROOT, 'bin', 'go.exe') : '',
                   ]
                 : [
-                    ...(manualPoetry ? [`${quoteExecutable(manualPoetry)} --version`] : []),
-                    ...linuxPoetryCommands,
-                    'poetry --version',
-                    'python3 -m poetry --version',
-                    'python -m poetry --version',
+                    manualGo || '',
+                    '/usr/local/go/bin/go',
+                    '/snap/bin/go',
+                    path.join(os.homedir(), 'go', 'bin', 'go'),
+                    process.env.GOROOT ? path.join(process.env.GOROOT, 'bin', 'go') : '',
+                    'go',
                   ];
-            runCommandsInTerminal({
-              name: 'Verify Poetry',
-              commands: [...new Set(poetryVerifyCommands)],
-            });
-            break;
-          }
-          case 'verifyGo': {
-            const path = await import('path');
-            const os = await import('os');
-            const fs = await import('fs-extra');
-            const quoteExecutable = (value: string) =>
-              value && value.includes(' ') ? `"${value}"` : value;
-            const prefs = this._getSetupPreferences();
-            const manualGo = prefs.manualPaths.go;
 
-            const isWindows = process.platform === 'win32';
-            const goCandidates = isWindows
-              ? [
-                  manualGo || '',
-                  'go',
-                  'C:\\Go\\bin\\go.exe',
-                  'C:\\Program Files\\Go\\bin\\go.exe',
-                  process.env.GOROOT ? path.join(process.env.GOROOT, 'bin', 'go.exe') : '',
-                ]
-              : [
-                  manualGo || '',
-                  '/usr/local/go/bin/go',
-                  '/snap/bin/go',
-                  path.join(os.homedir(), 'go', 'bin', 'go'),
-                  process.env.GOROOT ? path.join(process.env.GOROOT, 'bin', 'go') : '',
-                  'go',
-                ];
-
-            const goVerifyCommands: string[] = [];
-            for (const candidate of goCandidates) {
-              if (!candidate || !candidate.trim()) {
-                continue;
-              }
-
-              if (candidate === 'go') {
-                goVerifyCommands.push('go version');
-                continue;
-              }
-
-              try {
-                if (await fs.pathExists(candidate)) {
-                  goVerifyCommands.push(`${quoteExecutable(candidate)} version`);
+              const goVerifyCommands: string[] = [];
+              for (const candidate of goCandidates) {
+                if (!candidate || !candidate.trim()) {
+                  continue;
                 }
-              } catch {
-                // Ignore filesystem probe errors and keep going.
+
+                if (candidate === 'go') {
+                  goVerifyCommands.push('go version');
+                  continue;
+                }
+
+                try {
+                  if (await fs.pathExists(candidate)) {
+                    goVerifyCommands.push(`${quoteExecutable(candidate)} version`);
+                  }
+                } catch {
+                  // Ignore filesystem probe errors and keep going.
+                }
               }
-            }
 
-            runCommandsInTerminal({
-              name: 'Verify Go',
-              commands: [...new Set(goVerifyCommands)],
-            });
-            break;
-          }
-          case 'installJava': {
-            const javaInstallUrl =
-              process.platform === 'darwin'
-                ? 'https://adoptium.net/temurin/releases/?os=mac'
-                : process.platform === 'win32'
-                  ? 'https://adoptium.net/temurin/releases/?os=windows'
-                  : 'https://adoptium.net/temurin/releases/?os=linux';
-            vscode.env.openExternal(vscode.Uri.parse(javaInstallUrl));
-            vscode.window.showInformationMessage(
-              'Opening Temurin (Eclipse Adoptium) — recommended JDK 21+ for Spring Boot.'
-            );
-            break;
-          }
-          case 'installMaven': {
-            if (process.platform === 'linux') {
               runCommandsInTerminal({
-                name: 'Install Maven',
-                commands: ['sudo apt-get update && sudo apt-get install -y maven'],
+                name: 'Verify Go',
+                commands: [...new Set(goVerifyCommands)],
               });
-              vscode.window.showInformationMessage('Installing Maven via apt…');
-            } else if (process.platform === 'darwin') {
-              runCommandsInTerminal({
-                name: 'Install Maven',
-                commands: ['brew install maven'],
-              });
-              vscode.window.showInformationMessage('Installing Maven via Homebrew…');
-            } else {
-              vscode.env.openExternal(vscode.Uri.parse('https://maven.apache.org/download.cgi'));
+              break;
             }
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 12000);
-            break;
-          }
-          case 'installGradle': {
-            if (process.platform === 'linux') {
-              runCommandsInTerminal({
-                name: 'Install Gradle',
-                commands: ['sudo apt-get update && sudo apt-get install -y gradle'],
-              });
-              vscode.window.showInformationMessage('Installing Gradle via apt…');
-            } else if (process.platform === 'darwin') {
-              runCommandsInTerminal({
-                name: 'Install Gradle',
-                commands: ['brew install gradle'],
-              });
-              vscode.window.showInformationMessage('Installing Gradle via Homebrew…');
-            } else {
-              vscode.env.openExternal(vscode.Uri.parse('https://gradle.org/install/'));
-            }
-            setTimeout(async () => {
-              const newStatus = await this._checkInstallationStatus();
-              this._panel.webview.postMessage({ command: 'statusUpdate', status: newStatus });
-            }, 12000);
-            break;
-          }
-          case 'verifyJavaEnv': {
-            // Deep Java env probe: java, mvn, gradle + JAVA_HOME check
-            const path = await import('path');
-            const fs = await import('fs-extra');
-            const prefs = this._getSetupPreferences();
-            const manualJava = prefs.manualPaths.java;
-            const javaCmds: string[] = [];
-
-            if (manualJava) {
-              javaCmds.push(`${this._quoteExecutable(manualJava)} -version`);
-            }
-            if (process.env.JAVA_HOME) {
-              const jhJava = path.join(
-                process.env.JAVA_HOME,
-                'bin',
-                process.platform === 'win32' ? 'java.exe' : 'java'
+            case 'installJava': {
+              const javaInstallUrl =
+                process.platform === 'darwin'
+                  ? 'https://adoptium.net/temurin/releases/?os=mac'
+                  : process.platform === 'win32'
+                    ? 'https://adoptium.net/temurin/releases/?os=windows'
+                    : 'https://adoptium.net/temurin/releases/?os=linux';
+              vscode.env.openExternal(vscode.Uri.parse(javaInstallUrl));
+              vscode.window.showInformationMessage(
+                'Opening Temurin (Eclipse Adoptium) — recommended JDK 21+ for Spring Boot.'
               );
-              if (await fs.pathExists(jhJava)) {
-                javaCmds.push(`${this._quoteExecutable(jhJava)} -version`);
+              break;
+            }
+            case 'installMaven': {
+              if (process.platform === 'linux') {
+                runCommandsInTerminal({
+                  name: 'Install Maven',
+                  commands: ['sudo apt-get update && sudo apt-get install -y maven'],
+                });
+                vscode.window.showInformationMessage('Installing Maven via apt…');
+              } else if (process.platform === 'darwin') {
+                runCommandsInTerminal({
+                  name: 'Install Maven',
+                  commands: ['brew install maven'],
+                });
+                vscode.window.showInformationMessage('Installing Maven via Homebrew…');
+              } else {
+                vscode.env.openExternal(vscode.Uri.parse('https://maven.apache.org/download.cgi'));
               }
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 12000);
+              break;
             }
-            javaCmds.push('java -version', 'mvn --version', 'gradle --version');
-            if (process.env.JAVA_HOME) {
-              javaCmds.push(`echo JAVA_HOME=${process.env.JAVA_HOME}`);
+            case 'installGradle': {
+              if (process.platform === 'linux') {
+                runCommandsInTerminal({
+                  name: 'Install Gradle',
+                  commands: ['sudo apt-get update && sudo apt-get install -y gradle'],
+                });
+                vscode.window.showInformationMessage('Installing Gradle via apt…');
+              } else if (process.platform === 'darwin') {
+                runCommandsInTerminal({
+                  name: 'Install Gradle',
+                  commands: ['brew install gradle'],
+                });
+                vscode.window.showInformationMessage('Installing Gradle via Homebrew…');
+              } else {
+                vscode.env.openExternal(vscode.Uri.parse('https://gradle.org/install/'));
+              }
+              setTimeout(async () => {
+                const newStatus = await this._checkInstallationStatus();
+                this._safePostMessage({ command: 'statusUpdate', status: newStatus });
+              }, 12000);
+              break;
             }
-            runCommandsInTerminal({
-              name: 'Verify Java Environment',
-              commands: [...new Set(javaCmds)],
-            });
-            break;
-          }
-          case 'verifyJava': {
-            const prefs = this._getSetupPreferences();
-            const manualJava = prefs.manualPaths.java;
-            const path = await import('path');
-            const javaHome = process.env.JAVA_HOME;
-            const javaHomeBin = javaHome
-              ? path.join(javaHome, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')
-              : null;
-            runCommandsInTerminal({
-              name: 'Verify Java',
-              commands: [
-                ...(manualJava ? [`${this._quoteExecutable(manualJava)} -version`] : []),
-                ...(javaHomeBin ? [`${this._quoteExecutable(javaHomeBin)} -version`] : []),
-                'java -version',
-              ].filter((v, i, a) => a.indexOf(v) === i),
-            });
-            break;
-          }
-          case 'verifyMaven': {
-            const prefs = this._getSetupPreferences();
-            const manualMaven = prefs.manualPaths.maven;
-            const mavenHome = process.env.MAVEN_HOME || process.env.M2_HOME;
-            const path = await import('path');
-            const mavenHomeBin = mavenHome
-              ? path.join(mavenHome, 'bin', process.platform === 'win32' ? 'mvn.cmd' : 'mvn')
-              : null;
-            runCommandsInTerminal({
-              name: 'Verify Maven',
-              commands: [
-                ...(manualMaven ? [`${this._quoteExecutable(manualMaven)} --version`] : []),
-                ...(mavenHomeBin ? [`${this._quoteExecutable(mavenHomeBin)} --version`] : []),
-                'mvn --version',
-              ].filter((v, i, a) => a.indexOf(v) === i),
-            });
-            break;
-          }
-          case 'verifyGradle': {
-            const prefs = this._getSetupPreferences();
-            const manualGradle = prefs.manualPaths.gradle;
-            const gradleHome = process.env.GRADLE_HOME;
-            const path = await import('path');
-            const gradleHomeBin = gradleHome
-              ? path.join(gradleHome, 'bin', process.platform === 'win32' ? 'gradle.bat' : 'gradle')
-              : null;
-            runCommandsInTerminal({
-              name: 'Verify Gradle',
-              commands: [
-                ...(manualGradle ? [`${this._quoteExecutable(manualGradle)} --version`] : []),
-                ...(gradleHomeBin ? [`${this._quoteExecutable(gradleHomeBin)} --version`] : []),
-                'gradle --version',
-              ].filter((v, i, a) => a.indexOf(v) === i),
-            });
-            break;
-          }
-          case 'getCacheStats': {
-            try {
-              const { requirementCache } = await import('../../utils/requirementCache.js');
-              const stats = requirementCache.getStats();
-              this._panel.webview.postMessage({ command: 'cacheStatsUpdate', stats });
-            } catch {
-              this._panel.webview.postMessage({ command: 'cacheStatsUpdate', stats: null });
+            case 'verifyJavaEnv': {
+              // Deep Java env probe: java, mvn, gradle + JAVA_HOME check
+              const path = await import('path');
+              const fs = await import('fs-extra');
+              const prefs = this._getSetupPreferences();
+              const manualJava = prefs.manualPaths.java;
+              const javaCmds: string[] = [];
+
+              if (manualJava) {
+                javaCmds.push(`${this._quoteExecutable(manualJava)} -version`);
+              }
+              if (process.env.JAVA_HOME) {
+                const jhJava = path.join(
+                  process.env.JAVA_HOME,
+                  'bin',
+                  process.platform === 'win32' ? 'java.exe' : 'java'
+                );
+                if (await fs.pathExists(jhJava)) {
+                  javaCmds.push(`${this._quoteExecutable(jhJava)} -version`);
+                }
+              }
+              javaCmds.push('java -version', 'mvn --version', 'gradle --version');
+              if (process.env.JAVA_HOME) {
+                javaCmds.push(`echo JAVA_HOME=${process.env.JAVA_HOME}`);
+              }
+              runCommandsInTerminal({
+                name: 'Verify Java Environment',
+                commands: [...new Set(javaCmds)],
+              });
+              break;
             }
-            break;
+            case 'verifyJava': {
+              const prefs = this._getSetupPreferences();
+              const manualJava = prefs.manualPaths.java;
+              const path = await import('path');
+              const javaHome = process.env.JAVA_HOME;
+              const javaHomeBin = javaHome
+                ? path.join(javaHome, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')
+                : null;
+              runCommandsInTerminal({
+                name: 'Verify Java',
+                commands: [
+                  ...(manualJava ? [`${this._quoteExecutable(manualJava)} -version`] : []),
+                  ...(javaHomeBin ? [`${this._quoteExecutable(javaHomeBin)} -version`] : []),
+                  'java -version',
+                ].filter((v, i, a) => a.indexOf(v) === i),
+              });
+              break;
+            }
+            case 'verifyMaven': {
+              const prefs = this._getSetupPreferences();
+              const manualMaven = prefs.manualPaths.maven;
+              const mavenHome = process.env.MAVEN_HOME || process.env.M2_HOME;
+              const path = await import('path');
+              const mavenHomeBin = mavenHome
+                ? path.join(mavenHome, 'bin', process.platform === 'win32' ? 'mvn.cmd' : 'mvn')
+                : null;
+              runCommandsInTerminal({
+                name: 'Verify Maven',
+                commands: [
+                  ...(manualMaven ? [`${this._quoteExecutable(manualMaven)} --version`] : []),
+                  ...(mavenHomeBin ? [`${this._quoteExecutable(mavenHomeBin)} --version`] : []),
+                  'mvn --version',
+                ].filter((v, i, a) => a.indexOf(v) === i),
+              });
+              break;
+            }
+            case 'verifyGradle': {
+              const prefs = this._getSetupPreferences();
+              const manualGradle = prefs.manualPaths.gradle;
+              const gradleHome = process.env.GRADLE_HOME;
+              const path = await import('path');
+              const gradleHomeBin = gradleHome
+                ? path.join(
+                    gradleHome,
+                    'bin',
+                    process.platform === 'win32' ? 'gradle.bat' : 'gradle'
+                  )
+                : null;
+              runCommandsInTerminal({
+                name: 'Verify Gradle',
+                commands: [
+                  ...(manualGradle ? [`${this._quoteExecutable(manualGradle)} --version`] : []),
+                  ...(gradleHomeBin ? [`${this._quoteExecutable(gradleHomeBin)} --version`] : []),
+                  'gradle --version',
+                ].filter((v, i, a) => a.indexOf(v) === i),
+              });
+              break;
+            }
+            case 'getCacheStats': {
+              try {
+                const { requirementCache } = await import('../../utils/requirementCache.js');
+                const stats = requirementCache.getStats();
+                this._safePostMessage({ command: 'cacheStatsUpdate', stats });
+              } catch {
+                this._safePostMessage({ command: 'cacheStatsUpdate', stats: null });
+              }
+              break;
+            }
           }
-        }
-      },
-      null,
-      this._disposables
+        },
+        null,
+        this._disposables
+      )
     );
 
     setImmediate(async () => {
       const status = await this._checkInstallationStatus();
-      this._panel.webview.postMessage({ command: 'statusUpdate', status });
-      this._panel.webview.postMessage({
+      this._safePostMessage({ command: 'statusUpdate', status });
+      this._safePostMessage({
         command: 'preferencesUpdate',
         preferences: this._getSetupPreferences(),
       });
-      this._panel.webview.postMessage({
+      this._safePostMessage({
         command: 'pathDoctorUpdate',
         report: this._getSetupPreferences().lastPathDoctorReport || this._runPathDoctor(),
       });
@@ -865,6 +887,20 @@ export class SetupPanel {
       const disposable = this._disposables.pop();
       if (disposable) {
         disposable.dispose();
+      }
+    }
+  }
+
+  /**
+   * Safely post a message to the webview if it hasn't been disposed
+   */
+  private _safePostMessage(message: any): void {
+    if (!this._isDisposing && this._panel && this._panel.webview) {
+      try {
+        this._panel.webview.postMessage(message);
+      } catch (err) {
+        // Silently ignore if webview is disposed
+        // This can happen when messages are queued before disposal completes
       }
     }
   }

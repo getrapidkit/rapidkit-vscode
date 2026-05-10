@@ -1,5 +1,20 @@
 # Release Notes
 
+## v0.27.2 (May 10, 2026)
+
+### ✦ Webview Disposal Safety Patch
+
+**Summary:** Eliminates `Webview is disposed` uncaught errors in the Setup & Installation panel that fired when the panel was closed mid-check.
+
+- Added `_isDisposing` flag set immediately on `onDidDispose` to stop in-flight async callbacks
+- Introduced `_safePostMessage()` guard method wrapping all `postMessage` calls with disposal check + try-catch
+- Replaced all 20+ direct `postMessage` calls in `setupExperiencePanel.ts` with `_safePostMessage()`
+- Moved `onDidReceiveMessage` listener into disposables with early-exit guard
+
+**Scope:** `setupExperiencePanel.ts` only — no behavior changes, no new commands.
+
+Release posture: `stabilization-only`
+
 ## v0.27.1 (May 10, 2026)
 
 ### ✦ Workspace Operations And Incident Reliability Patch
