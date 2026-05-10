@@ -117,6 +117,9 @@ export function buildRapidkitCommandScopeSection(ctx: AIModalContext): string {
     '- Project lifecycle commands belong in project root: `npx rapidkit init/dev/test/build/start`, project-local `rapidkit init/dev/test/build/start`, `./rapidkit ...`, `source .rapidkit/activate`, and kit scripts such as `./bootstrap.sh`.'
   );
   lines.push(
+    '- `npx rapidkit doctor project` belongs in project root for selected-service diagnostics.'
+  );
+  lines.push(
     '- `npx rapidkit doctor` is a host pre-flight check. It is not a substitute for `npx rapidkit doctor workspace`.'
   );
 

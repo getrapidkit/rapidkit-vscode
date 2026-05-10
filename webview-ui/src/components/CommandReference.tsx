@@ -34,10 +34,11 @@ function buildWorkspaceCommands(profile: WorkspaceProfile): Command[] {
         },
         {
             code: 'npx rapidkit init',
-            description: 'Initialize workspace dependencies and projects'
+            description:
+                'Full init (workspace + projects). Mirror aliases at workspace root: `workspace init` and `workspace run init`.'
         },
         {
-            code: 'npx workspai.doctor workspace',
+            code: 'npx rapidkit doctor workspace',
             description: 'Run workspace health checks (canonical doctor contract)'
         },
         {
@@ -137,7 +138,7 @@ export function CommandReference({
     const workspaceCommands = buildWorkspaceCommands(workspaceProfile);
     const devCommands: Command[] = [
         {
-            code: 'npx workspai.doctor workspace --fix',
+            code: 'npx rapidkit doctor workspace --fix',
             description: 'Run doctor with safe auto-fixes for workspace issues'
         },
         {

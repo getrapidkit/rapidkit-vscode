@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-05-10
+
+### Added
+
+- **Workspace Run command suite** — added first-class workspace stage commands and picker flow:
+  - `workspai.workspaceRunStage`
+  - `workspai.workspaceRunInit`
+  - `workspai.workspaceRunTest`
+  - `workspai.workspaceRunBuild`
+  - `workspai.workspaceRunStart`
+
+- **AI Workspace Command Center** — added `workspai.aiWorkspaceCommandCenter` with a categorized operation launcher for workspace navigation, health, and governance commands.
+
+- **Project-scoped Doctor command** — added `workspai.projectDoctor` with explicit Check/Fix selection and project-aware routing from Incident Studio.
+
+- **Doctor treatment telemetry envelope** — Incident Studio telemetry now includes `doctorTreatmentStatus` (trend, drift deltas, scope provenance, traceability coverage, probe failures/warnings) and corresponding UI rendering.
+
+### Changed
+
+- **Workspace init execution path** — `workspai.workspaceInit` now runs canonical `workspace run init` flow for consistent fleet-stage semantics.
+
+- **Workspace operations targeting** — normalized workspace target resolution from command payloads and selection context across workspace operations and selection commands.
+
+- **Incident Studio command wiring** — doctor actions route to workspace/project-aware commands, adds project doctor report access, and improves scope-aware labels in telemetry UI.
+
+- **AI command catalog** — expanded AI action surface with workspace governance and command-center integration; command documentation aligned to `npx rapidkit ...` syntax.
+
+### Fixed
+
+- **Sensitive path exposure in doctor/compliance surfaces** — outputs now use link-safe/sanitized path hints instead of leaking full absolute report directories.
+
+- **Command docs and hints parity** — corrected stale command hints such as `npx workspai.doctor workspace` to canonical `npx rapidkit doctor workspace`.
+
+- **Drift guard/test alignment** — updated drift assertions and Incident Studio telemetry tests to match current command contracts and doctor treatment payload shape.
+
 ## [0.27.0] - 2026-05-08
 
 ### Added

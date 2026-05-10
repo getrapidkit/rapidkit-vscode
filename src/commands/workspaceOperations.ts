@@ -11,6 +11,11 @@ type WorkspaceExplorerLike = {
   getSelectedWorkspace?: () => { path: string; name?: string } | null | undefined;
 };
 
+type WorkspaceTarget = {
+  workspacePath?: string;
+  workspaceName?: string;
+};
+
 function summarizeC06Health(input: {
   evaluated: boolean;
   errors: string[];
@@ -23,6 +28,242 @@ function summarizeC06Health(input: {
   return `C06: ${input.availableKinds.length} loaded, ${input.errors.length} error(s), ${input.warnings.length} warning(s)`;
 }
 
+type WorkspaceHealthAction = 'check' | 'fix' | 'compliance' | 'version' | 'upgrade';
+type WorkspaceRunStage = 'init' | 'test' | 'build' | 'start';
+
+function toSafePathHint(rawPath: string): string {
+  const normalized = rawPath.replace(/\\/g, '/').trim();
+  if (!normalized) {
+    return '';
+  }
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 2) {
+    return normalized;
+  }
+  return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+}
+
+function parsePositiveInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function parsePreferredHealthAction(value: unknown): WorkspaceHealthAction | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'check' ||
+    normalized === 'fix' ||
+    normalized === 'compliance' ||
+    normalized === 'version' ||
+    normalized === 'upgrade'
+  ) {
+    return normalized;
+  }
+
+  return undefined;
+}
+
+function parseWorkspaceRunStage(value: unknown): WorkspaceRunStage | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'init' ||
+    normalized === 'test' ||
+    normalized === 'build' ||
+    normalized === 'start'
+  ) {
+    return normalized;
+  }
+
+  return undefined;
+}
+
+async function pickWorkspaceRunFlags(
+  stage: WorkspaceRunStage,
+  workspaceName: string,
+  options?: { preferredSince?: string; preferredMaxWorkers?: number }
+): Promise<string[] | undefined> {
+  const selected = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'Affected projects only',
+        description: 'Run only changed projects from VCS diff',
+        value: 'affected',
+      },
+      {
+        label: 'Blast radius expansion',
+        description: 'Include downstream dependents (auto-enables affected mode)',
+        value: 'blast-radius',
+      },
+      {
+        label: 'Parallel execution',
+        description: 'Run selected projects concurrently',
+        value: 'parallel',
+      },
+      {
+        label: 'Continue on error',
+        description: 'Continue remaining projects even if one fails',
+        value: 'continue-on-error',
+      },
+      {
+        label: 'Strict gates',
+        description: 'Fail on gate warnings/failures',
+        value: 'strict',
+      },
+      {
+        label: 'Disable gates',
+        description: 'Skip doctor/readiness pre-run gates',
+        value: 'no-gates',
+      },
+      {
+        label: 'JSON output',
+        description: 'Emit machine-readable report payload',
+        value: 'json',
+      },
+    ],
+    {
+      title: `Workspace Run (${stage}) — ${workspaceName}`,
+      placeHolder: 'Select optional execution flags (optional)',
+      canPickMany: true,
+      ignoreFocusOut: true,
+    }
+  );
+
+  if (!selected) {
+    return undefined;
+  }
+
+  const selectedValues = new Set(selected.map((item) => item.value));
+  if (selectedValues.has('blast-radius')) {
+    selectedValues.add('affected');
+  }
+
+  const flags: string[] = [];
+  if (selectedValues.has('affected')) {
+    flags.push('--affected');
+  }
+  if (selectedValues.has('blast-radius')) {
+    flags.push('--blast-radius');
+  }
+  if (selectedValues.has('parallel')) {
+    flags.push('--parallel');
+  }
+  if (selectedValues.has('continue-on-error')) {
+    flags.push('--continue-on-error');
+  }
+  if (selectedValues.has('strict')) {
+    flags.push('--strict');
+  }
+  if (selectedValues.has('no-gates')) {
+    flags.push('--no-gates');
+  }
+  if (selectedValues.has('json')) {
+    flags.push('--json');
+  }
+
+  if (selectedValues.has('affected') || selectedValues.has('blast-radius')) {
+    const preferredSince = options?.preferredSince?.trim();
+    let sinceRef = preferredSince && preferredSince.length > 0 ? preferredSince : undefined;
+    if (!sinceRef) {
+      const sinceInput = await vscode.window.showInputBox({
+        title: `Workspace Run (${stage}) — ${workspaceName}`,
+        prompt:
+          'Optional: git ref for affected calculation (--since). Leave empty to use CLI default (HEAD~1).',
+        placeHolder: 'HEAD~1',
+        ignoreFocusOut: true,
+      });
+
+      if (sinceInput === undefined) {
+        return undefined;
+      }
+
+      const trimmed = sinceInput.trim();
+      sinceRef = trimmed.length > 0 ? trimmed : undefined;
+    }
+
+    if (sinceRef) {
+      flags.push('--since', sinceRef);
+    }
+  }
+
+  if (selectedValues.has('parallel')) {
+    const preferredMaxWorkers = parsePositiveInteger(options?.preferredMaxWorkers);
+    let maxWorkers = preferredMaxWorkers;
+    if (!maxWorkers) {
+      const workerInput = await vscode.window.showInputBox({
+        title: `Workspace Run (${stage}) — ${workspaceName}`,
+        prompt:
+          'Optional: max worker count for parallel run (--max-workers). Leave empty for CLI default.',
+        placeHolder: '4',
+        ignoreFocusOut: true,
+      });
+
+      if (workerInput === undefined) {
+        return undefined;
+      }
+
+      const parsed = parsePositiveInteger(workerInput);
+      if (workerInput.trim().length > 0 && !parsed) {
+        vscode.window.showErrorMessage('Invalid max workers value. Enter a positive integer.');
+        return undefined;
+      }
+      maxWorkers = parsed;
+    }
+
+    if (maxWorkers) {
+      flags.push('--max-workers', String(maxWorkers));
+    }
+  }
+
+  return flags;
+}
+
+function resolveWorkspaceTarget(
+  item: unknown,
+  workspaceExplorer?: WorkspaceExplorerLike
+): WorkspaceTarget {
+  const selectedWorkspace = workspaceExplorer?.getSelectedWorkspace?.();
+
+  const itemWorkspacePath =
+    typeof item === 'string'
+      ? item
+      : item && typeof item === 'object'
+        ? ((item as any).workspace?.path ?? (item as any).path)
+        : undefined;
+
+  const itemWorkspaceName =
+    item && typeof item === 'object'
+      ? ((item as any).workspace?.name ?? (item as any).name)
+      : undefined;
+
+  const workspacePath =
+    typeof itemWorkspacePath === 'string' && itemWorkspacePath.length > 0
+      ? itemWorkspacePath
+      : selectedWorkspace?.path;
+
+  const workspaceName =
+    typeof itemWorkspaceName === 'string' && itemWorkspaceName.length > 0
+      ? itemWorkspaceName
+      : selectedWorkspace?.name;
+
+  return { workspacePath, workspaceName };
+}
+
 export function registerWorkspaceOperationsCommands(options: {
   logger: Logger;
   getWorkspaceExplorer: () => WorkspaceExplorerLike | undefined;
@@ -30,18 +271,48 @@ export function registerWorkspaceOperationsCommands(options: {
 }): vscode.Disposable[] {
   const { logger, getWorkspaceExplorer, context } = options;
 
+  const runWorkspaceStageCommand = async (item: any, stage: WorkspaceRunStage) => {
+    const workspaceExplorer = getWorkspaceExplorer();
+    const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
+    if (!workspacePath) {
+      vscode.window.showErrorMessage(
+        'No workspace selected. Select a workspace in the sidebar first.'
+      );
+      return;
+    }
+
+    const wsName = workspaceName || path.basename(workspacePath);
+    const preferredSince =
+      typeof item?.since === 'string' && item.since.trim().length > 0
+        ? item.since.trim()
+        : undefined;
+    const preferredMaxWorkers = parsePositiveInteger(item?.maxWorkers);
+    const flags = await pickWorkspaceRunFlags(stage, wsName, {
+      preferredSince,
+      preferredMaxWorkers,
+    });
+    if (!flags) {
+      return;
+    }
+
+    runRapidkitCommandsInTerminal({
+      name: `Workspai: Workspace Run (${stage}) — ${wsName}`,
+      cwd: workspacePath,
+      commands: [['workspace', 'run', stage, ...flags]],
+    });
+  };
+
   return [
     vscode.commands.registerCommand('workspai.workspaceBootstrap', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage(
           'No workspace selected. Select a workspace in the sidebar first.'
         );
         return;
       }
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       const profile = await vscode.window.showQuickPick(
         [
           {
@@ -111,15 +382,14 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.workspaceSetup', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage(
           'No workspace selected. Select a workspace in the sidebar first.'
         );
         return;
       }
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       const runtime = await vscode.window.showQuickPick(
         [
           {
@@ -164,32 +434,74 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.workspaceInit', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage(
           'No workspace selected. Select a workspace in the sidebar first.'
         );
         return;
       }
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Init — ${wsName}`,
+        name: `Workspai: Workspace Run Init — ${wsName}`,
         cwd: workspacePath,
-        commands: [['init']],
+        commands: [['workspace', 'run', 'init']],
       });
+    }),
+
+    vscode.commands.registerCommand('workspai.workspaceRunInit', async (item?: any) => {
+      await runWorkspaceStageCommand(item, 'init');
+    }),
+
+    vscode.commands.registerCommand('workspai.workspaceRunTest', async (item?: any) => {
+      await runWorkspaceStageCommand(item, 'test');
+    }),
+
+    vscode.commands.registerCommand('workspai.workspaceRunBuild', async (item?: any) => {
+      await runWorkspaceStageCommand(item, 'build');
+    }),
+
+    vscode.commands.registerCommand('workspai.workspaceRunStart', async (item?: any) => {
+      await runWorkspaceStageCommand(item, 'start');
+    }),
+
+    vscode.commands.registerCommand('workspai.workspaceRunStage', async (item?: any) => {
+      const requestedStage = parseWorkspaceRunStage(item?.stage);
+      if (requestedStage) {
+        await runWorkspaceStageCommand(item, requestedStage);
+        return;
+      }
+
+      const selected = await vscode.window.showQuickPick(
+        [
+          { label: 'init', description: 'Fleet initialization stage', value: 'init' as const },
+          { label: 'test', description: 'Fleet test stage', value: 'test' as const },
+          { label: 'build', description: 'Fleet build stage', value: 'build' as const },
+          { label: 'start', description: 'Fleet start stage', value: 'start' as const },
+        ],
+        {
+          title: 'Workspace Run Stage',
+          placeHolder: 'Select workspace run stage',
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!selected) {
+        return;
+      }
+
+      await runWorkspaceStageCommand(item, selected.value);
     }),
 
     vscode.commands.registerCommand('workspai.workspacePolicyShow', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
 
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       runRapidkitCommandsInTerminal({
         name: `Workspai: Policy — ${wsName}`,
         cwd: workspacePath,
@@ -199,14 +511,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.exportWorkspaceShareBundle', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
 
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       const selectedFlags = await vscode.window.showQuickPick(
         [
           {
@@ -266,14 +577,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.workspacePolicySet', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
 
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       const policyKey = await vscode.window.showQuickPick(
         [
           {
@@ -360,14 +670,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.cacheStatus', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'status']],
       });
@@ -375,14 +684,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.cacheClear', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       const confirm = await vscode.window.showWarningMessage(
-        `Clear all caches for "${path.basename(workspacePath)}"? This cannot be undone.`,
+        `Clear all caches for "${workspaceName || path.basename(workspacePath)}"? This cannot be undone.`,
         { modal: true },
         'Clear Cache',
         'Cancel'
@@ -391,7 +699,7 @@ export function registerWorkspaceOperationsCommands(options: {
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'clear']],
       });
@@ -399,14 +707,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.cachePrune', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'prune']],
       });
@@ -414,14 +721,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.cacheRepair', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Cache — ${path.basename(workspacePath)}`,
+        name: `Workspai: Cache — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['cache', 'repair']],
       });
@@ -429,14 +735,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.mirrorStatus', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'status']],
       });
@@ -444,14 +749,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.mirrorSync', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'sync']],
       });
@@ -459,14 +763,13 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.mirrorVerify', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
       runRapidkitCommandsInTerminal({
-        name: `Workspai: Mirror — ${path.basename(workspacePath)}`,
+        name: `Workspai: Mirror — ${workspaceName || path.basename(workspacePath)}`,
         cwd: workspacePath,
         commands: [['mirror', 'verify']],
       });
@@ -474,13 +777,12 @@ export function registerWorkspaceOperationsCommands(options: {
 
     vscode.commands.registerCommand('workspai.mirrorRotate', async (item?: any) => {
       const workspaceExplorer = getWorkspaceExplorer();
-      const workspacePath =
-        item?.workspace?.path || workspaceExplorer?.getSelectedWorkspace?.()?.path;
+      const { workspacePath, workspaceName } = resolveWorkspaceTarget(item, workspaceExplorer);
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected.');
         return;
       }
-      const wsName = path.basename(workspacePath);
+      const wsName = workspaceName || path.basename(workspacePath);
       const confirm = await vscode.window.showWarningMessage(
         `Rotate signing keys for mirror in "${wsName}"?\n\nThis re-signs all pinned artifacts. Existing rotation snapshots will be archived.`,
         { modal: true },
@@ -498,15 +800,11 @@ export function registerWorkspaceOperationsCommands(options: {
     }),
 
     vscode.commands.registerCommand('workspai.checkWorkspaceHealth', async (item: any) => {
-      let workspacePath: string | undefined;
-      let workspaceName: string | undefined;
-
-      if (item?.workspace) {
-        workspacePath = item.workspace.path;
-        workspaceName = item.workspace.name;
-      } else if (item?.path) {
-        workspacePath = item.path;
-      }
+      const workspaceExplorer = getWorkspaceExplorer();
+      const target = resolveWorkspaceTarget(item, workspaceExplorer);
+      const workspacePath = target.workspacePath;
+      let workspaceName = target.workspaceName;
+      const preferredAction = parsePreferredHealthAction(item?.preferredAction);
 
       if (!workspacePath) {
         vscode.window.showErrorMessage('No workspace selected');
@@ -540,10 +838,12 @@ export function registerWorkspaceOperationsCommands(options: {
         });
       }
 
-      const selection = await vscode.window.showQuickPick(actions, {
-        placeHolder: `Workspai: Health & Version - ${workspaceName}`,
-        title: `${versionService.getStatusMessage(versionInfo)} · ${c06HealthSummary}`,
-      });
+      const selection = preferredAction
+        ? actions.find((action) => action.action === preferredAction)
+        : await vscode.window.showQuickPick(actions, {
+            placeHolder: `Workspai: Health & Version - ${workspaceName}`,
+            title: `${versionService.getStatusMessage(versionInfo)} · ${c06HealthSummary}`,
+          });
 
       if (!selection) {
         return;
@@ -659,7 +959,7 @@ export function registerWorkspaceOperationsCommands(options: {
             );
             output.clear();
             output.appendLine(`=== Bootstrap Compliance Report: ${workspaceName} ===`);
-            output.appendLine(`File: ${reportPath}`);
+            output.appendLine(`File: ${toSafePathHint(reportPath)}`);
             output.appendLine('');
 
             if (reportData) {
@@ -726,7 +1026,7 @@ export function registerWorkspaceOperationsCommands(options: {
             }
 
             output.appendLine('');
-            output.appendLine(`All reports: ${reportsDir}`);
+            output.appendLine('All reports: .rapidkit/reports');
             output.show();
           } catch (error) {
             logger.error('Error reading compliance reports:', error);
@@ -739,9 +1039,11 @@ export function registerWorkspaceOperationsCommands(options: {
 
         case 'version': {
           const locationText = versionInfo.location
-            ? `\n\n**Location:** ${versionInfo.location}`
+            ? `\n\n**Location:** ${toSafePathHint(versionInfo.location)}`
             : '';
-          const pathText = versionInfo.path ? `\n**Path:** ${versionInfo.path}` : '';
+          const pathText = versionInfo.path
+            ? `\n**Path:** ${toSafePathHint(versionInfo.path)}`
+            : '';
           const updateText =
             versionInfo.status === 'update-available'
               ? `\n\n**💡 Update Available:** v${versionInfo.latest}`

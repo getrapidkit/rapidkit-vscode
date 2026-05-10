@@ -1815,14 +1815,24 @@ export function App() {
                         onRunDoctorChecks={() => runIncidentAction('runDoctorChecks', {
                             workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
                             workspaceName: activeWorkspaceName,
+                            projectPath: selectedProjectForAnalysis?.path,
+                            projectName: selectedProjectForAnalysis?.name,
                         })}
                         onRunDoctorFix={() => runIncidentAction('runDoctorFix', {
                             workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
                             workspaceName: activeWorkspaceName,
+                            projectPath: selectedProjectForAnalysis?.path,
+                            projectName: selectedProjectForAnalysis?.name,
                         })}
                         onViewComplianceReport={() => runIncidentAction('viewComplianceReport', {
                             workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
                             workspaceName: activeWorkspaceName,
+                        })}
+                        onViewProjectDoctorReport={() => runIncidentAction('viewProjectDoctorReport', {
+                            workspacePath: selectedWorkspaceForAnalysis || workspaceStatus.workspacePath,
+                            workspaceName: activeWorkspaceName,
+                            projectPath: selectedProjectForAnalysis?.path,
+                            projectName: selectedProjectForAnalysis?.name,
                         })}
                         onRunInlineCommand={runIncidentInlineCommand}
                         onRevealArchitectureTarget={revealArchitectureTarget}

@@ -46,7 +46,6 @@ import {
   runShellCommandInTerminal,
 } from '../../utils/terminalExecutor';
 import { WorkspaceUsageTracker } from '../../utils/workspaceUsageTracker';
-import { openWorkspace } from '../../commands/workspaceContextMenu';
 import type { WorkspaceExplorerProvider } from '../treeviews/workspaceExplorer';
 import { createDoctorTelemetryRefreshController } from './doctorTelemetryRefresh';
 import { routeIncidentActionTypeFromMessage, type RoutingResult } from './incidentRouting';
@@ -83,6 +82,7 @@ import {
   buildIncidentReplayQuery,
   buildLinkSafeExportBundle,
   parseImportedReproBundle,
+  toLinkSafePath,
 } from './incidentReproPackUtils';
 
 type IncidentWorkspaceGraphSnapshot = {
@@ -1865,7 +1865,9 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'openWorkspaceFolder':
             if (message.data?.path) {
-              await openWorkspace(message.data.path);
+              await vscode.commands.executeCommand('workspai.openWorkspace', {
+                path: message.data.path,
+              });
             }
             break;
           case 'selectWorkspace':
@@ -2130,6 +2132,14 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'runDoctorChecks':
             {
+              const explicitProjectPath =
+                typeof message.data?.projectPath === 'string' && message.data.projectPath.trim()
+                  ? message.data.projectPath.trim()
+                  : undefined;
+              const explicitProjectName =
+                typeof message.data?.projectName === 'string' && message.data.projectName.trim()
+                  ? message.data.projectName.trim()
+                  : undefined;
               const explicitWorkspacePath =
                 typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
                   ? message.data.workspacePath.trim()
@@ -2147,10 +2157,30 @@ No markdown, no explanation outside the JSON.`;
                 break;
               }
 
-              runRapidkitCommandsInTerminal({
-                name: `Workspai: Doctor - ${workspaceName}`,
-                cwd: workspacePath,
-                commands: [['doctor', 'workspace']],
+              if (explicitProjectPath) {
+                const projectName = explicitProjectName || path.basename(explicitProjectPath);
+                await vscode.commands.executeCommand('workspai.projectDoctor', {
+                  project: {
+                    path: explicitProjectPath,
+                    name: projectName,
+                  },
+                  preferredAction: 'check',
+                });
+
+                this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                  actionType: 'doctor-project-check',
+                  workspaceName: workspaceName || path.basename(workspacePath),
+                  projectName,
+                });
+                break;
+              }
+
+              await vscode.commands.executeCommand('workspai.checkWorkspaceHealth', {
+                workspace: {
+                  path: workspacePath,
+                  name: workspaceName,
+                },
+                preferredAction: 'check',
               });
 
               this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
@@ -2161,6 +2191,14 @@ No markdown, no explanation outside the JSON.`;
             break;
           case 'runDoctorFix':
             {
+              const explicitProjectPath =
+                typeof message.data?.projectPath === 'string' && message.data.projectPath.trim()
+                  ? message.data.projectPath.trim()
+                  : undefined;
+              const explicitProjectName =
+                typeof message.data?.projectName === 'string' && message.data.projectName.trim()
+                  ? message.data.projectName.trim()
+                  : undefined;
               const explicitWorkspacePath =
                 typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
                   ? message.data.workspacePath.trim()
@@ -2178,10 +2216,30 @@ No markdown, no explanation outside the JSON.`;
                 break;
               }
 
-              runRapidkitCommandsInTerminal({
-                name: `Workspai: Doctor Fix - ${workspaceName}`,
-                cwd: workspacePath,
-                commands: [['doctor', 'workspace', '--fix']],
+              if (explicitProjectPath) {
+                const projectName = explicitProjectName || path.basename(explicitProjectPath);
+                await vscode.commands.executeCommand('workspai.projectDoctor', {
+                  project: {
+                    path: explicitProjectPath,
+                    name: projectName,
+                  },
+                  preferredAction: 'fix',
+                });
+
+                this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                  actionType: 'doctor-project-fix',
+                  workspaceName: workspaceName || path.basename(workspacePath),
+                  projectName,
+                });
+                break;
+              }
+
+              await vscode.commands.executeCommand('workspai.checkWorkspaceHealth', {
+                workspace: {
+                  path: workspacePath,
+                  name: workspaceName,
+                },
+                preferredAction: 'fix',
               });
 
               this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
@@ -2209,81 +2267,136 @@ No markdown, no explanation outside the JSON.`;
                 break;
               }
 
-              const reportsDir = path.join(workspacePath, '.rapidkit', 'reports');
-              try {
-                if (!(await fs.pathExists(reportsDir))) {
-                  vscode.window.showInformationMessage(
-                    `No compliance reports found for "${workspaceName}". Run bootstrap to generate one.`
-                  );
-                  break;
-                }
+              await vscode.commands.executeCommand('workspai.checkWorkspaceHealth', {
+                workspace: {
+                  path: workspacePath,
+                  name: workspaceName,
+                },
+                preferredAction: 'compliance',
+              });
 
-                const files = await fs.readdir(reportsDir);
-                const complianceFiles = files
-                  .filter((f: string) => f.startsWith('bootstrap-compliance'))
-                  .sort()
-                  .reverse();
+              this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
+                actionType: 'view-compliance-report',
+                workspaceName: workspaceName || path.basename(workspacePath),
+              });
+            }
+            break;
+          case 'viewProjectDoctorReport':
+            {
+              const explicitProjectPath =
+                typeof message.data?.projectPath === 'string' && message.data.projectPath.trim()
+                  ? message.data.projectPath.trim()
+                  : undefined;
+              const explicitProjectName =
+                typeof message.data?.projectName === 'string' && message.data.projectName.trim()
+                  ? message.data.projectName.trim()
+                  : undefined;
+              const explicitWorkspacePath =
+                typeof message.data?.workspacePath === 'string' && message.data.workspacePath.trim()
+                  ? message.data.workspacePath.trim()
+                  : undefined;
 
-                if (complianceFiles.length === 0) {
-                  vscode.window.showInformationMessage(
-                    'No bootstrap-compliance reports found. Run Bootstrap Workspace to generate one.'
-                  );
-                  break;
-                }
+              const selectedWorkspace = this._getSelectedWorkspaceInfo();
+              const workspacePath = explicitWorkspacePath || selectedWorkspace?.path;
+              const selectedProject =
+                WelcomePanel._selectedProject &&
+                workspacePath &&
+                isWorkspacePathAncestor(workspacePath, WelcomePanel._selectedProject.path)
+                  ? WelcomePanel._selectedProject
+                  : null;
 
-                const reportPath = path.join(reportsDir, complianceFiles[0]);
-                const reportData = await fs.readJSON(reportPath).catch(() => null);
+              const projectPath = explicitProjectPath || selectedProject?.path;
+              const projectName =
+                explicitProjectName ||
+                selectedProject?.name ||
+                (projectPath ? path.basename(projectPath) : undefined);
 
-                const output = vscode.window.createOutputChannel(
-                  `Workspai: Compliance — ${workspaceName}`
+              if (!projectPath) {
+                vscode.window.showWarningMessage('Select a project first.');
+                break;
+              }
+
+              const reportsDir = path.join(projectPath, '.rapidkit', 'reports');
+              const reportPath = path.join(reportsDir, 'doctor-project-last-run.json');
+              const reportExists = await fs.pathExists(reportPath);
+
+              if (!reportExists) {
+                const scopeLabel = projectName || path.basename(projectPath);
+                vscode.window.showInformationMessage(
+                  `No project doctor report found for "${scopeLabel}". Run project checks first.`
                 );
-                output.clear();
-                output.appendLine(`=== Bootstrap Compliance Report: ${workspaceName} ===`);
-                output.appendLine(`File: ${reportPath}`);
-                output.appendLine('');
+                break;
+              }
 
-                if (reportData) {
-                  const rawResult =
-                    reportData.result ||
-                    reportData.status ||
-                    reportData.overall_status ||
-                    'unknown';
-                  const statusLabel =
-                    rawResult === 'ok'
-                      ? 'PASSING'
-                      : rawResult === 'ok_with_warnings'
-                        ? 'PASSING (with warnings)'
-                        : rawResult === 'failed'
-                          ? 'FAILING'
-                          : String(rawResult).toUpperCase();
-                  const statusIcon =
-                    rawResult === 'ok' || rawResult === 'ok_with_warnings' ? '✅' : '❌';
+              const reportData = await fs.readJSON(reportPath).catch(() => null);
+              const output = vscode.window.createOutputChannel(
+                `Workspai: Project Doctor — ${projectName || path.basename(projectPath)}`
+              );
+              output.clear();
+              output.appendLine(
+                `=== Project Doctor Report: ${projectName || path.basename(projectPath)} ===`
+              );
+              output.appendLine(`File: ${toLinkSafePath(reportPath)}`);
+              output.appendLine('');
 
-                  output.appendLine(`Status:   ${statusIcon} ${statusLabel}`);
-                  output.appendLine(
-                    `Generated: ${reportData.generated_at || reportData.timestamp || 'unknown'}`
-                  );
-                  output.appendLine(
-                    `Profile:  ${reportData.profile || reportData.bootstrap_profile || 'unknown'}`
-                  );
-                } else {
-                  output.appendLine('(Could not parse report JSON — file may be malformed)');
+              if (reportData) {
+                const score = reportData.healthScore;
+                const total = Number(score?.total ?? 0);
+                const passed = Number(score?.passed ?? 0);
+                const warnings = Number(score?.warnings ?? 0);
+                const errors = Number(score?.errors ?? 0);
+                const percent = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+                const scopeLabel =
+                  reportData.summary?.scopeProvenance?.dominantScope || 'project-scoped';
+                output.appendLine(`Generated: ${reportData.generatedAt || 'unknown'}`);
+                output.appendLine(`Scope: ${scopeLabel}`);
+                output.appendLine(
+                  `Health: ${percent}% (✅ ${passed} | ⚠️ ${warnings} | ❌ ${errors})`
+                );
+
+                const project = reportData.project;
+                if (project && typeof project === 'object') {
+                  output.appendLine('');
+                  output.appendLine('--- Project ---');
+                  output.appendLine(`Name: ${project.name || projectName || 'unknown'}`);
+                  output.appendLine(`Path: ${toLinkSafePath(project.path || projectPath)}`);
+                  output.appendLine(`Framework: ${project.framework || 'unknown'}`);
+
+                  const issues = Array.isArray(project.issues)
+                    ? project.issues.filter((item: unknown) => typeof item === 'string')
+                    : [];
+                  output.appendLine(`Issues: ${issues.length}`);
+                  for (const issue of issues.slice(0, 20)) {
+                    output.appendLine(`  - ${issue}`);
+                  }
+
+                  const fixCommands = Array.isArray(project.fixCommands)
+                    ? project.fixCommands.filter((item: unknown) => typeof item === 'string')
+                    : [];
+                  if (fixCommands.length > 0) {
+                    output.appendLine('');
+                    output.appendLine('--- Suggested Fix Commands ---');
+                    for (const cmd of fixCommands.slice(0, 20)) {
+                      output.appendLine(`  - ${cmd}`);
+                    }
+                  }
                 }
+              } else {
+                output.appendLine('(Could not parse project doctor report JSON)');
+              }
 
-                output.appendLine('');
-                output.appendLine(`All reports: ${reportsDir}`);
-                output.show();
+              output.appendLine('');
+              output.appendLine(
+                `Reports directory: ${path.basename(projectPath)}/.rapidkit/reports`
+              );
+              output.show();
 
+              if (workspacePath) {
                 this._trackStudioEvent('workspai.studio.action_executed', workspacePath, {
-                  actionType: 'view-compliance-report',
-                  workspaceName: workspaceName || path.basename(workspacePath),
+                  actionType: 'view-project-doctor-report',
+                  projectName: projectName || path.basename(projectPath),
                 });
-              } catch (error) {
-                vscode.window.showErrorMessage(
-                  `Failed to read compliance reports: ${
-                    error instanceof Error ? error.message : String(error)
-                  }`
-                );
               }
             }
             break;
@@ -5308,8 +5421,30 @@ No markdown, no explanation outside the JSON.`;
 
   private async _readDoctorEvidenceSnapshot(workspacePath?: string): Promise<
     | {
+        contract?: {
+          version?: string;
+          scoringPolicyVersion?: string;
+          generatedBy?: string;
+          deterministicScoreBreakdown?: boolean;
+          scopeModel?: string;
+        };
         workspaceName?: string;
         generatedAt?: string;
+        driftDelta?: {
+          baselineAvailable?: boolean;
+          previousGeneratedAt?: string;
+          newIssueCount?: number;
+          resolvedIssueCount?: number;
+          netIssueDelta?: number;
+          scoreDeltaPercent?: number | null;
+          systemStatusChanges?: Array<{
+            id?: string;
+            from?: string;
+            to?: string;
+          }>;
+          regressedProjects?: string[];
+          improvedProjects?: string[];
+        };
         health: {
           total: number;
           passed: number;
@@ -5317,6 +5452,20 @@ No markdown, no explanation outside the JSON.`;
           errors: number;
           percent: number;
         };
+        scopeProvenance?: {
+          scopedCount?: number;
+          aggregatedCount?: number;
+          mixedCount?: number;
+          dominantScope?: string;
+        };
+        scoreBreakdown?: Array<{
+          id?: string;
+          label?: string;
+          status?: string;
+          scope?: string;
+          policyRuleId?: string;
+          reason?: string;
+        }>;
         projectCount: number;
         projectsWithIssues: number;
         issueCount: number;
@@ -5331,6 +5480,15 @@ No markdown, no explanation outside the JSON.`;
           modulesHealthy?: boolean;
           vulnerabilities?: number;
           depsInstalled?: boolean;
+          probes?: Array<{
+            id?: string;
+            label?: string;
+            status?: string;
+            severity?: string;
+            scope?: string;
+            reason?: string;
+            recommendation?: string;
+          }>;
           installedModules?: Array<{
             slug: string;
             version: string;
@@ -5369,6 +5527,15 @@ No markdown, no explanation outside the JSON.`;
         modulesHealthy?: boolean;
         vulnerabilities?: number;
         depsInstalled?: boolean;
+        probes?: Array<{
+          id?: string;
+          label?: string;
+          status?: string;
+          severity?: string;
+          scope?: string;
+          reason?: string;
+          recommendation?: string;
+        }>;
         installedModules: Array<{ slug: string; version: string; display_name: string }>;
         fixCommands: string[];
       };
@@ -5396,6 +5563,20 @@ No markdown, no explanation outside the JSON.`;
             const vulnerabilities = Number.isFinite(vulnerabilitiesRaw)
               ? vulnerabilitiesRaw
               : undefined;
+            const probes = Array.isArray(project?.probes)
+              ? project.probes
+                  .filter((probe: unknown) => probe && typeof probe === 'object')
+                  .map((probe: any) => ({
+                    id: typeof probe?.id === 'string' ? probe.id : undefined,
+                    label: typeof probe?.label === 'string' ? probe.label : undefined,
+                    status: typeof probe?.status === 'string' ? probe.status : undefined,
+                    severity: typeof probe?.severity === 'string' ? probe.severity : undefined,
+                    scope: typeof probe?.scope === 'string' ? probe.scope : undefined,
+                    reason: typeof probe?.reason === 'string' ? probe.reason : undefined,
+                    recommendation:
+                      typeof probe?.recommendation === 'string' ? probe.recommendation : undefined,
+                  }))
+              : undefined;
             return {
               name: typeof project?.name === 'string' ? project.name : 'unknown',
               path: projectPath,
@@ -5408,6 +5589,7 @@ No markdown, no explanation outside the JSON.`;
               vulnerabilities,
               depsInstalled:
                 typeof project?.depsInstalled === 'boolean' ? project.depsInstalled : undefined,
+              probes,
               installedModules,
               fixCommands: Array.isArray(project?.fixCommands)
                 ? project.fixCommands.filter((cmd: unknown) => typeof cmd === 'string')
@@ -5440,8 +5622,77 @@ No markdown, no explanation outside the JSON.`;
       ).length;
 
       return {
+        contract:
+          raw?.contract && typeof raw.contract === 'object'
+            ? {
+                version:
+                  typeof raw.contract.version === 'string' ? raw.contract.version : undefined,
+                scoringPolicyVersion:
+                  typeof raw.contract.scoringPolicyVersion === 'string'
+                    ? raw.contract.scoringPolicyVersion
+                    : undefined,
+                generatedBy:
+                  typeof raw.contract.generatedBy === 'string'
+                    ? raw.contract.generatedBy
+                    : undefined,
+                deterministicScoreBreakdown:
+                  typeof raw.contract.deterministicScoreBreakdown === 'boolean'
+                    ? raw.contract.deterministicScoreBreakdown
+                    : undefined,
+                scopeModel:
+                  typeof raw.contract.scopeModel === 'string' ? raw.contract.scopeModel : undefined,
+              }
+            : undefined,
         workspaceName: typeof raw?.workspaceName === 'string' ? raw.workspaceName : undefined,
         generatedAt: typeof raw?.generatedAt === 'string' ? raw.generatedAt : undefined,
+        driftDelta:
+          raw?.driftDelta && typeof raw.driftDelta === 'object'
+            ? {
+                baselineAvailable:
+                  typeof raw.driftDelta.baselineAvailable === 'boolean'
+                    ? raw.driftDelta.baselineAvailable
+                    : undefined,
+                previousGeneratedAt:
+                  typeof raw.driftDelta.previousGeneratedAt === 'string'
+                    ? raw.driftDelta.previousGeneratedAt
+                    : undefined,
+                newIssueCount: Number.isFinite(Number(raw.driftDelta.newIssueCount))
+                  ? Number(raw.driftDelta.newIssueCount)
+                  : undefined,
+                resolvedIssueCount: Number.isFinite(Number(raw.driftDelta.resolvedIssueCount))
+                  ? Number(raw.driftDelta.resolvedIssueCount)
+                  : undefined,
+                netIssueDelta: Number.isFinite(Number(raw.driftDelta.netIssueDelta))
+                  ? Number(raw.driftDelta.netIssueDelta)
+                  : undefined,
+                scoreDeltaPercent:
+                  raw.driftDelta.scoreDeltaPercent === null ||
+                  Number.isFinite(Number(raw.driftDelta.scoreDeltaPercent))
+                    ? raw.driftDelta.scoreDeltaPercent === null
+                      ? null
+                      : Number(raw.driftDelta.scoreDeltaPercent)
+                    : undefined,
+                systemStatusChanges: Array.isArray(raw.driftDelta.systemStatusChanges)
+                  ? raw.driftDelta.systemStatusChanges
+                      .filter((entry: unknown) => entry && typeof entry === 'object')
+                      .map((entry: any) => ({
+                        id: typeof entry?.id === 'string' ? entry.id : undefined,
+                        from: typeof entry?.from === 'string' ? entry.from : undefined,
+                        to: typeof entry?.to === 'string' ? entry.to : undefined,
+                      }))
+                  : undefined,
+                regressedProjects: Array.isArray(raw.driftDelta.regressedProjects)
+                  ? raw.driftDelta.regressedProjects.filter(
+                      (entry: unknown) => typeof entry === 'string'
+                    )
+                  : undefined,
+                improvedProjects: Array.isArray(raw.driftDelta.improvedProjects)
+                  ? raw.driftDelta.improvedProjects.filter(
+                      (entry: unknown) => typeof entry === 'string'
+                    )
+                  : undefined,
+              }
+            : undefined,
         health: {
           total,
           passed,
@@ -5449,6 +5700,39 @@ No markdown, no explanation outside the JSON.`;
           errors,
           percent,
         },
+        scopeProvenance:
+          raw?.summary?.scopeProvenance && typeof raw.summary.scopeProvenance === 'object'
+            ? {
+                scopedCount: Number.isFinite(Number(raw.summary.scopeProvenance.scopedCount))
+                  ? Number(raw.summary.scopeProvenance.scopedCount)
+                  : undefined,
+                aggregatedCount: Number.isFinite(
+                  Number(raw.summary.scopeProvenance.aggregatedCount)
+                )
+                  ? Number(raw.summary.scopeProvenance.aggregatedCount)
+                  : undefined,
+                mixedCount: Number.isFinite(Number(raw.summary.scopeProvenance.mixedCount))
+                  ? Number(raw.summary.scopeProvenance.mixedCount)
+                  : undefined,
+                dominantScope:
+                  typeof raw.summary.scopeProvenance.dominantScope === 'string'
+                    ? raw.summary.scopeProvenance.dominantScope
+                    : undefined,
+              }
+            : undefined,
+        scoreBreakdown: Array.isArray(raw?.scoreBreakdown)
+          ? raw.scoreBreakdown
+              .filter((entry: unknown) => entry && typeof entry === 'object')
+              .map((entry: any) => ({
+                id: typeof entry?.id === 'string' ? entry.id : undefined,
+                label: typeof entry?.label === 'string' ? entry.label : undefined,
+                status: typeof entry?.status === 'string' ? entry.status : undefined,
+                scope: typeof entry?.scope === 'string' ? entry.scope : undefined,
+                policyRuleId:
+                  typeof entry?.policyRuleId === 'string' ? entry.policyRuleId : undefined,
+                reason: typeof entry?.reason === 'string' ? entry.reason : undefined,
+              }))
+          : undefined,
         projectCount: projects.length,
         projectsWithIssues,
         issueCount,
@@ -5464,6 +5748,7 @@ No markdown, no explanation outside the JSON.`;
             modulesHealthy,
             vulnerabilities,
             depsInstalled,
+            probes,
             installedModules,
           }: ParsedDoctorProject) => ({
             name,
@@ -5475,6 +5760,7 @@ No markdown, no explanation outside the JSON.`;
             modulesHealthy,
             vulnerabilities,
             depsInstalled,
+            probes,
             installedModules,
           })
         ),

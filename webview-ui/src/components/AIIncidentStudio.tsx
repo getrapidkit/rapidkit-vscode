@@ -81,7 +81,7 @@ interface IncidentTelemetrySnapshot {
     onboardingSummary: IncidentOnboardingSummary | null;
     ctaVariantBreakdown?: {
         workspacePath: string;
-        timeWindow: 'all' | 'last24h' | 'last7d';
+        timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
         windowStartAt: string | null;
         windowEndAt: string;
         variants: Array<{
@@ -99,7 +99,7 @@ interface IncidentTelemetrySnapshot {
     } | null;
     studioHardGateStatus?: {
         workspacePath: string;
-        timeWindow: 'all' | 'last24h' | 'last7d';
+        timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
         windowStartAt: string | null;
         windowEndAt: string;
         thresholds: {
@@ -123,7 +123,7 @@ interface IncidentTelemetrySnapshot {
     } | null;
     studioRollbackKpiStatus?: {
         workspacePath: string;
-        timeWindow: 'all' | 'last24h' | 'last7d';
+        timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
         windowStartAt: string | null;
         windowEndAt: string;
         thresholds: {
@@ -147,7 +147,7 @@ interface IncidentTelemetrySnapshot {
     studioStabilizationKpiStatus?: IncidentStudioStabilizationKpiStatus | null;
     studioReproPackKpiStatus?: {
         workspacePath: string;
-        timeWindow: 'all' | 'last24h' | 'last7d';
+        timeWindow: 'all' | 'last24h' | 'last7d' | 'last30d';
         windowStartAt: string | null;
         windowEndAt: string;
         thresholds: {
@@ -214,9 +214,63 @@ interface IncidentTelemetrySnapshot {
             overallPass: boolean;
         };
     } | null;
+    doctorTreatmentStatus?: {
+        evaluatedAt: string | null;
+        trend: 'baseline' | 'stable' | 'improving' | 'regressing' | 'unknown';
+        baselineAvailable: boolean;
+        scoreDeltaPercent: number | null;
+        netIssueDelta: number | null;
+        newIssueCount: number;
+        resolvedIssueCount: number;
+        regressionSignals: number;
+        improvementSignals: number;
+        mixedScopeWarnings: number;
+        scopedChecks: number;
+        aggregatedChecks: number;
+        dominantScope: string | null;
+        traceabilityCoverageRate: number | null;
+        probeFailures: number;
+        probeWarnings: number;
+    } | null;
     doctorSummary?: {
+        contract?: {
+            version?: string;
+            scoringPolicyVersion?: string;
+            generatedBy?: string;
+            deterministicScoreBreakdown?: boolean;
+            scopeModel?: string;
+        };
         workspaceName?: string;
         generatedAt?: string;
+        driftDelta?: {
+            baselineAvailable?: boolean;
+            previousGeneratedAt?: string;
+            newIssueCount?: number;
+            resolvedIssueCount?: number;
+            netIssueDelta?: number;
+            scoreDeltaPercent?: number | null;
+            systemStatusChanges?: Array<{
+                id?: string;
+                from?: string;
+                to?: string;
+            }>;
+            regressedProjects?: string[];
+            improvedProjects?: string[];
+        };
+        scopeProvenance?: {
+            scopedCount?: number;
+            aggregatedCount?: number;
+            mixedCount?: number;
+            dominantScope?: string;
+        };
+        scoreBreakdown?: Array<{
+            id?: string;
+            label?: string;
+            status?: string;
+            scope?: string;
+            policyRuleId?: string;
+            reason?: string;
+        }>;
         health: {
             total: number;
             passed: number;
@@ -237,6 +291,15 @@ interface IncidentTelemetrySnapshot {
             modulesCount?: number;
             modulesHealthy?: boolean;
             vulnerabilities?: number;
+            probes?: Array<{
+                id?: string;
+                label?: string;
+                status?: string;
+                severity?: string;
+                scope?: string;
+                reason?: string;
+                recommendation?: string;
+            }>;
             installedModules?: Array<{
                 slug: string;
                 version: string;
@@ -322,6 +385,7 @@ interface AIIncidentStudioProps {
     onRunDoctorChecks: () => void;
     onRunDoctorFix?: () => void;
     onViewComplianceReport?: () => void;
+    onViewProjectDoctorReport?: () => void;
     onRunInlineCommand?: (command: string) => void;
     onRevealArchitectureTarget?: (target: {
         path: string;
@@ -1032,6 +1096,7 @@ export function AIIncidentStudio({
     onRunDoctorChecks,
     onRunDoctorFix,
     onViewComplianceReport,
+    onViewProjectDoctorReport,
     onRunInlineCommand,
     onRevealArchitectureTarget,
     onPredictiveWarningAccepted,
@@ -1197,6 +1262,16 @@ export function AIIncidentStudio({
         : showAllDoctorProjects
             ? scopedDoctorProjects
             : scopedDoctorProjects.slice(0, 4);
+    const scopedDoctorFrameworks = useMemo(() => {
+        const frameworkCounts = new Map<string, number>();
+        for (const project of scopedDoctorProjects) {
+            const key = (project.framework || 'Unknown').trim() || 'Unknown';
+            frameworkCounts.set(key, (frameworkCounts.get(key) ?? 0) + 1);
+        }
+        return Array.from(frameworkCounts.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [scopedDoctorProjects]);
     const hiddenDoctorProjectsCount = isProjectAnalysisScope
         ? 0
         : Math.max(scopedDoctorProjects.length - doctorVisibleProjects.length, 0);
@@ -1331,6 +1406,40 @@ export function AIIncidentStudio({
     const diagnosisHeadline = isProjectAnalysisScope
         ? 'Current project diagnosis'
         : 'Current workspace diagnosis';
+    const kpiScopeLabel = isProjectAnalysisScope ? 'project-scoped' : 'workspace aggregate';
+    const doctorHealthScopeLabel = isProjectAnalysisScope ? 'workspace aggregate health' : 'workspace health';
+    const doctorDriftDelta = doctorSummary?.driftDelta ?? null;
+    const doctorScopeProvenance = doctorSummary?.scopeProvenance ?? null;
+    const doctorRuleTrace = doctorSummary?.scoreBreakdown ?? [];
+    const doctorTreatmentStatus = telemetry?.doctorTreatmentStatus ?? null;
+    const doctorSystemStatusTransitions = doctorDriftDelta?.systemStatusChanges ?? [];
+    const doctorTrendBadge = doctorTreatmentStatus?.trend || (doctorDriftDelta?.baselineAvailable
+        ? (doctorDriftDelta.netIssueDelta ?? 0) > 0
+            ? 'regressing'
+            : (doctorDriftDelta.netIssueDelta ?? 0) < 0
+                ? 'improving'
+                : 'stable'
+        : 'baseline');
+    const doctorScopeBadgeLabel = doctorTreatmentStatus?.dominantScope || doctorScopeProvenance?.dominantScope || 'unknown';
+    const doctorProjectProbeHighlights = useMemo(() => {
+        return scopedDoctorProjects
+            .flatMap((project) =>
+                (project.probes || []).map((probe) => ({
+                    projectName: project.name,
+                    id: probe.id || 'unknown-probe',
+                    label: probe.label || probe.id || 'unnamed probe',
+                    status: probe.status || 'unknown',
+                    severity: probe.severity || 'warn',
+                    reason: probe.reason || 'No reason provided',
+                }))
+            )
+            .sort((a, b) => {
+                const sevOrder = (value: string) => (value === 'error' ? 0 : value === 'warn' ? 1 : 2);
+                const statusOrder = (value: string) => (value === 'fail' ? 0 : value === 'warn' ? 1 : 2);
+                return sevOrder(a.severity) - sevOrder(b.severity) || statusOrder(a.status) - statusOrder(b.status);
+            })
+            .slice(0, 6);
+    }, [scopedDoctorProjects]);
     const incidentCount = commandSummary?.totalEvents
         ? Math.min(99, Math.ceil(commandSummary.totalEvents / 3))
         : conversationTurns > 0
@@ -1590,10 +1699,17 @@ export function AIIncidentStudio({
 
     const allUsage = commandSummary?.commandUsage ?? [];
 
+    const usageScopeBadge = isProjectAnalysisScope ? 'workspace-aggregated' : 'scope-aligned';
+
     const studioActivityItems = allUsage
         .filter((item) => item.command.startsWith('workspai.studio.') && studioEventLabelMap[item.command])
         .slice(0, 3)
-        .map((item) => ({ label: studioEventLabelMap[item.command], count: item.count, command: item.command }));
+        .map((item) => ({
+            label: studioEventLabelMap[item.command],
+            count: item.count,
+            command: item.command,
+            scopeBadge: usageScopeBadge,
+        }));
 
     const timelineItems = allUsage
         .filter((item) => !item.command.startsWith('workspai.studio.'))
@@ -1602,6 +1718,7 @@ export function AIIncidentStudio({
             label: commandLabelMap[item.command] ?? item.command.replace(/^workspai\./, ''),
             count: item.count,
             command: item.command,
+            scopeBadge: usageScopeBadge,
         }));
 
     const verifyPackReady = Boolean(
@@ -3376,7 +3493,7 @@ export function AIIncidentStudio({
                                             </small>
                                         </summary>
                                         <div className="incident-metric-card">
-                                            <span>{snapshotPrimaryLabel}</span>
+                                            <span>{`${snapshotPrimaryLabel} (${kpiScopeLabel})`}</span>
                                             <strong>
                                                 {snapshotHealthPercent === null
                                                     ? (isProjectAnalysisScope
@@ -3390,7 +3507,7 @@ export function AIIncidentStudio({
                                         </div>
                                         {hasDoctorSnapshot ? (
                                             <div className="incident-metric-card">
-                                                <span>{snapshotSecondaryLabel}</span>
+                                                <span>{`${snapshotSecondaryLabel} (${kpiScopeLabel})`}</span>
                                                 <strong>
                                                     {scopedDoctorProjectsWithIssues}/{scopedDoctorProjects.length}
                                                 </strong>
@@ -3485,7 +3602,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Studio hard-gate</span>
-                                                <small>{studioHardGateStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                                <small>{`${studioHardGateStatus.gates.overallPass ? 'PASS' : 'FAIL'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-metric-card">
                                                 <span>Verify-phase reach</span>
@@ -3534,7 +3651,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Rollback KPI gate</span>
-                                                <small>{studioRollbackKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                                <small>{`${studioRollbackKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-metric-card">
                                                 <span>Auto-rollback success rate</span>
@@ -3582,7 +3699,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Stabilization KPI gate</span>
-                                                <small>{studioStabilizationKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                                <small>{`${studioStabilizationKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-cta-variant-legend">
                                                 operational window: {stabilizationWindowLabel}
@@ -3725,7 +3842,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Repro Pack KPI gate</span>
-                                                <small>{studioReproPackKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                                <small>{`${studioReproPackKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-metric-card">
                                                 <span>Repro pack share rate</span>
@@ -3794,7 +3911,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Release readiness validation</span>
-                                                <small>{releaseReadinessValidationKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'}</small>
+                                                <small>{`${releaseReadinessValidationKpiStatus.gates.overallPass ? 'PASS' : 'FAIL'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-metric-card">
                                                 <span>Decision accuracy</span>
@@ -3852,7 +3969,7 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Verified outcome loop</span>
-                                                <small>{verifiedOutcomeLoopStatus.gates.overallPass ? 'PASS' : 'IN PROGRESS'}</small>
+                                                <small>{`${verifiedOutcomeLoopStatus.gates.overallPass ? 'PASS' : 'IN PROGRESS'} · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-metric-card">
                                                 <span>Replay-to-resolution</span>
@@ -3915,22 +4032,142 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Doctor Overview</span>
-                                                <small>{doctorSummary!.issueCount} issue(s)</small>
+                                                <small>{`${snapshotIssueCount ?? 0} issue(s) · ${kpiScopeLabel}`}</small>
                                             </summary>
                                             <div className="incident-doctor-snapshot">
                                                 <div className="incident-doctor-scoreline">
-                                                    <span>Health checks</span>
+                                                    <span>{doctorHealthScopeLabel}</span>
                                                     <strong>
                                                         ✅ {doctorSummary!.health.passed} · ⚠️ {doctorSummary!.health.warnings} · ❌ {doctorSummary!.health.errors}
                                                     </strong>
                                                 </div>
-                                                {doctorSummary!.frameworks.length > 0 ? (
+                                                {(doctorDriftDelta || doctorScopeProvenance) ? (
+                                                    <div className="incident-doctor-fixes">
+                                                        <div className="incident-doctor-fixes-head">Treatment timeline</div>
+                                                        <div className="incident-action-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                                                            <span className="incident-doctor-chip">trend: {doctorTrendBadge}</span>
+                                                            <span className="incident-doctor-chip">scope: {doctorScopeBadgeLabel}</span>
+                                                            {doctorSummary?.contract?.version ? (
+                                                                <span className="incident-doctor-chip">contract: {doctorSummary.contract.version}</span>
+                                                            ) : null}
+                                                            {doctorSummary?.contract?.scoringPolicyVersion ? (
+                                                                <span className="incident-doctor-chip">policy: {doctorSummary.contract.scoringPolicyVersion}</span>
+                                                            ) : null}
+                                                        </div>
+                                                        {doctorDriftDelta ? (
+                                                            <div className="incident-stats-row">
+                                                                <div>
+                                                                    <RotateCw size={12} />
+                                                                    <span>
+                                                                        {doctorDriftDelta.baselineAvailable
+                                                                            ? `delta issues: ${doctorDriftDelta.netIssueDelta ?? 0} (new ${doctorDriftDelta.newIssueCount ?? 0} / resolved ${doctorDriftDelta.resolvedIssueCount ?? 0})`
+                                                                            : 'Baseline initialized on first evidence snapshot'}
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <BarChart3 size={12} />
+                                                                    <span>
+                                                                        score delta:{' '}
+                                                                        {doctorDriftDelta.scoreDeltaPercent === null || doctorDriftDelta.scoreDeltaPercent === undefined
+                                                                            ? 'N/A'
+                                                                            : `${doctorDriftDelta.scoreDeltaPercent > 0 ? '+' : ''}${doctorDriftDelta.scoreDeltaPercent}%`}
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <Clock3 size={12} />
+                                                                    <span>
+                                                                        {doctorDriftDelta.previousGeneratedAt
+                                                                            ? `baseline: ${new Date(doctorDriftDelta.previousGeneratedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                                            : 'baseline: first run'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                        {doctorScopeProvenance ? (
+                                                            <div className="incident-stats-row">
+                                                                <div>
+                                                                    <CheckCircle2 size={12} />
+                                                                    <span>scoped: {doctorScopeProvenance.scopedCount ?? 0}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <Package size={12} />
+                                                                    <span>aggregated: {doctorScopeProvenance.aggregatedCount ?? 0}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <AlertTriangle size={12} />
+                                                                    <span>mixed: {doctorScopeProvenance.mixedCount ?? 0}</span>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                        {doctorTreatmentStatus ? (
+                                                            <div className="incident-stats-row">
+                                                                <div>
+                                                                    <AlertTriangle size={12} />
+                                                                    <span>regression signals: {doctorTreatmentStatus.regressionSignals}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <CheckCircle2 size={12} />
+                                                                    <span>improvement signals: {doctorTreatmentStatus.improvementSignals}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <BarChart3 size={12} />
+                                                                    <span>
+                                                                        rule traceability:{' '}
+                                                                        {doctorTreatmentStatus.traceabilityCoverageRate === null
+                                                                            ? 'N/A'
+                                                                            : `${doctorTreatmentStatus.traceabilityCoverageRate}%`}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                        {doctorSystemStatusTransitions.length > 0 ? (
+                                                            <div className="incident-doctor-fix-item">
+                                                                <div>
+                                                                    <strong>System transitions</strong>
+                                                                    <small style={{ display: 'block' }}>
+                                                                        {doctorSystemStatusTransitions
+                                                                            .map((entry) => `${entry.id || 'unknown'} ${entry.from || 'n/a'} -> ${entry.to || 'n/a'}`)
+                                                                            .join(' | ')}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                        {doctorRuleTrace.length > 0 ? (
+                                                            <div className="incident-doctor-fix-item">
+                                                                <div>
+                                                                    <strong>Rule trace</strong>
+                                                                    <small style={{ display: 'block' }}>
+                                                                        {doctorRuleTrace
+                                                                            .slice(0, 4)
+                                                                            .map((entry) => `${entry.policyRuleId || 'unknown-rule'}: ${entry.reason || 'no reason'}`)
+                                                                            .join(' | ')}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                        {doctorProjectProbeHighlights.length > 0 ? (
+                                                            <div className="incident-doctor-fix-item">
+                                                                <div>
+                                                                    <strong>Probe highlights</strong>
+                                                                    <small style={{ display: 'block' }}>
+                                                                        {doctorProjectProbeHighlights
+                                                                            .map((probe) => `${probe.projectName} / ${probe.label} / ${probe.status}`)
+                                                                            .join(' | ')}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                ) : null}
+                                                {(isProjectAnalysisScope ? scopedDoctorFrameworks : doctorSummary!.frameworks).length > 0 ? (
                                                     <div className="incident-doctor-frameworks">
-                                                        {doctorSummary!.frameworks.slice(0, 4).map((fw) => (
-                                                            <span key={fw.name} className="incident-doctor-chip">
-                                                                {fw.name} ({fw.count})
-                                                            </span>
-                                                        ))}
+                                                        {(isProjectAnalysisScope ? scopedDoctorFrameworks : doctorSummary!.frameworks)
+                                                            .slice(0, 4)
+                                                            .map((fw) => (
+                                                                <span key={fw.name} className="incident-doctor-chip">
+                                                                    {fw.name} ({fw.count})
+                                                                </span>
+                                                            ))}
                                                     </div>
                                                 ) : null}
                                                 {doctorSummary!.projects.length > 0 ? (
@@ -4085,7 +4322,7 @@ export function AIIncidentStudio({
                                                 ) : null}
                                                 <div className="incident-action-row">
                                                     <button type="button" className="incident-btn" onClick={onRunDoctorChecks}>
-                                                        Run workspace checks
+                                                        {isProjectAnalysisScope ? 'Run project checks' : 'Run workspace checks'}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -4093,7 +4330,7 @@ export function AIIncidentStudio({
                                                         onClick={() => onRunDoctorFix?.()}
                                                         disabled={!onRunDoctorFix}
                                                     >
-                                                        Apply doctor safe fixes
+                                                        {isProjectAnalysisScope ? 'Apply project doctor fixes' : 'Apply doctor safe fixes'}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -4103,6 +4340,16 @@ export function AIIncidentStudio({
                                                     >
                                                         View compliance report
                                                     </button>
+                                                    {isProjectAnalysisScope ? (
+                                                        <button
+                                                            type="button"
+                                                            className="incident-btn"
+                                                            onClick={() => onViewProjectDoctorReport?.()}
+                                                            disabled={!onViewProjectDoctorReport}
+                                                        >
+                                                            View project doctor report
+                                                        </button>
+                                                    ) : null}
                                                 </div>
                                                 <div className="incident-doctor-fixes">
                                                     <div className="incident-doctor-fixes-head">CLI action matrix (data-driven)</div>
@@ -4196,7 +4443,7 @@ export function AIIncidentStudio({
                                                 ))}
                                             </div>
                                             <button type="button" className="incident-btn primary" onClick={onRunDoctorChecks}>
-                                                Run workspace checks
+                                                {isProjectAnalysisScope ? 'Run project checks' : 'Run workspace checks'}
                                             </button>
                                         </div>
                                     </details>
@@ -4217,18 +4464,23 @@ export function AIIncidentStudio({
                                         <details className="incident-collapse incident-collapse--snapshot incident-health-section">
                                             <summary>
                                                 <span>Usage</span>
-                                                <small>{studioActivityItems.length + timelineItems.length} signals</small>
+                                                <small>{`${studioActivityItems.length + timelineItems.length} signals · ${usageScopeBadge}`}</small>
                                             </summary>
                                             <div className="incident-usage-compact incident-usage-compact--embedded">
+                                                {isProjectAnalysisScope ? (
+                                                    <div className="incident-onboarding-note incident-onboarding-note--embedded">
+                                                        Project-scoped usage counters are not available yet; showing workspace-aggregated signals.
+                                                    </div>
+                                                ) : null}
                                                 <div className="incident-usage-pills">
                                                     {studioActivityItems.map((item) => (
                                                         <span key={item.command} className="incident-usage-pill">
-                                                            <em>{item.count}</em>{item.label}
+                                                            <em>{item.count}</em>{`${item.label} · ${item.scopeBadge}`}
                                                         </span>
                                                     ))}
                                                     {timelineItems.map((item) => (
                                                         <span key={item.command} className="incident-usage-pill incident-usage-pill--tool">
-                                                            <em>{item.count}</em>{item.label}
+                                                            <em>{item.count}</em>{`${item.label} · ${item.scopeBadge}`}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -5095,7 +5347,7 @@ export function AIIncidentStudio({
                         </div>
                         {!startingPoint ? (
                             <button type="button" className="incident-btn" onClick={onRunDoctorChecks}>
-                                Run workspace checks
+                                {isProjectAnalysisScope ? 'Run project checks' : 'Run workspace checks'}
                             </button>
                         ) : null}
                         <small className="incident-lite-source">

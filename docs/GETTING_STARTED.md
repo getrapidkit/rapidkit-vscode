@@ -1,202 +1,347 @@
-# 🚀 Getting Started with RapidKit Extension (First-Time Users)
+# Getting Started with RapidKit Extension
 
-## What You Need Before Starting
+> Extension v0.27.0 · CLI v0.27.3
 
-### Required ✅
-- **Python 3.10+** with venv support (aligned with RapidKit Core requirements)
-- **Node.js 20+** (for NestJS projects)
+## Prerequisites
 
-### Optional but Recommended 📦
-- **Poetry** (auto-installed by extension if missing)
-- **Git** (for version control)
+### Required
+- **Python 3.10 – 3.13** with venv support
+- **Node.js 20.19.6+** (required by rapidkit CLI)
+- **Git** (required for `--since` flag in workspace run)
 
-## First-Time Setup Flow
+### Auto-installed by the extension
+- **rapidkit-core** – Python generation engine (installed in an isolated workspace environment)
+- **Workspace Python environment** – configured through the selected strategy (Poetry / pip+venv / pipx)
 
-### Step 1: Install Python with venv Support
+---
 
-#### Ubuntu/Debian:
+## Step 1 — Install Python
+
+**Ubuntu / Debian:**
 ```bash
-sudo apt update
-# Install Python 3.10 or higher with venv support
-sudo apt install python3.10 python3.10-venv
-# or Python 3.11, 3.12, 3.13...
-sudo apt install python3.13 python3.13-venv
+sudo apt update && sudo apt install python3.13 python3.13-venv
 ```
 
-#### macOS:
+**macOS:**
 ```bash
-# Install Python 3.10+
 brew install python@3.13
 ```
 
-#### Windows:
-Download Python 3.10+ from [python.org](https://www.python.org/downloads/) and ensure "pip" is selected during installation.
+**Windows:** Download from [python.org/downloads](https://python.org/downloads) — choose "Add to PATH" during install.
 
-### Step 2: Install the Extension
-
-1. Open VS Code
-2. Go to Extensions (Ctrl+Shift+X)
-3. Search for "RapidKit"
-4. Click Install
-
-### Step 3: Create Your First Workspace
-1. Open Command Palette (`Ctrl+Shift+P`)
-2. Run: `RapidKit: Create Workspace`
-3. Fill workspace details (name, location, author)
-4. **Wait 30-60 seconds** for first-time setup:
-   - ⬇️ Downloading RapidKit CLI from npm
-   - 🐍 Creating Python virtual environment
-   - 📦 Installing RapidKit Core engine
-   - ✅ Validating setup
-
-5. Run health check from the extension:
-  - Command Palette → `RapidKit: Check Health (Doctor)`
-  - Or in terminal: `npx rapidkit doctor workspace`
-
-### Step 4: Create Your First Project
-
-After workspace is created:
-
-1. **Open Command Palette** (Ctrl+Shift+P)
-2. Type: `RapidKit: Create Project`
-3. Choose framework:
-   - **FastAPI** (Python)
-   - **NestJS** (TypeScript)
-4. Fill in project details
-5. Wait for project generation
-6. Start coding! 🎉
-
-## What Happens Behind the Scenes?
-
-### Extension → npm Package → Python Core
-
-```
-[VS Code Extension]
-       ↓
-[npx rapidkit] ← auto-downloads if not present
-       ↓
-[npm bridge] ← detects/creates Python venv
-       ↓
-[rapidkit-core] ← installed in workspace venv
-       ↓
-[Your Projects] ← fully functional!
-```
-
-### Why This Architecture?
-
-- **Extension**: Beautiful UI and VS Code integration
-- **npm package**: Cross-platform CLI that works everywhere
-- **Python Core**: The actual engine with all kits and modules
-
-This means you get:
-- ✅ No manual Python package installation
-- ✅ No PATH configuration
-- ✅ Works immediately after extension install
-- ✅ Isolated environments (no system pollution)
-
-## Troubleshooting First-Time Setup
-
-### "Python not found"
+Verify:
 ```bash
-# Install Python 3.10 or higher
-sudo apt install python3.10
-
-# Verify
-python3 --version  # Should show Python 3.10.0 or higher
-```
-
-### "Python venv support missing"
-```bash
-# Ubuntu/Debian - install for your Python version
-sudo apt install python3.10-venv
-# or
-sudo apt install python3.13-venv
-
-# Verify
+python3 --version   # must be 3.10 or higher
 python3 -m venv --help
 ```
 
-### "RapidKit npm download failed"
-- Check internet connection
-- Try again (npx will retry download)
-- If persistent, manually install: `npm install -g rapidkit`
+---
 
-### "Workspace validation failed"
-This usually means Python venv creation failed:
-1. Run `RapidKit: Doctor` command to diagnose
-2. Fix Python/venv issues
-3. Delete the failed workspace folder
-4. Try creating workspace again
+## Step 2 — Install the Extension
 
-## Performance Notes
+1. Open VS Code → Extensions (`Ctrl+Shift+X`)
+2. Search **Workspai** (publisher: RapidKit)
+3. Click **Install**
 
-### First-Time Setup: ~30-60 seconds
-- npm package download: 5-10s
-- Virtual environment creation: 10-15s
-- rapidkit-core installation: 15-30s
+After install the Welcome panel opens automatically. It shows the **Setup Wizard** — two cards that track whether the npm CLI and Python Core are ready.
 
-### Subsequent Operations: ~5-10 seconds
-- npm package is cached by npx
-- venv is reused
-- Much faster!
+---
 
-## Pro Tips 💡
+## Step 3 — Create Your First Workspace
 
-### 1. Pre-install npm package globally
+```
+Ctrl+Shift+P → Workspai: Create Workspace
+```
+
+Fill in: workspace name, location, author. Then wait 30–60 s for first-time setup:
+
+```
+⬇  Downloading rapidkit CLI (npm)
+🐍  Creating Python virtual environment (Poetry)
+📦  Installing rapidkit-core
+✅  Validating workspace
+```
+
+Subsequent runs take ~5–10 s (npm cache + venv reuse).
+
+CLI equivalents (both are valid):
+```bash
+# Explicit command
+npx rapidkit create workspace my-workspace
+
+# Direct workspace shortcut
+npx rapidkit my-workspace
+```
+
+Interactive wizard flow during workspace creation:
+- Profile selection: `minimal`, `java-only`, `python-only`, `node-only`, `go-only`, `polyglot`, `enterprise`
+- Python version selection (3.10+)
+- Environment strategy selection: Poetry / pip with venv / pipx
+
+---
+
+## Step 4 — Create Your First Project
+
+```
+Ctrl+Shift+P → Workspai: Create Project
+```
+
+Choose a framework:
+- **FastAPI** (Python) — REST APIs, async, OpenAPI auto-docs
+- **NestJS** (TypeScript) — modular Node.js backend
+- **Spring Boot** (Java) — REST + JPA + Maven
+- **Go/Fiber** (Go) — high-performance HTTP services
+- **Go/Gin** (Go) — minimal routing-focused services
+
+The extension generates the project, installs its dependencies, and opens the folder.
+
+CLI interactive flow after entering workspace:
+```bash
+cd my-workspace
+npx rapidkit create project
+```
+
+CLI direct kit flow (non-interactive):
+```bash
+npx rapidkit create project fastapi.standard my-api --yes --skip-install
+npx rapidkit create project fastapi.ddd my-api --yes --skip-install
+npx rapidkit create project nestjs.standard my-nest --yes --skip-install
+npx rapidkit create project springboot.standard my-spring --yes --skip-install
+npx rapidkit create project gofiber.standard my-fiber --yes --skip-install
+```
+
+---
+
+## Step 5 — Run the Doctor
+
+Verify everything is healthy after setup:
+
+```
+Ctrl+Shift+P → Workspai: Check Health (Doctor)
+```
+
+Or from the terminal:
+
+```bash
+# Full workspace-level health check
+npx rapidkit doctor workspace
+
+# Project-level health check (run inside a project folder)
+npx rapidkit doctor project
+```
+
+The extension surfaces both scopes. In the sidebar, right-click any workspace → **Check Health (Doctor)**, or right-click a project → **Project Health Check (Doctor)**.
+
+---
+
+## Key Features (v0.27.0)
+
+### Workspace Run — Fleet Stage Execution
+
+Run lifecycle stages across all projects in a workspace fleet:
+
+```bash
+npx rapidkit workspace run init    # set up all projects
+npx rapidkit workspace run test    # run all test suites
+npx rapidkit workspace run build   # build all projects
+npx rapidkit workspace run start   # start all services
+```
+
+From the extension, use the Command Palette or right-click the workspace tree:
+```
+Workspai: Workspace Run: Init
+Workspai: Workspace Run: Test
+Workspai: Workspace Run: Build
+Workspai: Workspace Run: Start
+```
+
+A **flag picker** appears for each run command. Available flags:
+
+| Flag | Purpose |
+|------|---------|
+| `--affected` | Run only projects changed since last run |
+| `--blast-radius` | Include downstream dependents of changed projects |
+| `--parallel` | Execute projects concurrently |
+| `--since <git-ref>` | Limit affected detection to commits after this ref |
+| `--max-workers <n>` | Cap parallel workers (positive integer) |
+| `--continue-on-error` | Don't stop fleet on first failure |
+| `--strict` | Treat warnings as errors |
+| `--no-gates` | Skip quality gates |
+| `--json` | Machine-readable output |
+
+### AI Workspace Command Center
+
+A single hub for every AI-powered operation. Open it from:
+```
+Ctrl+Shift+P → Workspai: AI Workspace Command Center
+```
+
+24 commands organized in three categories:
+- **Workspace Navigation** – open/copy/export workspace actions
+- **Workspace Health** – workspace and project doctor entry points
+- **Workspace Governance** – bootstrap/setup, workspace run, policy, cache, mirror
+
+### AI Incident Studio
+
+Available in the Welcome panel under **AI Features**. Shows live telemetry from the last doctor run, including:
+- **Doctor Treatment Timeline** – trend badge (improving / regressing / stable), scope badge, regression and improvement signals, traceability coverage rate
+- **Incident analysis** – cross-project health summary
+
+### Project Health Check (Doctor)
+
+Scoped health check for a single project (separate from workspace-level doctor):
+
+```bash
+# inside project root
+npx rapidkit doctor project
+```
+
+From the extension:
+```
+Ctrl+Shift+P → Workspai: Project Health Check (Doctor)
+```
+
+Choose **Check** (read-only report) or **Fix** (auto-remediation). Evidence file is written to `.rapidkit/reports/doctor-project-last-run.json` inside the project.
+
+---
+
+## Architecture Overview
+
+```
+VS Code Extension  (UI, commands, tree views)
+       │
+       ▼
+npx rapidkit       (auto-downloaded via npx cache)
+       │
+       ▼
+Poetry / venv      (isolated per workspace)
+       │
+       ▼
+rapidkit-core      (Python engine, installs inside venv)
+       │
+       ▼
+Your Projects      (FastAPI, NestJS, …)
+```
+
+- The **extension** provides VS Code integration and surfaces all commands visually.
+- The **npm package** is the cross-platform CLI; installed once in npx cache or globally.
+- **Python Core** lives inside each workspace's venv — zero system pollution.
+
+---
+
+## CLI Quick Reference
+
+```bash
+# Root usage / quick shortcut
+npx rapidkit <workspace-name> [options]
+
+# Guided create flow (prompts: workspace | project)
+npx rapidkit create
+
+# Workspace management
+npx rapidkit create workspace <name> [--profile <profile>] [--yes]
+npx rapidkit bootstrap [--profile <profile>] [--json]
+npx rapidkit setup <python|node|go|java> [--warm-deps]
+npx rapidkit readiness [--json] [--strict]
+npx rapidkit workspace list
+npx rapidkit workspace share [--output <file>] [--include-paths] [--no-doctor]
+npx rapidkit workspace policy show
+npx rapidkit workspace policy set <key> <value>
+npx rapidkit workspace init
+
+# Doctor (health checks)
+npx rapidkit doctor
+npx rapidkit doctor workspace
+npx rapidkit doctor project
+
+# Fleet stage execution
+npx rapidkit workspace run init   [flags]
+npx rapidkit workspace run test   [flags]
+npx rapidkit workspace run build  [flags]
+npx rapidkit workspace run start  [flags]
+
+# Project scaffolding
+npx rapidkit create project
+npx rapidkit create project fastapi.standard <name> [--yes] [--skip-install]
+npx rapidkit create project nestjs.standard <name> [--yes] [--skip-install]
+npx rapidkit create project springboot.standard <name> [--yes] [--skip-install]
+npx rapidkit create project gofiber.standard <name> [--yes] [--skip-install]
+```
+
+Useful workspace creation options:
+```bash
+-y, --yes
+--author <name>
+--skip-git
+--debug
+--dry-run
+--create-workspace
+--no-workspace
+--no-update-check
+```
+
+Pre-install globally to skip npx download overhead:
 ```bash
 npm install -g rapidkit
 ```
-This makes first-time setup faster (~20s instead of ~45s)
 
-### 2. Use `doctor` command
-Before creating workspace:
-```
-Ctrl+Shift+P → RapidKit: Doctor
-```
-This verifies your system is ready. For workspace-level checks use:
+---
 
+## Troubleshooting
+
+### "Python not found"
 ```bash
+sudo apt install python3.13 python3.13-venv  # Ubuntu/Debian
+brew install python@3.13                      # macOS
+# Windows: download from python.org
+```
+
+### "python3-venv not available"
+```bash
+sudo apt install python3.13-venv   # match your Python version
+python3 -m venv --help             # verify
+```
+
+### "RapidKit CLI download failed"
+- Check internet connection, try again (npx retries automatically)
+- Or pre-install globally: `npm install -g rapidkit`
+
+### "Workspace validation failed"
+```
+Ctrl+Shift+P → Workspai: Check Health (Doctor)
+```
+Run this to get a detailed report. Fix any flagged items, then recreate the workspace if needed.
+
+### Doctor returns stale results
+Delete the evidence file and re-run:
+```bash
+rm .rapidkit/reports/doctor-last-run.json
 npx rapidkit doctor workspace
 ```
 
-### 3. Enable Poetry in-project venvs
-```bash
-poetry config virtualenvs.in-project true
-```
-Makes extension detect venvs better.
+---
 
-### 4. Don't interrupt first-time setup
-Let the first workspace creation complete fully. Interrupting can leave partial setup.
+## File Layout
 
-## What Gets Installed Where?
-
-### Extension Files
 ```
-~/.vscode/extensions/rapidkit.rapidkit-vscode-*/
-```
-
-### npm Package Cache
-```
-~/.npm/_npx/
-```
-
-### RapidKit Workspaces (default)
-```
-~/RapidKit/rapidkits/<workspace-name>/
-  .venv/                    ← Python virtual environment
-    bin/python             ← Python with rapidkit-core
-    bin/rapidkit          ← RapidKit CLI
-  .rapidkit-workspace      ← Workspace marker
+<workspace-root>/
+  .rapidkit/
+    reports/
+      doctor-last-run.json          ← workspace doctor evidence
+  .rapidkit-workspace               ← workspace marker
+  .venv/                            ← Poetry-managed Python env
+  <project-name>/
+    .rapidkit/
+      reports/
+        doctor-project-last-run.json ← project doctor evidence
+    src/
+    tests/
+    pyproject.toml
 ```
 
-### Projects Inside Workspace
-```
-~/RapidKit/rapidkits/<workspace-name>/<project-name>/
-  .venv/                   ← Project virtual environment
-  src/                     ← Your code
-  tests/                   ← Tests
-  pyproject.toml          ← Dependencies
-```
+---
+
+> See also: [WHY_PYTHON_REQUIRED.md](./WHY_PYTHON_REQUIRED.md) · [WIZARD_VISUAL_GUIDE.md](./WIZARD_VISUAL_GUIDE.md)
 
 ## Understanding the Workspace Model
 
@@ -217,19 +362,22 @@ Benefits:
 
 ### Alternative: Direct Project Creation
 
-You can also create standalone projects without workspace:
-```bash
-RapidKit: Create Project (Direct)
+You can also create a project directly from the Command Palette:
+```text
+Workspai: Create Project
 ```
-This creates project in current folder with its own venv.
+For CLI-first flows, use:
+```bash
+npx rapidkit create project <kit> <name> [--yes] [--skip-install]
+```
 
 ## Next Steps After Setup
 
 1. ✅ Workspace created
 2. ✅ First project created
 3. 📖 Read [Project Documentation](https://getrapidkit.com/docs)
-4. 🧩 Add modules: `RapidKit: Add Module`
-5. 🚀 Start dev server: `rapidkit dev`
+4. 🧩 Add modules: `Workspai: Add Module`
+5. 🚀 Start dev server: `npx rapidkit dev`
 6. 🎨 Customize your project
 
 ## Support

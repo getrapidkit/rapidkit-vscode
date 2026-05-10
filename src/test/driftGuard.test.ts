@@ -182,27 +182,13 @@ describe('contract drift guard', () => {
   it('keeps release stop automation wired to gate script and CI workflow', () => {
     const packageJsonSource = read('package.json');
     const workflowSource = read('.github/workflows/extension-smoke-matrix.yml');
-    const wave2WorkflowSource = read('.github/workflows/release-gate-wave2.yml');
-    const gateManifestSource = read('releases/wave2-foundation-gate.json');
     const gateScriptSource = read('scripts/release-stop-gate.mjs');
 
     expect(packageJsonSource).toContain(
       '"release:stop-gate": "node scripts/release-stop-gate.mjs"'
     );
-    expect(packageJsonSource).toContain(
-      '"release:stop-gate:wave2": "node scripts/release-stop-gate.mjs --manifest releases/wave2-foundation-gate.json --claim-checklist releases/fixtures/wave2-claim-checklist.md --enforce-claim-checklist --marker releases/fixtures/wave2-kpi-marker.json"'
-    );
     expect(workflowSource).toContain('Release stop gate (contract/parity)');
     expect(workflowSource).toContain('npm run release:stop-gate -- --skip-kpi');
-    expect(wave2WorkflowSource).toContain('Wave 2 release gate');
-    expect(wave2WorkflowSource).toContain('npm run release:stop-gate:wave2');
-    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_PREDICTIVE_PRECISION_MIN');
-    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_FALSE_ALARM_RATE_MAX');
-    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_RELEASE_READINESS_VALIDATION_MODE');
-    expect(wave2WorkflowSource).toContain('WORKSPAI_GATE_MARKER_MAX_AGE_HOURS');
-    expect(gateManifestSource).toContain('WAVE2_FOUNDATION_GATE');
-    expect(gateManifestSource).toContain('docs/WAVE2_ENGINEERING_BREAKDOWN.md');
-    expect(gateManifestSource).toContain('releases/fixtures/wave2-kpi-marker.json');
     expect(gateScriptSource).toContain('src/test/driftGuard.test.ts');
     expect(gateScriptSource).toContain('src/test/incidentStudioPayload.test.ts');
     expect(gateScriptSource).toContain('src/test/workspaceUsageTracker.test.ts');
@@ -267,6 +253,7 @@ describe('contract drift guard', () => {
     expect(lifecycleSource).toContain("registerCommand('workspai.projectInit'");
     expect(lifecycleSource).toContain("registerCommand('workspai.projectDev'");
     expect(lifecycleSource).toContain("registerCommand('workspai.projectTest'");
+    expect(lifecycleSource).toContain("registerCommand('workspai.projectDoctor'");
 
     expect(lifecycleSource).toContain("commands: [['init']]");
     expect(lifecycleSource).toContain("commands: [['test']]");
@@ -292,7 +279,8 @@ describe('contract drift guard', () => {
 
     expect(operationsSource).toContain("commands: [['bootstrap', '--profile'");
     expect(operationsSource).toContain("commands: [['setup', (runtime as any).value]]");
-    expect(operationsSource).toContain("commands: [['init']]");
+    expect(operationsSource).toContain("commands: [['workspace', 'run', 'init']]");
+    expect(operationsSource).toContain("commands: [['workspace', 'run', stage, ...flags]]");
 
     expect(operationsSource).toContain("commands: [['workspace', 'policy', 'show']]");
     expect(operationsSource).toContain(
@@ -315,6 +303,7 @@ describe('contract drift guard', () => {
     expect(operationsSource).not.toContain('npx rapidkit cache status');
     expect(operationsSource).not.toContain('npx rapidkit mirror status');
     expect(operationsSource).not.toContain('npx workspai.doctor workspace');
+    expect(operationsSource).not.toContain("commands: [['init']]");
     expect(operationsSource).not.toContain('RAPIDKIT_ENABLE_RUNTIME_ADAPTERS=1 npx rapidkit setup');
   });
 

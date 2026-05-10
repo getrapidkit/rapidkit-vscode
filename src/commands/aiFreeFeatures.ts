@@ -35,11 +35,19 @@ interface AIQuickAction {
     | 'release-outcome-validation'
     | 'memory-wizard'
     | 'recipe-packs'
-    | 'release-readiness';
+    | 'release-readiness'
+    | 'workspace-command-center';
   label: string;
   detail: string;
   command: string;
-  category: 'Debug & Fix' | 'Planning & Safety' | 'Memory & Workflows';
+  category: 'Debug & Fix' | 'Planning & Safety' | 'Memory & Workflows' | 'Workspace Operations';
+}
+
+interface WorkspaceCommandPick {
+  label: string;
+  detail: string;
+  command: string;
+  category: 'Workspace Navigation' | 'Workspace Health' | 'Workspace Governance';
 }
 
 const MAX_PREFILL_CHARS = 4000;
@@ -264,6 +272,160 @@ const AI_QUICK_ACTIONS: AIQuickAction[] = [
     command: 'workspai.aiRecipePacks',
     category: 'Memory & Workflows',
   },
+  {
+    id: 'workspace-command-center',
+    label: 'Workspace Command Center',
+    detail: 'Run enterprise workspace operations from an AI-guided control hub',
+    command: 'workspai.aiWorkspaceCommandCenter',
+    category: 'Workspace Operations',
+  },
+];
+
+const AI_WORKSPACE_COMMANDS: WorkspaceCommandPick[] = [
+  {
+    label: 'Open Workspace in VS Code',
+    detail: 'Open the selected workspace as the active VS Code folder',
+    command: 'workspai.openWorkspace',
+    category: 'Workspace Navigation',
+  },
+  {
+    label: 'Open Workspace Folder in OS',
+    detail: 'Reveal the selected workspace in your system file explorer',
+    command: 'workspai.openWorkspaceFolder',
+    category: 'Workspace Navigation',
+  },
+  {
+    label: 'Copy Workspace Path',
+    detail: 'Copy absolute workspace path to clipboard',
+    command: 'workspai.copyWorkspacePath',
+    category: 'Workspace Navigation',
+  },
+  {
+    label: 'Export Workspace Archive',
+    detail: 'Create a portable workspace export archive',
+    command: 'workspai.exportWorkspace',
+    category: 'Workspace Navigation',
+  },
+  {
+    label: 'Workspace Health Dashboard',
+    detail: 'Open health quick actions: check, autofix, compliance, version',
+    command: 'workspai.checkWorkspaceHealth',
+    category: 'Workspace Health',
+  },
+  {
+    label: 'Bootstrap Workspace',
+    detail: 'Initialize workspace with enterprise bootstrap profiles',
+    command: 'workspai.workspaceBootstrap',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Setup Workspace Runtime',
+    detail: 'Verify runtime prerequisites (Python/Node/Go/Java)',
+    command: 'workspai.workspaceSetup',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Run Workspace Full Init',
+    detail: 'Mirrored alias of init/workspace init/workspace run init (workspace + projects)',
+    command: 'workspai.workspaceInit',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Workspace Run Stage (Guided)',
+    detail: 'Select and execute workspace run stage (init/test/build/start)',
+    command: 'workspai.workspaceRunStage',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Workspace Run Test',
+    detail: 'Run workspace test stage with optional enterprise flags',
+    command: 'workspai.workspaceRunTest',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Workspace Run Build',
+    detail: 'Run workspace build stage with optional enterprise flags',
+    command: 'workspai.workspaceRunBuild',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Workspace Run Start',
+    detail: 'Run workspace start stage with optional enterprise flags',
+    command: 'workspai.workspaceRunStart',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Project Health Check',
+    detail: 'Run project-scoped doctor checks and optional auto-fix',
+    command: 'workspai.projectDoctor',
+    category: 'Workspace Health',
+  },
+  {
+    label: 'Show Workspace Policy',
+    detail: 'Inspect effective policy and governance posture',
+    command: 'workspai.workspacePolicyShow',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Update Workspace Policy',
+    detail: 'Set policy values and enforce governance rules',
+    command: 'workspai.workspacePolicySet',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Export Workspace Share Bundle',
+    detail: 'Generate sanitized share bundle for collaboration and support',
+    command: 'workspai.exportWorkspaceShareBundle',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Cache Status',
+    detail: 'Inspect workspace cache health and size',
+    command: 'workspai.cacheStatus',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Cache Clear',
+    detail: 'Clear workspace caches (destructive)',
+    command: 'workspai.cacheClear',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Cache Prune',
+    detail: 'Prune stale cache entries safely',
+    command: 'workspai.cachePrune',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Cache Repair',
+    detail: 'Repair corrupted cache artifacts',
+    command: 'workspai.cacheRepair',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Mirror Status',
+    detail: 'Inspect mirror replication and trust status',
+    command: 'workspai.mirrorStatus',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Mirror Sync',
+    detail: 'Sync workspace mirror artifacts',
+    command: 'workspai.mirrorSync',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Mirror Verify',
+    detail: 'Verify mirror integrity and signatures',
+    command: 'workspai.mirrorVerify',
+    category: 'Workspace Governance',
+  },
+  {
+    label: 'Mirror Rotate Keys',
+    detail: 'Rotate mirror signing keys with safety confirmation',
+    command: 'workspai.mirrorRotate',
+    category: 'Workspace Governance',
+  },
 ];
 
 function clampText(value: string, maxChars: number): string {
@@ -435,6 +597,28 @@ async function resolveWorkspaceForMemory(): Promise<{ name: string; path: string
     return {
       name: selectedProject.name ?? path.basename(selectedProject.path),
       path: selectedProject.path,
+    };
+  }
+
+  const fallback = vscode.workspace.workspaceFolders?.[0];
+  if (fallback) {
+    return {
+      name: fallback.name,
+      path: fallback.uri.fsPath,
+    };
+  }
+
+  return null;
+}
+
+async function resolveWorkspaceForOperations(): Promise<{ name: string; path: string } | null> {
+  const selectedWorkspace = await executeOptionalCommand<WorkspaceSelection>(
+    'workspai.getSelectedWorkspace'
+  );
+  if (selectedWorkspace?.path) {
+    return {
+      name: selectedWorkspace.name ?? path.basename(selectedWorkspace.path),
+      path: selectedWorkspace.path,
     };
   }
 
@@ -1214,6 +1398,50 @@ export function registerAIFreeFeatureCommands(
             'Use the latest workspace-memory.json context in your answer. Recommend the next three highest-impact engineering actions for this workspace.',
         });
       }
+    }),
+
+    vscode.commands.registerCommand('workspai.aiWorkspaceCommandCenter', async () => {
+      const workspaceTarget = await resolveWorkspaceForOperations();
+      if (!workspaceTarget) {
+        vscode.window.showWarningMessage('Select or open a workspace first.');
+        return;
+      }
+
+      const aiContext = await resolvePreferredAIContext();
+      const picks = buildCategorizedQuickPick(AI_WORKSPACE_COMMANDS, (entry) => ({
+        label: entry.label,
+        detail: entry.detail,
+        payload: entry,
+      }));
+
+      const selected = (await vscode.window.showQuickPick(picks, {
+        title: `Workspace Command Center — ${workspaceTarget.name}`,
+        placeHolder: 'Select a workspace operation to execute',
+        ignoreFocusOut: true,
+      })) as (vscode.QuickPickItem & { payload?: WorkspaceCommandPick }) | undefined;
+
+      if (!selected?.payload) {
+        await trackAIFreeCommandEvent('workspai.aiWorkspaceCommandCenter', aiContext, {
+          result: 'cancelled',
+        });
+        return;
+      }
+
+      const payload = {
+        workspace: {
+          path: workspaceTarget.path,
+          name: workspaceTarget.name,
+        },
+        path: workspaceTarget.path,
+        name: workspaceTarget.name,
+      };
+
+      await trackAIFreeCommandEvent('workspai.aiWorkspaceCommandCenter', aiContext, {
+        result: 'executed',
+        targetCommand: selected.payload.command,
+      });
+
+      await vscode.commands.executeCommand(selected.payload.command, payload);
     }),
 
     vscode.commands.registerCommand('workspai.aiRecipePacks', async (recipeId?: string) => {

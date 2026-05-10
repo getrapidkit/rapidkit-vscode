@@ -11,7 +11,7 @@ export type IncidentCliActionEntry = {
 };
 
 // Source-driven from rapidkit-npm command surface:
-// doctor [scope], readiness, workspace <action>, init/dev/build/test/shell.
+// doctor [scope], readiness, workspace <action>, workspace run <stage>, init/dev/build/test/shell.
 const INCIDENT_CLI_ACTION_ENTRIES: IncidentCliActionEntry[] = [
   {
     id: 'workspace-doctor',
@@ -57,6 +57,39 @@ const INCIDENT_CLI_ACTION_ENTRIES: IncidentCliActionEntry[] = [
     stability: 'advanced',
   },
   {
+    id: 'workspace-run-init',
+    scope: 'workspace',
+    label: 'Run workspace init',
+    detail:
+      'Mirrored full-init alias (same behavior as `rapidkit init` and `rapidkit workspace init` at workspace root).',
+    command: 'npx rapidkit workspace run init',
+    stability: 'advanced',
+  },
+  {
+    id: 'workspace-run-test',
+    scope: 'workspace',
+    label: 'Run workspace test',
+    detail: 'Execute workspace-wide test stage across selected projects.',
+    command: 'npx rapidkit workspace run test',
+    stability: 'advanced',
+  },
+  {
+    id: 'workspace-run-build',
+    scope: 'workspace',
+    label: 'Run workspace build',
+    detail: 'Execute workspace-wide build stage across selected projects.',
+    command: 'npx rapidkit workspace run build',
+    stability: 'advanced',
+  },
+  {
+    id: 'workspace-run-start',
+    scope: 'workspace',
+    label: 'Run workspace start',
+    detail: 'Execute workspace-wide start stage across selected projects.',
+    command: 'npx rapidkit workspace run start',
+    stability: 'advanced',
+  },
+  {
     id: 'project-init',
     scope: 'project',
     label: 'Initialize project dependencies',
@@ -64,6 +97,15 @@ const INCIDENT_CLI_ACTION_ENTRIES: IncidentCliActionEntry[] = [
     command: 'npx rapidkit init',
     stability: 'stable',
     actionTypes: ['project-init'],
+  },
+  {
+    id: 'project-doctor',
+    scope: 'project',
+    label: 'Run project doctor',
+    detail: 'Deterministic project health check for the selected service scope.',
+    command: 'npx rapidkit doctor project',
+    stability: 'stable',
+    actionTypes: ['doctor-project-check'],
   },
   {
     id: 'project-test',

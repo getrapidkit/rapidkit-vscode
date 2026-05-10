@@ -187,6 +187,7 @@ describe('incidentStudioTelemetry', () => {
         },
       },
       enterpriseStabilizationGateStatus: null,
+      doctorTreatmentStatus: null,
       doctorSummary: {
         ...freshDoctorSummary,
         ctaVariantBreakdown: cachedData.ctaVariantBreakdown,
@@ -519,6 +520,7 @@ describe('incidentStudioTelemetry', () => {
         },
       },
       enterpriseStabilizationGateStatus: null,
+      doctorTreatmentStatus: null,
       doctorSummary: {
         workspaceName: 'demo',
         ctaVariantBreakdown: {
@@ -543,6 +545,129 @@ describe('incidentStudioTelemetry', () => {
         },
       },
     });
+  });
+
+  it('builds enterprise doctor treatment counters when drift/provenance/trace and probe signals exist', () => {
+    const payload = buildIncidentStudioTelemetryPayload(
+      null,
+      null,
+      null,
+      {
+        workspaceName: 'demo',
+        generatedAt: '2026-05-09T00:30:00.000Z',
+        driftDelta: {
+          baselineAvailable: true,
+          newIssueCount: 3,
+          resolvedIssueCount: 1,
+          netIssueDelta: 2,
+          scoreDeltaPercent: -5,
+          systemStatusChanges: [
+            { id: 'node', from: 'pass', to: 'fail' },
+            { id: 'python', from: 'warn', to: 'pass' },
+          ],
+          regressedProjects: ['orders-api'],
+          improvedProjects: ['billing-api'],
+        },
+        scopeProvenance: {
+          scopedCount: 4,
+          aggregatedCount: 2,
+          mixedCount: 1,
+          dominantScope: 'project',
+        },
+        scoreBreakdown: [
+          { policyRuleId: 'policy.node.runtime' },
+          { policyRuleId: 'policy.python.runtime' },
+          { label: 'missing-policy-rule' },
+        ],
+        projects: [
+          {
+            name: 'orders-api',
+            issues: 3,
+            probes: [
+              { id: 'node', status: 'fail', severity: 'error' },
+              { id: 'python', status: 'warn', severity: 'warn' },
+            ],
+          },
+        ],
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    );
+
+    expect(payload.doctorTreatmentStatus).toEqual({
+      evaluatedAt: '2026-05-09T00:30:00.000Z',
+      trend: 'regressing',
+      baselineAvailable: true,
+      scoreDeltaPercent: -5,
+      netIssueDelta: 2,
+      newIssueCount: 3,
+      resolvedIssueCount: 1,
+      regressionSignals: 3,
+      improvementSignals: 2,
+      mixedScopeWarnings: 1,
+      scopedChecks: 4,
+      aggregatedChecks: 2,
+      dominantScope: 'project',
+      traceabilityCoverageRate: 66.67,
+      probeFailures: 1,
+      probeWarnings: 1,
+    });
+  });
+
+  it('keeps doctor treatment counters null for legacy doctor summaries without enterprise fields', () => {
+    const payload = buildIncidentStudioTelemetryPayload(
+      null,
+      null,
+      null,
+      {
+        workspaceName: 'legacy-demo',
+        generatedAt: '2026-05-09T00:45:00.000Z',
+        issueCount: 2,
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    );
+
+    expect(payload.doctorTreatmentStatus).toBeNull();
+  });
+
+  it('keeps cached doctor treatment status when fresh doctor snapshot is unavailable', () => {
+    const cachedData: CachedIncidentStudioTelemetry = {
+      commandSummary: null,
+      onboardingSummary: null,
+      doctorSummary: {
+        workspaceName: 'cached-only',
+      },
+      doctorTreatmentStatus: {
+        evaluatedAt: '2026-05-09T02:00:00.000Z',
+        trend: 'stable',
+        baselineAvailable: true,
+        scoreDeltaPercent: 0,
+        netIssueDelta: 0,
+        newIssueCount: 0,
+        resolvedIssueCount: 0,
+        regressionSignals: 0,
+        improvementSignals: 0,
+        mixedScopeWarnings: 0,
+        scopedChecks: 2,
+        aggregatedChecks: 0,
+        dominantScope: 'project',
+        traceabilityCoverageRate: 100,
+        probeFailures: 0,
+        probeWarnings: 0,
+      },
+      timestamp: Date.now(),
+    };
+
+    const payload = buildIncidentStudioTelemetryFromCache(cachedData, null);
+
+    expect(payload.doctorTreatmentStatus).toEqual(cachedData.doctorTreatmentStatus);
   });
 
   it('preserves clarification-gate command usage entries in commandSummary payload', () => {

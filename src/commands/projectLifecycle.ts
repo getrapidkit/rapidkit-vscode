@@ -401,6 +401,60 @@ export function registerProjectLifecycleCommands(options: {
       }
     }),
 
+    vscode.commands.registerCommand('workspai.projectDoctor', async (item: any) => {
+      const projectPath = item?.project?.path || item?.projectPath;
+      const projectName = item?.project?.name || 'Project';
+
+      if (!projectPath) {
+        vscode.window.showErrorMessage(
+          'No project path available. Select a project in the sidebar first.'
+        );
+        return;
+      }
+
+      const preferredAction =
+        typeof item?.preferredAction === 'string' ? item.preferredAction.trim().toLowerCase() : '';
+
+      let action: 'check' | 'fix' | undefined;
+      if (preferredAction === 'check' || preferredAction === 'fix') {
+        action = preferredAction;
+      } else {
+        const selected = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(pulse) Check Project Health',
+              description: 'Run doctor project',
+              value: 'check' as const,
+            },
+            {
+              label: '$(tools) Check & Auto-fix Project',
+              description: 'Run doctor project --fix',
+              value: 'fix' as const,
+            },
+          ],
+          {
+            title: `Project Doctor — ${projectName}`,
+            placeHolder: 'Select doctor action',
+            ignoreFocusOut: true,
+          }
+        );
+
+        action = selected?.value;
+      }
+
+      if (!action) {
+        return;
+      }
+
+      runRapidkitCommandsInTerminal({
+        name: `🩺 ${projectName} [doctor:${action}]`,
+        cwd: projectPath,
+        commands: [action === 'fix' ? ['doctor', 'project', '--fix'] : ['doctor', 'project']],
+      });
+
+      logger.info(`Running project doctor (${action}) for project: ${projectPath}`);
+    }),
+
     vscode.commands.registerCommand('workspai.projectBrowser', async (item: any) => {
       const projectPath = item?.project?.path || item?.projectPath;
       const projectType = item?.project?.type || 'fastapi';

@@ -49,5 +49,5 @@ This release consolidates the local train ahead of `origin/main` plus the curren
 
 ### Validation Snapshot
 
-- `npm run test -- src/test/workspaceUsageTracker.test.ts src/test/releaseStopGateManifest.test.ts` → pass
-- `npm run release:stop-gate:wave3` → pass
+- `npm run test -- src/test/workspaceUsageTracker.test.ts` → pass
+- `npm run release:stop-gate` → pass

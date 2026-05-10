@@ -48,7 +48,7 @@ v0.1.11  ·  ai
 
 Installation Target
 my-minimal-wsp
-/home/rapidx/RapidKit/rapidkits/my-minimal-wsp
+/path/to/my-minimal-wsp
 
 Command:
 npx rapidkit add module free/ai/ai_assistant

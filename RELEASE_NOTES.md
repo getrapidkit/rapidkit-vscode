@@ -1,5 +1,31 @@
 # Release Notes
 
+## v0.27.1 (May 10, 2026)
+
+### ✦ Workspace Operations And Incident Reliability Patch
+
+Summary:
+- Ships workspace stage-run command suite and AI Workspace Command Center.
+- Introduces project-scoped doctor command and incident wiring for project/workspace doctor actions.
+- Hardens doctor telemetry envelope and timeline rendering in Incident Studio.
+- Redacts path-sensitive report outputs and aligns command references to canonical `npx rapidkit` syntax.
+
+Highlights:
+- Added commands:
+  - `Workspai: Workspace Run: Select Stage`
+  - `Workspai: Workspace Run: Init`
+  - `Workspai: Workspace Run: Test`
+  - `Workspai: Workspace Run: Build`
+  - `Workspai: Workspace Run: Start`
+  - `Workspai: Project Health Check (Doctor)`
+  - `Workspai: AI Workspace Command Center`
+- `Workspai: Initialize Workspace (...)` now runs `npx rapidkit workspace run init` for consistent stage semantics.
+- Incident Studio now routes doctor actions by scope (workspace vs selected project), and supports project doctor report viewing.
+- `doctorTreatmentStatus` telemetry now includes trend, drift delta, scope provenance, traceability coverage, and probe severity counters.
+- Command references and doctor tooltips standardized to `npx rapidkit doctor ...` forms.
+
+Release posture: `stabilization-only`
+
 ## v0.27.0 (May 8, 2026)
 
 ### ✦ Stabilization Hardening Release

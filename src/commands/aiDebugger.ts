@@ -78,9 +78,7 @@ export function collectExplainPrefillQuestion(
  * Read a log file selected by the user and return structured debug context.
  * Returns null if the user cancelled or the file could not be read.
  */
-export async function collectLogFileDebugContext(
-  uri?: vscode.Uri
-): Promise<{
+export async function collectLogFileDebugContext(uri?: vscode.Uri): Promise<{
   rawText: string;
   parsedTrace: ReturnType<typeof parseLogTrace>;
   filePath: string;

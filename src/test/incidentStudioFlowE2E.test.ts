@@ -22,6 +22,10 @@ import {
 import { reconcileIncidentStudioSyncSelection } from '../../webview-ui/src/lib/incidentStudioLifecycle';
 import { classifyIncidentActionPolicy } from '../ui/panels/incidentStudioPromptPolicy';
 import {
+  buildIncidentStudioTelemetryFromCache,
+  type CachedIncidentStudioTelemetry,
+} from '../ui/panels/incidentStudioTelemetry';
+import {
   buildIncidentWorkspaceGraphFixture,
   INCIDENT_STUDIO_SUPPORTED_KIT_FIXTURES,
 } from './fixtures/incidentStudioGraphFixtures';
@@ -500,5 +504,77 @@ describe('incidentStudioFlowE2E', () => {
     expect(clearedResult.decisionClarity?.requiredMissingFields).toHaveLength(0);
     expect(clearedResult.verificationRequired).toBe(false);
     expect(getActionResultPresentation(clearedResult).tone).toBe('success');
+  });
+
+  it('keeps doctor treatment telemetry envelope stable during cache-only refresh windows', () => {
+    const cachedTelemetry: CachedIncidentStudioTelemetry = {
+      commandSummary: {
+        totalEvents: 14,
+        lastCommand: 'workspai.studio.loop_started',
+        lastCommandAt: '2026-05-09T02:00:00.000Z',
+        commandUsage: [{ command: 'workspai.studio.loop_started', count: 14 }],
+        surfaceBreakdown: {
+          actionEvents: 12,
+          askEvents: 2,
+          actionVsAskShare: 85.71,
+        },
+      },
+      onboardingSummary: {
+        followupShown: 5,
+        followupClicked: 3,
+        overallFollowupClickThroughRate: 60,
+      },
+      ctaVariantBreakdown: {
+        workspacePath: '/tmp/demo',
+        timeWindow: 'last7d',
+        windowStartAt: '2026-05-02T02:00:00.000Z',
+        windowEndAt: '2026-05-09T02:00:00.000Z',
+        variants: [
+          {
+            variant: 'multi',
+            loopStarted: 5,
+            nextActionClicked: 4,
+            actionExecuted: 3,
+            verifyPassed: 2,
+            verifyFailed: 1,
+            verifyCompletionRate: 100,
+            actionVsAskShare: 80,
+            loopCompleted: 2,
+            abandoned: 1,
+          },
+        ],
+      },
+      doctorTreatmentStatus: {
+        evaluatedAt: '2026-05-09T01:58:00.000Z',
+        trend: 'stable',
+        baselineAvailable: true,
+        scoreDeltaPercent: 0,
+        netIssueDelta: 0,
+        newIssueCount: 0,
+        resolvedIssueCount: 0,
+        regressionSignals: 0,
+        improvementSignals: 1,
+        mixedScopeWarnings: 0,
+        scopedChecks: 6,
+        aggregatedChecks: 0,
+        dominantScope: 'project',
+        traceabilityCoverageRate: 100,
+        probeFailures: 0,
+        probeWarnings: 1,
+      },
+      doctorSummary: {
+        workspaceName: 'demo',
+      },
+      timestamp: Date.now(),
+    };
+
+    // Simulate a refresh where doctor evidence file is temporarily unavailable.
+    const payload = buildIncidentStudioTelemetryFromCache(cachedTelemetry, null);
+
+    expect(payload.doctorTreatmentStatus).toEqual(cachedTelemetry.doctorTreatmentStatus);
+    expect(payload.commandSummary).toEqual(cachedTelemetry.commandSummary);
+    expect(payload.onboardingSummary).toEqual(cachedTelemetry.onboardingSummary);
+    expect(payload.ctaVariantBreakdown?.timeWindow).toBe('last7d');
+    expect(payload.doctorSummary).toBeNull();
   });
 });

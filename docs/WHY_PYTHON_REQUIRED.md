@@ -1,5 +1,7 @@
 # Why Python 3.10+ is Required for RapidKit
 
+> Applies to extension v0.27.0 and CLI v0.27.3
+
 ## The Question: Can't the extension install Python automatically?
 
 ### Short Answer:
@@ -15,15 +17,15 @@
    └─ No manual installation needed ✅
 
 2. Poetry (dependency manager)
-   ├─ Extension installs automatically ✅
-   └─ No user choice required ✅
+   ├─ Available as a guided environment option ✅
+   └─ Can be selected in workspace creation wizard ✅
 
 3. Python virtual environment
-   ├─ Created automatically by Poetry ✅
+   ├─ Created automatically by selected strategy (Poetry / pip+venv / pipx) ✅
    └─ Isolated within workspace ✅
 
 4. rapidkit-core (Python package)
-   ├─ Installed automatically via Poetry ✅
+   ├─ Installed automatically inside the selected isolated environment ✅
    └─ Only within workspace venv ✅
 
 5. All project dependencies
@@ -105,6 +107,8 @@ Even though Python needs manual installation, the extension handles:
 4. ✅ **Dependency Management** - Manages all Python dependencies automatically
 5. ✅ **Environment Validation** - Checks Python 3.10+ and venv support
 6. ✅ **Auto-fix Capabilities** - Can install python3-venv on Ubuntu/Debian
+7. ✅ **Doctor (Workspace + Project scope)** - Validates health, writes evidence to `.rapidkit/reports/`
+8. ✅ **Fleet Stage Execution** - Runs init/test/build/start across all projects in a workspace
 
 **The extension removes 99% of manual setup - you just need Python 3.10+ installed.**
 
@@ -138,22 +142,27 @@ RapidKit Core uses modern Python features:
 
 ### npm Package (CLI)
 ```bash
-npx rapidkit workspace create my-project
+npx rapidkit my-workspace
+npx rapidkit create workspace my-project
+npx rapidkit doctor workspace
+npx rapidkit doctor project
+npx rapidkit workspace run test --affected --parallel
 ```
-- **Installation Method Choice**: Poetry, venv, or pipx
-- More control and flexibility
-- Requires manual command execution
-- Better for advanced users and CI/CD
+- Cross-platform CLI — works in CI/CD, scripts, terminal
+- Supports all flags: `--affected`, `--since`, `--max-workers`, `--parallel`, `--strict`, etc.
+- Better for advanced users and automation pipelines
 
 ### VS Code Extension
 ```
-Command Palette → RapidKit: Create New Workspace
+Command Palette → Workspai: Create Workspace
+Command Palette → Workspai: AI Workspace Command Center
+Command Palette → Workspai: Project Health Check (Doctor)
 ```
-- **Always Uses Poetry** (no user choice - best UX)
 - Fully automated setup after Python installation
-- Integrated with VS Code UI
-- Auto-detects and validates environment
-- Better for most developers
+- Visual flag picker for fleet stage runs
+- AI Incident Studio with Doctor Treatment Timeline
+- Workspace Command Center with 24 AI-powered commands
+- Better for day-to-day development
 
 **Both require Python 3.10+ on the system - that cannot be automated.**
 
@@ -207,11 +216,10 @@ sudo apt install python3.13 python3.13-venv
 ```typescript
 // Extension handles everything else:
 1. Check Python version (must be 3.10+)
-2. Install Poetry if missing
-3. Create workspace with Poetry
-4. Create isolated venv via Poetry
-5. Install rapidkit-core via Poetry
-6. Manage all dependencies via Poetry
+2. Offer environment strategy (Poetry / pip+venv / pipx)
+3. Create isolated environment for workspace
+4. Install rapidkit-core in that environment
+6. Manage dependencies via the selected environment strategy
 7. Validate environment
 8. Auto-fix common issues
 ```
@@ -226,8 +234,8 @@ sudo apt install python3.13 python3.13-venv
 | python3-venv | ⚠️ Semi-auto | Can auto-fix on Ubuntu/Debian only |
 | Poetry | ✅ Yes | User-level, no admin needed |
 | rapidkit-core | ✅ Yes | Installed via Poetry in venv |
-| Virtual environment | ✅ Yes | Created by Poetry automatically |
-| Dependencies | ✅ Yes | Managed by Poetry automatically |
+| Virtual environment | ✅ Yes | Created automatically by selected strategy (Poetry / pip+venv / pipx) |
+| Dependencies | ✅ Yes | Managed inside the selected isolated environment |
 
 **Python installation is the ONLY manual step** - everything else is automated by the extension.
 
@@ -249,14 +257,14 @@ brew install python@3.13
 **Windows:**
 Download from [python.org/downloads](https://python.org/downloads)
 
-### 2. Install RapidKit Extension
+### 2. Install Workspai Extension
 - Open VS Code
-- Install "RapidKit" extension
+- Install "Workspai" extension (publisher: RapidKit)
 - **Done!** Everything else is automatic.
 
 ### 3. Create Your First Workspace
 ```
-Ctrl+Shift+P → RapidKit: Create New Workspace
+Ctrl+Shift+P → Workspai: Create Workspace
 ```
 
 The extension will automatically:
@@ -276,13 +284,16 @@ The extension will automatically:
 **A:** RapidKit Core is a sophisticated code generation engine built over years in Python. Rewriting it in TypeScript would take years and lose all existing modules, ecosystem, and community.
 
 ### Q: Can I use Python 3.9 or earlier?
-**A:** No. RapidKit Core requires 3.10+ for modern Python features. Using older versions will cause errors.
+**A:** No. RapidKit Core requires 3.10+ for modern Python features (pattern matching, updated typing). Using older versions will cause errors.
 
 ### Q: Do I need to install Poetry manually?
-**A:** No! The extension installs Poetry automatically. You only need Python 3.10+ on your system.
+**A:** Not necessarily. You can choose Poetry, pip with venv, or pipx in the workspace creation wizard. In all cases, Python 3.10+ on your system is required.
 
-### Q: What if I already have Python 3.8?
-**A:** You need to install Python 3.10+ alongside it. Multiple Python versions can coexist on the same system.
+### Q: What if I already have Python 3.8 or 3.9?
+**A:** Install Python 3.10+ alongside it. Multiple Python versions coexist safely. The extension auto-detects the highest compatible version.
+
+### Q: Does the doctor command also require Python?
+**A:** Yes. Both `npx rapidkit doctor workspace` and `npx rapidkit doctor project` invoke the Python engine via the workspace venv. Python must be present and the workspace must be initialized first.
 
 ---
 

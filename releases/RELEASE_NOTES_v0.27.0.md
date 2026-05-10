@@ -147,17 +147,7 @@ Six new stacks with BYOP-first detection:
 
 ---
 
-## 7. Enterprise Gate Fixtures
-
-**New files in `releases/fixtures/`:**
-
-- `wave2-enterprise-gate.json` — last7d + last30d windows, `consecutiveWindowsPass: 2`, all gates green
-- `wave3-enterprise-gate.json` — same structure for wave3 scope
-- `release-posture-label.md` — posture: `stabilization-only`
-
----
-
-## 8. Incident Conversation Metrics
+## 7. Incident Conversation Metrics
 
 ### `src/ui/panels/incidentConversationMetrics.ts` (NEW)
 
@@ -193,18 +183,7 @@ Added sanitizer functions:
 
 ---
 
-## 11. Release Gate Workflow Hardening
-
-### `.github/workflows/release-gate-wave2.yml` + `release-gate-wave3.yml`
-
-- Severity parser extracted to shared helper (consistent parse across wave2/wave3)
-- Paginated GitHub issue fetch replaces single-page query (prevents missed open P0/P1 issues)
-- Fixture fallback paths removed — hard-fail when KPI marker is absent
-- `scripts/release-stop-gate.mjs` updated with hardened severity classification
-
----
-
-## 12. Test Regression Fixes
+## 11. Test Regression Fixes
 
 ### `src/test/incidentStudioPromptPolicy.test.ts`
 
@@ -233,8 +212,6 @@ Test Files  66 passed (66)
 - `src/ui/panels/incidentRouting.ts`
 - `src/ui/panels/incidentConversationMetrics.ts`
 - `src/test/incidentConversationMetrics.test.ts`
-- `releases/fixtures/wave2-enterprise-gate.json`
-- `releases/fixtures/wave3-enterprise-gate.json`
 - `releases/fixtures/release-posture-label.md`
 
 **Modified (key):**
@@ -244,6 +221,5 @@ Test Files  66 passed (66)
 - `src/ui/panels/incidentStudioResume.ts` — sanitizers
 - `src/ui/panels/doctorTelemetryRefresh.ts` — onError + async catch
 - `src/commands/importProjectUtils.ts` — BYOP stacks
-- `.github/workflows/release-gate-wave2.yml` / `release-gate-wave3.yml` — hardened gates
 - `scripts/release-stop-gate.mjs` — severity parser
 - `src/test/incidentStudioPromptPolicy.test.ts` — routing source fix

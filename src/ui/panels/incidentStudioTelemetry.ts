@@ -250,6 +250,24 @@ export type IncidentStudioTelemetryPayload = {
     expansionFrozen: boolean;
     freezeReason: string | null;
   } | null;
+  doctorTreatmentStatus?: {
+    evaluatedAt: string | null;
+    trend: 'baseline' | 'stable' | 'improving' | 'regressing' | 'unknown';
+    baselineAvailable: boolean;
+    scoreDeltaPercent: number | null;
+    netIssueDelta: number | null;
+    newIssueCount: number;
+    resolvedIssueCount: number;
+    regressionSignals: number;
+    improvementSignals: number;
+    mixedScopeWarnings: number;
+    scopedChecks: number;
+    aggregatedChecks: number;
+    dominantScope: string | null;
+    traceabilityCoverageRate: number | null;
+    probeFailures: number;
+    probeWarnings: number;
+  } | null;
   doctorSummary?: unknown | null;
 };
 
@@ -329,6 +347,161 @@ function buildVerifiedOutcomeLoopStatus(
   };
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function buildDoctorTreatmentStatus(
+  doctorSummary: unknown | null
+): IncidentStudioTelemetryPayload['doctorTreatmentStatus'] {
+  if (!doctorSummary || typeof doctorSummary !== 'object' || Array.isArray(doctorSummary)) {
+    return null;
+  }
+
+  const summary = doctorSummary as Record<string, unknown>;
+  const driftDelta =
+    summary.driftDelta &&
+    typeof summary.driftDelta === 'object' &&
+    !Array.isArray(summary.driftDelta)
+      ? (summary.driftDelta as Record<string, unknown>)
+      : null;
+  const scopeProvenance =
+    summary.scopeProvenance &&
+    typeof summary.scopeProvenance === 'object' &&
+    !Array.isArray(summary.scopeProvenance)
+      ? (summary.scopeProvenance as Record<string, unknown>)
+      : null;
+  const scoreBreakdown = Array.isArray(summary.scoreBreakdown)
+    ? summary.scoreBreakdown.filter((entry) => entry && typeof entry === 'object')
+    : [];
+  const projects = Array.isArray(summary.projects)
+    ? summary.projects.filter((entry) => entry && typeof entry === 'object')
+    : [];
+
+  const baselineAvailable = Boolean(driftDelta?.baselineAvailable);
+  const netIssueDelta = driftDelta ? toFiniteNumber(driftDelta.netIssueDelta) : null;
+  const newIssueCount = driftDelta ? (toFiniteNumber(driftDelta.newIssueCount) ?? 0) : 0;
+  const resolvedIssueCount = driftDelta ? (toFiniteNumber(driftDelta.resolvedIssueCount) ?? 0) : 0;
+  const scoreDeltaPercent = driftDelta
+    ? driftDelta.scoreDeltaPercent === null
+      ? null
+      : toFiniteNumber(driftDelta.scoreDeltaPercent)
+    : null;
+
+  const systemStatusChanges = Array.isArray(driftDelta?.systemStatusChanges)
+    ? driftDelta?.systemStatusChanges.filter((entry) => entry && typeof entry === 'object')
+    : [];
+  const regressedProjects = Array.isArray(driftDelta?.regressedProjects)
+    ? driftDelta?.regressedProjects.filter((entry) => typeof entry === 'string')
+    : [];
+  const improvedProjects = Array.isArray(driftDelta?.improvedProjects)
+    ? driftDelta?.improvedProjects.filter((entry) => typeof entry === 'string')
+    : [];
+
+  let regressionSignals = regressedProjects.length;
+  let improvementSignals = improvedProjects.length;
+  for (const change of systemStatusChanges) {
+    const row = change as Record<string, unknown>;
+    const from = typeof row.from === 'string' ? row.from.toLowerCase() : '';
+    const to = typeof row.to === 'string' ? row.to.toLowerCase() : '';
+    if ((from === 'pass' || from === 'warn') && to === 'fail') {
+      regressionSignals += 1;
+    }
+    if ((from === 'fail' || from === 'warn') && to === 'pass') {
+      improvementSignals += 1;
+    }
+  }
+
+  let probeFailures = 0;
+  let probeWarnings = 0;
+  for (const project of projects) {
+    const probes = (project as Record<string, unknown>).probes;
+    if (!Array.isArray(probes)) {
+      continue;
+    }
+    for (const probe of probes) {
+      if (!probe || typeof probe !== 'object') {
+        continue;
+      }
+      const row = probe as Record<string, unknown>;
+      const severity = typeof row.severity === 'string' ? row.severity.toLowerCase() : '';
+      const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
+      if (severity === 'error' || status === 'fail') {
+        probeFailures += 1;
+      } else if (severity === 'warn' || status === 'warn') {
+        probeWarnings += 1;
+      }
+    }
+  }
+
+  regressionSignals += probeFailures;
+  improvementSignals += Math.max(0, resolvedIssueCount - regressedProjects.length);
+
+  const traceableCount = scoreBreakdown.reduce((acc, entry) => {
+    const row = entry as Record<string, unknown>;
+    return typeof row.policyRuleId === 'string' && row.policyRuleId.trim().length > 0
+      ? acc + 1
+      : acc;
+  }, 0);
+  const traceabilityCoverageRate =
+    scoreBreakdown.length > 0
+      ? Number(((traceableCount / scoreBreakdown.length) * 100).toFixed(2))
+      : null;
+
+  const scopedChecks = scopeProvenance ? (toFiniteNumber(scopeProvenance.scopedCount) ?? 0) : 0;
+  const aggregatedChecks = scopeProvenance
+    ? (toFiniteNumber(scopeProvenance.aggregatedCount) ?? 0)
+    : 0;
+  const mixedScopeWarnings = scopeProvenance
+    ? (toFiniteNumber(scopeProvenance.mixedCount) ?? 0)
+    : 0;
+  const dominantScope =
+    scopeProvenance && typeof scopeProvenance.dominantScope === 'string'
+      ? scopeProvenance.dominantScope
+      : null;
+
+  const trend: NonNullable<IncidentStudioTelemetryPayload['doctorTreatmentStatus']>['trend'] =
+    !baselineAvailable && !driftDelta
+      ? 'unknown'
+      : !baselineAvailable
+        ? 'baseline'
+        : (netIssueDelta ?? 0) > 0
+          ? 'regressing'
+          : (netIssueDelta ?? 0) < 0
+            ? 'improving'
+            : 'stable';
+
+  if (
+    !driftDelta &&
+    !scopeProvenance &&
+    scoreBreakdown.length === 0 &&
+    probeFailures === 0 &&
+    probeWarnings === 0
+  ) {
+    return null;
+  }
+
+  return {
+    evaluatedAt: typeof summary.generatedAt === 'string' ? summary.generatedAt : null,
+    trend,
+    baselineAvailable,
+    scoreDeltaPercent,
+    netIssueDelta,
+    newIssueCount,
+    resolvedIssueCount,
+    regressionSignals,
+    improvementSignals,
+    mixedScopeWarnings,
+    scopedChecks,
+    aggregatedChecks,
+    dominantScope,
+    traceabilityCoverageRate,
+    probeFailures,
+    probeWarnings,
+  };
+}
+
 export function shouldUseIncidentStudioTelemetryCache(
   cachedData: CachedIncidentStudioTelemetry | undefined,
   now: number,
@@ -350,6 +523,8 @@ export function buildIncidentStudioTelemetryFromCache(
       cachedData.studioReproPackKpiStatus ?? null,
       releaseReadinessValidationKpiStatus
     );
+  const nextDoctorTreatmentStatus =
+    buildDoctorTreatmentStatus(doctorSummary) ?? cachedData.doctorTreatmentStatus ?? null;
 
   return {
     commandSummary: cachedData.commandSummary,
@@ -362,6 +537,7 @@ export function buildIncidentStudioTelemetryFromCache(
     releaseReadinessValidationKpiStatus,
     verifiedOutcomeLoopStatus,
     enterpriseStabilizationGateStatus: cachedData.enterpriseStabilizationGateStatus ?? null,
+    doctorTreatmentStatus: nextDoctorTreatmentStatus,
     // Always prefer the doctor snapshot freshly read from disk.
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(
       doctorSummary,
@@ -457,6 +633,7 @@ export function buildIncidentStudioTelemetryPayload(
     releaseReadinessValidationKpiStatus: releaseReadinessValidationKpiStatus ?? null,
     verifiedOutcomeLoopStatus: nextVerifiedOutcomeLoopStatus,
     enterpriseStabilizationGateStatus: enterpriseStabilizationGateStatus ?? null,
+    doctorTreatmentStatus: buildDoctorTreatmentStatus(doctorSummary),
     doctorSummary: attachCtaVariantBreakdownToDoctorSummary(doctorSummary, nextCtaVariantBreakdown),
   };
 }

@@ -261,7 +261,7 @@ export class DoctorEvidenceProvider implements vscode.TreeDataProvider<DoctorEvi
           command: 'workspai.doctorEvidence.rerun',
           title: 'Run Doctor',
         };
-        item.tooltip = 'Click to run: npx workspai.doctor workspace';
+        item.tooltip = 'Click to run: npx rapidkit doctor workspace';
         return [item];
       }
 
