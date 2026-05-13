@@ -146,6 +146,22 @@ type IncidentWorkspaceGraphSnapshot = {
   lastUpdatedAt: number;
 };
 
+type IncidentMemoryInfluenceAuditEntry = {
+  memoryEventId: string;
+  timestamp: string;
+  source: 'workspace-memory' | 'incident-replay-learning';
+  influenceKind: 'context' | 'policy' | 'decision' | 'artifact-link';
+  summary: string;
+  policyProfile: 'strict' | 'balanced' | 'permissive';
+  sensitivity: 'normal' | 'sensitive';
+  localProcessingMode: boolean;
+  decisionArtifacts: {
+    actionId: string;
+    reproPackId?: string;
+    releaseReadinessArtifactId?: string;
+  };
+};
+
 type WorkspaceMarkerSnapshot = {
   signature?: string;
   createdBy?: string;
@@ -4419,6 +4435,87 @@ No markdown, no explanation outside the JSON.`;
     };
   }
 
+  private _buildMemoryInfluenceAuditTimeline(input: {
+    actionId: string;
+    actionType: string;
+    graphSnapshot: IncidentWorkspaceGraphSnapshot;
+    decisionClarityMissingFields: string[];
+    releaseGateBlockedReasons: string[];
+    incidentReproPackId?: string;
+    releaseReadinessArtifactId?: string;
+  }): IncidentMemoryInfluenceAuditEntry[] {
+    const now = new Date().toISOString();
+    const memoryPolicy = input.graphSnapshot.memory;
+
+    const decisionArtifacts = {
+      actionId: input.actionId,
+      reproPackId: input.incidentReproPackId,
+      releaseReadinessArtifactId: input.releaseReadinessArtifactId,
+    };
+
+    const entries: IncidentMemoryInfluenceAuditEntry[] = [
+      {
+        memoryEventId: `memory-${input.actionId}-context`,
+        timestamp: now,
+        source: 'workspace-memory',
+        influenceKind: 'context',
+        summary: memoryPolicy.hasMemory
+          ? `Workspace memory context was attached to ${input.actionType} decision flow.`
+          : `No persisted workspace memory context was available for ${input.actionType}.`,
+        policyProfile: memoryPolicy.policyProfile,
+        sensitivity: memoryPolicy.sensitivity,
+        localProcessingMode: memoryPolicy.localProcessingMode,
+        decisionArtifacts,
+      },
+      {
+        memoryEventId: `memory-${input.actionId}-policy`,
+        timestamp: now,
+        source: 'workspace-memory',
+        influenceKind: 'policy',
+        summary: `Memory policy profile ${memoryPolicy.policyProfile} (${memoryPolicy.sensitivity}) enforced localProcessingMode=${String(
+          memoryPolicy.localProcessingMode
+        )}.`,
+        policyProfile: memoryPolicy.policyProfile,
+        sensitivity: memoryPolicy.sensitivity,
+        localProcessingMode: memoryPolicy.localProcessingMode,
+        decisionArtifacts,
+      },
+      {
+        memoryEventId: `memory-${input.actionId}-decision`,
+        timestamp: now,
+        source: 'workspace-memory',
+        influenceKind: 'decision',
+        summary:
+          input.decisionClarityMissingFields.length > 0
+            ? `Decision clarity remained gated by ${input.decisionClarityMissingFields.length} missing field(s).`
+            : 'Decision clarity contract remained complete under current memory policy constraints.',
+        policyProfile: memoryPolicy.policyProfile,
+        sensitivity: memoryPolicy.sensitivity,
+        localProcessingMode: memoryPolicy.localProcessingMode,
+        decisionArtifacts,
+      },
+    ];
+
+    if (input.incidentReproPackId || input.releaseReadinessArtifactId) {
+      entries.push({
+        memoryEventId: `memory-${input.actionId}-artifact-link`,
+        timestamp: now,
+        source: 'workspace-memory',
+        influenceKind: 'artifact-link',
+        summary:
+          input.releaseGateBlockedReasons.length > 0
+            ? `Audit linkage recorded with ${input.releaseGateBlockedReasons.length} release-gate blocked reason(s).`
+            : 'Audit linkage recorded between memory influence and generated decision artifacts.',
+        policyProfile: memoryPolicy.policyProfile,
+        sensitivity: memoryPolicy.sensitivity,
+        localProcessingMode: memoryPolicy.localProcessingMode,
+        decisionArtifacts,
+      });
+    }
+
+    return entries;
+  }
+
   private _buildIncidentReproPackEvidence(input: {
     actionType: string;
     actionId: string;
@@ -4487,6 +4584,7 @@ No markdown, no explanation outside the JSON.`;
         };
         exportHint?: string;
         sensitivityLabel?: 'internal' | 'restricted' | 'confidential';
+        memoryInfluenceAuditTimeline?: IncidentMemoryInfluenceAuditEntry[];
       }
     | undefined {
     if (input.actionType !== 'incident-repro-pack' || !input.workspacePath) {
@@ -4730,8 +4828,13 @@ No markdown, no explanation outside the JSON.`;
             };
             exportHint?: string;
             sensitivityLabel?: 'internal' | 'restricted' | 'confidential';
+            memoryInfluenceAuditTimeline?: IncidentMemoryInfluenceAuditEntry[];
           })
         : undefined;
+
+    const messageAuditTimeline = Array.isArray(data?.memoryInfluenceAuditTimeline)
+      ? (data.memoryInfluenceAuditTimeline as IncidentMemoryInfluenceAuditEntry[])
+      : [];
 
     if (!reproPack?.packId || !reproPack.replayPayload) {
       vscode.window.showWarningMessage('No incident repro pack is available to export.');
@@ -4788,6 +4891,11 @@ No markdown, no explanation outside the JSON.`;
         redaction: reproPack.redaction ?? {},
         summary: reproPack.summary ?? {},
         sensitivityLabel: reproPack.sensitivityLabel,
+        memoryInfluenceAuditTimeline:
+          reproPack.memoryInfluenceAuditTimeline &&
+          reproPack.memoryInfluenceAuditTimeline.length > 0
+            ? reproPack.memoryInfluenceAuditTimeline
+            : messageAuditTimeline,
       },
       workspaceResolution?.workspaceName || path.basename(workspacePathInput || '') || 'workspace'
     );
@@ -7335,6 +7443,19 @@ No markdown, no explanation outside the JSON.`;
       sandboxEvidence,
       doctorEvidence,
     });
+    const memoryInfluenceAuditTimeline = this._buildMemoryInfluenceAuditTimeline({
+      actionId,
+      actionType,
+      graphSnapshot,
+      decisionClarityMissingFields,
+      releaseGateBlockedReasons,
+      incidentReproPackId: incidentReproPackEvidence?.packId,
+      releaseReadinessArtifactId: releaseReadinessCommanderArtifact?.artifactId,
+    });
+
+    if (incidentReproPackEvidence) {
+      incidentReproPackEvidence.memoryInfluenceAuditTimeline = memoryInfluenceAuditTimeline;
+    }
 
     if (conv && wave2Contracts.predictiveWarning) {
       this._trackStudioEvent('workspai.studio.prediction_shown', conv.workspacePath, {
@@ -7765,6 +7886,7 @@ No markdown, no explanation outside the JSON.`;
         sandboxSimulation: sandboxEvidence,
         incidentReproPack: incidentReproPackEvidence,
         releaseReadinessCommander: releaseReadinessCommanderArtifact,
+        memoryInfluenceAuditTimeline,
         multiFilePatch: multiFilePatchResult,
         systemGraphSnapshot: wave2Contracts.systemGraphSnapshot,
         impactAssessment: wave2Contracts.impactAssessment,

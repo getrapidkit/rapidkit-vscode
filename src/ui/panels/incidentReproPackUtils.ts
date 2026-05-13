@@ -3,6 +3,22 @@ import * as path from 'path';
 export type IncidentReproPackRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type IncidentReproPackSensitivityLabel = 'internal' | 'restricted' | 'confidential';
 
+export type IncidentMemoryInfluenceAuditEntry = {
+  memoryEventId: string;
+  timestamp: string;
+  source: 'workspace-memory' | 'incident-replay-learning';
+  influenceKind: 'context' | 'policy' | 'decision' | 'artifact-link';
+  summary: string;
+  policyProfile: 'strict' | 'balanced' | 'permissive';
+  sensitivity: 'normal' | 'sensitive';
+  localProcessingMode: boolean;
+  decisionArtifacts: {
+    actionId: string;
+    reproPackId?: string;
+    releaseReadinessArtifactId?: string;
+  };
+};
+
 export type ExportableIncidentReproPack = {
   packId: string;
   status?: 'captured' | 'failed' | 'skipped' | string;
@@ -38,6 +54,7 @@ export type ExportableIncidentReproPack = {
   };
   exportHint?: string;
   sensitivityLabel?: IncidentReproPackSensitivityLabel;
+  memoryInfluenceAuditTimeline?: IncidentMemoryInfluenceAuditEntry[];
 };
 
 export type LinkSafeExportBundle = {
@@ -88,7 +105,29 @@ export type LinkSafeExportBundle = {
     sensitivity_label: IncidentReproPackSensitivityLabel;
     verify_checklist: string[];
   };
+  memory_influence_audit: IncidentMemoryInfluenceAuditEntry[];
 };
+
+const INCIDENT_AUDIT_SECRET_PATTERN =
+  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|client[_-]?secret|authorization)\b\s*[:=]\s*([^\s,;]+)/gi;
+
+function sanitizeAuditSummary(value: unknown): string {
+  if (typeof value !== 'string') {
+    return 'Memory influence audit entry captured.';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 'Memory influence audit entry captured.';
+  }
+
+  const redacted = trimmed.replace(
+    INCIDENT_AUDIT_SECRET_PATTERN,
+    (_full, key: string) => `${key}=[REDACTED]`
+  );
+
+  return redacted.length > 240 ? `${redacted.slice(0, 240)}...[TRUNCATED]` : redacted;
+}
 
 function deriveSensitivityLabel(input: {
   declared?: IncidentReproPackSensitivityLabel;
@@ -271,6 +310,65 @@ export function buildLinkSafeExportBundle(
     },
   };
 
+  const memoryInfluenceAudit = (reproPack.memoryInfluenceAuditTimeline ?? [])
+    .slice(0, 16)
+    .map((entry, index): IncidentMemoryInfluenceAuditEntry => {
+      const policyProfile =
+        entry.policyProfile === 'strict' ||
+        entry.policyProfile === 'balanced' ||
+        entry.policyProfile === 'permissive'
+          ? entry.policyProfile
+          : 'balanced';
+      const sensitivity = entry.sensitivity === 'sensitive' ? 'sensitive' : 'normal';
+      const localProcessingMode =
+        typeof entry.localProcessingMode === 'boolean'
+          ? entry.localProcessingMode
+          : policyProfile === 'strict' || sensitivity === 'sensitive';
+
+      return {
+        memoryEventId:
+          typeof entry.memoryEventId === 'string' && entry.memoryEventId.trim().length > 0
+            ? entry.memoryEventId.trim()
+            : `memory-audit-${index + 1}`,
+        timestamp:
+          typeof entry.timestamp === 'string' && entry.timestamp.trim().length > 0
+            ? entry.timestamp.trim()
+            : new Date().toISOString(),
+        source:
+          entry.source === 'incident-replay-learning'
+            ? 'incident-replay-learning'
+            : 'workspace-memory',
+        influenceKind:
+          entry.influenceKind === 'context' ||
+          entry.influenceKind === 'policy' ||
+          entry.influenceKind === 'decision' ||
+          entry.influenceKind === 'artifact-link'
+            ? entry.influenceKind
+            : 'context',
+        summary: sanitizeAuditSummary(entry.summary),
+        policyProfile,
+        sensitivity,
+        localProcessingMode,
+        decisionArtifacts: {
+          actionId:
+            typeof entry.decisionArtifacts?.actionId === 'string' &&
+            entry.decisionArtifacts.actionId.trim().length > 0
+              ? entry.decisionArtifacts.actionId.trim()
+              : reproPack.actionId || 'incident-repro-pack',
+          reproPackId:
+            typeof entry.decisionArtifacts?.reproPackId === 'string' &&
+            entry.decisionArtifacts.reproPackId.trim().length > 0
+              ? entry.decisionArtifacts.reproPackId.trim()
+              : reproPack.packId,
+          releaseReadinessArtifactId:
+            typeof entry.decisionArtifacts?.releaseReadinessArtifactId === 'string' &&
+            entry.decisionArtifacts.releaseReadinessArtifactId.trim().length > 0
+              ? entry.decisionArtifacts.releaseReadinessArtifactId.trim()
+              : undefined,
+        },
+      };
+    });
+
   return {
     schema_version: 'incident_repro_pack.v1',
     bundle_type: 'link-safe-payload',
@@ -285,6 +383,7 @@ export function buildLinkSafeExportBundle(
       sensitivity_label: linkSafePack.sensitivity.label,
       verify_checklist: linkSafePack.replayPayload.verifyChecklist,
     },
+    memory_influence_audit: memoryInfluenceAudit,
   };
 }
 

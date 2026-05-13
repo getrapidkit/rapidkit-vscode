@@ -6820,6 +6820,23 @@ export function AIIncidentStudio({
                                                     </div>
                                                 </div>
                                             ) : null}
+                                            {chatBrainActionResult.memoryInfluenceAuditTimeline &&
+                                                chatBrainActionResult.memoryInfluenceAuditTimeline.length > 0 ? (
+                                                <div className="incident-rollback-evidence is-warning">
+                                                    <strong>Memory influence timeline</strong>
+                                                    {chatBrainActionResult.memoryInfluenceAuditTimeline
+                                                        .slice(0, 4)
+                                                        .map((entry) => (
+                                                            <p key={entry.memoryEventId}>
+                                                                [{entry.influenceKind}] {entry.summary}
+                                                                {' · Artifact: '}
+                                                                {entry.decisionArtifacts.releaseReadinessArtifactId ||
+                                                                    entry.decisionArtifacts.reproPackId ||
+                                                                    entry.decisionArtifacts.actionId}
+                                                            </p>
+                                                        ))}
+                                                </div>
+                                            ) : null}
                                             {chatBrainActionResult.multiFilePatch ? (
                                                 <MultiFilePatchCard
                                                     patchResult={chatBrainActionResult.multiFilePatch}

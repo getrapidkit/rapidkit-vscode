@@ -1538,6 +1538,7 @@ export function App() {
             selectedWorkspaceForAnalysis || workspaceStatus.workspacePath || reproPack.workspacePath;
         vscode.postMessage('exportIncidentReproPack', {
             incidentReproPack: reproPack,
+            memoryInfluenceAuditTimeline: chatBrainActionResult?.memoryInfluenceAuditTimeline,
             workspacePath,
             projectPath: selectedProjectForAnalysis?.path,
         });

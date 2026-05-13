@@ -739,6 +739,7 @@ describe('incidentStudioPayload', () => {
   it('normalizes incident repro pack evidence in action-result payload', () => {
     const normalized = normalizeIncidentActionResultPayload({
       success: false,
+      actionId: ' action-42 ',
       incidentReproPack: {
         packId: ' repro-001 ',
         status: ' captured ',
@@ -774,6 +775,23 @@ describe('incidentStudioPayload', () => {
         },
         exportHint: 'password=super-secret',
       },
+      memoryInfluenceAuditTimeline: [
+        {
+          memoryEventId: ' mem-evt-1 ',
+          timestamp: ' 2026-05-11T08:00:00.000Z ',
+          source: ' workspace-memory ',
+          influenceKind: ' decision ',
+          summary: 'token=abc123 affected recommendation quality',
+          policyProfile: ' strict ',
+          sensitivity: ' sensitive ',
+          localProcessingMode: true,
+          decisionArtifacts: {
+            actionId: ' action-42 ',
+            reproPackId: ' repro-001 ',
+            releaseReadinessArtifactId: ' rrc-001 ',
+          },
+        },
+      ],
     });
 
     expect(normalized.incidentReproPack).toEqual({
@@ -812,6 +830,24 @@ describe('incidentStudioPayload', () => {
       exportHint: 'password=[REDACTED]',
       sensitivityLabel: 'restricted',
     });
+
+    expect(normalized.memoryInfluenceAuditTimeline).toEqual([
+      {
+        memoryEventId: 'mem-evt-1',
+        timestamp: '2026-05-11T08:00:00.000Z',
+        source: 'workspace-memory',
+        influenceKind: 'decision',
+        summary: 'token=[REDACTED] affected recommendation quality',
+        policyProfile: 'strict',
+        sensitivity: 'sensitive',
+        localProcessingMode: true,
+        decisionArtifacts: {
+          actionId: 'action-42',
+          reproPackId: 'repro-001',
+          releaseReadinessArtifactId: 'rrc-001',
+        },
+      },
+    ]);
   });
 
   it('normalizes release readiness commander artifact in action-result payload', () => {

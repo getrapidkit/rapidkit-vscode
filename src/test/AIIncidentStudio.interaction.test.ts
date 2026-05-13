@@ -144,6 +144,22 @@ describe('AIIncidentStudio interactions', () => {
                 exportHint: 'Bundle is redacted and safe to share.',
                 sensitivityLabel: 'restricted',
               },
+              memoryInfluenceAuditTimeline: [
+                {
+                  memoryEventId: 'memory-action-1-decision',
+                  timestamp: '2026-05-11T04:00:01Z',
+                  source: 'workspace-memory',
+                  influenceKind: 'decision',
+                  summary: 'Workspace memory context informed verify-first next step.',
+                  policyProfile: 'strict',
+                  sensitivity: 'sensitive',
+                  localProcessingMode: true,
+                  decisionArtifacts: {
+                    actionId: 'action-1',
+                    reproPackId: 'repro-pack-42',
+                  },
+                },
+              ],
             },
           })
         )
@@ -174,6 +190,8 @@ describe('AIIncidentStudio interactions', () => {
     expect(onChatBrainQuery.mock.calls[0]?.[0]).toContain('Pack ID: repro-pack-42');
     expect(onChatBrainQuery.mock.calls[0]?.[0]).toContain('Verification checklist:');
     expect(container.textContent).toContain('Sensitivity: RESTRICTED');
+    expect(container.textContent).toContain('Memory influence timeline');
+    expect(container.textContent).toContain('Artifact: repro-pack-42');
   });
 
   it('applies only the accepted patch paths and preserves host-confirmed apply state semantics', () => {

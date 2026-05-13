@@ -286,6 +286,7 @@ describe('contract drift guard', () => {
     const memoryServiceSource = read('src/core/workspaceMemoryService.ts');
     const aiFreeFeaturesSource = read('src/commands/aiFreeFeatures.ts');
     const payloadSource = read('webview-ui/src/lib/incidentStudioPayload.ts');
+    const incidentStudioUiSource = read('webview-ui/src/components/AIIncidentStudio.tsx');
 
     expect(memoryServiceSource).toContain('WorkspaceMemoryPolicyProfile');
     expect(memoryServiceSource).toContain('WorkspaceMemoryWriteAccessContract');
@@ -307,6 +308,14 @@ describe('contract drift guard', () => {
     expect(payloadSource).toContain('policyProfile');
     expect(payloadSource).toContain('sensitivity');
     expect(payloadSource).toContain('localProcessingMode');
+    expect(payloadSource).toContain('memoryInfluenceAuditTimeline');
+
+    expect(welcomePanelSource).toContain('_buildMemoryInfluenceAuditTimeline');
+    expect(welcomePanelSource).toContain('memoryInfluenceAuditTimeline');
+    expect(welcomePanelSource).toContain('memoryEventId');
+
+    expect(incidentStudioUiSource).toContain('Memory influence timeline');
+    expect(incidentStudioUiSource).toContain('decisionArtifacts');
   });
 
   it('keeps project lifecycle command contracts cross-platform for fastapi/go/nestjs', () => {

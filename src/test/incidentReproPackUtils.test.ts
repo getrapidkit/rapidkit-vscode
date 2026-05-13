@@ -138,7 +138,67 @@ describe('incidentReproPackUtils', () => {
         sensitivity_label: 'confidential',
         verify_checklist: ['Run doctor workspace', 'Run smoke tests'],
       },
+      memory_influence_audit: [],
     });
+  });
+
+  it('buildLinkSafeExportBundle: keeps memory influence audit timeline link-safe and artifact-linked', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-01T10:00:00.000Z'));
+
+    const bundle = buildLinkSafeExportBundle(
+      {
+        packId: 'repro-005',
+        status: 'captured',
+        actionId: 'action-005',
+        workspacePath: '/tmp/company/private-workspace',
+        replayPayload: {
+          workspacePath: '/tmp/company/private-workspace',
+          conversationId: 'conv-secret',
+          actionType: 'incident-repro-pack',
+          riskLevel: 'high',
+          verifyChecklist: ['Run doctor workspace'],
+          blockedReasons: [],
+          relatedFiles: [],
+        },
+        memoryInfluenceAuditTimeline: [
+          {
+            memoryEventId: 'memory-action-005-decision',
+            timestamp: '2026-05-01T09:59:30.000Z',
+            source: 'workspace-memory',
+            influenceKind: 'decision',
+            summary: 'token=abc123 influenced verify gating',
+            policyProfile: 'strict',
+            sensitivity: 'sensitive',
+            localProcessingMode: true,
+            decisionArtifacts: {
+              actionId: 'action-005',
+              reproPackId: 'repro-005',
+              releaseReadinessArtifactId: 'rrc-005',
+            },
+          },
+        ],
+      },
+      'private-workspace'
+    );
+
+    expect(bundle.memory_influence_audit).toEqual([
+      {
+        memoryEventId: 'memory-action-005-decision',
+        timestamp: '2026-05-01T09:59:30.000Z',
+        source: 'workspace-memory',
+        influenceKind: 'decision',
+        summary: 'token=[REDACTED] influenced verify gating',
+        policyProfile: 'strict',
+        sensitivity: 'sensitive',
+        localProcessingMode: true,
+        decisionArtifacts: {
+          actionId: 'action-005',
+          reproPackId: 'repro-005',
+          releaseReadinessArtifactId: 'rrc-005',
+        },
+      },
+    ]);
   });
 
   it('parses imported snake_case bundles into a replay-ready payload', () => {

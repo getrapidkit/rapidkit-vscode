@@ -151,6 +151,22 @@ export type IncidentReleaseReadinessCommanderArtifact = {
   };
 };
 
+export type IncidentMemoryInfluenceAuditEntry = {
+  memoryEventId: string;
+  timestamp: string;
+  source: 'workspace-memory' | 'incident-replay-learning';
+  influenceKind: 'context' | 'policy' | 'decision' | 'artifact-link';
+  summary: string;
+  policyProfile: 'strict' | 'balanced' | 'permissive';
+  sensitivity: 'normal' | 'sensitive';
+  localProcessingMode: boolean;
+  decisionArtifacts: {
+    actionId: string;
+    reproPackId?: string;
+    releaseReadinessArtifactId?: string;
+  };
+};
+
 export type IncidentContractRuntimeEvidence = {
   evaluated: boolean;
   source: 'project' | 'workspace' | 'mixed' | 'none';
@@ -309,6 +325,7 @@ export type NormalizedIncidentActionResultPayload = {
   sandboxSimulation?: IncidentSandboxSimulationEvidence;
   incidentReproPack?: IncidentReproPackEvidence;
   releaseReadinessCommander?: IncidentReleaseReadinessCommanderArtifact;
+  memoryInfluenceAuditTimeline?: IncidentMemoryInfluenceAuditEntry[];
   contractRuntimeEvidence?: IncidentContractRuntimeEvidence;
   verifyCommandPack?: IncidentVerifyCommandPack;
   decisionClarity?: IncidentDecisionClarityContract;
@@ -587,6 +604,79 @@ function deriveLocalProcessingMode(input: {
     return input.rawValue;
   }
   return input.policyProfile === 'strict' || input.sensitivity === 'sensitive';
+}
+
+function normalizeIncidentMemoryInfluenceAuditTimeline(
+  value: unknown,
+  fallbackActionId: string
+): IncidentMemoryInfluenceAuditEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const entries: IncidentMemoryInfluenceAuditEntry[] = [];
+  const seenIds = new Set<string>();
+
+  for (let index = 0; index < value.length; index += 1) {
+    const entryRecord = asRecord(value[index]);
+    const eventId =
+      sanitizeIncidentText(entryRecord.memoryEventId, 120) ||
+      `memory-audit-${fallbackActionId}-${index + 1}`;
+    if (seenIds.has(eventId)) {
+      continue;
+    }
+    seenIds.add(eventId);
+
+    const policyProfile = asWorkspaceMemoryPolicyProfile(
+      cleanText(entryRecord.policyProfile)?.toLowerCase()
+    );
+    const sensitivity = asWorkspaceMemorySensitivity(
+      cleanText(entryRecord.sensitivity)?.toLowerCase()
+    );
+    const localProcessingMode = deriveLocalProcessingMode({
+      rawValue: entryRecord.localProcessingMode,
+      policyProfile,
+      sensitivity,
+    });
+
+    const rawSource = cleanText(entryRecord.source)?.toLowerCase();
+    const rawInfluenceKind = cleanText(entryRecord.influenceKind)?.toLowerCase();
+    const decisionArtifactsRecord = asRecord(entryRecord.decisionArtifacts);
+
+    entries.push({
+      memoryEventId: eventId,
+      timestamp: cleanText(entryRecord.timestamp) || new Date().toISOString(),
+      source:
+        rawSource === 'incident-replay-learning' ? 'incident-replay-learning' : 'workspace-memory',
+      influenceKind:
+        rawInfluenceKind === 'context' ||
+        rawInfluenceKind === 'policy' ||
+        rawInfluenceKind === 'decision' ||
+        rawInfluenceKind === 'artifact-link'
+          ? rawInfluenceKind
+          : 'context',
+      summary:
+        sanitizeIncidentText(entryRecord.summary, 320) ||
+        'Memory influence audit entry captured for this decision flow.',
+      policyProfile,
+      sensitivity,
+      localProcessingMode,
+      decisionArtifacts: {
+        actionId: sanitizeIncidentText(decisionArtifactsRecord.actionId, 120) || fallbackActionId,
+        reproPackId: sanitizeIncidentText(decisionArtifactsRecord.reproPackId, 120),
+        releaseReadinessArtifactId: sanitizeIncidentText(
+          decisionArtifactsRecord.releaseReadinessArtifactId,
+          120
+        ),
+      },
+    });
+
+    if (entries.length >= 20) {
+      break;
+    }
+  }
+
+  return entries;
 }
 
 function asStringArray(value: unknown): string[] {
@@ -884,6 +974,7 @@ export function normalizeIncidentActionResultPayload(
   const commanderRecord = asRecord(record.releaseReadinessCommander);
   const contractRuntimeRecord = asRecord(record.contractRuntimeEvidence);
   const verifyCommandPackRecord = asRecord(record.verifyCommandPack);
+  const fallbackActionId = cleanText(record.actionId) || 'unknown-action';
 
   const verifyPolicy: IncidentVerifyPolicy = {
     requiresVerifyPath: asOptionalBoolean(verifyPolicyRecord.requiresVerifyPath),
@@ -1230,6 +1321,15 @@ export function normalizeIncidentActionResultPayload(
     Array.isArray(verifyCommandPackRecord.commands) ||
     Array.isArray(verifyCommandPackRecord.blockedReasons);
 
+  const memoryInfluenceAuditTimeline = normalizeIncidentMemoryInfluenceAuditTimeline(
+    record.memoryInfluenceAuditTimeline ?? reproPackRecord.memoryInfluenceAuditTimeline,
+    fallbackActionId
+  );
+
+  const hasMemoryInfluenceAuditField =
+    Array.isArray(record.memoryInfluenceAuditTimeline) ||
+    Array.isArray(reproPackRecord.memoryInfluenceAuditTimeline);
+
   // Prefer the host-computed contract (full workspace context: knows isMutatingAction,
   // actionPolicy flags, impact assessment, etc.) over the locally-reconstructed one.
   // Fall back to local reconstruction only when the host didn't include the field
@@ -1257,6 +1357,9 @@ export function normalizeIncidentActionResultPayload(
     sandboxSimulation: hasSandboxField ? sandboxSimulation : undefined,
     incidentReproPack: hasReproPackField ? incidentReproPack : undefined,
     releaseReadinessCommander: hasCommanderField ? releaseReadinessCommander : undefined,
+    memoryInfluenceAuditTimeline: hasMemoryInfluenceAuditField
+      ? memoryInfluenceAuditTimeline
+      : undefined,
     contractRuntimeEvidence: hasContractRuntimeField ? contractRuntimeEvidence : undefined,
     verifyCommandPack: hasVerifyCommandPackField ? verifyCommandPack : undefined,
     decisionClarity,
