@@ -284,15 +284,23 @@ describe('contract drift guard', () => {
   it('keeps workspace memory policy profile contract exposed for local-processing mode', () => {
     const welcomePanelSource = read('src/ui/panels/welcomePanel.ts');
     const memoryServiceSource = read('src/core/workspaceMemoryService.ts');
+    const aiFreeFeaturesSource = read('src/commands/aiFreeFeatures.ts');
     const payloadSource = read('webview-ui/src/lib/incidentStudioPayload.ts');
 
     expect(memoryServiceSource).toContain('WorkspaceMemoryPolicyProfile');
+    expect(memoryServiceSource).toContain('WorkspaceMemoryWriteAccessContract');
+    expect(memoryServiceSource).toContain('validateWriteAccessContract');
     expect(memoryServiceSource).toContain('resolvePolicy(memory?: WorkspaceMemory)');
     expect(memoryServiceSource).toContain('Memory policy:');
 
     expect(welcomePanelSource).toContain('policyProfile: memoryPolicy.profile');
     expect(welcomePanelSource).toContain('sensitivity: memoryPolicy.sensitivity');
     expect(welcomePanelSource).toContain('localProcessingMode: memoryPolicy.localProcessingMode');
+    expect(welcomePanelSource).toContain("operation: 'incident-replay-learning'");
+    expect(welcomePanelSource).toContain("mode: 'system-enrichment'");
+
+    expect(aiFreeFeaturesSource).toContain("operation: 'workspace-memory-wizard'");
+    expect(aiFreeFeaturesSource).toContain("mode: 'user-initiated'");
 
     expect(payloadSource).toContain('asWorkspaceMemoryPolicyProfile');
     expect(payloadSource).toContain('deriveLocalProcessingMode');

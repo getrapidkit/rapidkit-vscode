@@ -224,4 +224,81 @@ describe('workspaceMemoryService', () => {
     expect(parsed.localProcessingMode).toBe(true);
     expect(svc.formatForPrompt(parsed)).toContain('Memory policy: balanced');
   });
+
+  it('allows contract-gated user-initiated memory write', async () => {
+    const svc = WorkspaceMemoryService.getInstance();
+    const wsPath = path.join(tempRoot, 'ws-write-contract-allow');
+
+    await svc.write(
+      wsPath,
+      {
+        context: 'Workspace memory created by user wizard',
+        conventions: ['Use explicit error boundaries'],
+        decisions: ['Adopt strict incident runbooks'],
+        policyProfile: 'balanced',
+        sensitivity: 'normal',
+        localProcessingMode: false,
+        lastUpdated: '',
+      },
+      {
+        actor: 'workspai.aiWorkspaceMemoryWizard',
+        operation: 'workspace-memory-wizard',
+        mode: 'user-initiated',
+        reason: 'User approved memory update from wizard.',
+        approvedByUser: true,
+      }
+    );
+
+    const parsed = await svc.read(wsPath);
+    expect(parsed.context).toBe('Workspace memory created by user wizard');
+    expect(parsed.conventions).toContain('Use explicit error boundaries');
+    expect(parsed.decisions).toContain('Adopt strict incident runbooks');
+  });
+
+  it('blocks unapproved system-enrichment writes under strict policy profile', async () => {
+    const svc = WorkspaceMemoryService.getInstance();
+    const wsPath = path.join(tempRoot, 'ws-write-contract-block');
+
+    await svc.write(
+      wsPath,
+      {
+        context: 'Strict workspace',
+        conventions: [],
+        decisions: [],
+        policyProfile: 'strict',
+        sensitivity: 'normal',
+        localProcessingMode: true,
+        lastUpdated: '',
+      },
+      {
+        actor: 'workspai.aiWorkspaceMemoryWizard',
+        operation: 'workspace-memory-wizard',
+        mode: 'user-initiated',
+        reason: 'Initial strict memory setup by user.',
+        approvedByUser: true,
+      }
+    );
+
+    await expect(
+      svc.write(
+        wsPath,
+        {
+          context: 'Strict workspace',
+          conventions: [],
+          decisions: ['Replay learning: similar incident fixed with verify pack'],
+          policyProfile: 'strict',
+          sensitivity: 'normal',
+          localProcessingMode: true,
+          lastUpdated: '',
+        },
+        {
+          actor: 'incident-studio.replay-learning',
+          operation: 'incident-replay-learning',
+          mode: 'system-enrichment',
+          reason: 'Persist replay learning without direct user approval.',
+          approvedByUser: false,
+        }
+      )
+    ).rejects.toThrow(/blocked by policy profile strict/i);
+  });
 });

@@ -1362,7 +1362,13 @@ export function registerAIFreeFeatureCommands(
         lastUpdated: currentMemory.lastUpdated,
       };
 
-      await memoryService.write(workspaceTarget.path, nextMemory);
+      await memoryService.write(workspaceTarget.path, nextMemory, {
+        actor: 'workspai.aiWorkspaceMemoryWizard',
+        operation: 'workspace-memory-wizard',
+        mode: 'user-initiated',
+        reason: 'User updated workspace memory via wizard.',
+        approvedByUser: true,
+      });
       await trackAIFreeCommandEvent(
         'workspai.aiWorkspaceMemoryWizard',
         {

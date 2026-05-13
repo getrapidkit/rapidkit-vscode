@@ -20,6 +20,22 @@ export type WorkspaceMemoryPolicy = {
   localProcessingMode: boolean;
 };
 
+export type WorkspaceMemoryWriteOperation =
+  | 'workspace-memory-wizard'
+  | 'incident-replay-learning'
+  | 'create-template'
+  | 'system-repair';
+
+export type WorkspaceMemoryWriteMode = 'user-initiated' | 'system-enrichment';
+
+export type WorkspaceMemoryWriteAccessContract = {
+  actor: string;
+  operation: WorkspaceMemoryWriteOperation;
+  mode: WorkspaceMemoryWriteMode;
+  reason: string;
+  approvedByUser?: boolean;
+};
+
 const DEFAULT_POLICY_PROFILE: WorkspaceMemoryPolicyProfile = 'balanced';
 const DEFAULT_SENSITIVITY: WorkspaceMemorySensitivity = 'normal';
 
@@ -141,6 +157,59 @@ export class WorkspaceMemoryService {
       profile,
       sensitivity,
       localProcessingMode,
+    };
+  }
+
+  private validateWriteAccessContract(
+    memory: WorkspaceMemory,
+    contract?: WorkspaceMemoryWriteAccessContract
+  ): WorkspaceMemoryWriteAccessContract {
+    if (!contract) {
+      throw new Error('Workspace memory write blocked: missing access contract.');
+    }
+
+    const actor = sanitizePromptText(contract.actor, 120).trim();
+    const reason = sanitizePromptText(contract.reason, 240).trim();
+
+    if (!actor) {
+      throw new Error('Workspace memory write blocked: actor is required.');
+    }
+    if (!reason) {
+      throw new Error('Workspace memory write blocked: reason is required.');
+    }
+
+    const mode = contract.mode;
+    if (mode !== 'user-initiated' && mode !== 'system-enrichment') {
+      throw new Error('Workspace memory write blocked: invalid access mode.');
+    }
+
+    const operation = contract.operation;
+    if (
+      operation !== 'workspace-memory-wizard' &&
+      operation !== 'incident-replay-learning' &&
+      operation !== 'create-template' &&
+      operation !== 'system-repair'
+    ) {
+      throw new Error('Workspace memory write blocked: invalid operation.');
+    }
+
+    const policy = this.resolvePolicy(memory);
+    if (
+      mode === 'system-enrichment' &&
+      !contract.approvedByUser &&
+      (policy.profile === 'strict' || policy.sensitivity === 'sensitive')
+    ) {
+      throw new Error(
+        `Workspace memory write blocked by policy profile ${policy.profile} (${policy.sensitivity}).`
+      );
+    }
+
+    return {
+      actor,
+      operation,
+      mode,
+      reason,
+      approvedByUser: contract.approvedByUser === true,
     };
   }
 
@@ -294,9 +363,15 @@ export class WorkspaceMemoryService {
    * Persist workspace memory to disk.
    * Creates .rapidkit/ directory if it doesn't already exist.
    */
-  async write(workspacePath: string, memory: WorkspaceMemory): Promise<void> {
+  async write(
+    workspacePath: string,
+    memory: WorkspaceMemory,
+    accessContract: WorkspaceMemoryWriteAccessContract
+  ): Promise<void> {
+    const sanitized = this.sanitizeMemory(memory).memory;
+    this.validateWriteAccessContract(sanitized, accessContract);
     const filePath = this.memoryPath(workspacePath);
-    await this.writeAtPath(filePath, memory, true);
+    await this.writeAtPath(filePath, sanitized, true);
   }
 
   /**
@@ -304,7 +379,13 @@ export class WorkspaceMemoryService {
    * that has no memory yet).
    */
   async writeTemplate(workspacePath: string): Promise<void> {
-    await this.write(workspacePath, TEMPLATE_MEMORY);
+    await this.write(workspacePath, TEMPLATE_MEMORY, {
+      actor: 'workspai.editWorkspaceMemory',
+      operation: 'create-template',
+      mode: 'user-initiated',
+      reason: 'Seed workspace memory file before manual editing.',
+      approvedByUser: true,
+    });
   }
 
   /**

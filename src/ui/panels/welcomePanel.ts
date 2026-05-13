@@ -5893,7 +5893,13 @@ No markdown, no explanation outside the JSON.`;
         return false;
       }
 
-      await memoryService.write(input.workspacePath, nextMemory);
+      await memoryService.write(input.workspacePath, nextMemory, {
+        actor: 'incident-studio.replay-learning',
+        operation: 'incident-replay-learning',
+        mode: 'system-enrichment',
+        reason: 'Persist replay learning from incident repro pack evidence.',
+        approvedByUser: false,
+      });
       return true;
     } catch {
       return false;
